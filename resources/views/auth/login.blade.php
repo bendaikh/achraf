@@ -62,7 +62,7 @@
                         required 
                         value="{{ old('email') }}"
                         class="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150"
-                        placeholder="superadmin@achraf.com">
+                        placeholder="superadmin@lavfast.com">
                 </div>
                 <div>
                     <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
@@ -106,7 +106,7 @@
 
         <div class="text-center mt-4">
             <p class="text-xs text-gray-500">
-                Default credentials: superadmin@achraf.com / password
+                Default credentials: superadmin@lavfast.com / password
             </p>
         </div>
     </div>

@@ -1,6 +1,6 @@
-# Achraf E-commerce - Super Admin System
+# LAV'FAST - Super Admin System
 
-A Laravel-based e-commerce platform with role-based authentication system.
+A Laravel-based management system with role-based authentication.
 
 ## Features
 
@@ -45,7 +45,7 @@ php artisan serve
 
 ## Super Admin Credentials
 
-**Email:** superadmin@achraf.com  
+**Email:** superadmin@lavfast.com  
 **Password:** password
 
 ## Routes

@@ -14,8 +14,8 @@
                     </svg>
                 </div>
                 <div>
-                    <h1 class="text-lg font-bold text-gray-900">Achraf</h1>
-                    <p class="text-xs text-gray-500">E-commerce</p>
+                    <h1 class="text-lg font-bold text-gray-900">LAV'FAST</h1>
+                    <p class="text-xs text-gray-500">Gestion</p>
                 </div>
             </div>
         </div>
@@ -204,7 +204,14 @@
                     <p class="text-sm text-gray-600 mt-1">Bienvenue dans votre espace d'administration</p>
                 </div>
                 <div class="flex items-center space-x-4">
-                    @if(Auth::user()->isSuperAdmin())
+                    @php
+                        try {
+                            $isSuperAdmin = Auth::user()->isSuperAdmin();
+                        } catch (\Exception $e) {
+                            $isSuperAdmin = false;
+                        }
+                    @endphp
+                    @if($isSuperAdmin)
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                             <svg class="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
@@ -338,7 +345,16 @@
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Rôle</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ Auth::user()->roles->first()->name ?? 'Aucun rôle' }}</dd>
+                            <dd class="mt-1 text-sm text-gray-900">
+                                @php
+                                    try {
+                                        $roleName = Auth::user()->roles->first()->name ?? 'Aucun rôle';
+                                    } catch (\Exception $e) {
+                                        $roleName = 'Aucun rôle';
+                                    }
+                                @endphp
+                                {{ $roleName }}
+                            </dd>
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Date de création</dt>
