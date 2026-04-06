@@ -14,6 +14,8 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\PointOfSaleController;
 use App\Http\Controllers\PosSaleController;
+use App\Http\Controllers\ShopifyIntegrationController;
+use App\Http\Controllers\ShopifyWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -23,6 +25,9 @@ Route::get('/', function () {
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.post');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+Route::post('/api/webhooks/shopify/orders/create', [ShopifyWebhookController::class, 'ordersCreate'])
+    ->name('webhooks.shopify.orders.create');
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
@@ -55,4 +60,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/sales', [PosSaleController::class, 'index'])->name('sales.index');
         Route::get('/sales/{sale}', [PosSaleController::class, 'show'])->name('sales.show');
     });
+
+    Route::get('/integrations/shopify', [ShopifyIntegrationController::class, 'edit'])->name('integrations.shopify.edit');
+    Route::put('/integrations/shopify', [ShopifyIntegrationController::class, 'update'])->name('integrations.shopify.update');
+    Route::delete('/integrations/shopify', [ShopifyIntegrationController::class, 'destroy'])->name('integrations.shopify.destroy');
 });

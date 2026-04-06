@@ -1,26 +1,18 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Produits</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-</head>
-<body class="bg-gray-50">
-    <div class="flex h-screen overflow-hidden">
-        <aside class="w-64 bg-white shadow-lg flex flex-col relative">
-            @include('layouts.sidebar')
-        </aside>
+@extends('layouts.with-sidebar')
 
-        <main class="flex-1 overflow-y-auto">
-            <div class="p-8">
-                <div class="mb-6 flex justify-between items-center">
+@section('title', 'Gestion Produits')
+
+@section('sidebar_page_title', 'Produits')
+
+@section('main')
+<main class="flex-1 w-full min-w-0 overflow-y-auto min-h-screen">
+            <div class="p-4 sm:p-6 lg:p-8">
+                <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
                     <div>
                         <h1 class="text-3xl font-bold text-gray-900">Gestion des produits</h1>
                         <p class="text-gray-500 mt-1">Gérez vos produits et stocks</p>
                     </div>
-                    <a href="{{ route('products.create') }}" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition duration-150 flex items-center space-x-2">
+                    <a href="{{ route('products.create') }}" class="w-full sm:w-auto justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition duration-150 flex items-center space-x-2 shrink-0">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                         </svg>
@@ -147,6 +139,4 @@
                 </div>
             </div>
         </main>
-    </div>
-</body>
-</html>
+@endsection

@@ -1,20 +1,12 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion stock</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-</head>
-<body class="bg-gray-50">
-    <div class="flex h-screen overflow-hidden">
-        <aside class="w-64 bg-white shadow-lg flex flex-col relative">
-            @include('layouts.sidebar')
-        </aside>
+@extends('layouts.with-sidebar')
 
-        <main class="flex-1 overflow-y-auto">
-            <div class="p-8">
+@section('title', 'Gestion stock')
+
+@section('sidebar_page_title', 'Stock')
+
+@section('main')
+<main class="flex-1 w-full min-w-0 overflow-y-auto min-h-screen">
+            <div class="p-4 sm:p-6 lg:p-8">
                 <div class="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                     <div>
                         <h1 class="text-3xl font-bold text-gray-900">Gestion stock</h1>
@@ -132,6 +124,4 @@
                 </div>
             </div>
         </main>
-    </div>
-</body>
-</html>
+@endsection

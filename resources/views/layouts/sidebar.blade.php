@@ -143,6 +143,16 @@
             </a>
         </div>
     </div>
+
+    <div class="pt-2 mt-2 border-t border-gray-200">
+        <p class="px-4 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Intégrations</p>
+        <a href="{{ route('integrations.shopify.edit') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg {{ request()->routeIs('integrations.shopify.*') ? 'bg-[#96BF48]/15 text-[#5a7a2e] ring-1 ring-[#96BF48]/40' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150">
+            <svg class="h-5 w-5 shrink-0 text-[#96BF48]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+            </svg>
+            <span class="font-medium">Shopify Integration</span>
+        </a>
+    </div>
 </nav>
 
 <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">

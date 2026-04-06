@@ -1,19 +1,14 @@
-@extends('layouts.app')
+@extends('layouts.with-sidebar')
 
 @section('title', 'Dashboard')
 
-@section('content')
-<div class="min-h-screen bg-gray-50 flex">
-    <!-- Sidebar -->
-    <aside class="w-64 bg-white shadow-lg fixed h-full overflow-y-auto">
-        @include('layouts.sidebar')
-    </aside>
+@section('sidebar_page_title', 'Tableau de bord')
 
-    <!-- Main Content -->
-    <main class="flex-1 ml-64">
+@section('main')
+<main class="flex-1 w-full min-w-0">
         <!-- Top Bar -->
         <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-            <div class="px-8 py-4 flex items-center justify-between">
+            <div class="px-4 sm:px-6 lg:px-8 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 class="text-2xl font-bold text-gray-900">Tableau de bord</h2>
                     <p class="text-sm text-gray-600 mt-1">Bienvenue dans votre espace d'administration</p>
@@ -44,7 +39,7 @@
             </div>
         </header>
 
-        <div class="p-8">
+        <div class="p-4 sm:p-6 lg:p-8">
             @if (session('success'))
                 <div class="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded-lg shadow-sm">
                     <div class="flex">
@@ -180,8 +175,4 @@
             </div>
         </div>
     </main>
-</div>
-
-<!-- Alpine.js for dropdown functionality -->
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 @endsection

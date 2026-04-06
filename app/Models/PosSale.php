@@ -35,6 +35,8 @@ class PosSale extends Model
         'change_amount',
         'status',
         'notes',
+        'source',
+        'external_id',
     ];
 
     protected $casts = [

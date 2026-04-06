@@ -10,11 +10,33 @@
     @keydown.escape.window="onGlobalEscape()"
     x-cloak
 >
-    <aside x-show="!posFullView" x-transition.opacity.duration.200ms class="w-64 bg-white shadow-lg fixed h-full overflow-y-auto z-20 border-r border-slate-200">
+    <div
+        x-show="!posFullView && sidebarOpen"
+        x-transition.opacity.duration.200ms
+        @click="sidebarOpen = false"
+        class="fixed inset-0 z-30 bg-black/50 lg:hidden"
+        style="display: none;"
+        x-cloak
+    ></div>
+
+    <aside
+        x-show="!posFullView"
+        x-transition.opacity.duration.200ms
+        class="w-64 max-w-[min(16rem,88vw)] bg-white shadow-lg fixed inset-y-0 left-0 h-full overflow-y-auto z-40 border-r border-slate-200 transform transition-transform duration-200 ease-out -translate-x-full lg:translate-x-0"
+        :class="{ 'translate-x-0': sidebarOpen }"
+        @click="if ($event.target.closest('a[href]')) sidebarOpen = false"
+    >
         @include('layouts.sidebar')
     </aside>
 
-    <main class="flex-1 flex flex-col min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 transition-[margin] duration-200" :class="posFullView ? 'ml-0 w-full' : 'ml-64'">
+    <main class="flex-1 flex flex-col min-h-screen w-full min-w-0 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 transition-[margin] duration-200" :class="posFullView ? 'ml-0 w-full' : 'ml-0 lg:ml-64'">
+        <div x-show="!posFullView" class="lg:hidden shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-slate-900/95 backdrop-blur">
+            <button type="button" @click="sidebarOpen = true" class="p-2 rounded-lg text-white/90 hover:bg-white/10 touch-manipulation" aria-label="Ouvrir le menu">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <span class="text-sm font-semibold text-white truncate">Point de vente</span>
+        </div>
+
         <button type="button" x-show="posFullView" x-transition @click="posFullView = false" class="fixed top-3 right-3 z-[60] inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800/95 text-white text-sm font-semibold border border-white/15 shadow-lg hover:bg-slate-700 backdrop-blur">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
             Quitter l’aperçu
@@ -210,6 +232,7 @@ function posRegister(initialCatalog) {
     return {
         catalog: initialCatalog,
         posFullView: false,
+        sidebarOpen: false,
         cart: [],
         searchQuery: '',
         searchResults: [],
@@ -272,6 +295,10 @@ function posRegister(initialCatalog) {
         onGlobalEscape() {
             if (this.paymentOpen) {
                 this.paymentOpen = false;
+                return;
+            }
+            if (this.sidebarOpen) {
+                this.sidebarOpen = false;
                 return;
             }
             if (this.posFullView) {

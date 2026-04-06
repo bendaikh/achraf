@@ -1,20 +1,14 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ajuster le stock — {{ $product->ref }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-</head>
-<body class="bg-gray-50">
-    <div class="flex h-screen overflow-hidden">
-        <aside class="w-64 bg-white shadow-lg flex flex-col relative">
-            @include('layouts.sidebar')
-        </aside>
+@extends('layouts.with-sidebar')
 
-        <main class="flex-1 overflow-y-auto">
-            <div class="p-8 max-w-2xl">
+@section('title')
+Ajuster le stock — {{ $product->ref }}
+@endsection
+
+@section('sidebar_page_title', 'Ajuster stock')
+
+@section('main')
+<main class="flex-1 w-full min-w-0 overflow-y-auto min-h-screen">
+            <div class="p-4 sm:p-6 lg:p-8 max-w-2xl">
                 <div class="mb-6">
                     <div class="flex items-center space-x-2 text-sm text-gray-500 mb-2">
                         <a href="{{ route('stock.index') }}" class="hover:text-blue-600">Gestion stock</a>
@@ -69,6 +63,4 @@
                 </form>
             </div>
         </main>
-    </div>
-</body>
-</html>
+@endsection

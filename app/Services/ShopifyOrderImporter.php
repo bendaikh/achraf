@@ -1,0 +1,224 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Client;
+use App\Models\Product;
+use App\Models\PosSale;
+use App\Models\PosSaleItem;
+use Illuminate\Support\Facades\DB;
+
+class ShopifyOrderImporter
+{
+    public function import(array $order): PosSale
+    {
+        return DB::transaction(function () use ($order) {
+            $externalId = (string) ($order['id'] ?? '');
+            if ($externalId === '') {
+                throw new \InvalidArgumentException('Missing Shopify order id.');
+            }
+
+            $existing = PosSale::query()
+                ->where('source', 'shopify')
+                ->where('external_id', $externalId)
+                ->first();
+
+            if ($existing) {
+                return $existing;
+            }
+
+            $client = $this->resolveClient($order);
+
+            $lineRows = [];
+            $subtotalHt = 0;
+            $taxTotal = 0;
+
+            foreach ($order['line_items'] ?? [] as $li) {
+                if (! is_array($li)) {
+                    continue;
+                }
+                if (($li['gift_card'] ?? false) === true) {
+                    continue;
+                }
+
+                $sku = trim((string) ($li['sku'] ?? ''));
+                $product = $sku !== '' ? Product::query()->where('ref', $sku)->first() : null;
+
+                $qty = max(1, (int) ($li['quantity'] ?? 1));
+                $unitPrice = (float) ($li['price'] ?? 0);
+
+                $taxRate = $this->lineTaxRate($li, $product);
+                $base = round($qty * $unitPrice, 2);
+                $tax = round($base * ($taxRate / 100), 2);
+                $lineTotal = round($base + $tax, 2);
+
+                $subtotalHt += $base;
+                $taxTotal += $tax;
+
+                $lineRows[] = [
+                    'product' => $product,
+                    'ref' => $sku !== '' ? $sku : null,
+                    'designation' => (string) ($li['name'] ?? $li['title'] ?? 'Article'),
+                    'quantity' => $qty,
+                    'unit_price' => $unitPrice,
+                    'tax_rate' => $taxRate,
+                    'discount' => 0.0,
+                    'line_total' => $lineTotal,
+                ];
+            }
+
+            if ($lineRows === []) {
+                throw new \InvalidArgumentException('No line items to import for this order.');
+            }
+
+            $globalDiscount = round((float) ($order['total_discounts'] ?? 0), 2);
+            $totalBeforeGlobal = round($subtotalHt + $taxTotal, 2);
+            $computedTotal = max(0, round($totalBeforeGlobal - $globalDiscount, 2));
+
+            $shopifyTotal = isset($order['total_price']) ? round((float) $order['total_price'], 2) : null;
+            $total = $shopifyTotal !== null ? $shopifyTotal : $computedTotal;
+
+            $paymentMethod = $this->mapPaymentMethod($order);
+            $financialStatus = strtolower((string) ($order['financial_status'] ?? ''));
+
+            $amountReceived = null;
+            $changeAmount = 0;
+            if ($financialStatus === 'paid' || $financialStatus === 'partially_paid') {
+                $amountReceived = $total;
+            }
+
+            $orderNumber = (string) ($order['order_number'] ?? $order['name'] ?? $externalId);
+            $ticketNumber = 'SHOPIFY-'.$externalId;
+
+            $currency = (string) ($order['currency'] ?? 'MAD');
+            $currencyLabel = strtoupper($currency).' — Shopify';
+
+            $sale = PosSale::create([
+                'ticket_number' => $ticketNumber,
+                'client_id' => $client?->id,
+                'user_id' => null,
+                'sold_at' => isset($order['created_at']) ? \Carbon\Carbon::parse($order['created_at']) : now(),
+                'currency' => $currencyLabel,
+                'subtotal' => $subtotalHt,
+                'discount' => $globalDiscount,
+                'tax_total' => $taxTotal,
+                'total' => $total,
+                'payment_method' => $paymentMethod,
+                'amount_received' => $amountReceived,
+                'change_amount' => $changeAmount,
+                'status' => PosSale::STATUS_COMPLETED,
+                'notes' => 'Shopify order #'.$orderNumber.' (id '.$externalId.')',
+                'source' => 'shopify',
+                'external_id' => $externalId,
+            ]);
+
+            foreach ($lineRows as $row) {
+                PosSaleItem::create([
+                    'pos_sale_id' => $sale->id,
+                    'product_id' => $row['product']?->id,
+                    'ref' => $row['ref'],
+                    'designation' => $row['designation'],
+                    'quantity' => $row['quantity'],
+                    'unit_price' => $row['unit_price'],
+                    'tax_rate' => $row['tax_rate'],
+                    'discount' => $row['discount'],
+                    'line_total' => $row['line_total'],
+                ]);
+            }
+
+            return $sale;
+        });
+    }
+
+    private function resolveClient(array $order): ?Client
+    {
+        $email = trim((string) ($order['email'] ?? ''));
+        if ($email === '') {
+            $customer = $order['customer'] ?? null;
+            if (is_array($customer)) {
+                $email = trim((string) ($customer['email'] ?? ''));
+            }
+        }
+
+        $billing = is_array($order['billing_address'] ?? null) ? $order['billing_address'] : [];
+        $name = trim((string) ($billing['name'] ?? ''));
+        if ($name === '' && isset($order['customer']) && is_array($order['customer'])) {
+            $c = $order['customer'];
+            $name = trim(trim((string) ($c['first_name'] ?? '')).' '.trim((string) ($c['last_name'] ?? '')));
+        }
+        if ($name === '') {
+            $name = 'Shopify customer';
+        }
+
+        if ($email !== '') {
+            $client = Client::query()->where('email', $email)->first();
+            if ($client) {
+                return $client;
+            }
+
+            return Client::create([
+                'name' => $name,
+                'email' => $email,
+                'phone' => $this->phoneFromOrder($order),
+                'address' => $billing['address1'] ?? null,
+                'city' => $billing['city'] ?? null,
+                'country' => $billing['country'] ?? null,
+            ]);
+        }
+
+        return null;
+    }
+
+    private function phoneFromOrder(array $order): ?string
+    {
+        $billing = is_array($order['billing_address'] ?? null) ? $order['billing_address'] : [];
+        $customer = is_array($order['customer'] ?? null) ? $order['customer'] : [];
+        $p = $billing['phone'] ?? $customer['phone'] ?? null;
+
+        return $p ? (string) $p : null;
+    }
+
+    private function lineTaxRate(array $lineItem, ?Product $product): float
+    {
+        $taxLines = $lineItem['tax_lines'] ?? [];
+        if (is_array($taxLines) && count($taxLines) > 0) {
+            $rate = (float) ($taxLines[0]['rate'] ?? 0);
+
+            return round($rate * 100, 2);
+        }
+
+        return $this->defaultTaxRate($product);
+    }
+
+    private function defaultTaxRate(?Product $product): float
+    {
+        if (! $product) {
+            return 20.0;
+        }
+
+        $vat = strtolower((string) ($product->vat_category ?? ''));
+        if (str_contains($vat, '10') || str_contains($vat, 'réduit') || str_contains($vat, 'reduit')) {
+            return 10.0;
+        }
+        if (str_contains($vat, '0') || str_contains($vat, 'exempt')) {
+            return 0.0;
+        }
+
+        return 20.0;
+    }
+
+    private function mapPaymentMethod(array $order): string
+    {
+        $tags = strtolower((string) ($order['tags'] ?? ''));
+        if (str_contains($tags, 'cash')) {
+            return PosSale::PAYMENT_CASH;
+        }
+
+        $gw = strtolower((string) ($order['gateway'] ?? ''));
+        if (str_contains($gw, 'bank') || str_contains($gw, 'transfer')) {
+            return PosSale::PAYMENT_TRANSFER;
+        }
+
+        return PosSale::PAYMENT_CARD;
+    }
+}

@@ -1,19 +1,14 @@
-@extends('layouts.app')
+@extends('layouts.with-sidebar')
 
 @section('title', 'Créer une facture')
 
-@section('content')
-<div class="min-h-screen bg-gray-50 flex">
-    <aside class="w-64 bg-white shadow-lg fixed h-full overflow-y-auto">
-        @include('layouts.sidebar')
-    </aside>
-
-    <main class="flex-1 ml-64">
+@section('main')
+<main class="flex-1 w-full min-w-0">
         <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
             <div class="px-8 py-4 flex items-center justify-between">
                 <div>
                     <h2 class="text-2xl font-bold text-gray-900">Créer une facture</h2>
-                    <p class="text-sm text-gray-600 mt-1">Créer une nouvelle bon de r�ception</p>
+                    <p class="text-sm text-gray-600 mt-1">Créer une nouvelle bon de r�ception</p>
                 </div>
                 <a href="{{ route('receptions.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
                     Retour à la liste
@@ -54,7 +49,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Date de r�ception *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Date de r�ception *</label>
                             <input type="date" name="quote_date" value="{{ date('Y-m-d') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
@@ -162,8 +157,8 @@
             </form>
         </div>
     </main>
-</div>
 
+@push('scripts')
 <script>
 let itemIndex = 0;
 
@@ -228,6 +223,5 @@ function calculateTotal() {
     document.getElementById('total').textContent = subtotal.toFixed(2);
 }
 </script>
-
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+@endpush
 @endsection

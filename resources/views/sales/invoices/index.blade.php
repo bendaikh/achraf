@@ -1,14 +1,9 @@
-@extends('layouts.app')
+@extends('layouts.with-sidebar')
 
 @section('title', 'Liste des factures')
 
-@section('content')
-<div class="min-h-screen bg-gray-50 flex">
-    <aside class="w-64 bg-white shadow-lg fixed h-full overflow-y-auto">
-        @include('layouts.sidebar')
-    </aside>
-
-    <main class="flex-1 ml-64">
+@section('main')
+<main class="flex-1 w-full min-w-0">
         <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
             <div class="px-8 py-4 flex items-center justify-between">
                 <div>

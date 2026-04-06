@@ -11,6 +11,9 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+        [x-cloak] {
+            display: none !important;
+        }
     </style>
 </head>
 <body class="bg-gray-50">

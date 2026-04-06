@@ -1,22 +1,17 @@
-@extends('layouts.app')
+@extends('layouts.with-sidebar')
 
-@section('title', 'Liste des r�ception')
+@section('title', 'Liste des r�ception')
 
-@section('content')
-<div class="min-h-screen bg-gray-50 flex">
-    <aside class="w-64 bg-white shadow-lg fixed h-full overflow-y-auto">
-        @include('layouts.sidebar')
-    </aside>
-
-    <main class="flex-1 ml-64">
+@section('main')
+<main class="flex-1 w-full min-w-0">
         <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
             <div class="px-8 py-4 flex items-center justify-between">
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900">Liste des r�ception</h2>
-                    <p class="text-sm text-gray-600 mt-1">Gérer toutes vos r�ception clients</p>
+                    <h2 class="text-2xl font-bold text-gray-900">Liste des r�ception</h2>
+                    <p class="text-sm text-gray-600 mt-1">Gérer toutes vos r�ception clients</p>
                 </div>
                 <a href="{{ route('receptions.create') }}" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150">
-                    + Créer une r�ception
+                    + Créer une r�ception
                 </a>
             </div>
         </header>
@@ -46,7 +41,7 @@
                                     Échéance
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    r�ceptione
+                                    r�ceptione
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Total
@@ -85,7 +80,7 @@
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                                                 </svg>
                                             </a>
-                                            <form action="{{ route('receptions.destroy', $invoice) }}" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette r�ception?')">
+                                            <form action="{{ route('receptions.destroy', $invoice) }}" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette r�ception?')">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="text-red-600 hover:text-red-900">
@@ -104,9 +99,9 @@
                                             <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                             </svg>
-                                            <p class="mt-2 text-sm text-gray-500">Aucun r�ception trouvée</p>
+                                            <p class="mt-2 text-sm text-gray-500">Aucun r�ception trouvée</p>
                                             <a href="{{ route('receptions.create') }}" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150">
-                                                Créer votre première r�ception
+                                                Créer votre première r�ception
                                             </a>
                                         </div>
                                     </td>
@@ -122,7 +117,4 @@
             </div>
         </div>
     </main>
-</div>
-
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 @endsection
