@@ -2,27 +2,27 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Client;
+use App\Models\Supplier;
 use Illuminate\Http\Request;
 
-class ClientController extends Controller
+class SupplierController extends Controller
 {
     public function index()
     {
-        $clients = Client::orderBy('created_at', 'desc')->paginate(15);
-        return view('clients.index', compact('clients'));
+        $suppliers = Supplier::orderBy('created_at', 'desc')->paginate(15);
+        return view('suppliers.index', compact('suppliers'));
     }
 
     public function create()
     {
-        return view('clients.create');
+        return view('suppliers.create');
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:clients,email',
+            'email' => 'required|email|unique:suppliers,email',
             'phone' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:255',
@@ -38,26 +38,26 @@ class ClientController extends Controller
             'ville' => 'nullable|string|max:255',
         ]);
 
-        Client::create($validated);
+        Supplier::create($validated);
 
-        return redirect()->route('clients.index')->with('success', 'Client créé avec succès.');
+        return redirect()->route('suppliers.index')->with('success', 'Fournisseur créé avec succès.');
     }
 
-    public function show(Client $client)
+    public function show(Supplier $supplier)
     {
-        return view('clients.show', compact('client'));
+        return view('suppliers.show', compact('supplier'));
     }
 
-    public function edit(Client $client)
+    public function edit(Supplier $supplier)
     {
-        return view('clients.edit', compact('client'));
+        return view('suppliers.edit', compact('supplier'));
     }
 
-    public function update(Request $request, Client $client)
+    public function update(Request $request, Supplier $supplier)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:clients,email,' . $client->id,
+            'email' => 'required|email|unique:suppliers,email,' . $supplier->id,
             'phone' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:255',
@@ -73,14 +73,14 @@ class ClientController extends Controller
             'ville' => 'nullable|string|max:255',
         ]);
 
-        $client->update($validated);
+        $supplier->update($validated);
 
-        return redirect()->route('clients.index')->with('success', 'Client mis à jour avec succès.');
+        return redirect()->route('suppliers.index')->with('success', 'Fournisseur mis à jour avec succès.');
     }
 
-    public function destroy(Client $client)
+    public function destroy(Supplier $supplier)
     {
-        $client->delete();
-        return redirect()->route('clients.index')->with('success', 'Client supprimé avec succès.');
+        $supplier->delete();
+        return redirect()->route('suppliers.index')->with('success', 'Fournisseur supprimé avec succès.');
     }
 }

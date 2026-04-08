@@ -16,6 +16,8 @@ use App\Http\Controllers\PointOfSaleController;
 use App\Http\Controllers\PosSaleController;
 use App\Http\Controllers\ShopifyIntegrationController;
 use App\Http\Controllers\ShopifyWebhookController;
+use App\Http\Controllers\ClientController;
+use App\Http\Controllers\SupplierController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -37,6 +39,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/stock', [StockController::class, 'index'])->name('stock.index');
     Route::get('/stock/{product}/edit', [StockController::class, 'edit'])->name('stock.edit');
     Route::patch('/stock/{product}', [StockController::class, 'update'])->name('stock.update');
+    
+    Route::prefix('crm')->group(function () {
+        Route::resource('clients', ClientController::class);
+        Route::resource('suppliers', SupplierController::class);
+    });
     
     Route::prefix('sales')->group(function () {
         Route::resource('invoices', InvoiceController::class);

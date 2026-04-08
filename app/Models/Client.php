@@ -14,6 +14,14 @@ class Client extends Model
         'city',
         'country',
         'tax_id',
+        'code',
+        'postal_code',
+        'region',
+        'ice',
+        'fiscal_identifier',
+        'latitude',
+        'longitude',
+        'ville',
     ];
 
     public function invoices()
