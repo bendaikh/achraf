@@ -70,5 +70,6 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/integrations/shopify', [ShopifyIntegrationController::class, 'edit'])->name('integrations.shopify.edit');
     Route::put('/integrations/shopify', [ShopifyIntegrationController::class, 'update'])->name('integrations.shopify.update');
+    Route::post('/integrations/shopify/sync', [ShopifyIntegrationController::class, 'sync'])->name('integrations.shopify.sync');
     Route::delete('/integrations/shopify', [ShopifyIntegrationController::class, 'destroy'])->name('integrations.shopify.destroy');
 });

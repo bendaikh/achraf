@@ -10,6 +10,8 @@ class ShopifyIntegration extends Model
         'integration_name',
         'shop_name',
         'webhook_secret',
+        'api_access_token',
+        'api_version',
         'enabled',
         'last_sync_at',
     ];
@@ -18,5 +20,6 @@ class ShopifyIntegration extends Model
         'enabled' => 'boolean',
         'last_sync_at' => 'datetime',
         'webhook_secret' => 'encrypted',
+        'api_access_token' => 'encrypted',
     ];
 }

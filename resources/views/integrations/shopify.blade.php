@@ -14,7 +14,7 @@
                     <div class="h-12 w-12 rounded-xl bg-[#96BF48] flex items-center justify-center text-white font-bold text-lg shrink-0" aria-hidden="true">S</div>
                     <div>
                         <h1 class="text-2xl font-bold text-gray-900">Shopify Integration</h1>
-                        <p class="text-sm text-gray-600 mt-0.5">E-commerce Platform — Receive orders automatically via webhooks</p>
+                        <p class="text-sm text-gray-600 mt-0.5">E-commerce Platform — Sync orders automatically via API</p>
                     </div>
                 </div>
             </div>
@@ -33,6 +33,11 @@
                 {{ session('success') }}
             </div>
         @endif
+        @if(session('error'))
+            <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg text-sm text-red-800">
+                {{ session('error') }}
+            </div>
+        @endif
         @if($errors->any())
             <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg text-sm text-red-800">
                 <ul class="list-disc list-inside">
@@ -46,7 +51,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div class="lg:col-span-2 space-y-6">
                 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8">
-                    <h2 class="text-lg font-semibold text-gray-900 mb-6">Webhook settings</h2>
+                    <h2 class="text-lg font-semibold text-gray-900 mb-6">API Settings</h2>
 
                     <form action="{{ route('integrations.shopify.update') }}" method="POST" class="space-y-6">
                         @csrf
@@ -60,8 +65,8 @@
                         </div>
 
                         <div>
-                            <label for="shop_name" class="block text-sm font-medium text-gray-700 mb-1">Shop Name (Optional)</label>
-                            <input type="text" name="shop_name" id="shop_name"
+                            <label for="shop_name" class="block text-sm font-medium text-gray-700 mb-1">Shop Name <span class="text-red-500">*</span></label>
+                            <input type="text" name="shop_name" id="shop_name" required
                                 value="{{ old('shop_name', $integration?->shop_name ?? '') }}"
                                 placeholder="your-store"
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#96BF48] focus:ring-[#96BF48]">
@@ -69,24 +74,30 @@
                         </div>
 
                         <div>
-                            <label for="webhook_secret" class="block text-sm font-medium text-gray-700 mb-1">Webhook Secret</label>
-                            <input type="password" name="webhook_secret" id="webhook_secret" autocomplete="off"
-                                placeholder="{{ $integration && $integration->webhook_secret ? '•••••••• (leave blank to keep current)' : 'Paste secret from Shopify' }}"
+                            <label for="api_access_token" class="block text-sm font-medium text-gray-700 mb-1">API Access Token <span class="text-red-500">*</span></label>
+                            <input type="password" name="api_access_token" id="api_access_token" autocomplete="off"
+                                placeholder="{{ $integration && $integration->api_access_token ? '•••••••• (leave blank to keep current)' : 'Paste your Admin API access token' }}"
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#96BF48] focus:ring-[#96BF48]">
-                            <p class="mt-1 text-xs text-gray-500">Get this from your Shopify Admin → Settings → Notifications → Webhooks</p>
+                            <p class="mt-1 text-xs text-gray-500">Create a custom app in Shopify Admin to get this token</p>
                         </div>
 
-                        <div class="rounded-lg bg-sky-50 border border-sky-100 p-4">
-                            <p class="text-sm font-medium text-sky-900 mb-2">Your Webhook URL</p>
-                            <div class="flex flex-col sm:flex-row gap-2">
-                                <input type="text" readonly id="webhook-url" value="{{ $webhookUrl }}"
-                                    class="flex-1 rounded-lg border-sky-200 bg-white text-sm font-mono text-gray-800">
-                                <button type="button" id="copy-webhook-url"
-                                    class="shrink-0 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
-                                    Copy
-                                </button>
-                            </div>
-                            <p class="mt-2 text-xs text-sky-800">Use this URL when creating the webhook in Shopify. Subscribe to <strong>Order creation</strong> events.</p>
+                        <div>
+                            <label for="api_version" class="block text-sm font-medium text-gray-700 mb-1">API Version</label>
+                            <input type="text" name="api_version" id="api_version"
+                                value="{{ old('api_version', $integration?->api_version ?? '2024-01') }}"
+                                placeholder="2024-01"
+                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#96BF48] focus:ring-[#96BF48]">
+                            <p class="mt-1 text-xs text-gray-500">Shopify API version (e.g., 2024-01, 2024-04)</p>
+                        </div>
+
+                        <div class="rounded-lg bg-blue-50 border border-blue-100 p-4">
+                            <p class="text-sm font-medium text-blue-900 mb-2">Required API Scopes</p>
+                            <p class="text-xs text-blue-800 mb-2">When creating your custom app, make sure to grant these permissions:</p>
+                            <ul class="text-xs text-blue-800 space-y-1 list-disc list-inside ml-2">
+                                <li><code class="bg-blue-100 px-1 py-0.5 rounded">read_orders</code> - To fetch order data</li>
+                                <li><code class="bg-blue-100 px-1 py-0.5 rounded">read_products</code> - To match products (optional)</li>
+                                <li><code class="bg-blue-100 px-1 py-0.5 rounded">read_customers</code> - To sync customer info (optional)</li>
+                            </ul>
                         </div>
 
                         <div class="flex items-center">
@@ -103,6 +114,17 @@
                         </div>
                     </form>
 
+                    @if($integration && $integration->enabled && $integration->api_access_token)
+                        <form action="{{ route('integrations.shopify.sync') }}" method="POST" class="mt-6 pt-6 border-t border-gray-100">
+                            @csrf
+                            <h3 class="text-sm font-semibold text-gray-900 mb-3">Manual Sync</h3>
+                            <p class="text-sm text-gray-600 mb-4">Fetch orders from the last 7 days from Shopify now.</p>
+                            <button type="submit" class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
+                                Sync Orders Now
+                            </button>
+                        </form>
+                    @endif
+
                     @if($integration)
                         <form action="{{ route('integrations.shopify.destroy') }}" method="POST" class="mt-4 pt-4 border-t border-gray-100"
                             onsubmit="return confirm('Delete this integration? You can set it up again later.');">
@@ -118,13 +140,15 @@
 
             <div class="space-y-6">
                 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                    <h3 class="text-sm font-semibold text-gray-900 mb-4">How it works</h3>
+                    <h3 class="text-sm font-semibold text-gray-900 mb-4">How to set up</h3>
                     <ol class="list-decimal list-inside text-sm text-gray-600 space-y-2">
-                        <li>Copy your webhook URL from the form.</li>
-                        <li>Go to Shopify Admin → Settings → Notifications → Webhooks.</li>
-                        <li>Create a new webhook for <strong>Order creation</strong> events.</li>
-                        <li>Paste the webhook URL and save.</li>
-                        <li>Copy the webhook secret from Shopify and paste it in the form above.</li>
+                        <li>Go to Shopify Admin → Settings → Apps and sales channels</li>
+                        <li>Click <strong>Develop apps</strong></li>
+                        <li>Create a new custom app</li>
+                        <li>Configure Admin API scopes: <code>read_orders</code></li>
+                        <li>Install the app and reveal the <strong>Admin API access token</strong></li>
+                        <li>Copy your shop name and access token to the form</li>
+                        <li>Enable the integration and click Sync</li>
                     </ol>
                 </div>
 
@@ -147,19 +171,26 @@
                 </div>
 
                 <div class="rounded-xl border border-green-200 bg-green-50 p-6">
-                    <h3 class="text-sm font-semibold text-green-900 mb-3">Need Help?</h3>
+                    <h3 class="text-sm font-semibold text-green-900 mb-3">API Integration Benefits</h3>
                     <ul class="text-sm text-green-900 space-y-2 list-disc list-inside">
-                        <li>No API token needed — webhooks only!</li>
-                        <li>Match Shopify variant SKU to your product <strong>ref</strong> field for stock links.</li>
-                        <li>Orders are automatically pushed by Shopify.</li>
-                        <li>Webhook secret verifies authenticity.</li>
-                        <li>Real-time order synchronization.</li>
-                        <li>Secure and reliable integration.</li>
+                        <li>Pull orders on demand — no webhooks needed</li>
+                        <li>Match Shopify variant SKU to your product <strong>ref</strong> field</li>
+                        <li>Sync historical orders anytime</li>
+                        <li>Automatic scheduled syncing (via cron/scheduler)</li>
+                        <li>Reliable and scalable integration</li>
+                        <li>Control when and how often to sync</li>
                     </ul>
-                    <a href="https://shopify.dev/docs/apps/webhooks/configuration/https" target="_blank" rel="noopener noreferrer"
+                    <a href="https://shopify.dev/docs/api/admin-rest" target="_blank" rel="noopener noreferrer"
                         class="mt-4 inline-block text-sm font-medium text-green-800 hover:text-green-950 underline">
-                        View Shopify Webhook Docs →
+                        View Shopify API Docs →
                     </a>
+                </div>
+
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-6">
+                    <h3 class="text-sm font-semibold text-amber-900 mb-3">Automated Sync (Optional)</h3>
+                    <p class="text-sm text-amber-900 mb-2">To automatically sync orders every hour, add this to your scheduler:</p>
+                    <pre class="text-xs bg-amber-100 text-amber-900 p-2 rounded mt-2 overflow-x-auto"><code>$schedule->command('shopify:sync-orders')->hourly();</code></pre>
+                    <p class="text-xs text-amber-800 mt-2">Add this in <code>app/Console/Kernel.php</code> or <code>routes/console.php</code></p>
                 </div>
             </div>
         </div>
@@ -171,21 +202,4 @@
     </footer>
 </main>
 
-@push('scripts')
-<script>
-document.getElementById('copy-webhook-url')?.addEventListener('click', function () {
-    var el = document.getElementById('webhook-url');
-    if (!el) return;
-    el.select();
-    el.setSelectionRange(0, 99999);
-    navigator.clipboard.writeText(el.value).then(function () {
-        var btn = document.getElementById('copy-webhook-url');
-        if (!btn) return;
-        var t = btn.textContent;
-        btn.textContent = 'Copied!';
-        setTimeout(function () { btn.textContent = t; }, 2000);
-    });
-});
-</script>
-@endpush
 @endsection
