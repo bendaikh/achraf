@@ -108,6 +108,12 @@ class PurchaseOrderController extends Controller
         return view('sales.purchase-orders.show', compact('purchaseOrder'));
     }
 
+    public function print(PurchaseOrder $purchaseOrder)
+    {
+        $purchaseOrder->load('client', 'items');
+        return view('sales.purchase-orders.print', compact('purchaseOrder'));
+    }
+
     public function destroy(PurchaseOrder $purchaseOrder)
     {
         $purchaseOrder->delete();

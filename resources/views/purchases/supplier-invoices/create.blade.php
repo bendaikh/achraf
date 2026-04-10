@@ -23,6 +23,17 @@
                 </div>
             @endif
 
+            @if($errors->any())
+                <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                    <h3 class="text-sm font-semibold text-red-700 mb-2">Erreurs de validation:</h3>
+                    <ul class="list-disc list-inside text-sm text-red-700">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <form action="{{ route('supplier-invoices.store') }}" method="POST" id="invoiceForm">
                 @csrf
                 
@@ -30,8 +41,8 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Fournisseur *</label>
-                            <select name="client_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="">Sélectionner un client</option>
+                            <select name="supplier_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Sélectionner un fournisseur</option>
                                 @foreach($suppliers as $supplier)
                                     <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
                                 @endforeach
@@ -44,8 +55,8 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Devise</label>
-                            <input type="text" name="currency" value="dh - MAD" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Devise *</label>
+                            <input type="text" name="currency" value="dh - MAD" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
@@ -59,8 +70,8 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Emplacement du stock</label>
-                            <input type="text" name="stock_location" value="DEPOT" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Emplacement du stock *</label>
+                            <input type="text" name="stock_location" value="DEPOT" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
@@ -140,7 +151,7 @@
                 </div>
 
                 <div class="flex justify-end">
-                    <button type="submit" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150 font-medium">
+                    <button type="submit" id="submitBtn" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150 font-medium">
                         Enregistrer
                     </button>
                 </div>
@@ -212,6 +223,19 @@ function calculateTotal() {
     document.getElementById('subtotal').textContent = subtotal.toFixed(2);
     document.getElementById('total').textContent = subtotal.toFixed(2);
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    addItem();
+    
+    document.getElementById('invoiceForm').addEventListener('submit', function(e) {
+        const itemRows = document.querySelectorAll('#itemsBody tr');
+        if (itemRows.length === 0) {
+            e.preventDefault();
+            alert('Veuillez ajouter au moins un article à la facture.');
+            return false;
+        }
+    });
+});
 </script>
 @endpush
 @endsection

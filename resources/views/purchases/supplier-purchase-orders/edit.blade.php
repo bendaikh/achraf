@@ -1,16 +1,16 @@
 @extends('layouts.with-sidebar')
 
-@section('title', 'Créer une facture')
+@section('title', 'Modifier le bon de commande')
 
 @section('main')
 <main class="flex-1 w-full min-w-0">
         <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
             <div class="px-8 py-4 flex items-center justify-between">
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900">Créer une facture</h2>
-                    <p class="text-sm text-gray-600 mt-1">Créer une nouvelle bon de commande</p>
+                    <h2 class="text-2xl font-bold text-gray-900">Modifier le bon de commande</h2>
+                    <p class="text-sm text-gray-600 mt-1">Modifier le bon de commande {{ $supplierPurchaseOrder->order_number }}</p>
                 </div>
-                <a href="{{ route('purchase-orders.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
+                <a href="{{ route('supplier-purchase-orders.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
                     Retour à la liste
                 </a>
             </div>
@@ -23,99 +23,62 @@
                 </div>
             @endif
 
-            @if($errors->any())
-                <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-                    <p class="text-sm font-semibold text-red-700 mb-2">Erreurs de validation:</p>
-                    <ul class="list-disc list-inside text-sm text-red-700">
-                        @foreach($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
-            <form action="{{ route('purchase-orders.store') }}" method="POST" id="purchaseOrderForm">
+            <form action="{{ route('supplier-purchase-orders.update', $supplierPurchaseOrder) }}" method="POST" id="purchaseOrderForm">
                 @csrf
+                @method('PUT')
                 
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Client *</label>
-                            <select name="client_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('client_id') border-red-500 @enderror">
-                                <option value="">Sélectionner un client</option>
-                                @foreach($clients as $client)
-                                    <option value="{{ $client->id }}" {{ old('client_id') == $client->id ? 'selected' : '' }}>{{ $client->name }}</option>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Fournisseur *</label>
+                            <select name="supplier_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Sélectionner un fournisseur</option>
+                                @foreach($suppliers as $supplier)
+                                    <option value="{{ $supplier->id }}" {{ $supplierPurchaseOrder->supplier_id == $supplier->id ? 'selected' : '' }}>{{ $supplier->name }}</option>
                                 @endforeach
                             </select>
-                            @error('client_id')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de facture</label>
-                            <input type="text" value="{{ $reference }}" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de bon de commande</label>
+                            <input type="text" value="{{ $supplierPurchaseOrder->order_number }}" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Devise</label>
-                            <input type="text" name="currency" value="{{ old('currency', 'dh - MAD') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="text" name="currency" value="{{ $supplierPurchaseOrder->currency }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Date bon de commande *</label>
-                            <input type="date" name="order_date" value="{{ old('order_date', date('Y-m-d')) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('order_date') border-red-500 @enderror">
-                            @error('order_date')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
+                            <input type="date" name="order_date" value="{{ $supplierPurchaseOrder->order_date->format('Y-m-d') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Date d'échéance</label>
-                            <input type="date" name="expiry_date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="date" name="due_date" value="{{ $supplierPurchaseOrder->due_date ? $supplierPurchaseOrder->due_date->format('Y-m-d') : '' }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Emplacement du stock</label>
-                            <input type="text" name="stock_location" value="DEPOT" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="text" name="stock_location" value="{{ $supplierPurchaseOrder->stock_location }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Contact commercial</label>
-                            <input type="text" name="commercial_contact" placeholder="Achraf Qassoudi" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Statut</label>
-                            <select name="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="brouillon">Brouillon</option>
-                                <option value="confirmé">Confirmé</option>
-                                <option value="en_cours">En cours</option>
-                                <option value="livré">Livré</option>
-                                <option value="annulé">Annulé</option>
-                            </select>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Référence facture</label>
+                            <input type="text" name="reference_invoice" value="{{ $supplierPurchaseOrder->reference_invoice }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Modèle</label>
-                            <input type="text" name="model" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Matricule</label>
-                            <input type="text" name="matricule" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="text" name="model" value="{{ $supplierPurchaseOrder->model }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                     </div>
                 </div>
 
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
                     <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="text-lg font-semibold text-gray-900">Articles *</h3>
-                            @error('items')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900">Articles</h3>
                         <button type="button" onclick="addItem()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150">
                             + Ajouter
                         </button>
@@ -130,11 +93,36 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remise</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="itemsBody">
+                                @foreach($supplierPurchaseOrder->items as $index => $item)
+                                <tr class="border-b border-gray-200">
+                                    <td class="px-4 py-3">
+                                        <input type="text" name="items[{{ $index }}][ref]" value="{{ $item->ref }}" class="w-full px-2 py-1 border border-gray-300 rounded">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="text" name="items[{{ $index }}][designation]" value="{{ $item->designation }}" required class="w-full px-2 py-1 border border-gray-300 rounded">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="number" name="items[{{ $index }}][quantity]" value="{{ $item->quantity }}" required class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="number" step="0.01" name="items[{{ $index }}][unit_price]" value="{{ $item->unit_price }}" required class="w-24 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="number" step="0.01" name="items[{{ $index }}][tax_rate]" value="{{ $item->tax_rate }}" required class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
+                                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                                @endforeach
                             </tbody>
                         </table>
                     </div>
@@ -144,27 +132,27 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Remarques</label>
-                            <textarea name="remarks" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
+                            <textarea name="remarks" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">{{ $supplierPurchaseOrder->remarks }}</textarea>
                         </div>
 
                         <div>
                             <div class="bg-blue-50 rounded-lg p-4">
                                 <div class="flex justify-between items-center mb-2">
                                     <span class="text-sm text-gray-600">Montant HT</span>
-                                    <span class="text-lg font-semibold" id="subtotal">0.00</span>
+                                    <span class="text-lg font-semibold" id="subtotal">{{ number_format($supplierPurchaseOrder->subtotal, 2) }}</span>
                                 </div>
                                 <div class="flex justify-between items-center mb-2">
                                     <span class="text-sm text-gray-600">Remise</span>
-                                    <span class="text-lg font-semibold" id="discount">0</span>
+                                    <span class="text-lg font-semibold" id="discount">{{ number_format($supplierPurchaseOrder->discount, 2) }}</span>
                                 </div>
                                 <div class="flex justify-between items-center mb-2">
                                     <span class="text-sm text-gray-600">Ajustement</span>
-                                    <span class="text-lg font-semibold" id="adjustment">0</span>
+                                    <span class="text-lg font-semibold" id="adjustment">{{ number_format($supplierPurchaseOrder->adjustment, 2) }}</span>
                                 </div>
                                 <div class="border-t border-blue-200 pt-2 mt-2">
                                     <div class="flex justify-between items-center">
                                         <span class="text-base font-semibold text-gray-900">Total TTC</span>
-                                        <span class="text-2xl font-bold text-blue-600" id="total">0.00</span>
+                                        <span class="text-2xl font-bold text-blue-600" id="total">{{ number_format($supplierPurchaseOrder->total, 2) }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -172,9 +160,12 @@
                     </div>
                 </div>
 
-                <div class="flex justify-end">
-                    <button type="submit" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150 font-medium" id="submitBtn">
-                        Enregistrer
+                <div class="flex justify-end space-x-3">
+                    <a href="{{ route('supplier-purchase-orders.show', $supplierPurchaseOrder) }}" class="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition duration-150 font-medium">
+                        Annuler
+                    </a>
+                    <button type="submit" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150 font-medium">
+                        Mettre à jour
                     </button>
                 </div>
             </form>
@@ -183,21 +174,7 @@
 
 @push('scripts')
 <script>
-let itemIndex = 0;
-
-document.addEventListener('DOMContentLoaded', function() {
-    addItem();
-    
-    const form = document.getElementById('purchaseOrderForm');
-    form.addEventListener('submit', function(e) {
-        const itemsBody = document.getElementById('itemsBody');
-        if (itemsBody.children.length === 0) {
-            e.preventDefault();
-            alert('Veuillez ajouter au moins un article avant de soumettre le formulaire.');
-            return false;
-        }
-    });
-});
+let itemIndex = {{ count($supplierPurchaseOrder->items) }};
 
 function addItem() {
     const tbody = document.getElementById('itemsBody');
@@ -218,9 +195,6 @@ function addItem() {
         </td>
         <td class="px-4 py-3">
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
-        </td>
-        <td class="px-4 py-3">
-            <input type="number" step="0.01" name="items[${itemIndex}][discount]" value="0" class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
         </td>
         <td class="px-4 py-3">
             <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
@@ -247,10 +221,8 @@ function calculateTotal() {
         const quantity = parseFloat(row.querySelector('[name*="[quantity]"]').value) || 0;
         const unitPrice = parseFloat(row.querySelector('[name*="[unit_price]"]').value) || 0;
         const taxRate = parseFloat(row.querySelector('[name*="[tax_rate]"]').value) || 0;
-        const discount = parseFloat(row.querySelector('[name*="[discount]"]').value) || 0;
         
         let lineTotal = quantity * unitPrice;
-        lineTotal -= discount;
         lineTotal += lineTotal * (taxRate / 100);
         
         subtotal += lineTotal;
@@ -259,6 +231,11 @@ function calculateTotal() {
     document.getElementById('subtotal').textContent = subtotal.toFixed(2);
     document.getElementById('total').textContent = subtotal.toFixed(2);
 }
+
+// Calculate total on page load
+document.addEventListener('DOMContentLoaded', function() {
+    calculateTotal();
+});
 </script>
 @endpush
 @endsection

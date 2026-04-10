@@ -35,7 +35,14 @@ class SupplierCreditNoteController extends Controller
             'currency' => 'required|string',
             'stock_location' => 'required|string',
             'model' => 'nullable|string',
+            'remarks' => 'nullable|string',
             'items' => 'required|array',
+            'items.*.ref' => 'nullable|string',
+            'items.*.designation' => 'required|string',
+            'items.*.quantity' => 'required|numeric|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.tax_rate' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
         ]);
 
         DB::beginTransaction();
@@ -48,21 +55,30 @@ class SupplierCreditNoteController extends Controller
                 'currency' => $validated['currency'],
                 'stock_location' => $validated['stock_location'],
                 'model' => $validated['model'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
+                'subtotal' => 0,
                 'total' => 0,
             ]);
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $lineTotal = ($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0);
-                $lineTotal += $lineTotal * (($item['tax_rate'] ?? 20) / 100);
+                $quantity = $item['quantity'] ?? 1;
+                $unitPrice = $item['unit_price'] ?? 0;
+                $taxRate = $item['tax_rate'] ?? 20;
+                $discount = $item['discount'] ?? 0;
+                
+                $lineTotal = $quantity * $unitPrice;
+                $lineTotal -= $discount;
+                $lineTotal += $lineTotal * ($taxRate / 100);
                 
                 $creditNote->items()->create([
-                    'product_id' => $item['product_id'] ?? null,
+                    'product_id' => null,
                     'ref' => $item['ref'] ?? null,
                     'designation' => $item['designation'],
-                    'quantity' => $item['quantity'] ?? 1,
-                    'unit_price' => $item['unit_price'] ?? 0,
-                    'tax_rate' => $item['tax_rate'] ?? 20,
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'tax_rate' => $taxRate,
+                    'discount' => $discount,
                     'line_total' => $lineTotal,
                 ]);
                 $subtotal += $lineTotal;
@@ -76,6 +92,12 @@ class SupplierCreditNoteController extends Controller
             DB::rollBack();
             return back()->withInput()->with('error', 'Erreur: ' . $e->getMessage());
         }
+    }
+
+    public function show(SupplierCreditNote $supplierCreditNote)
+    {
+        $supplierCreditNote->load(['supplier', 'items']);
+        return view('purchases.supplier-credit-notes.show', compact('supplierCreditNote'));
     }
 
     public function destroy(SupplierCreditNote $supplierCreditNote)

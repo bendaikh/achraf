@@ -28,7 +28,7 @@ class SupplierInvoiceController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'supplier_id' => 'required|exists:clients,id',
+            'supplier_id' => 'required|exists:suppliers,id',
             'invoice_date' => 'required|date',
             'due_date' => 'nullable|date',
             'currency' => 'required|string',
@@ -104,15 +104,15 @@ class SupplierInvoiceController extends Controller
         }
     }
 
-    public function show(Invoice $invoice)
+    public function show(SupplierInvoice $supplierInvoice)
     {
-        $invoice->load('supplier', 'items');
-        return view('purchases.supplier-invoices.show', compact('invoice'));
+        $supplierInvoice->load('supplier', 'items');
+        return view('purchases.supplier-invoices.show', compact('supplierInvoice'));
     }
 
-    public function destroy(Invoice $invoice)
+    public function destroy(SupplierInvoice $supplierInvoice)
     {
-        $invoice->delete();
+        $supplierInvoice->delete();
         return redirect()->route('supplier-invoices.index')->with('success', 'Facture fournisseur supprimée avec succès!');
     }
 }

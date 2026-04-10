@@ -1,14 +1,14 @@
 @extends('layouts.with-sidebar')
 
-@section('title', 'Créer une facture')
+@section('title', 'Créer un bon de réception')
 
 @section('main')
 <main class="flex-1 w-full min-w-0">
         <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
             <div class="px-8 py-4 flex items-center justify-between">
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900">Créer une facture</h2>
-                    <p class="text-sm text-gray-600 mt-1">Créer une nouvelle bon de r�ception</p>
+                    <h2 class="text-2xl font-bold text-gray-900">Créer un bon de réception</h2>
+                    <p class="text-sm text-gray-600 mt-1">Créer un nouveau bon de réception</p>
                 </div>
                 <a href="{{ route('receptions.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
                     Retour à la liste
@@ -30,8 +30,8 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Fournisseur *</label>
-                            <select name="client_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="">Sélectionner un client</option>
+                            <select name="supplier_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Sélectionner un fournisseur</option>
                                 @foreach($suppliers as $supplier)
                                     <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
                                 @endforeach
@@ -39,7 +39,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de facture</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de réception</label>
                             <input type="text" value="{{ $receptionNumber }}" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
                         </div>
 
@@ -49,13 +49,13 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Date de r�ception *</label>
-                            <input type="date" name="quote_date" value="{{ date('Y-m-d') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Date de réception *</label>
+                            <input type="date" name="reception_date" value="{{ date('Y-m-d') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Date d'échéance</label>
-                            <input type="date" name="expiry_date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Date de livraison</label>
+                            <input type="date" name="delivery_date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
@@ -64,8 +64,8 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Contact commercial</label>
-                            <input type="text" name="commercial_contact" placeholder="Achraf Qassoudi" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Référence</label>
+                            <input type="text" name="reference" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
@@ -81,11 +81,6 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Modèle</label>
                             <input type="text" name="model" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Matricule</label>
-                            <input type="text" name="matricule" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                     </div>
                 </div>

@@ -8,7 +8,7 @@ class SupplierInvoice extends Model
 {
     protected $fillable = [
         'invoice_number', 'supplier_id', 'invoice_date', 'due_date', 'reference_invoice',
-        'currency', 'stock_location', 'model', 'remarks', 'conditions',
+        'currency', 'stock_location', 'commercial_contact', 'model', 'matricule', 'remarks', 'conditions',
         'subtotal', 'discount', 'adjustment', 'total',
     ];
 

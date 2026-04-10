@@ -32,7 +32,7 @@
                                     Numéro
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Client
+                                    Fournisseur
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Facture liée
@@ -58,10 +58,10 @@
                                         <div class="text-sm font-medium text-gray-900">{{ $supplierCreditNote->credit_note_number }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900">{{ $supplierCreditNote->client->name }}</div>
+                                        <div class="text-sm text-gray-900">{{ $supplierCreditNote->supplier->name }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900">{{ $supplierCreditNote->invoice ? $supplierCreditNote->invoice->invoice_number : '-' }}</div>
+                                        <div class="text-sm text-gray-900">{{ $supplierCreditNote->invoice ?? '-' }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-900">{{ $supplierCreditNote->credit_note_date->format('d/m/Y') }}</div>

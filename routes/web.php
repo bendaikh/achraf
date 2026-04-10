@@ -48,6 +48,7 @@ Route::middleware('auth')->group(function () {
     Route::prefix('sales')->group(function () {
         Route::resource('invoices', InvoiceController::class);
         Route::resource('quotes', QuoteController::class);
+        Route::get('purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
         Route::resource('purchase-orders', PurchaseOrderController::class);
         Route::resource('credit-notes', CreditNoteController::class);
     });

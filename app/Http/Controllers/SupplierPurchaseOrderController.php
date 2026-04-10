@@ -80,6 +80,76 @@ class SupplierPurchaseOrderController extends Controller
         }
     }
 
+    public function show(SupplierPurchaseOrder $supplierPurchaseOrder)
+    {
+        $supplierPurchaseOrder->load(['supplier', 'items.product']);
+        return view('purchases.supplier-purchase-orders.show', compact('supplierPurchaseOrder'));
+    }
+
+    public function edit(SupplierPurchaseOrder $supplierPurchaseOrder)
+    {
+        $supplierPurchaseOrder->load(['supplier', 'items.product']);
+        $suppliers = Supplier::all();
+        $products = Product::all();
+        return view('purchases.supplier-purchase-orders.edit', compact('supplierPurchaseOrder', 'suppliers', 'products'));
+    }
+
+    public function update(Request $request, SupplierPurchaseOrder $supplierPurchaseOrder)
+    {
+        $validated = $request->validate([
+            'supplier_id' => 'required|exists:suppliers,id',
+            'order_date' => 'required|date',
+            'due_date' => 'nullable|date',
+            'reference_invoice' => 'nullable|string',
+            'currency' => 'required|string',
+            'stock_location' => 'required|string',
+            'model' => 'nullable|string',
+            'remarks' => 'nullable|string',
+            'items' => 'required|array',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $supplierPurchaseOrder->update([
+                'supplier_id' => $validated['supplier_id'],
+                'order_date' => $validated['order_date'],
+                'due_date' => $validated['due_date'] ?? null,
+                'reference_invoice' => $validated['reference_invoice'] ?? null,
+                'currency' => $validated['currency'],
+                'stock_location' => $validated['stock_location'],
+                'model' => $validated['model'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
+            ]);
+
+            $supplierPurchaseOrder->items()->delete();
+
+            $subtotal = 0;
+            foreach ($validated['items'] as $item) {
+                $lineTotal = ($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0);
+                $lineTotal += $lineTotal * (($item['tax_rate'] ?? 20) / 100);
+                
+                $supplierPurchaseOrder->items()->create([
+                    'product_id' => $item['product_id'] ?? null,
+                    'ref' => $item['ref'] ?? null,
+                    'designation' => $item['designation'],
+                    'quantity' => $item['quantity'] ?? 1,
+                    'unit_price' => $item['unit_price'] ?? 0,
+                    'tax_rate' => $item['tax_rate'] ?? 20,
+                    'line_total' => $lineTotal,
+                ]);
+                $subtotal += $lineTotal;
+            }
+
+            $supplierPurchaseOrder->update(['subtotal' => $subtotal, 'total' => $subtotal]);
+
+            DB::commit();
+            return redirect()->route('supplier-purchase-orders.index')->with('success', 'BC fournisseur modifié avec succès!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withInput()->with('error', 'Erreur: ' . $e->getMessage());
+        }
+    }
+
     public function destroy(SupplierPurchaseOrder $supplierPurchaseOrder)
     {
         $supplierPurchaseOrder->delete();
