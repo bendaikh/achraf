@@ -53,6 +53,21 @@ class Product extends Model
         return $this->stock_quantity <= 0;
     }
 
+    /**
+     * Get the full URL for the product image
+     * Works around shared hosting symlink restrictions
+     */
+    public function getImageUrlAttribute(): ?string
+    {
+        if (!$this->image) {
+            return null;
+        }
+
+        // For production/shared hosting where symlinks don't work via HTTP
+        // Use the direct storage path instead
+        return asset('storage/app/public/' . $this->image);
+    }
+
     public function invoiceItems()
     {
         return $this->hasMany(InvoiceItem::class);

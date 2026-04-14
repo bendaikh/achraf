@@ -3,6 +3,9 @@
         Options -MultiViews -Indexes
     </IfModule>
 
+    # Allow following symbolic links
+    Options +FollowSymLinks
+
     RewriteEngine On
 
     # Handle Authorization Header

@@ -40,7 +40,7 @@
 
                     <div class="mb-8">
                         <label class="block text-sm font-medium text-gray-700 mb-3">Image Produit</label>
-                        <div x-data="{ imagePreview: '{{ $product->image ? asset('storage/' . $product->image) : null }}' }" class="flex items-center space-x-4">
+                        <div x-data="{ imagePreview: '{{ $product->image_url }}' }" class="flex items-center space-x-4">
                             <div class="flex-shrink-0">
                                 <template x-if="imagePreview">
                                     <img :src="imagePreview" class="h-32 w-32 rounded-lg object-cover border-2 border-gray-200">
