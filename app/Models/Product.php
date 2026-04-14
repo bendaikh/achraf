@@ -55,7 +55,7 @@ class Product extends Model
 
     /**
      * Get the full URL for the product image
-     * Works around shared hosting symlink restrictions
+     * Works in both local development and production (shared hosting)
      */
     public function getImageUrlAttribute(): ?string
     {
@@ -63,9 +63,17 @@ class Product extends Model
             return null;
         }
 
-        // For production/shared hosting where symlinks don't work via HTTP
-        // Use the direct storage path instead
-        return asset('storage/app/public/' . $this->image);
+        // Try standard Laravel storage path first (works in local dev)
+        $standardPath = 'storage/' . $this->image;
+        
+        // Check if we're in production and symlinks don't work
+        // Use direct storage path for shared hosting
+        if (app()->environment('production')) {
+            return asset('storage/app/public/' . $this->image);
+        }
+
+        // Use standard path for local development
+        return asset($standardPath);
     }
 
     public function invoiceItems()
