@@ -30,6 +30,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Storage Direct Path (Shared Hosting Fix)
+    |--------------------------------------------------------------------------
+    |
+    | Set to true if your hosting blocks symlink access via HTTP (403 error).
+    | This uses direct storage path instead of symlink for product images.
+    |
+    */
+
+    'storage_direct_path' => env('STORAGE_DIRECT_PATH', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Debug Mode
     |--------------------------------------------------------------------------
     |

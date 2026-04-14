@@ -63,21 +63,13 @@ class Product extends Model
             return null;
         }
 
-        // Check if standard symlink path exists and is accessible
-        $symlinkPath = public_path('storage/' . $this->image);
-        $directPath = storage_path('app/public/' . $this->image);
-        
-        // If the symlink works (local dev), use standard path
-        if (file_exists($symlinkPath) && is_readable($symlinkPath)) {
-            return asset('storage/' . $this->image);
-        }
-        
-        // If direct path exists (production shared hosting), use that
-        if (file_exists($directPath)) {
+        // For shared hosting where symlinks don't work via HTTP
+        // Set STORAGE_DIRECT_PATH=true in your .env file
+        if (config('app.storage_direct_path', false)) {
             return asset('storage/app/public/' . $this->image);
         }
         
-        // Fallback to standard path
+        // Standard Laravel storage path (works with symlink)
         return asset('storage/' . $this->image);
     }
 
