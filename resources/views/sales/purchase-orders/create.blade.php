@@ -125,6 +125,7 @@
                         <table class="w-full" id="itemsTable">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
@@ -184,20 +185,7 @@
 @push('scripts')
 <script>
 let itemIndex = 0;
-
-document.addEventListener('DOMContentLoaded', function() {
-    addItem();
-    
-    const form = document.getElementById('purchaseOrderForm');
-    form.addEventListener('submit', function(e) {
-        const itemsBody = document.getElementById('itemsBody');
-        if (itemsBody.children.length === 0) {
-            e.preventDefault();
-            alert('Veuillez ajouter au moins un article avant de soumettre le formulaire.');
-            return false;
-        }
-    });
-});
+const products = @json($products);
 
 function addItem() {
     const tbody = document.getElementById('itemsBody');
@@ -205,22 +193,28 @@ function addItem() {
     row.className = 'border-b border-gray-200';
     row.innerHTML = `
         <td class="px-4 py-3">
-            <input type="text" name="items[${itemIndex}][ref]" class="w-full px-2 py-1 border border-gray-300 rounded">
+            <select name="items[${itemIndex}][product_id]" onchange="fillProductDetails(this, ${itemIndex})" class="product-select w-full px-2 py-1 border border-gray-300 rounded text-sm" id="product_select_${itemIndex}">
+                <option value="">Rechercher un produit...</option>
+                ${products.map(p => `<option value="${p.id}" data-ref="${p.ref || ''}" data-name="${p.name}" data-price="${p.sale_price || 0}">${p.name} ${p.ref ? '(' + p.ref + ')' : ''}</option>`).join('')}
+            </select>
         </td>
         <td class="px-4 py-3">
-            <input type="text" name="items[${itemIndex}][designation]" required class="w-full px-2 py-1 border border-gray-300 rounded">
+            <input type="text" name="items[${itemIndex}][ref]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" id="ref_${itemIndex}">
         </td>
         <td class="px-4 py-3">
-            <input type="number" name="items[${itemIndex}][quantity]" value="1" required class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+            <input type="text" name="items[${itemIndex}][designation]" required class="w-full px-2 py-1 border border-gray-300 rounded text-sm" id="designation_${itemIndex}">
         </td>
         <td class="px-4 py-3">
-            <input type="number" step="0.01" name="items[${itemIndex}][unit_price]" value="0" required class="w-24 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+            <input type="number" name="items[${itemIndex}][quantity]" value="1" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
         <td class="px-4 py-3">
-            <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+            <input type="number" step="0.01" name="items[${itemIndex}][unit_price]" value="0" required class="w-24 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()" id="price_${itemIndex}">
         </td>
         <td class="px-4 py-3">
-            <input type="number" step="0.01" name="items[${itemIndex}][discount]" value="0" class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+            <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
+        </td>
+        <td class="px-4 py-3">
+            <input type="number" step="0.01" name="items[${itemIndex}][discount]" value="0" class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
         <td class="px-4 py-3">
             <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
@@ -231,7 +225,40 @@ function addItem() {
         </td>
     `;
     tbody.appendChild(row);
+    
+    // Initialize Select2 on the newly added dropdown (if jQuery is loaded)
+    if (typeof $ !== 'undefined' && $.fn.select2) {
+        $('#product_select_' + itemIndex).select2({
+            placeholder: 'Rechercher un produit...',
+            allowClear: true,
+            width: '100%',
+            language: {
+                noResults: function() {
+                    return "Aucun produit trouvé";
+                },
+                searching: function() {
+                    return "Recherche...";
+                }
+            }
+        });
+    }
+    
     itemIndex++;
+}
+
+function fillProductDetails(selectElement, index) {
+    const selectedOption = selectElement.options[selectElement.selectedIndex];
+    if (selectedOption.value) {
+        const ref = selectedOption.getAttribute('data-ref');
+        const name = selectedOption.getAttribute('data-name');
+        const price = selectedOption.getAttribute('data-price');
+        
+        document.getElementById('ref_' + index).value = ref;
+        document.getElementById('designation_' + index).value = name;
+        document.getElementById('price_' + index).value = price;
+        
+        calculateTotal();
+    }
 }
 
 function removeItem(button) {
@@ -259,6 +286,20 @@ function calculateTotal() {
     document.getElementById('subtotal').textContent = subtotal.toFixed(2);
     document.getElementById('total').textContent = subtotal.toFixed(2);
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    addItem();
+    
+    const form = document.getElementById('purchaseOrderForm');
+    form.addEventListener('submit', function(e) {
+        const itemsBody = document.getElementById('itemsBody');
+        if (itemsBody.children.length === 0) {
+            e.preventDefault();
+            alert('Veuillez ajouter au moins un article avant de soumettre le formulaire.');
+            return false;
+        }
+    });
+});
 </script>
 @endpush
 @endsection

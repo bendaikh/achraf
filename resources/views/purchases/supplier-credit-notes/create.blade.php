@@ -144,19 +144,15 @@
 let itemIndex = 0;
 const products = @json($products);
 
-document.addEventListener('DOMContentLoaded', function() {
-    addItem();
-});
-
 function addItem() {
     const tbody = document.getElementById('itemsBody');
     const row = document.createElement('tr');
     row.className = 'border-b border-gray-200';
     row.innerHTML = `
         <td class="px-4 py-3">
-            <select name="items[${itemIndex}][product_id]" onchange="fillProductDetails(this, ${itemIndex})" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
-                <option value="">Sélectionner un produit</option>
-                ${products.map(p => `<option value="${p.id}" data-ref="${p.ref || ''}" data-name="${p.name}" data-price="${p.sale_price || 0}">${p.name} (${p.ref || 'Sans réf'})</option>`).join('')}
+            <select name="items[${itemIndex}][product_id]" onchange="fillProductDetails(this, ${itemIndex})" class="product-select w-full px-2 py-1 border border-gray-300 rounded text-sm" id="product_select_${itemIndex}">
+                <option value="">Rechercher un produit...</option>
+                ${products.map(p => `<option value="${p.id}" data-ref="${p.ref || ''}" data-name="${p.name}" data-price="${p.sale_price || 0}">${p.name} ${p.ref ? '(' + p.ref + ')' : ''}</option>`).join('')}
             </select>
         </td>
         <td class="px-4 py-3">
@@ -186,6 +182,24 @@ function addItem() {
         </td>
     `;
     tbody.appendChild(row);
+    
+    // Initialize Select2 on the newly added dropdown (if jQuery is loaded)
+    if (typeof $ !== 'undefined' && $.fn.select2) {
+        $('#product_select_' + itemIndex).select2({
+            placeholder: 'Rechercher un produit...',
+            allowClear: true,
+            width: '100%',
+            language: {
+                noResults: function() {
+                    return "Aucun produit trouvé";
+                },
+                searching: function() {
+                    return "Recherche...";
+                }
+            }
+        });
+    }
+    
     itemIndex++;
 }
 
@@ -229,6 +243,11 @@ function calculateTotal() {
     document.getElementById('subtotal').textContent = subtotal.toFixed(2);
     document.getElementById('total').textContent = subtotal.toFixed(2);
 }
+
+// Add first item automatically on page load
+document.addEventListener('DOMContentLoaded', function() {
+    addItem();
+});
 </script>
 @endpush
 @endsection
