@@ -63,17 +63,22 @@ class Product extends Model
             return null;
         }
 
-        // Try standard Laravel storage path first (works in local dev)
-        $standardPath = 'storage/' . $this->image;
+        // Check if standard symlink path exists and is accessible
+        $symlinkPath = public_path('storage/' . $this->image);
+        $directPath = storage_path('app/public/' . $this->image);
         
-        // Check if we're in production and symlinks don't work
-        // Use direct storage path for shared hosting
-        if (app()->environment('production')) {
+        // If the symlink works (local dev), use standard path
+        if (file_exists($symlinkPath) && is_readable($symlinkPath)) {
+            return asset('storage/' . $this->image);
+        }
+        
+        // If direct path exists (production shared hosting), use that
+        if (file_exists($directPath)) {
             return asset('storage/app/public/' . $this->image);
         }
-
-        // Use standard path for local development
-        return asset($standardPath);
+        
+        // Fallback to standard path
+        return asset('storage/' . $this->image);
     }
 
     public function invoiceItems()
