@@ -82,6 +82,7 @@
                         <table class="w-full" id="itemsTable">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
@@ -141,6 +142,7 @@
 
 <script>
 let itemIndex = 0;
+const products = @json($products);
 
 function addItem() {
     const tbody = document.getElementById('itemsBody');
@@ -148,22 +150,28 @@ function addItem() {
     row.className = 'border-b border-gray-200';
     row.innerHTML = `
         <td class="px-4 py-3">
-            <input type="text" name="items[${itemIndex}][ref]" class="w-full px-2 py-1 border border-gray-300 rounded">
+            <select name="items[${itemIndex}][product_id]" onchange="fillProductDetails(this, ${itemIndex})" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                <option value="">Sélectionner un produit</option>
+                ${products.map(p => `<option value="${p.id}" data-ref="${p.ref || ''}" data-name="${p.name}" data-price="${p.sale_price || 0}">${p.name} (${p.ref || 'Sans réf'})</option>`).join('')}
+            </select>
         </td>
         <td class="px-4 py-3">
-            <input type="text" name="items[${itemIndex}][designation]" required class="w-full px-2 py-1 border border-gray-300 rounded">
+            <input type="text" name="items[${itemIndex}][ref]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" id="ref_${itemIndex}">
         </td>
         <td class="px-4 py-3">
-            <input type="number" name="items[${itemIndex}][quantity]" value="1" required class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+            <input type="text" name="items[${itemIndex}][designation]" required class="w-full px-2 py-1 border border-gray-300 rounded text-sm" id="designation_${itemIndex}">
         </td>
         <td class="px-4 py-3">
-            <input type="number" step="0.01" name="items[${itemIndex}][unit_price]" value="0" required class="w-24 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+            <input type="number" name="items[${itemIndex}][quantity]" value="1" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
         <td class="px-4 py-3">
-            <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+            <input type="number" step="0.01" name="items[${itemIndex}][unit_price]" value="0" required class="w-24 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()" id="price_${itemIndex}">
         </td>
         <td class="px-4 py-3">
-            <input type="number" step="0.01" name="items[${itemIndex}][discount]" value="0" class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+            <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
+        </td>
+        <td class="px-4 py-3">
+            <input type="number" step="0.01" name="items[${itemIndex}][discount]" value="0" class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
         <td class="px-4 py-3">
             <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
@@ -175,6 +183,21 @@ function addItem() {
     `;
     tbody.appendChild(row);
     itemIndex++;
+}
+
+function fillProductDetails(selectElement, index) {
+    const selectedOption = selectElement.options[selectElement.selectedIndex];
+    if (selectedOption.value) {
+        const ref = selectedOption.getAttribute('data-ref');
+        const name = selectedOption.getAttribute('data-name');
+        const price = selectedOption.getAttribute('data-price');
+        
+        document.getElementById('ref_' + index).value = ref;
+        document.getElementById('designation_' + index).value = name;
+        document.getElementById('price_' + index).value = price;
+        
+        calculateTotal();
+    }
 }
 
 function removeItem(button) {
