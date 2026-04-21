@@ -10,6 +10,11 @@ class ShopifyApiClient
 {
     protected ShopifyIntegration $integration;
 
+    /**
+     * Stores the next page URL from the Link header for pagination
+     */
+    protected ?string $nextPageUrl = null;
+
     public function __construct(ShopifyIntegration $integration)
     {
         $this->integration = $integration;
@@ -19,7 +24,7 @@ class ShopifyApiClient
     {
         $defaultParams = [
             'status' => 'any',
-            'limit' => 50,
+            'limit' => 250,
         ];
 
         $queryParams = array_merge($defaultParams, $params);
@@ -36,27 +41,131 @@ class ShopifyApiClient
         return $response['order'] ?? null;
     }
 
-    public function getOrdersSince(string $sinceId, int $limit = 50): array
+    public function getOrdersSince(string $sinceId, int $limit = 250): array
     {
         return $this->getOrders([
             'since_id' => $sinceId,
             'limit' => $limit,
-            'order' => 'created_at asc',
         ]);
     }
 
-    public function getOrdersCreatedAfter(string $dateTime, int $limit = 50): array
+    public function getOrdersCreatedAfter(string $dateTime, int $limit = 250): array
     {
         return $this->getOrders([
             'created_at_min' => $dateTime,
             'limit' => $limit,
-            'order' => 'created_at asc',
+            'order' => 'created_at desc',
         ]);
+    }
+
+    /**
+     * Fetch ALL orders using cursor-based pagination.
+     * Returns a generator that yields batches of orders.
+     *
+     * @param array $params Query parameters
+     * @return \Generator
+     */
+    public function getAllOrders(array $params = []): \Generator
+    {
+        $defaultParams = [
+            'status' => 'any',
+            'limit' => 250,
+        ];
+
+        $queryParams = array_merge($defaultParams, $params);
+
+        // Initial request
+        $orders = $this->getOrders($queryParams);
+
+        if (!empty($orders)) {
+            yield $orders;
+        }
+
+        // Continue fetching next pages as long as there's a next page URL
+        while ($this->nextPageUrl !== null) {
+            $orders = $this->fetchNextPage();
+
+            if (!empty($orders)) {
+                yield $orders;
+            }
+        }
+    }
+
+    /**
+     * Fetch the next page using the cursor URL from the Link header
+     */
+    protected function fetchNextPage(): array
+    {
+        if ($this->nextPageUrl === null) {
+            return [];
+        }
+
+        $url = $this->nextPageUrl;
+        $this->nextPageUrl = null; // Reset before making the request
+
+        $accessToken = $this->integration->oauth_access_token ?? $this->integration->api_access_token;
+
+        try {
+            $response = Http::withHeaders([
+                'X-Shopify-Access-Token' => $accessToken,
+                'Content-Type' => 'application/json',
+            ])
+                ->timeout(30)
+                ->get($url);
+
+            if ($response->failed()) {
+                Log::error('Shopify API pagination request failed', [
+                    'status' => $response->status(),
+                    'url' => $url,
+                ]);
+
+                return [];
+            }
+
+            $this->parseNextPageLink($response->header('Link') ?? '');
+
+            $data = $response->json() ?? [];
+
+            return $data['orders'] ?? [];
+        } catch (\Exception $e) {
+            Log::error('Shopify API pagination exception', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
+     * Parse the Link header to extract the next page URL
+     * Shopify Link header format: 
+     * <https://shop.myshopify.com/admin/api/2024-01/orders.json?page_info=xxx>; rel="next"
+     */
+    protected function parseNextPageLink(string $linkHeader): void
+    {
+        $this->nextPageUrl = null;
+
+        if ($linkHeader === '') {
+            return;
+        }
+
+        // Split multiple links
+        $links = explode(',', $linkHeader);
+
+        foreach ($links as $link) {
+            if (preg_match('/<(.+?)>;\s*rel="next"/i', trim($link), $matches)) {
+                $this->nextPageUrl = $matches[1];
+                return;
+            }
+        }
     }
 
     protected function makeRequest(string $method, string $endpoint, array $params = []): array
     {
-        if (! $this->integration->shop_name || ! $this->integration->api_access_token) {
+        // Use OAuth token if available, otherwise fall back to API token
+        $accessToken = $this->integration->oauth_access_token ?? $this->integration->api_access_token;
+
+        if (! $this->integration->shop_name || ! $accessToken) {
             throw new \RuntimeException('Shopify integration not configured properly.');
         }
 
@@ -69,7 +178,7 @@ class ShopifyApiClient
 
         try {
             $response = Http::withHeaders([
-                'X-Shopify-Access-Token' => $this->integration->api_access_token,
+                'X-Shopify-Access-Token' => $accessToken,
                 'Content-Type' => 'application/json',
             ])
                 ->timeout(30)
@@ -85,6 +194,11 @@ class ShopifyApiClient
                 throw new \RuntimeException(
                     sprintf('Shopify API error: %s', $response->body())
                 );
+            }
+
+            // Parse pagination link header for cursor-based pagination
+            if ($method === 'GET' && $endpoint === 'orders.json') {
+                $this->parseNextPageLink($response->header('Link') ?? '');
             }
 
             return $response->json() ?? [];
@@ -107,5 +221,10 @@ class ShopifyApiClient
         } catch (\Exception $e) {
             return false;
         }
+    }
+
+    public function hasNextPage(): bool
+    {
+        return $this->nextPageUrl !== null;
     }
 }

@@ -34,6 +34,9 @@ class PosSale extends Model
         'amount_received',
         'change_amount',
         'status',
+        'payment_status',
+        'fulfillment_status',
+        'shopify_synced_at',
         'notes',
         'source',
         'external_id',
@@ -47,6 +50,7 @@ class PosSale extends Model
         'total' => 'decimal:2',
         'amount_received' => 'decimal:2',
         'change_amount' => 'decimal:2',
+        'shopify_synced_at' => 'datetime',
     ];
 
     public function client(): BelongsTo

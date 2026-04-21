@@ -12,10 +12,10 @@ class SyncShopifyOrders extends Command
 {
     protected $signature = 'shopify:sync-orders 
                             {--since-id= : Fetch orders after this Shopify order ID}
-                            {--limit=50 : Maximum number of orders to fetch}
-                            {--days=7 : Fetch orders from the last N days (default: 7)}';
+                            {--days= : Fetch orders from the last N days (default: all orders)}
+                            {--all : Fetch ALL orders (ignore date limit)}';
 
-    protected $description = 'Sync orders from Shopify using the Admin API';
+    protected $description = 'Sync orders from Shopify using the Admin API with pagination';
 
     public function handle(ShopifyOrderImporter $importer): int
     {
@@ -33,8 +33,11 @@ class SyncShopifyOrders extends Command
             return self::FAILURE;
         }
 
-        if (! $integration->api_access_token || ! $integration->shop_name) {
-            $this->error('Shopify API credentials not configured.');
+        $accessToken = $integration->oauth_access_token ?? $integration->api_access_token;
+
+        if (! $accessToken || ! $integration->shop_name) {
+            $this->error('Shopify API credentials not configured. Please configure your integration first.');
+            $this->line('Go to /integrations/shopify to set up your Shopify connection.');
 
             return self::FAILURE;
         }
@@ -53,65 +56,93 @@ class SyncShopifyOrders extends Command
             $this->info('Connection to Shopify API verified.');
 
             $sinceId = $this->option('since-id');
-            $limit = (int) $this->option('limit');
-            $days = (int) $this->option('days');
+            $days = $this->option('days');
+            $fetchAll = $this->option('all');
+
+            $params = ['status' => 'any', 'limit' => 250];
 
             if ($sinceId) {
-                $orders = $client->getOrdersSince($sinceId, $limit);
+                $params['since_id'] = $sinceId;
                 $this->info("Fetching orders since ID: {$sinceId}");
-            } else {
-                $dateTime = now()->subDays($days)->toIso8601String();
-                $orders = $client->getOrdersCreatedAfter($dateTime, $limit);
+            } elseif ($days !== null) {
+                $dateTime = now()->subDays((int) $days)->toIso8601String();
+                $params['created_at_min'] = $dateTime;
                 $this->info("Fetching orders from the last {$days} days");
+            } elseif ($fetchAll) {
+                $this->info('Fetching ALL orders (this may take a while)...');
+            } else {
+                // Default: fetch orders updated since last sync, or all if never synced
+                if ($integration->last_sync_at) {
+                    $params['updated_at_min'] = $integration->last_sync_at->toIso8601String();
+                    $this->info("Fetching orders updated since: {$integration->last_sync_at->format('Y-m-d H:i:s')}");
+                } else {
+                    $this->info('First sync: fetching ALL orders...');
+                }
             }
-
-            if (empty($orders)) {
-                $this->info('No new orders to sync.');
-                $integration->forceFill(['last_sync_at' => now()])->save();
-
-                return self::SUCCESS;
-            }
-
-            $this->info('Found '.count($orders).' order(s) to process.');
 
             $imported = 0;
-            $skipped = 0;
+            $updated = 0;
+            $failed = 0;
+            $totalProcessed = 0;
+            $page = 0;
 
-            $progressBar = $this->output->createProgressBar(count($orders));
-            $progressBar->start();
+            // Use generator for cursor-based pagination
+            foreach ($client->getAllOrders($params) as $orders) {
+                $page++;
+                $batchCount = count($orders);
+                $this->info("\nPage {$page}: Processing {$batchCount} orders...");
 
-            foreach ($orders as $order) {
-                try {
-                    DB::beginTransaction();
+                $progressBar = $this->output->createProgressBar($batchCount);
+                $progressBar->start();
 
-                    $externalId = (string) ($order['id'] ?? '');
-                    $existing = DB::table('pos_sales')
-                        ->where('source', 'shopify')
-                        ->where('external_id', $externalId)
-                        ->exists();
+                foreach ($orders as $order) {
+                    try {
+                        DB::beginTransaction();
 
-                    if ($existing) {
-                        $skipped++;
-                    } else {
+                        $externalId = (string) ($order['id'] ?? '');
+                        $existing = DB::table('pos_sales')
+                            ->where('source', 'shopify')
+                            ->where('external_id', $externalId)
+                            ->exists();
+
                         $importer->import($order);
-                        $imported++;
+
+                        if ($existing) {
+                            $updated++;
+                        } else {
+                            $imported++;
+                        }
+
+                        DB::commit();
+                    } catch (\Exception $e) {
+                        DB::rollBack();
+                        $failed++;
+                        $this->newLine();
+                        $this->error("Failed to import order {$order['id']}: ".$e->getMessage());
                     }
 
-                    DB::commit();
-                } catch (\Exception $e) {
-                    DB::rollBack();
-                    $this->error("\nFailed to import order {$order['id']}: ".$e->getMessage());
+                    $totalProcessed++;
+                    $progressBar->advance();
                 }
 
-                $progressBar->advance();
+                $progressBar->finish();
+                $this->newLine();
             }
 
-            $progressBar->finish();
-            $this->newLine(2);
+            if ($totalProcessed === 0) {
+                $this->info('No new orders to sync.');
+            }
 
-            $this->info("Import completed:");
-            $this->line("  - Imported: {$imported}");
-            $this->line("  - Skipped (already exists): {$skipped}");
+            $this->newLine();
+            $this->info('═══════════════════════════════════════');
+            $this->info("Sync completed successfully!");
+            $this->line("  - Total processed: {$totalProcessed}");
+            $this->line("  - New orders imported: {$imported}");
+            $this->line("  - Existing orders updated: {$updated}");
+            if ($failed > 0) {
+                $this->line("  - Failed: {$failed}");
+            }
+            $this->info('═══════════════════════════════════════');
 
             $integration->forceFill(['last_sync_at' => now()])->save();
 
@@ -123,4 +154,3 @@ class SyncShopifyOrders extends Command
         }
     }
 }
-

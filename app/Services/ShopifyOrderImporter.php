@@ -18,12 +18,24 @@ class ShopifyOrderImporter
                 throw new \InvalidArgumentException('Missing Shopify order id.');
             }
 
+            // Extract Shopify statuses
+            $paymentStatus = strtolower((string) ($order['financial_status'] ?? 'pending'));
+            $fulfillmentStatus = $order['fulfillment_status'] 
+                ? strtolower((string) $order['fulfillment_status']) 
+                : 'unfulfilled';
+
             $existing = PosSale::query()
                 ->where('source', 'shopify')
                 ->where('external_id', $externalId)
                 ->first();
 
+            // If order exists, update its statuses
             if ($existing) {
+                $existing->update([
+                    'payment_status' => $paymentStatus,
+                    'fulfillment_status' => $fulfillmentStatus,
+                    'shopify_synced_at' => now(),
+                ]);
                 return $existing;
             }
 
@@ -107,6 +119,9 @@ class ShopifyOrderImporter
                 'amount_received' => $amountReceived,
                 'change_amount' => $changeAmount,
                 'status' => PosSale::STATUS_COMPLETED,
+                'payment_status' => $paymentStatus,
+                'fulfillment_status' => $fulfillmentStatus,
+                'shopify_synced_at' => now(),
                 'notes' => 'Shopify order #'.$orderNumber.' (id '.$externalId.')',
                 'source' => 'shopify',
                 'external_id' => $externalId,
