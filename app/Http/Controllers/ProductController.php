@@ -3,15 +3,83 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\ShopifyIntegration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Artisan;
 
 class ProductController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $products = Product::latest()->paginate(15);
-        return view('products.index', compact('products'));
+        $query = Product::query();
+
+        // Filter by source
+        if ($request->has('source')) {
+            $source = $request->input('source');
+            if ($source === 'shopify') {
+                $query->where('source', 'shopify');
+            } elseif ($source === 'manual') {
+                $query->whereNull('source')->orWhere('source', '!=', 'shopify');
+            }
+        }
+
+        // Search functionality
+        if ($request->has('search') && $request->input('search') !== '') {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('ref', 'like', "%{$search}%")
+                  ->orWhere('barcode', 'like', "%{$search}%");
+            });
+        }
+
+        $products = $query->latest()->paginate(20);
+
+        // Get statistics
+        $totalProducts = Product::count();
+        $totalShopifyProducts = Product::where('source', 'shopify')->count();
+        $totalManualProducts = Product::whereNull('source')->orWhere('source', '!=', 'shopify')->count();
+        $lowStockProducts = Product::where(function ($q) {
+            $q->whereColumn('stock_quantity', '<=', 'minimum_alert_stock')
+              ->orWhereColumn('stock_quantity', '<=', 'minimum_safety_stock');
+        })->count();
+
+        // Get Shopify integration status
+        $shopifyIntegration = ShopifyIntegration::first();
+
+        return view('products.index', compact(
+            'products',
+            'totalProducts',
+            'totalShopifyProducts',
+            'totalManualProducts',
+            'lowStockProducts',
+            'shopifyIntegration'
+        ));
+    }
+
+    public function syncShopify()
+    {
+        try {
+            $integration = ShopifyIntegration::first();
+
+            if (!$integration || !$integration->enabled) {
+                return redirect()
+                    ->route('products.index')
+                    ->with('error', 'Shopify integration is not configured or disabled.');
+            }
+
+            // Run the sync command in the background
+            Artisan::call('shopify:sync-products');
+
+            return redirect()
+                ->route('products.index')
+                ->with('success', 'Product synchronization started! This may take a few moments.');
+        } catch (\Exception $e) {
+            return redirect()
+                ->route('products.index')
+                ->with('error', 'Failed to sync products: ' . $e->getMessage());
+        }
     }
 
     public function create()

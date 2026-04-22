@@ -100,7 +100,9 @@ class ShopifyOrderImporter
             }
 
             $orderNumber = (string) ($order['order_number'] ?? $order['name'] ?? $externalId);
-            $ticketNumber = 'SHOPIFY-'.$externalId;
+            // Use the actual Shopify order name (e.g., "#FTC8807" or "FTC8807")
+            // Remove the "#" prefix if present
+            $ticketNumber = ltrim($orderNumber, '#');
 
             $currency = (string) ($order['currency'] ?? 'MAD');
             $currencyLabel = strtoupper($currency).' — Shopify';

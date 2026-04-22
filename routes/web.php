@@ -36,6 +36,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
     
     Route::resource('products', ProductController::class);
+    Route::post('/products/sync-shopify', [ProductController::class, 'syncShopify'])->name('products.sync-shopify');
 
     Route::get('/stock', [StockController::class, 'index'])->name('stock.index');
     Route::get('/stock/{product}/edit', [StockController::class, 'edit'])->name('stock.edit');

@@ -197,7 +197,7 @@ class ShopifyApiClient
             }
 
             // Parse pagination link header for cursor-based pagination
-            if ($method === 'GET' && $endpoint === 'orders.json') {
+            if ($method === 'GET' && ($endpoint === 'orders.json' || $endpoint === 'products.json')) {
                 $this->parseNextPageLink($response->header('Link') ?? '');
             }
 
@@ -226,5 +226,105 @@ class ShopifyApiClient
     public function hasNextPage(): bool
     {
         return $this->nextPageUrl !== null;
+    }
+
+    /**
+     * Get products from Shopify
+     */
+    public function getProducts(array $params = []): array
+    {
+        $defaultParams = [
+            'limit' => 250,
+        ];
+
+        $queryParams = array_merge($defaultParams, $params);
+
+        $response = $this->makeRequest('GET', 'products.json', $queryParams);
+
+        return $response['products'] ?? [];
+    }
+
+    /**
+     * Get a single product by ID
+     */
+    public function getProduct(string $productId): ?array
+    {
+        $response = $this->makeRequest('GET', "products/{$productId}.json");
+
+        return $response['product'] ?? null;
+    }
+
+    /**
+     * Fetch ALL products using cursor-based pagination.
+     * Returns a generator that yields batches of products.
+     */
+    public function getAllProducts(array $params = []): \Generator
+    {
+        $defaultParams = [
+            'limit' => 250,
+        ];
+
+        $queryParams = array_merge($defaultParams, $params);
+
+        // Initial request
+        $products = $this->getProducts($queryParams);
+
+        if (!empty($products)) {
+            yield $products;
+        }
+
+        // Continue fetching next pages using the same pagination mechanism
+        while ($this->nextPageUrl !== null) {
+            $products = $this->fetchNextPageProducts();
+
+            if (!empty($products)) {
+                yield $products;
+            }
+        }
+    }
+
+    /**
+     * Fetch the next page of products using the cursor URL from the Link header
+     */
+    protected function fetchNextPageProducts(): array
+    {
+        if ($this->nextPageUrl === null) {
+            return [];
+        }
+
+        $url = $this->nextPageUrl;
+        $this->nextPageUrl = null; // Reset before making the request
+
+        $accessToken = $this->integration->oauth_access_token ?? $this->integration->api_access_token;
+
+        try {
+            $response = Http::withHeaders([
+                'X-Shopify-Access-Token' => $accessToken,
+                'Content-Type' => 'application/json',
+            ])
+                ->timeout(30)
+                ->get($url);
+
+            if ($response->failed()) {
+                Log::error('Shopify API products pagination request failed', [
+                    'status' => $response->status(),
+                    'url' => $url,
+                ]);
+
+                return [];
+            }
+
+            $this->parseNextPageLink($response->header('Link') ?? '');
+
+            $data = $response->json() ?? [];
+
+            return $data['products'] ?? [];
+        } catch (\Exception $e) {
+            Log::error('Shopify API products pagination exception', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
     }
 }

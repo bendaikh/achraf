@@ -121,29 +121,29 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 @if($product->cost_price_ht !== null)
                                     <div>
-                                        <span class="text-sm text-gray-500">Prix de revient HT</span>
-                                        <p class="mt-1 text-xl font-semibold text-gray-900">{{ number_format($product->cost_price_ht, 2) }} €</p>
+                                        <span class="text-sm text-gray-500">Prix de revient HT (DHS)</span>
+                                        <p class="mt-1 text-xl font-semibold text-gray-900">{{ number_format($product->cost_price_ht, 2) }} DHS</p>
                                     </div>
                                 @endif
 
                                 @if($product->cost_price_ttc !== null)
                                     <div>
-                                        <span class="text-sm text-gray-500">Prix de revient TTC</span>
-                                        <p class="mt-1 text-xl font-semibold text-gray-900">{{ number_format($product->cost_price_ttc, 2) }} €</p>
+                                        <span class="text-sm text-gray-500">Prix de revient TTC (DHS)</span>
+                                        <p class="mt-1 text-xl font-semibold text-gray-900">{{ number_format($product->cost_price_ttc, 2) }} DHS</p>
                                     </div>
                                 @endif
 
                                 @if($product->last_purchase_price !== null)
                                     <div>
-                                        <span class="text-sm text-gray-500">Prix dernier achat</span>
-                                        <p class="mt-1 text-xl font-semibold text-gray-900">{{ number_format($product->last_purchase_price, 2) }} €</p>
+                                        <span class="text-sm text-gray-500">Prix dernier achat (DHS)</span>
+                                        <p class="mt-1 text-xl font-semibold text-gray-900">{{ number_format($product->last_purchase_price, 2) }} DHS</p>
                                     </div>
                                 @endif
 
                                 @if($product->sale_price !== null)
                                     <div>
-                                        <span class="text-sm text-gray-500">Prix de vente</span>
-                                        <p class="mt-1 text-xl font-semibold text-green-600">{{ number_format($product->sale_price, 2) }} €</p>
+                                        <span class="text-sm text-gray-500">Prix de vente (DHS)</span>
+                                        <p class="mt-1 text-xl font-semibold text-green-600">{{ number_format($product->sale_price, 2) }} DHS</p>
                                     </div>
                                 @endif
 

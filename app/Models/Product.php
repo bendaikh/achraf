@@ -24,6 +24,10 @@ class Product extends Model
         'status',
         'product_category',
         'description',
+        'source',
+        'external_id',
+        'shopify_status',
+        'shopify_synced_at',
     ];
 
     protected $casts = [
@@ -34,6 +38,7 @@ class Product extends Model
         'minimum_safety_stock' => 'integer',
         'minimum_alert_stock' => 'integer',
         'stock_quantity' => 'integer',
+        'shopify_synced_at' => 'datetime',
     ];
 
     public function isStockLow(): bool
@@ -76,5 +81,34 @@ class Product extends Model
     public function invoiceItems()
     {
         return $this->hasMany(InvoiceItem::class);
+    }
+
+    /**
+     * Check if this product is synced from Shopify
+     */
+    public function isShopifyProduct(): bool
+    {
+        return $this->source === 'shopify';
+    }
+
+    /**
+     * Get the Shopify admin URL for this product
+     */
+    public function getShopifyUrlAttribute(): ?string
+    {
+        if (!$this->isShopifyProduct() || !$this->external_id) {
+            return null;
+        }
+
+        $integration = \App\Models\ShopifyIntegration::first();
+        if (!$integration || !$integration->shop_name) {
+            return null;
+        }
+
+        return sprintf(
+            'https://%s.myshopify.com/admin/products/%s',
+            $integration->shop_name,
+            $this->external_id
+        );
     }
 }

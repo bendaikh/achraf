@@ -94,7 +94,7 @@
                         </div>
 
                         <div>
-                            <label for="cost_price_ht" class="block text-sm font-medium text-gray-700 mb-1">Prix de revient HT</label>
+                            <label for="cost_price_ht" class="block text-sm font-medium text-gray-700 mb-1">Prix de revient HT (DHS)</label>
                             <input 
                                 type="number" 
                                 name="cost_price_ht" 
@@ -144,7 +144,7 @@
                         </div>
 
                         <div>
-                            <label for="cost_price_ttc" class="block text-sm font-medium text-gray-700 mb-1">Prix de Revient TTC</label>
+                            <label for="cost_price_ttc" class="block text-sm font-medium text-gray-700 mb-1">Prix de Revient TTC (DHS)</label>
                             <input 
                                 type="number" 
                                 name="cost_price_ttc" 
@@ -160,7 +160,7 @@
                         </div>
 
                         <div>
-                            <label for="last_purchase_price" class="block text-sm font-medium text-gray-700 mb-1">Prix dernier achat</label>
+                            <label for="last_purchase_price" class="block text-sm font-medium text-gray-700 mb-1">Prix dernier achat (DHS)</label>
                             <input 
                                 type="number" 
                                 name="last_purchase_price" 
@@ -222,7 +222,7 @@
                         </div>
 
                         <div>
-                            <label for="sale_price" class="block text-sm font-medium text-gray-700 mb-1">Prix de Vente</label>
+                            <label for="sale_price" class="block text-sm font-medium text-gray-700 mb-1">Prix de Vente (DHS)</label>
                             <input 
                                 type="number" 
                                 name="sale_price" 
