@@ -57,12 +57,19 @@ class ShopifyOrderImporter
                 $product = $sku !== '' ? Product::query()->where('ref', $sku)->first() : null;
 
                 $qty = max(1, (int) ($li['quantity'] ?? 1));
-                $unitPrice = (float) ($li['price'] ?? 0);
+                $unitPriceTTC = (float) ($li['price'] ?? 0);
 
                 $taxRate = $this->lineTaxRate($li, $product);
-                $base = round($qty * $unitPrice, 2);
-                $tax = round($base * ($taxRate / 100), 2);
-                $lineTotal = round($base + $tax, 2);
+                
+                // Shopify prices are TTC (including tax), so we need to calculate HT from TTC
+                // Formula: HT = TTC / (1 + taxRate/100)
+                $lineTotalTTC = round($qty * $unitPriceTTC, 2);
+                $base = round($lineTotalTTC / (1 + ($taxRate / 100)), 2);
+                $tax = round($lineTotalTTC - $base, 2);
+                $lineTotal = $lineTotalTTC;
+                
+                // Calculate unit price HT for storage
+                $unitPrice = $qty > 0 ? round($base / $qty, 2) : 0;
 
                 $subtotalHt += $base;
                 $taxTotal += $tax;
