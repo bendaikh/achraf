@@ -106,8 +106,9 @@ class ShopifyOrderImporter
                 $amountReceived = $total;
             }
 
-            $orderNumber = (string) ($order['order_number'] ?? $order['name'] ?? $externalId);
             // Use the actual Shopify order name (e.g., "#FTC8807" or "FTC8807")
+            // Prioritize 'name' over 'order_number' because name has the prefix (FTC8836) while order_number is just numeric (8836)
+            $orderNumber = (string) ($order['name'] ?? $order['order_number'] ?? $externalId);
             // Remove the "#" prefix if present
             $ticketNumber = ltrim($orderNumber, '#');
 
