@@ -234,16 +234,66 @@ class ShopifyOrderImporter
 
     private function mapPaymentMethod(array $order): string
     {
-        $tags = strtolower((string) ($order['tags'] ?? ''));
-        if (str_contains($tags, 'cash')) {
+        // Check payment gateway names first (most reliable)
+        $gateway = strtolower((string) ($order['gateway'] ?? ''));
+        
+        // Cash on Delivery detection
+        if (str_contains($gateway, 'cod') || 
+            str_contains($gateway, 'cash_on_delivery') || 
+            str_contains($gateway, 'cash on delivery') ||
+            str_contains($gateway, 'contre remboursement')) {
             return PosSale::PAYMENT_CASH;
         }
-
-        $gw = strtolower((string) ($order['gateway'] ?? ''));
-        if (str_contains($gw, 'bank') || str_contains($gw, 'transfer')) {
+        
+        // Bank transfer detection
+        if (str_contains($gateway, 'bank') || 
+            str_contains($gateway, 'transfer') || 
+            str_contains($gateway, 'virement')) {
             return PosSale::PAYMENT_TRANSFER;
         }
-
+        
+        // Cheque detection
+        if (str_contains($gateway, 'cheque') || str_contains($gateway, 'check')) {
+            return PosSale::PAYMENT_CHEQUE;
+        }
+        
+        // Manual payment (often used for cash)
+        if (str_contains($gateway, 'manual')) {
+            return PosSale::PAYMENT_CASH;
+        }
+        
+        // Check payment gateway names in payment_gateway_names array
+        $paymentGateways = $order['payment_gateway_names'] ?? [];
+        if (is_array($paymentGateways)) {
+            foreach ($paymentGateways as $gw) {
+                $gwLower = strtolower((string) $gw);
+                if (str_contains($gwLower, 'cod') || 
+                    str_contains($gwLower, 'cash_on_delivery') ||
+                    str_contains($gwLower, 'cash on delivery') ||
+                    str_contains($gwLower, 'contre remboursement')) {
+                    return PosSale::PAYMENT_CASH;
+                }
+                if (str_contains($gwLower, 'bank') || 
+                    str_contains($gwLower, 'transfer') || 
+                    str_contains($gwLower, 'virement')) {
+                    return PosSale::PAYMENT_TRANSFER;
+                }
+                if (str_contains($gwLower, 'cheque') || str_contains($gwLower, 'check')) {
+                    return PosSale::PAYMENT_CHEQUE;
+                }
+            }
+        }
+        
+        // Check tags as fallback
+        $tags = strtolower((string) ($order['tags'] ?? ''));
+        if (str_contains($tags, 'cash') || str_contains($tags, 'cod')) {
+            return PosSale::PAYMENT_CASH;
+        }
+        if (str_contains($tags, 'cheque') || str_contains($tags, 'check')) {
+            return PosSale::PAYMENT_CHEQUE;
+        }
+        
+        // Default to card for online payments
         return PosSale::PAYMENT_CARD;
     }
 }

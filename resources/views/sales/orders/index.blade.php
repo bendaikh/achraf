@@ -83,6 +83,60 @@
             </div>
         </div>
 
+        <!-- Column Visibility Toggle -->
+        <div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-medium text-gray-700">Colonnes visibles</h3>
+                <div class="relative">
+                    <button type="button" id="columnToggleBtn" class="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path>
+                        </svg>
+                        Afficher/Masquer colonnes
+                    </button>
+                    
+                    <!-- Dropdown menu -->
+                    <div id="columnToggleMenu" class="hidden absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                        <div class="p-3 space-y-2">
+                            <label class="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="column-toggle rounded text-blue-600 focus:ring-blue-500" data-column="numero" checked>
+                                <span class="text-sm text-gray-700">N° Commande</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="column-toggle rounded text-blue-600 focus:ring-blue-500" data-column="source" checked>
+                                <span class="text-sm text-gray-700">Source</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="column-toggle rounded text-blue-600 focus:ring-blue-500" data-column="client" checked>
+                                <span class="text-sm text-gray-700">Client</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="column-toggle rounded text-blue-600 focus:ring-blue-500" data-column="date" checked>
+                                <span class="text-sm text-gray-700">Date</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="column-toggle rounded text-blue-600 focus:ring-blue-500" data-column="total" checked>
+                                <span class="text-sm text-gray-700">Total</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="column-toggle rounded text-blue-600 focus:ring-blue-500" data-column="paiement" checked>
+                                <span class="text-sm text-gray-700">Paiement</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="column-toggle rounded text-blue-600 focus:ring-blue-500" data-column="livraison" checked>
+                                <span class="text-sm text-gray-700">Livraison</span>
+                            </label>
+                            <div class="pt-2 border-t border-gray-200">
+                                <button type="button" id="resetColumns" class="w-full px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded transition-colors">
+                                    Réinitialiser
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Filters -->
         <div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
             <form method="GET" action="{{ route('orders.index') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -131,26 +185,26 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Commande</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paiement</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Livraison</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-numero">N° Commande</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-source">Source</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-client">Client</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-date">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-total">Total</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-paiement">Paiement</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-livraison">Livraison</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         @forelse($orders as $order)
                         <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-6 py-4 whitespace-nowrap column-numero">
                                 <div class="text-sm font-medium text-gray-900">{{ $order->ticket_number }}</div>
                                 @if($order->external_id)
                                 <div class="text-xs text-gray-500">ID: {{ $order->external_id }}</div>
                                 @endif
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-6 py-4 whitespace-nowrap column-source">
                                 @if($order->source === 'shopify')
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                     <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -167,19 +221,19 @@
                                 </span>
                                 @endif
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-6 py-4 whitespace-nowrap column-client">
                                 <div class="text-sm text-gray-900">{{ $order->client?->name ?? 'Client anonyme' }}</div>
                                 @if($order->client?->email)
                                 <div class="text-xs text-gray-500">{{ $order->client->email }}</div>
                                 @endif
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 column-date">
                                 {{ $order->sold_at->format('d/m/Y H:i') }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-6 py-4 whitespace-nowrap column-total">
                                 <div class="text-sm font-medium text-gray-900">{{ number_format($order->total, 2) }} {{ $order->currency ?? 'DH' }}</div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-6 py-4 whitespace-nowrap column-paiement">
                                 @if($order->source === 'shopify' && $order->payment_status)
                                     @if($order->payment_status === 'paid')
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -211,7 +265,7 @@
                                 <span class="text-xs text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-6 py-4 whitespace-nowrap column-livraison">
                                 @if($order->source === 'shopify' && $order->fulfillment_status)
                                     @if($order->fulfillment_status === 'fulfilled')
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -308,4 +362,84 @@
         <p class="mt-1">Synchronisation automatique Shopify activée (toutes les heures)</p>
     </footer>
 </main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const columnToggleBtn = document.getElementById('columnToggleBtn');
+    const columnToggleMenu = document.getElementById('columnToggleMenu');
+    const columnToggles = document.querySelectorAll('.column-toggle');
+    const resetColumnsBtn = document.getElementById('resetColumns');
+    
+    // Toggle dropdown menu
+    columnToggleBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        columnToggleMenu.classList.toggle('hidden');
+    });
+    
+    // Close menu when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!columnToggleMenu.contains(e.target) && !columnToggleBtn.contains(e.target)) {
+            columnToggleMenu.classList.add('hidden');
+        }
+    });
+    
+    // Load saved column preferences
+    function loadColumnPreferences() {
+        const savedPrefs = localStorage.getItem('ordersColumnPrefs');
+        if (savedPrefs) {
+            const prefs = JSON.parse(savedPrefs);
+            columnToggles.forEach(checkbox => {
+                const columnName = checkbox.dataset.column;
+                if (prefs.hasOwnProperty(columnName)) {
+                    checkbox.checked = prefs[columnName];
+                    toggleColumn(columnName, prefs[columnName]);
+                }
+            });
+        }
+    }
+    
+    // Save column preferences
+    function saveColumnPreferences() {
+        const prefs = {};
+        columnToggles.forEach(checkbox => {
+            prefs[checkbox.dataset.column] = checkbox.checked;
+        });
+        localStorage.setItem('ordersColumnPrefs', JSON.stringify(prefs));
+    }
+    
+    // Toggle column visibility
+    function toggleColumn(columnName, isVisible) {
+        const columns = document.querySelectorAll('.column-' + columnName);
+        columns.forEach(col => {
+            if (isVisible) {
+                col.style.display = '';
+            } else {
+                col.style.display = 'none';
+            }
+        });
+    }
+    
+    // Handle checkbox changes
+    columnToggles.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const columnName = this.dataset.column;
+            const isVisible = this.checked;
+            toggleColumn(columnName, isVisible);
+            saveColumnPreferences();
+        });
+    });
+    
+    // Reset all columns to visible
+    resetColumnsBtn.addEventListener('click', function() {
+        columnToggles.forEach(checkbox => {
+            checkbox.checked = true;
+            toggleColumn(checkbox.dataset.column, true);
+        });
+        localStorage.removeItem('ordersColumnPrefs');
+    });
+    
+    // Initialize on page load
+    loadColumnPreferences();
+});
+</script>
 @endsection
