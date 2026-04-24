@@ -87,8 +87,31 @@ class ShopifyOrderImporter
                 ];
             }
 
+            // Handle orders where all items have been refunded/removed
             if ($lineRows === []) {
-                throw new \InvalidArgumentException('No line items to import for this order.');
+                // If order already exists locally, update it and remove all line items
+                if ($existing) {
+                    $existing->update([
+                        'payment_status' => $paymentStatus,
+                        'fulfillment_status' => $fulfillmentStatus,
+                        'shopify_synced_at' => now(),
+                    ]);
+                    PosSaleItem::where('pos_sale_id', $existing->id)->delete();
+
+                    \Log::info('Shopify order fully refunded - cleared line items', [
+                        'order_id' => $externalId,
+                        'ticket_number' => $existing->ticket_number,
+                    ]);
+
+                    return $existing;
+                }
+
+                // New order with no valid line items (fully refunded before first sync)
+                // Skip silently - nothing to create
+                \Log::info('Shopify order has no active line items - skipping', [
+                    'order_id' => $externalId,
+                ]);
+                throw new \InvalidArgumentException('Order has no active line items (all refunded).');
             }
 
             $globalDiscount = round((float) ($order['total_discounts'] ?? 0), 2);

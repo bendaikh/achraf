@@ -83,6 +83,7 @@ class SyncShopifyOrders extends Command
             $imported = 0;
             $updated = 0;
             $failed = 0;
+            $skipped = 0;
             $totalProcessed = 0;
             $page = 0;
 
@@ -114,6 +115,10 @@ class SyncShopifyOrders extends Command
                         }
 
                         DB::commit();
+                    } catch (\InvalidArgumentException $e) {
+                        DB::rollBack();
+                        // Fully refunded orders with no active items are skipped silently
+                        $skipped++;
                     } catch (\Exception $e) {
                         DB::rollBack();
                         $failed++;
@@ -139,6 +144,9 @@ class SyncShopifyOrders extends Command
             $this->line("  - Total processed: {$totalProcessed}");
             $this->line("  - New orders imported: {$imported}");
             $this->line("  - Existing orders updated: {$updated}");
+            if ($skipped > 0) {
+                $this->line("  - Skipped (fully refunded): {$skipped}");
+            }
             if ($failed > 0) {
                 $this->line("  - Failed: {$failed}");
             }
