@@ -107,6 +107,8 @@ class ShopifyOrderImporter
 
             // If order exists, update it and its line items
             if ($existing) {
+                $oldItemCount = PosSaleItem::where('pos_sale_id', $existing->id)->count();
+                
                 $existing->update([
                     'client_id' => $client?->id,
                     'subtotal' => $subtotalHt,
@@ -122,7 +124,7 @@ class ShopifyOrderImporter
                 ]);
 
                 // Delete old line items and recreate them
-                PosSaleItem::where('pos_sale_id', $existing->id)->delete();
+                $deleted = PosSaleItem::where('pos_sale_id', $existing->id)->delete();
 
                 foreach ($lineRows as $row) {
                     PosSaleItem::create([
@@ -137,6 +139,14 @@ class ShopifyOrderImporter
                         'line_total' => $row['line_total'],
                     ]);
                 }
+
+                \Log::info('Updated Shopify order line items', [
+                    'order_id' => $externalId,
+                    'ticket_number' => $existing->ticket_number,
+                    'old_items' => $oldItemCount,
+                    'deleted_items' => $deleted,
+                    'new_items' => count($lineRows),
+                ]);
 
                 return $existing;
             }
