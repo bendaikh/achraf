@@ -327,4 +327,99 @@ class ShopifyApiClient
             return [];
         }
     }
+
+    /**
+     * Get all registered webhooks
+     */
+    public function getWebhooks(): array
+    {
+        $response = $this->makeRequest('GET', 'webhooks.json');
+        return $response['webhooks'] ?? [];
+    }
+
+    /**
+     * Register a webhook in Shopify
+     */
+    public function createWebhook(string $topic, string $address): ?array
+    {
+        $accessToken = $this->integration->oauth_access_token ?? $this->integration->api_access_token;
+
+        if (! $this->integration->shop_name || ! $accessToken) {
+            throw new \RuntimeException('Shopify integration not configured properly.');
+        }
+
+        $url = sprintf(
+            'https://%s.myshopify.com/admin/api/%s/webhooks.json',
+            $this->integration->shop_name,
+            $this->integration->api_version ?? '2024-01'
+        );
+
+        try {
+            $response = Http::withHeaders([
+                'X-Shopify-Access-Token' => $accessToken,
+                'Content-Type' => 'application/json',
+            ])
+                ->timeout(30)
+                ->post($url, [
+                    'webhook' => [
+                        'topic' => $topic,
+                        'address' => $address,
+                        'format' => 'json',
+                    ],
+                ]);
+
+            if ($response->failed()) {
+                Log::error('Shopify webhook registration failed', [
+                    'status' => $response->status(),
+                    'topic' => $topic,
+                    'body' => $response->body(),
+                ]);
+                return null;
+            }
+
+            return $response->json()['webhook'] ?? null;
+        } catch (\Exception $e) {
+            Log::error('Shopify webhook registration exception', [
+                'message' => $e->getMessage(),
+                'topic' => $topic,
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Delete a webhook by ID
+     */
+    public function deleteWebhook(string $webhookId): bool
+    {
+        $accessToken = $this->integration->oauth_access_token ?? $this->integration->api_access_token;
+
+        if (! $this->integration->shop_name || ! $accessToken) {
+            throw new \RuntimeException('Shopify integration not configured properly.');
+        }
+
+        $url = sprintf(
+            'https://%s.myshopify.com/admin/api/%s/webhooks/%s.json',
+            $this->integration->shop_name,
+            $this->integration->api_version ?? '2024-01',
+            $webhookId
+        );
+
+        try {
+            $response = Http::withHeaders([
+                'X-Shopify-Access-Token' => $accessToken,
+                'Content-Type' => 'application/json',
+            ])
+                ->timeout(30)
+                ->delete($url);
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            Log::error('Shopify webhook deletion exception', [
+                'message' => $e->getMessage(),
+                'webhook_id' => $webhookId,
+            ]);
+            return false;
+        }
+    }
 }
