@@ -29,16 +29,6 @@ class ShopifyOrderImporter
                 ->where('external_id', $externalId)
                 ->first();
 
-            // If order exists, update its statuses
-            if ($existing) {
-                $existing->update([
-                    'payment_status' => $paymentStatus,
-                    'fulfillment_status' => $fulfillmentStatus,
-                    'shopify_synced_at' => now(),
-                ]);
-                return $existing;
-            }
-
             $client = $this->resolveClient($order);
 
             $lineRows = [];
@@ -115,6 +105,43 @@ class ShopifyOrderImporter
             $currency = (string) ($order['currency'] ?? 'MAD');
             $currencyLabel = strtoupper($currency).' — Shopify';
 
+            // If order exists, update it and its line items
+            if ($existing) {
+                $existing->update([
+                    'client_id' => $client?->id,
+                    'subtotal' => $subtotalHt,
+                    'discount' => $globalDiscount,
+                    'tax_total' => $taxTotal,
+                    'total' => $total,
+                    'payment_method' => $paymentMethod,
+                    'amount_received' => $amountReceived,
+                    'change_amount' => $changeAmount,
+                    'payment_status' => $paymentStatus,
+                    'fulfillment_status' => $fulfillmentStatus,
+                    'shopify_synced_at' => now(),
+                ]);
+
+                // Delete old line items and recreate them
+                PosSaleItem::where('pos_sale_id', $existing->id)->delete();
+
+                foreach ($lineRows as $row) {
+                    PosSaleItem::create([
+                        'pos_sale_id' => $existing->id,
+                        'product_id' => $row['product']?->id,
+                        'ref' => $row['ref'],
+                        'designation' => $row['designation'],
+                        'quantity' => $row['quantity'],
+                        'unit_price' => $row['unit_price'],
+                        'tax_rate' => $row['tax_rate'],
+                        'discount' => $row['discount'],
+                        'line_total' => $row['line_total'],
+                    ]);
+                }
+
+                return $existing;
+            }
+
+            // Create new order
             $sale = PosSale::create([
                 'ticket_number' => $ticketNumber,
                 'client_id' => $client?->id,
