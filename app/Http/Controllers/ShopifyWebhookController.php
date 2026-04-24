@@ -14,25 +14,45 @@ class ShopifyWebhookController extends Controller
 {
     /**
      * Verify the webhook HMAC signature
+     * 
+     * Shopify signs webhooks with the app's API secret key. For webhooks registered
+     * via the Admin API (programmatic), this is the oauth_client_secret. For webhooks
+     * registered manually in the Shopify admin, a separate webhook_secret may be used.
+     * We try all available secrets for maximum compatibility.
      */
     private function verifyWebhook(Request $request, ShopifyIntegration $integration): ?Response
     {
-        $secret = $integration->webhook_secret;
-        if ($secret === null || $secret === '') {
-            return response('Webhook secret not configured', 401);
-        }
-
         $raw = $request->getContent();
         $hmacHeader = (string) $request->header('X-Shopify-Hmac-Sha256', '');
 
-        $calculated = base64_encode(hash_hmac('sha256', $raw, $secret, true));
-
-        if ($hmacHeader === '' || ! hash_equals($calculated, $hmacHeader)) {
-            Log::warning('Shopify webhook HMAC verification failed.');
+        if ($hmacHeader === '') {
+            Log::warning('Shopify webhook missing HMAC header.');
             return response('Unauthorized', 401);
         }
 
-        return null;
+        // Collect all possible secrets to try
+        $secrets = array_filter([
+            $integration->oauth_client_secret,
+            $integration->webhook_secret,
+        ]);
+
+        if (empty($secrets)) {
+            Log::error('No Shopify secret configured for webhook verification.');
+            return response('Webhook secret not configured', 401);
+        }
+
+        foreach ($secrets as $secret) {
+            $calculated = base64_encode(hash_hmac('sha256', $raw, $secret, true));
+            if (hash_equals($calculated, $hmacHeader)) {
+                return null;
+            }
+        }
+
+        Log::warning('Shopify webhook HMAC verification failed.', [
+            'hmac_header' => substr($hmacHeader, 0, 10) . '...',
+            'secrets_tried' => count($secrets),
+        ]);
+        return response('Unauthorized', 401);
     }
 
     /**
