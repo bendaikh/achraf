@@ -43,10 +43,21 @@ class ShopifyOrderImporter
                     continue;
                 }
 
+                // Use current_quantity (after refunds/removals) if available,
+                // otherwise fall back to original quantity
+                $currentQty = array_key_exists('current_quantity', $li)
+                    ? (int) $li['current_quantity']
+                    : (int) ($li['quantity'] ?? 1);
+
+                // Skip items that have been fully refunded/removed from the order
+                if ($currentQty <= 0) {
+                    continue;
+                }
+
                 $sku = trim((string) ($li['sku'] ?? ''));
                 $product = $sku !== '' ? Product::query()->where('ref', $sku)->first() : null;
 
-                $qty = max(1, (int) ($li['quantity'] ?? 1));
+                $qty = max(1, $currentQty);
                 $unitPriceTTC = (float) ($li['price'] ?? 0);
 
                 $taxRate = $this->lineTaxRate($li, $product);
