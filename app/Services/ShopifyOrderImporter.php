@@ -114,12 +114,32 @@ class ShopifyOrderImporter
                 throw new \InvalidArgumentException('Order has no active line items (all refunded).');
             }
 
-            $globalDiscount = round((float) ($order['total_discounts'] ?? 0), 2);
+            // Use current_* fields (post-refund) if available, otherwise fall back to original values
+            $globalDiscount = round(
+                (float) ($order['current_total_discounts'] ?? $order['total_discounts'] ?? 0),
+                2
+            );
             $totalBeforeGlobal = round($subtotalHt + $taxTotal, 2);
             $computedTotal = max(0, round($totalBeforeGlobal - $globalDiscount, 2));
 
-            $shopifyTotal = isset($order['total_price']) ? round((float) $order['total_price'], 2) : null;
-            $total = $shopifyTotal !== null ? $shopifyTotal : $computedTotal;
+            // Prefer current_total_price (reflects state after refunds/removals)
+            // over total_price (original order total that doesn't change after refunds)
+            $shopifyTotal = null;
+            if (isset($order['current_total_price'])) {
+                $shopifyTotal = round((float) $order['current_total_price'], 2);
+            } elseif (isset($order['total_price'])) {
+                $shopifyTotal = round((float) $order['total_price'], 2);
+            }
+
+            // If Shopify's total doesn't match our computed total from active line items,
+            // prefer our computed total (this handles edge cases where Shopify's current_total_price
+            // isn't updated correctly)
+            if ($shopifyTotal !== null && abs($shopifyTotal - $computedTotal) > 1) {
+                // Use computed total from active line items for accuracy
+                $total = $computedTotal;
+            } else {
+                $total = $shopifyTotal !== null ? $shopifyTotal : $computedTotal;
+            }
 
             $paymentMethod = $this->mapPaymentMethod($order);
             $financialStatus = strtolower((string) ($order['financial_status'] ?? ''));
