@@ -92,6 +92,7 @@ class ShopifyOrderImporter
                 // If order already exists locally, update it and remove all line items
                 if ($existing) {
                     $existing->update([
+                        'client_id' => $client?->id,
                         'payment_status' => $paymentStatus,
                         'fulfillment_status' => $fulfillmentStatus,
                         'shopify_synced_at' => now(),
@@ -257,14 +258,22 @@ class ShopifyOrderImporter
         }
 
         $billing = is_array($order['billing_address'] ?? null) ? $order['billing_address'] : [];
+        $shipping = is_array($order['shipping_address'] ?? null) ? $order['shipping_address'] : [];
+        
         $name = trim((string) ($billing['name'] ?? ''));
+        if ($name === '') {
+            $name = trim((string) ($shipping['name'] ?? ''));
+        }
         if ($name === '' && isset($order['customer']) && is_array($order['customer'])) {
             $c = $order['customer'];
             $name = trim(trim((string) ($c['first_name'] ?? '')).' '.trim((string) ($c['last_name'] ?? '')));
         }
-        if ($name === '') {
-            $name = 'Shopify customer';
-        }
+
+        $phone = $this->phoneFromOrder($order);
+        
+        $address = $billing['address1'] ?? $shipping['address1'] ?? null;
+        $city = $billing['city'] ?? $shipping['city'] ?? null;
+        $country = $billing['country'] ?? $shipping['country'] ?? null;
 
         if ($email !== '') {
             $client = Client::query()->where('email', $email)->first();
@@ -273,12 +282,39 @@ class ShopifyOrderImporter
             }
 
             return Client::create([
-                'name' => $name,
+                'name' => $name !== '' ? $name : 'Shopify customer',
                 'email' => $email,
-                'phone' => $this->phoneFromOrder($order),
-                'address' => $billing['address1'] ?? null,
-                'city' => $billing['city'] ?? null,
-                'country' => $billing['country'] ?? null,
+                'phone' => $phone,
+                'address' => $address,
+                'city' => $city,
+                'country' => $country,
+            ]);
+        }
+
+        if ($phone !== null && $phone !== '') {
+            $client = Client::query()->where('phone', $phone)->first();
+            if ($client) {
+                return $client;
+            }
+
+            return Client::create([
+                'name' => $name !== '' ? $name : 'Shopify customer',
+                'email' => null,
+                'phone' => $phone,
+                'address' => $address,
+                'city' => $city,
+                'country' => $country,
+            ]);
+        }
+
+        if ($name !== '') {
+            return Client::create([
+                'name' => $name,
+                'email' => null,
+                'phone' => null,
+                'address' => $address,
+                'city' => $city,
+                'country' => $country,
             ]);
         }
 
@@ -288,10 +324,12 @@ class ShopifyOrderImporter
     private function phoneFromOrder(array $order): ?string
     {
         $billing = is_array($order['billing_address'] ?? null) ? $order['billing_address'] : [];
+        $shipping = is_array($order['shipping_address'] ?? null) ? $order['shipping_address'] : [];
         $customer = is_array($order['customer'] ?? null) ? $order['customer'] : [];
-        $p = $billing['phone'] ?? $customer['phone'] ?? null;
+        
+        $p = $order['phone'] ?? $billing['phone'] ?? $shipping['phone'] ?? $customer['phone'] ?? null;
 
-        return $p ? (string) $p : null;
+        return $p ? trim((string) $p) : null;
     }
 
     private function lineTaxRate(array $lineItem, ?Product $product): float
