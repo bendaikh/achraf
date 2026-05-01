@@ -78,39 +78,93 @@
                         <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                         <input type="search" x-model="searchQuery" @input.debounce.300ms="runSearch()" placeholder="Rechercher un produit (nom, réf.)…" class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800/80 border border-white/10 text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
                     </div>
-                    <div class="sm:w-52 flex gap-2">
-                        <input type="text" x-model="barcode" @keydown.enter.prevent="scanBarcode()" placeholder="Code-barres" class="flex-1 px-3 py-3 rounded-xl bg-slate-800/80 border border-white/10 text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 outline-none text-sm">
-                        <button type="button" @click="scanBarcode()" class="px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 transition">OK</button>
+                    <div class="w-full sm:w-64 flex gap-2">
+                        <input type="text" x-model="barcode" @keydown.enter.prevent="scanBarcode()" placeholder="Code-barres" class="flex-1 min-w-0 px-3 py-3 rounded-xl bg-slate-800/80 border border-white/10 text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 outline-none text-sm">
+                        <button type="button" @click="scanBarcode()" class="px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 transition whitespace-nowrap flex-shrink-0">OK</button>
                     </div>
                 </div>
 
-                <div x-show="searchResults.length > 0 && searchQuery.trim()" x-transition class="mb-4 rounded-xl border border-emerald-500/30 bg-slate-800/60 divide-y divide-white/5 max-h-48 overflow-y-auto">
+                <div x-show="searchResults.length > 0 && searchQuery.trim()" x-transition class="mb-4 rounded-xl border border-emerald-500/30 bg-slate-800/60 divide-y divide-white/5 max-h-64 overflow-y-auto">
                     <template x-for="p in searchResults" :key="p.id">
-                        <button type="button" @click="addProduct(p); searchQuery = ''; searchResults = []" class="w-full text-left px-4 py-3 hover:bg-emerald-600/20 flex justify-between gap-2">
-                            <span class="font-medium text-white" x-text="p.name"></span>
-                            <span class="text-emerald-300 text-sm whitespace-nowrap"><span x-text="formatMoney(p.sale_price)"></span> DH</span>
+                        <button type="button" @click="addProduct(p); searchQuery = ''; searchResults = []" class="w-full text-left px-4 py-3 hover:bg-emerald-600/20 flex items-center gap-3">
+                            <div class="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-slate-700/50 border border-white/5">
+                                <template x-if="p.image_url">
+                                    <img :src="p.image_url" :alt="p.name" class="w-full h-full object-cover">
+                                </template>
+                                <template x-if="!p.image_url">
+                                    <div class="w-full h-full flex items-center justify-center">
+                                        <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                        </svg>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-medium text-white truncate" x-text="p.name"></p>
+                                <p class="text-xs text-slate-400" x-text="p.ref"></p>
+                            </div>
+                            <span class="text-emerald-300 font-semibold whitespace-nowrap"><span x-text="formatMoney(p.sale_price)"></span> DH</span>
                         </button>
                     </template>
                 </div>
 
-                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Catalogue</h2>
-                <div
-                    class="flex-1 overflow-y-auto grid gap-3 pb-4"
-                    :class="posFullView ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'"
-                >
-                    @foreach($products as $p)
-                        @php
-                            $pj = $productsForJs->firstWhere('id', $p->id);
-                        @endphp
-                        @if($pj)
-                        <button type="button" @click='addProduct(@json($pj))' class="group text-left rounded-xl border border-white/10 bg-slate-800/40 p-4 hover:border-emerald-400/50 hover:bg-slate-800/80 transition">
-                            <p class="font-medium text-white line-clamp-2 group-hover:text-emerald-200">{{ $p->name }}</p>
-                            <p class="text-xs text-slate-500 mt-1 font-mono">{{ $p->ref }}</p>
-                            <p class="text-lg font-bold text-emerald-400 mt-2">{{ number_format((float)($p->sale_price ?? 0), 2) }} <span class="text-sm font-normal text-slate-400">DH</span></p>
-                        </button>
-                        @endif
-                    @endforeach
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                        </svg>
+                        Catalogue Produits
+                    </h2>
+                    <span class="text-xs font-medium text-slate-500 bg-slate-800/60 px-3 py-1.5 rounded-full border border-white/5">
+                        {{ count($products) }} produit{{ count($products) > 1 ? 's' : '' }}
+                    </span>
                 </div>
+                @if(count($products) > 0)
+                    <div
+                        class="flex-1 overflow-y-auto grid gap-3 pb-4 content-start items-start"
+                        :class="posFullView ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'"
+                    >
+                        @foreach($products as $p)
+                            @php
+                                $pj = $productsForJs->firstWhere('id', $p->id);
+                            @endphp
+                            @if($pj)
+                            <button type="button" @click='addProduct(@json($pj))' class="group text-left rounded-xl border border-white/10 bg-slate-800/40 overflow-hidden hover:border-emerald-400/50 hover:bg-slate-800/80 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-200 flex flex-col">
+                                <div class="w-full h-32 bg-gradient-to-br from-slate-700/50 to-slate-800/50 overflow-hidden relative flex-shrink-0">
+                                    @if($p->image)
+                                        <img src="{{ $p->image_url }}" alt="{{ $p->name }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                                    @else
+                                        <div class="w-full h-full flex items-center justify-center">
+                                            <svg class="w-12 h-12 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                            </svg>
+                                        </div>
+                                    @endif
+                                    <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                </div>
+                                <div class="px-2.5 pt-2 pb-2">
+                                    <p class="font-semibold text-white text-sm line-clamp-1 leading-tight group-hover:text-emerald-200 transition-colors">{{ $p->name }}</p>
+                                    <p class="text-xs text-slate-500 font-mono">{{ $p->ref }}</p>
+                                    <div class="flex items-baseline gap-1 mt-1">
+                                        <span class="text-base font-bold text-emerald-400 group-hover:text-emerald-300">{{ number_format((float)($p->sale_price ?? 0), 2) }}</span>
+                                        <span class="text-xs font-medium text-slate-400">DH</span>
+                                    </div>
+                                </div>
+                            </button>
+                            @endif
+                        @endforeach
+                    </div>
+                @else
+                    <div class="flex-1 flex items-center justify-center">
+                        <div class="text-center py-12">
+                            <svg class="h-24 w-24 mx-auto text-slate-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                            </svg>
+                            <p class="text-slate-400 text-lg font-medium mb-2">Aucun produit disponible</p>
+                            <p class="text-slate-600 text-sm">Ajoutez des produits depuis la gestion des produits</p>
+                        </div>
+                    </div>
+                @endif
             </section>
 
             <aside class="w-full shrink-0 flex flex-col bg-slate-950/50 backdrop-blur border-t lg:border-t-0 lg:border-l border-white/10" :class="posFullView ? 'lg:w-[min(32rem,38vw)] xl:w-[min(36rem,34vw)]' : 'lg:w-[420px]'">
@@ -126,25 +180,55 @@
 
                 <div class="flex-1 overflow-y-auto p-4 space-y-2 min-h-[200px]">
                     <template x-if="cart.length === 0">
-                        <p class="text-center text-slate-500 text-sm py-12">Ajoutez des produits au panier</p>
+                        <div class="text-center py-12">
+                            <svg class="h-16 w-16 mx-auto text-slate-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+                            </svg>
+                            <p class="text-slate-500 text-sm">Panier vide</p>
+                            <p class="text-slate-600 text-xs mt-1">Ajoutez des produits pour commencer</p>
+                        </div>
                     </template>
                     <template x-for="(line, idx) in cart" :key="line.key">
-                        <div class="rounded-lg bg-slate-800/80 border border-white/5 p-3 space-y-2">
-                            <div class="flex justify-between gap-2">
-                                <span class="font-medium text-white text-sm leading-tight" x-text="line.name"></span>
-                                <button type="button" @click="removeLine(idx)" class="text-slate-500 hover:text-red-400 p-1" aria-label="Retirer">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        <div class="rounded-xl bg-gradient-to-br from-slate-800/90 to-slate-800/60 border border-white/10 p-3 space-y-3 hover:border-emerald-500/30 transition-colors">
+                            <div class="flex gap-3">
+                                <div class="w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-slate-700/50 border border-white/5">
+                                    <template x-if="line.image_url">
+                                        <img :src="line.image_url" :alt="line.name" class="w-full h-full object-cover">
+                                    </template>
+                                    <template x-if="!line.image_url">
+                                        <div class="w-full h-full flex items-center justify-center">
+                                            <svg class="w-7 h-7 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                            </svg>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-semibold text-white text-sm leading-tight mb-1" x-text="line.name"></p>
+                                    <p class="text-xs text-slate-500 font-mono" x-text="line.ref"></p>
+                                </div>
+                                <button type="button" @click="removeLine(idx)" class="text-slate-500 hover:text-red-400 p-1.5 h-fit rounded-lg hover:bg-red-500/10 transition-colors" aria-label="Retirer">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                 </button>
                             </div>
-                            <div class="grid grid-cols-3 gap-2 text-xs">
-                                <label class="text-slate-500 col-span-1">Qté</label>
-                                <label class="text-slate-500 col-span-1">P.U.</label>
-                                <label class="text-slate-500 col-span-1">Rem.</label>
-                                <input type="number" min="1" class="col-span-1 rounded bg-slate-900 border border-white/10 text-white px-2 py-1" x-model.number="line.quantity">
-                                <input type="number" step="0.01" min="0" class="col-span-1 rounded bg-slate-900 border border-white/10 text-white px-2 py-1" x-model.number="line.unit_price">
-                                <input type="number" step="0.01" min="0" class="col-span-1 rounded bg-slate-900 border border-white/10 text-white px-2 py-1" x-model.number="line.discount">
+                            <div class="grid grid-cols-3 gap-2">
+                                <div>
+                                    <label class="text-xs text-slate-500 mb-1 block">Quantité</label>
+                                    <input type="number" min="1" class="w-full rounded-lg bg-slate-900/80 border border-white/10 text-white px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none" x-model.number="line.quantity">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-500 mb-1 block">Prix U.</label>
+                                    <input type="number" step="0.01" min="0" class="w-full rounded-lg bg-slate-900/80 border border-white/10 text-white px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none" x-model.number="line.unit_price">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-500 mb-1 block">Remise</label>
+                                    <input type="number" step="0.01" min="0" class="w-full rounded-lg bg-slate-900/80 border border-white/10 text-white px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none" x-model.number="line.discount">
+                                </div>
                             </div>
-                            <p class="text-right text-emerald-300 text-sm font-semibold">Ligne : <span x-text="formatMoney(lineTotal(line))"></span> DH</p>
+                            <div class="pt-2 border-t border-white/5 flex justify-between items-center">
+                                <span class="text-xs text-slate-500">Total ligne</span>
+                                <span class="text-emerald-400 text-base font-bold"><span x-text="formatMoney(lineTotal(line))"></span> DH</span>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -258,6 +342,7 @@ function posRegister(initialCatalog) {
                 tax_rate: Number(p.tax_rate) || 20,
                 quantity: 1,
                 discount: 0,
+                image_url: p.image_url || null,
             });
         },
         removeLine(i) { this.cart.splice(i, 1); },

@@ -47,9 +47,15 @@ Route::middleware('auth')->group(function () {
     Route::resource('products', ProductController::class);
     Route::post('/products/sync-shopify', [ProductController::class, 'syncShopify'])->name('products.sync-shopify');
 
-    Route::get('/stock', [StockController::class, 'index'])->name('stock.index');
-    Route::get('/stock/{product}/edit', [StockController::class, 'edit'])->name('stock.edit');
-    Route::patch('/stock/{product}', [StockController::class, 'update'])->name('stock.update');
+    Route::prefix('stock')->group(function () {
+        Route::get('/enligne', [StockController::class, 'indexEnligne'])->name('stock.enligne.index');
+        Route::get('/enligne/{product}/edit', [StockController::class, 'editEnligne'])->name('stock.enligne.edit');
+        Route::patch('/enligne/{product}', [StockController::class, 'updateEnligne'])->name('stock.enligne.update');
+        
+        Route::get('/magasin', [StockController::class, 'indexMagasin'])->name('stock.magasin.index');
+        Route::get('/magasin/{product}/edit', [StockController::class, 'editMagasin'])->name('stock.magasin.edit');
+        Route::patch('/magasin/{product}', [StockController::class, 'updateMagasin'])->name('stock.magasin.update');
+    });
     
     Route::prefix('crm')->group(function () {
         Route::resource('clients', ClientController::class);

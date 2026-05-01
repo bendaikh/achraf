@@ -19,8 +19,11 @@ class PointOfSaleController extends Controller
             ->where(function ($q) {
                 $q->where('status', 'Activer')->orWhereNull('status');
             })
+            ->where(function ($q) {
+                $q->whereNull('source')->orWhere('source', '!=', 'shopify');
+            })
             ->orderBy('name')
-            ->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category']);
+            ->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category', 'image']);
 
         $productsForJs = $products->map(fn (Product $p) => [
             'id' => $p->id,
@@ -29,6 +32,7 @@ class PointOfSaleController extends Controller
             'sale_price' => (float) ($p->sale_price ?? 0),
             'barcode' => $p->barcode,
             'tax_rate' => $this->defaultTaxRate($p),
+            'image_url' => $p->image_url,
         ])->values();
 
         $paymentMethods = PosSale::paymentLabels();
@@ -41,9 +45,13 @@ class PointOfSaleController extends Controller
         $q = trim((string) $request->get('q', ''));
         $barcode = trim((string) $request->get('barcode', ''));
 
-        $query = Product::query()->where(function ($q) {
-            $q->where('status', 'Activer')->orWhereNull('status');
-        });
+        $query = Product::query()
+            ->where(function ($q) {
+                $q->where('status', 'Activer')->orWhereNull('status');
+            })
+            ->where(function ($q) {
+                $q->whereNull('source')->orWhere('source', '!=', 'shopify');
+            });
 
         if ($barcode !== '') {
             $query->where('barcode', $barcode);
@@ -57,7 +65,7 @@ class PointOfSaleController extends Controller
             return response()->json(['products' => []]);
         }
 
-        $rows = $query->limit(30)->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category']);
+        $rows = $query->limit(30)->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category', 'image']);
 
         $products = $rows->map(fn (Product $p) => [
             'id' => $p->id,
@@ -66,6 +74,7 @@ class PointOfSaleController extends Controller
             'sale_price' => (float) ($p->sale_price ?? 0),
             'barcode' => $p->barcode,
             'tax_rate' => $this->defaultTaxRate($p),
+            'image_url' => $p->image_url,
         ])->values();
 
         return response()->json(['products' => $products]);

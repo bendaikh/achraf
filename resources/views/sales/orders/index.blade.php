@@ -267,33 +267,26 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap column-livraison">
                                 @if($order->source === 'shopify' && $order->fulfillment_status)
-                                    @if($order->fulfillment_status === 'fulfilled')
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"></path>
-                                            <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"></path>
-                                        </svg>
-                                        Livré
+                                    @php
+                                        $fulfillmentLabels = [
+                                            'fulfilled' => 'Traité',
+                                            'unfulfilled' => 'Non traité',
+                                            'partial' => 'Partiellement traité',
+                                        ];
+                                        $fulfillmentLabel = $fulfillmentLabels[$order->fulfillment_status] ?? ucfirst($order->fulfillment_status);
+                                    @endphp
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                        @if($order->fulfillment_status === 'fulfilled')
+                                            bg-green-100 text-green-800
+                                        @elseif($order->fulfillment_status === 'partial')
+                                            bg-yellow-100 text-yellow-800
+                                        @elseif($order->fulfillment_status === 'unfulfilled')
+                                            bg-gray-100 text-gray-800
+                                        @else
+                                            bg-gray-100 text-gray-800
+                                        @endif">
+                                        {{ $fulfillmentLabel }}
                                     </span>
-                                    @elseif($order->fulfillment_status === 'partial')
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd"></path>
-                                        </svg>
-                                        Partiel
-                                    </span>
-                                    @elseif($order->fulfillment_status === 'unfulfilled')
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
-                                        </svg>
-                                        Non livré
-                                    </span>
-                                    @else
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                        {{ ucfirst($order->fulfillment_status) }}
-                                    </span>
-                                    @endif
                                 @else
                                 <span class="text-xs text-gray-400">—</span>
                                 @endif
