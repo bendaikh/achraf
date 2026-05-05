@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\ProductVariant;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -87,6 +88,8 @@ class ShopifyProductImporter
             if ($existing) {
                 // Update existing product
                 $existing->update($data);
+                // Sync variants
+                $this->syncVariants($existing, $product['variants'] ?? []);
                 Log::info('Updated Shopify product', ['product_id' => $externalId, 'ref' => $ref]);
                 return $existing;
             }
@@ -96,16 +99,75 @@ class ShopifyProductImporter
             if ($existingByRef && !$existingByRef->source) {
                 // Update manual product with Shopify data
                 $existingByRef->update($data);
+                // Sync variants
+                $this->syncVariants($existingByRef, $product['variants'] ?? []);
                 Log::info('Linked existing product to Shopify', ['product_id' => $externalId, 'ref' => $ref]);
                 return $existingByRef;
             }
 
             // Create new product
             $newProduct = Product::create($data);
+            // Sync variants
+            $this->syncVariants($newProduct, $product['variants'] ?? []);
             Log::info('Created new Shopify product', ['product_id' => $externalId, 'ref' => $ref]);
             
             return $newProduct;
         });
+    }
+
+    /**
+     * Sync variants from Shopify product data
+     */
+    private function syncVariants(Product $product, array $variants): void
+    {
+        if (empty($variants)) {
+            return;
+        }
+
+        $existingVariantIds = $product->variants()->pluck('shopify_variant_id')->toArray();
+        $syncedVariantIds = [];
+
+        foreach ($variants as $index => $variantData) {
+            $variantId = (string) ($variantData['id'] ?? '');
+            if ($variantId === '') {
+                continue;
+            }
+
+            $syncedVariantIds[] = $variantId;
+
+            $variantAttributes = [
+                'product_id' => $product->id,
+                'shopify_variant_id' => $variantId,
+                'title' => (string) ($variantData['title'] ?? 'Default'),
+                'sku' => trim((string) ($variantData['sku'] ?? '')) ?: null,
+                'price' => (float) ($variantData['price'] ?? 0),
+                'compare_at_price' => !empty($variantData['compare_at_price']) ? (float) $variantData['compare_at_price'] : null,
+                'barcode' => trim((string) ($variantData['barcode'] ?? '')) ?: null,
+                'inventory_quantity' => (int) ($variantData['inventory_quantity'] ?? 0),
+                'option1' => trim((string) ($variantData['option1'] ?? '')) ?: null,
+                'option2' => trim((string) ($variantData['option2'] ?? '')) ?: null,
+                'option3' => trim((string) ($variantData['option3'] ?? '')) ?: null,
+                'weight' => !empty($variantData['weight']) ? (float) $variantData['weight'] : null,
+                'weight_unit' => trim((string) ($variantData['weight_unit'] ?? '')) ?: null,
+                'position' => (int) ($variantData['position'] ?? $index + 1),
+            ];
+
+            ProductVariant::updateOrCreate(
+                [
+                    'product_id' => $product->id,
+                    'shopify_variant_id' => $variantId,
+                ],
+                $variantAttributes
+            );
+        }
+
+        // Delete variants that no longer exist in Shopify
+        if (!empty($existingVariantIds)) {
+            $toDelete = array_diff($existingVariantIds, $syncedVariantIds);
+            if (!empty($toDelete)) {
+                $product->variants()->whereIn('shopify_variant_id', $toDelete)->delete();
+            }
+        }
     }
 
     /**

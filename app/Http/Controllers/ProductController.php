@@ -34,7 +34,7 @@ class ProductController extends Controller
             });
         }
 
-        $products = $query->latest()->paginate(20);
+        $products = $query->withCount('variants')->latest()->paginate(20);
 
         // Get statistics
         $totalProducts = Product::count();
@@ -178,5 +178,61 @@ class ProductController extends Controller
 
         return redirect()->route('products.index')
             ->with('success', 'Produit supprimé avec succès.');
+    }
+
+    public function duplicateToManual(Request $request, Product $product)
+    {
+        if (!$product->isShopifyProduct()) {
+            return redirect()->route('products.index')
+                ->with('error', 'Seuls les produits Shopify peuvent être dupliqués en produits manuels.');
+        }
+
+        $validated = $request->validate([
+            'initial_stock' => 'required|integer|min:0',
+        ]);
+
+        // Generate a unique reference for the manual product
+        $baseRef = $product->ref;
+        $manualRef = $baseRef . '-MANUAL';
+        
+        // Check if a manual product with this reference already exists
+        $existingManual = Product::query()
+            ->where('ref', $manualRef)
+            ->whereNull('source')
+            ->orWhere('source', '!=', 'shopify')
+            ->first();
+
+        if ($existingManual) {
+            return redirect()->route('products.index')
+                ->with('error', 'Un produit manuel avec cette référence existe déjà: ' . $manualRef);
+        }
+
+        // Create the manual product as a copy
+        $manualProduct = Product::create([
+            'name' => $product->name,
+            'ref' => $manualRef,
+            'image' => $product->image,
+            'cost_price_ht' => $product->cost_price_ht,
+            'cost_price_ttc' => $product->cost_price_ttc,
+            'last_purchase_price' => $product->last_purchase_price,
+            'sale_price' => $product->sale_price,
+            'minimum_safety_stock' => $product->minimum_safety_stock,
+            'minimum_alert_stock' => $product->minimum_alert_stock,
+            'stock_quantity' => $validated['initial_stock'],
+            'barcode' => $product->barcode,
+            'vat_category' => $product->vat_category,
+            'element_type' => $product->element_type,
+            'tag' => $product->tag,
+            'status' => 'Activer',
+            'product_category' => $product->product_category,
+            'description' => $product->description,
+            'source' => null,
+            'external_id' => null,
+            'shopify_status' => null,
+            'shopify_synced_at' => null,
+        ]);
+
+        return redirect()->route('products.index')
+            ->with('success', 'Produit manuel créé avec succès: ' . $manualProduct->name . ' (Réf: ' . $manualRef . ')');
     }
 }

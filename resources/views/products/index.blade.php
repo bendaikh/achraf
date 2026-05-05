@@ -196,6 +196,13 @@
                                             @if($product->product_category)
                                                 <div class="text-xs text-gray-500">{{ $product->product_category }}</div>
                                             @endif
+                                            @if($product->isShopifyProduct() && $product->variants_count > 1)
+                                                <div class="mt-1">
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                        {{ $product->variants_count }} variantes
+                                                    </span>
+                                                </div>
+                                            @endif
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <span class="text-sm text-gray-900">{{ number_format($product->sale_price ?? 0, 2) }} DHS</span>
@@ -219,12 +226,22 @@
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <div class="flex space-x-2">
-                                                @if($product->isShopifyProduct() && $product->shopify_url)
+                                                @if($product->isShopifyProduct())
+                                                    @if($product->shopify_url)
                                                     <a href="{{ $product->shopify_url }}" target="_blank" class="text-green-600 hover:text-green-900" title="Voir sur Shopify">
                                                         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
                                                         </svg>
                                                     </a>
+                                                    @endif
+                                                    <button type="button" 
+                                                            onclick="openDuplicateModal({{ $product->id }}, '{{ addslashes($product->name) }}', '{{ $product->ref }}')" 
+                                                            class="text-purple-600 hover:text-purple-900" 
+                                                            title="Dupliquer en produit manuel">
+                                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                                        </svg>
+                                                    </button>
                                                 @endif
                                                 <a href="{{ route('products.show', $product) }}" class="text-blue-600 hover:text-blue-900">
                                                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -284,4 +301,90 @@
                 </div>
             </div>
         </main>
+
+<!-- Modal de duplication Shopify vers Manuel -->
+<div id="duplicateModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Dupliquer en produit manuel</h3>
+                <button type="button" onclick="closeDuplicateModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <form id="duplicateForm" action="" method="POST">
+                @csrf
+                <div class="mb-4">
+                    <p class="text-sm text-gray-600 mb-2">Vous allez créer une copie manuelle du produit Shopify :</p>
+                    <p class="font-medium text-gray-900" id="duplicateProductName"></p>
+                    <p class="text-sm text-gray-500" id="duplicateProductRef"></p>
+                </div>
+
+                <div class="mb-4">
+                    <label for="initial_stock" class="block text-sm font-medium text-gray-700 mb-1">Stock initial *</label>
+                    <input type="number" 
+                           name="initial_stock" 
+                           id="initial_stock" 
+                           min="0" 
+                           value="0" 
+                           required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <p class="mt-1 text-xs text-gray-500">Définissez la quantité de stock initiale pour le produit manuel.</p>
+                </div>
+
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4">
+                    <div class="flex">
+                        <svg class="h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <p class="ml-2 text-sm text-yellow-700">
+                            Le produit manuel aura la même référence que le produit Shopify pour permettre le suivi.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeDuplicateModal()" class="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition">
+                        Annuler
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                        Dupliquer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openDuplicateModal(productId, productName, productRef) {
+    document.getElementById('duplicateModal').classList.remove('hidden');
+    document.getElementById('duplicateProductName').textContent = productName;
+    document.getElementById('duplicateProductRef').textContent = 'Réf: ' + productRef;
+    document.getElementById('duplicateForm').action = '/products/' + productId + '/duplicate-to-manual';
+    document.getElementById('initial_stock').value = 0;
+    document.getElementById('initial_stock').focus();
+}
+
+function closeDuplicateModal() {
+    document.getElementById('duplicateModal').classList.add('hidden');
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeDuplicateModal();
+    }
+});
+
+// Close modal on outside click
+document.getElementById('duplicateModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeDuplicateModal();
+    }
+});
+</script>
 @endsection

@@ -83,6 +83,16 @@ class Product extends Model
         return $this->hasMany(InvoiceItem::class);
     }
 
+    public function variants()
+    {
+        return $this->hasMany(ProductVariant::class)->orderBy('position');
+    }
+
+    public function hasVariants(): bool
+    {
+        return $this->variants()->count() > 1;
+    }
+
     /**
      * Check if this product is synced from Shopify
      */

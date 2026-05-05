@@ -46,6 +46,7 @@ Route::middleware('auth')->group(function () {
     
     Route::resource('products', ProductController::class);
     Route::post('/products/sync-shopify', [ProductController::class, 'syncShopify'])->name('products.sync-shopify');
+    Route::post('/products/{product}/duplicate-to-manual', [ProductController::class, 'duplicateToManual'])->name('products.duplicate-to-manual');
 
     Route::prefix('stock')->group(function () {
         Route::get('/enligne', [StockController::class, 'indexEnligne'])->name('stock.enligne.index');
