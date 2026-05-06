@@ -15,7 +15,9 @@ class PointOfSaleController extends Controller
     public function index()
     {
         $clients = Client::orderBy('name')->get();
-        $products = Product::query()
+        
+        // Stock Magasin: products that are NOT from Shopify (local/manual products)
+        $productsMagasin = Product::query()
             ->where(function ($q) {
                 $q->where('status', 'Activer')->orWhereNull('status');
             })
@@ -23,9 +25,18 @@ class PointOfSaleController extends Controller
                 $q->whereNull('source')->orWhere('source', '!=', 'shopify');
             })
             ->orderBy('name')
-            ->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category', 'image']);
+            ->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category', 'image', 'stock_magasin']);
 
-        $productsForJs = $products->map(fn (Product $p) => [
+        // Stock En Ligne: products from Shopify (online stock)
+        $productsEnligne = Product::query()
+            ->where(function ($q) {
+                $q->where('status', 'Activer')->orWhereNull('status');
+            })
+            ->where('source', 'shopify')
+            ->orderBy('name')
+            ->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category', 'image', 'stock_enligne']);
+
+        $productsMagasinForJs = $productsMagasin->map(fn (Product $p) => [
             'id' => $p->id,
             'name' => $p->name,
             'ref' => $p->ref,
@@ -33,25 +44,53 @@ class PointOfSaleController extends Controller
             'barcode' => $p->barcode,
             'tax_rate' => $this->defaultTaxRate($p),
             'image_url' => $p->image_url,
+            'stock' => (int) ($p->stock_magasin ?? 0),
+        ])->values();
+
+        $productsEnligneForJs = $productsEnligne->map(fn (Product $p) => [
+            'id' => $p->id,
+            'name' => $p->name,
+            'ref' => $p->ref,
+            'sale_price' => (float) ($p->sale_price ?? 0),
+            'barcode' => $p->barcode,
+            'tax_rate' => $this->defaultTaxRate($p),
+            'image_url' => $p->image_url,
+            'stock' => (int) ($p->stock_enligne ?? 0),
         ])->values();
 
         $paymentMethods = PosSale::paymentLabels();
 
-        return view('pos.index', compact('clients', 'products', 'productsForJs', 'paymentMethods'));
+        return view('pos.index', compact(
+            'clients', 
+            'productsMagasin', 
+            'productsEnligne',
+            'productsMagasinForJs', 
+            'productsEnligneForJs', 
+            'paymentMethods'
+        ));
     }
 
     public function searchProducts(Request $request): JsonResponse
     {
         $q = trim((string) $request->get('q', ''));
         $barcode = trim((string) $request->get('barcode', ''));
+        $stockType = $request->get('stock_type', 'magasin');
 
         $query = Product::query()
             ->where(function ($q) {
                 $q->where('status', 'Activer')->orWhereNull('status');
-            })
-            ->where(function ($q) {
+            });
+
+        // Filter by stock type
+        if ($stockType === 'enligne') {
+            $query->where('source', 'shopify');
+            $stockField = 'stock_enligne';
+        } else {
+            $query->where(function ($q) {
                 $q->whereNull('source')->orWhere('source', '!=', 'shopify');
             });
+            $stockField = 'stock_magasin';
+        }
 
         if ($barcode !== '') {
             $query->where('barcode', $barcode);
@@ -65,7 +104,7 @@ class PointOfSaleController extends Controller
             return response()->json(['products' => []]);
         }
 
-        $rows = $query->limit(30)->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category', 'image']);
+        $rows = $query->limit(30)->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category', 'image', $stockField]);
 
         $products = $rows->map(fn (Product $p) => [
             'id' => $p->id,
@@ -75,6 +114,7 @@ class PointOfSaleController extends Controller
             'barcode' => $p->barcode,
             'tax_rate' => $this->defaultTaxRate($p),
             'image_url' => $p->image_url,
+            'stock' => (int) ($p->$stockField ?? 0),
         ])->values();
 
         return response()->json(['products' => $products]);

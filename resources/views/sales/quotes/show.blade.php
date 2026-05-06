@@ -11,6 +11,9 @@
                 <p class="text-sm text-gray-600 mt-1">Détails du devis</p>
             </div>
             <div class="flex items-center space-x-3">
+                <a href="{{ route('quotes.print', $quote) }}" target="_blank" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150">
+                    🖨️ Imprimer
+                </a>
                 <a href="{{ route('quotes.index') }}" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition duration-150">
                     Retour à la liste
                 </a>

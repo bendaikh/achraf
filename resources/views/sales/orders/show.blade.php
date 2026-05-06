@@ -205,4 +205,14 @@
     main { margin-left: 0 !important; }
 }
 </style>
+
+@if(request('print'))
+<script>
+    window.onload = function() {
+        setTimeout(function() {
+            window.print();
+        }, 500);
+    };
+</script>
+@endif
 @endsection

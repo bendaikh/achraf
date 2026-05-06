@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bon de commande {{ $purchaseOrder->reference }}</title>
+    <title>Facture {{ $invoice->invoice_number }}</title>
     <style>
         * {
             margin: 0;
@@ -241,29 +241,50 @@
         .print-button:hover {
             background: #1d4ed8;
         }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            right: 140px;
+            padding: 10px 20px;
+            background: #6b7280;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-decoration: none;
+        }
+
+        .back-button:hover {
+            background: #4b5563;
+        }
     </style>
 </head>
 <body>
+    <a href="{{ route('invoices.show', $invoice) }}" class="back-button no-print">← Retour</a>
     <button onclick="window.print()" class="print-button no-print">🖨️ Imprimer</button>
 
     <div class="container">
         <!-- Header -->
         <div class="header">
             <div class="company-info">
-                <div class="company-name">Votre Entreprise</div>
+                <div class="company-name">LAV'FAST</div>
                 <div class="company-details">
                     Adresse de l'entreprise<br>
                     Ville, Code Postal<br>
                     Tél: +212 XXX XXX XXX<br>
-                    Email: contact@entreprise.ma
+                    Email: contact@lavfast.ma
                 </div>
             </div>
             <div class="invoice-info">
-                <div class="invoice-title">BON DE COMMANDE</div>
-                <div class="invoice-number">{{ $purchaseOrder->reference }}</div>
-                <div class="invoice-date">Date: {{ $purchaseOrder->order_date->format('d/m/Y') }}</div>
-                @if($purchaseOrder->expiry_date)
-                <div class="invoice-date">Échéance: {{ $purchaseOrder->expiry_date->format('d/m/Y') }}</div>
+                <div class="invoice-title">FACTURE</div>
+                <div class="invoice-number">{{ $invoice->invoice_number }}</div>
+                <div class="invoice-date">Date: {{ $invoice->invoice_date->format('d/m/Y') }}</div>
+                @if($invoice->due_date)
+                <div class="invoice-date">Échéance: {{ $invoice->due_date->format('d/m/Y') }}</div>
                 @endif
             </div>
         </div>
@@ -274,26 +295,32 @@
             <div class="info-grid">
                 <div class="info-item">
                     <div class="info-label">Client:</div>
-                    <div class="info-value">{{ $purchaseOrder->client->name }}</div>
+                    <div class="info-value">{{ $invoice->client->name }}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">Devise:</div>
-                    <div class="info-value">{{ $purchaseOrder->currency }}</div>
+                    <div class="info-value">{{ $invoice->currency }}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Statut:</div>
-                    <div class="info-value">{{ $purchaseOrder->status }}</div>
+                    <div class="info-label">Emplacement de stock:</div>
+                    <div class="info-value">{{ $invoice->stock_location }}</div>
                 </div>
-                @if($purchaseOrder->model)
+                @if($invoice->commercial_contact)
                 <div class="info-item">
-                    <div class="info-label">Modèle:</div>
-                    <div class="info-value">{{ $purchaseOrder->model }}</div>
+                    <div class="info-label">Contact commercial:</div>
+                    <div class="info-value">{{ $invoice->commercial_contact }}</div>
                 </div>
                 @endif
-                @if($purchaseOrder->matricule)
+                @if($invoice->model)
+                <div class="info-item">
+                    <div class="info-label">Modèle:</div>
+                    <div class="info-value">{{ $invoice->model }}</div>
+                </div>
+                @endif
+                @if($invoice->matricule)
                 <div class="info-item">
                     <div class="info-label">Matricule:</div>
-                    <div class="info-value">{{ $purchaseOrder->matricule }}</div>
+                    <div class="info-value">{{ $invoice->matricule }}</div>
                 </div>
                 @endif
             </div>
@@ -313,7 +340,7 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($purchaseOrder->items as $item)
+                @foreach($invoice->items as $item)
                 <tr>
                     <td>{{ $item->ref ?? '-' }}</td>
                     <td>{{ $item->designation }}</td>
@@ -331,40 +358,40 @@
         <div class="totals">
             <div class="total-row subtotal">
                 <span>Sous-total:</span>
-                <span>{{ number_format($purchaseOrder->subtotal, 2) }} {{ $purchaseOrder->currency }}</span>
+                <span>{{ number_format($invoice->subtotal, 2) }} {{ $invoice->currency }}</span>
             </div>
-            @if($purchaseOrder->discount > 0)
+            @if($invoice->discount > 0)
             <div class="total-row">
                 <span>Remise:</span>
-                <span>{{ number_format($purchaseOrder->discount, 2) }} {{ $purchaseOrder->currency }}</span>
+                <span>{{ number_format($invoice->discount, 2) }} {{ $invoice->currency }}</span>
             </div>
             @endif
-            @if($purchaseOrder->adjustment != 0)
+            @if($invoice->adjustment != 0)
             <div class="total-row">
                 <span>Ajustement:</span>
-                <span>{{ number_format($purchaseOrder->adjustment, 2) }} {{ $purchaseOrder->currency }}</span>
+                <span>{{ number_format($invoice->adjustment, 2) }} {{ $invoice->currency }}</span>
             </div>
             @endif
             <div class="total-row grand-total">
                 <span>TOTAL:</span>
-                <span>{{ number_format($purchaseOrder->total, 2) }} {{ $purchaseOrder->currency }}</span>
+                <span>{{ number_format($invoice->total, 2) }} {{ $invoice->currency }}</span>
             </div>
         </div>
 
         <!-- Notes -->
-        @if($purchaseOrder->remarks || $purchaseOrder->conditions)
+        @if($invoice->remarks || $invoice->conditions)
         <div class="notes">
             <div class="notes-grid">
-                @if($purchaseOrder->remarks)
+                @if($invoice->remarks)
                 <div class="note-section">
                     <h4>Remarques</h4>
-                    <div class="note-content">{{ $purchaseOrder->remarks }}</div>
+                    <div class="note-content">{{ $invoice->remarks }}</div>
                 </div>
                 @endif
-                @if($purchaseOrder->conditions)
+                @if($invoice->conditions)
                 <div class="note-section">
                     <h4>Conditions</h4>
-                    <div class="note-content">{{ $purchaseOrder->conditions }}</div>
+                    <div class="note-content">{{ $invoice->conditions }}</div>
                 </div>
                 @endif
             </div>
@@ -376,5 +403,11 @@
             Document généré le {{ now()->format('d/m/Y à H:i') }}
         </div>
     </div>
+
+    <script>
+        window.onload = function() {
+            window.print();
+        };
+    </script>
 </body>
 </html>

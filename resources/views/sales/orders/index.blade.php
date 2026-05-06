@@ -139,17 +139,17 @@
 
         <!-- Filters -->
         <div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-            <form method="GET" action="{{ route('orders.index') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <form method="GET" action="{{ route('orders.index') }}" class="grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div>
                     <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Rechercher</label>
                     <input type="text" name="search" id="search" value="{{ request('search') }}" 
                         placeholder="N° commande, client..."
-                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
                 </div>
 
                 <div>
                     <label for="source" class="block text-sm font-medium text-gray-700 mb-1">Source</label>
-                    <select name="source" id="source" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <select name="source" id="source" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
                         <option value="">Toutes</option>
                         <option value="shopify" {{ request('source') === 'shopify' ? 'selected' : '' }}>Shopify</option>
                         <option value="pos" {{ request('source') === 'pos' ? 'selected' : '' }}>Point de Vente</option>
@@ -157,26 +157,84 @@
                 </div>
 
                 <div>
-                    <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Statut</label>
-                    <select name="status" id="status" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <label for="payment_status" class="block text-sm font-medium text-gray-700 mb-1">Status de paiement</label>
+                    <select name="payment_status" id="payment_status" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
                         <option value="">Tous</option>
-                        <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Complété</option>
-                        <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Annulé</option>
+                        <option value="paid" {{ request('payment_status') === 'paid' ? 'selected' : '' }}>Payé</option>
+                        <option value="pending" {{ request('payment_status') === 'pending' ? 'selected' : '' }}>En attente</option>
+                        <option value="refunded" {{ request('payment_status') === 'refunded' ? 'selected' : '' }}>Remboursé</option>
+                        <option value="voided" {{ request('payment_status') === 'voided' ? 'selected' : '' }}>Annulé</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="fulfillment_status" class="block text-sm font-medium text-gray-700 mb-1">Status de livraison</label>
+                    <select name="fulfillment_status" id="fulfillment_status" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                        <option value="">Tous</option>
+                        <option value="fulfilled" {{ request('fulfillment_status') === 'fulfilled' ? 'selected' : '' }}>Traité</option>
+                        <option value="unfulfilled" {{ request('fulfillment_status') === 'unfulfilled' ? 'selected' : '' }}>Non traité</option>
+                        <option value="partial" {{ request('fulfillment_status') === 'partial' ? 'selected' : '' }}>Partiellement traité</option>
                     </select>
                 </div>
 
                 <div>
                     <label for="date_from" class="block text-sm font-medium text-gray-700 mb-1">Date début</label>
                     <input type="date" name="date_from" id="date_from" value="{{ request('date_from') }}" 
-                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
                 </div>
 
                 <div class="flex items-end">
-                    <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                    <button type="submit" class="w-full px-4 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] transition">
                         Filtrer
                     </button>
                 </div>
             </form>
+        </div>
+
+        <!-- Bulk Actions (shown when orders selected) -->
+        <div id="bulkActionsBar" class="hidden bg-[#fdb819]/10 border border-[#fdb819]/30 rounded-lg p-4 mb-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="text-sm font-medium text-gray-700">
+                        <span id="selectedCount">0</span> commande(s) sélectionnée(s)
+                    </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="relative">
+                        <button type="button" id="actionsDropdownBtn" class="inline-flex items-center px-4 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] transition text-sm font-medium">
+                            Actions
+                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        <div id="actionsDropdownMenu" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                            <div class="py-1">
+                                <button type="button" onclick="convertSelected('bon_livraison')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    Convertir en bon de livraison
+                                </button>
+                                <button type="button" onclick="convertSelected('facture')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    Convertir en facture
+                                </button>
+                                <button type="button" onclick="convertSelected('devis')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    Convertir en devis
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="clearSelection()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium">
+                        Annuler
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Orders Table -->
@@ -185,6 +243,9 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" class="rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819]">
+                            </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-numero">N° Commande</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-source">Source</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-client">Client</th>
@@ -198,6 +259,9 @@
                     <tbody class="bg-white divide-y divide-gray-200">
                         @forelse($orders as $order)
                         <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-4 whitespace-nowrap">
+                                <input type="checkbox" class="order-checkbox rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819]" value="{{ $order->id }}" onchange="updateSelectedCount()">
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap column-numero">
                                 <div class="text-sm font-medium text-gray-900">{{ $order->ticket_number }}</div>
                                 @if($order->external_id)
@@ -256,6 +320,13 @@
                                         </svg>
                                         Remboursé
                                     </span>
+                                    @elseif($order->payment_status === 'voided')
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                        </svg>
+                                        Annulé
+                                    </span>
                                     @else
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                         {{ ucfirst($order->payment_status) }}
@@ -304,8 +375,8 @@
                                     </a>
                                     
                                     <!-- Imprimer -->
-                                    <a href="{{ route('orders.show', $order) }}" 
-                                       onclick="event.preventDefault(); window.open('{{ route('orders.show', $order) }}', '_blank'); setTimeout(() => window.print(), 500);"
+                                    <a href="{{ route('orders.show', $order) }}?print=1" 
+                                       target="_blank"
                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
                                        title="Imprimer">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -329,7 +400,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="8" class="px-6 py-12 text-center">
+                            <td colspan="9" class="px-6 py-12 text-center">
                                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                                 </svg>
@@ -341,12 +412,25 @@
                 </table>
             </div>
 
-            <!-- Pagination -->
-            @if($orders->hasPages())
+            <!-- Pagination with Size Selector -->
             <div class="px-6 py-4 border-t border-gray-200">
-                {{ $orders->links() }}
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-2">
+                        <label for="perPage" class="text-sm text-gray-600">Afficher</label>
+                        <select id="perPage" onchange="changePerPage(this.value)" class="rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819] text-sm">
+                            <option value="25" {{ request('per_page', 20) == 25 ? 'selected' : '' }}>25</option>
+                            <option value="50" {{ request('per_page', 20) == 50 ? 'selected' : '' }}>50</option>
+                            <option value="100" {{ request('per_page', 20) == 100 ? 'selected' : '' }}>100</option>
+                        </select>
+                        <span class="text-sm text-gray-600">commandes par page</span>
+                    </div>
+                    @if($orders->hasPages())
+                    <div>
+                        {{ $orders->links() }}
+                    </div>
+                    @endif
+                </div>
             </div>
-            @endif
         </div>
     </div>
 
@@ -433,6 +517,136 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize on page load
     loadColumnPreferences();
+    
+    // Actions dropdown
+    const actionsDropdownBtn = document.getElementById('actionsDropdownBtn');
+    const actionsDropdownMenu = document.getElementById('actionsDropdownMenu');
+    
+    if (actionsDropdownBtn) {
+        actionsDropdownBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            actionsDropdownMenu.classList.toggle('hidden');
+        });
+        
+        document.addEventListener('click', function(e) {
+            if (!actionsDropdownMenu.contains(e.target) && !actionsDropdownBtn.contains(e.target)) {
+                actionsDropdownMenu.classList.add('hidden');
+            }
+        });
+    }
 });
+
+// Bulk selection functions
+function toggleSelectAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.order-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    const count = checkboxes.length;
+    const bulkActionsBar = document.getElementById('bulkActionsBar');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    
+    if (count > 0) {
+        bulkActionsBar.classList.remove('hidden');
+        selectedCountSpan.textContent = count;
+    } else {
+        bulkActionsBar.classList.add('hidden');
+    }
+    
+    // Update select all checkbox state
+    const allCheckboxes = document.querySelectorAll('.order-checkbox');
+    const selectAllCheckbox = document.getElementById('selectAll');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = count > 0 && count === allCheckboxes.length;
+        selectAllCheckbox.indeterminate = count > 0 && count < allCheckboxes.length;
+    }
+}
+
+function clearSelection() {
+    const checkboxes = document.querySelectorAll('.order-checkbox');
+    checkboxes.forEach(cb => cb.checked = false);
+    document.getElementById('selectAll').checked = false;
+    updateSelectedCount();
+}
+
+function getSelectedOrderIds() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+function convertSelected(type) {
+    const selectedIds = getSelectedOrderIds();
+    if (selectedIds.length === 0) {
+        alert('Veuillez sélectionner au moins une commande.');
+        return;
+    }
+    
+    const typeLabels = {
+        'bon_livraison': 'bon(s) de livraison',
+        'facture': 'facture(s)',
+        'devis': 'devis'
+    };
+    
+    if (!confirm(`Voulez-vous convertir ${selectedIds.length} commande(s) en ${typeLabels[type]} ?`)) {
+        return;
+    }
+    
+    // Show loading state
+    const actionsBtn = document.getElementById('actionsDropdownBtn');
+    const originalText = actionsBtn.innerHTML;
+    actionsBtn.innerHTML = '<svg class="animate-spin h-4 w-4 mr-2 inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Conversion...';
+    actionsBtn.disabled = true;
+    
+    fetch('{{ route('orders.bulk-convert') }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            order_ids: selectedIds,
+            type: type
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        actionsBtn.innerHTML = originalText;
+        actionsBtn.disabled = false;
+        
+        if (data.success) {
+            alert(data.message);
+            clearSelection();
+            // Optionally reload the page or redirect
+            if (data.created && data.created.length > 0) {
+                const redirectUrls = {
+                    'devis': '{{ route('quotes.index') }}',
+                    'facture': '{{ route('invoices.index') }}',
+                    'bon_livraison': '{{ route('purchase-orders.index') }}'
+                };
+                if (confirm('Voulez-vous voir les documents créés ?')) {
+                    window.location.href = redirectUrls[type];
+                }
+            }
+        } else {
+            alert('Erreur: ' + data.message);
+        }
+    })
+    .catch(error => {
+        actionsBtn.innerHTML = originalText;
+        actionsBtn.disabled = false;
+        alert('Erreur lors de la conversion: ' + error.message);
+    });
+}
+
+function changePerPage(value) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('per_page', value);
+    url.searchParams.delete('page');
+    window.location.href = url.toString();
+}
 </script>
 @endsection

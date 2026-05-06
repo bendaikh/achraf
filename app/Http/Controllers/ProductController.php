@@ -94,9 +94,10 @@ class ProductController extends Controller
             'ref' => 'required|string|max:255|unique:products',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'cost_price_ht' => 'nullable|numeric|min:0',
-            'cost_price_ttc' => 'nullable|numeric|min:0',
             'last_purchase_price' => 'nullable|numeric|min:0',
             'sale_price' => 'nullable|numeric|min:0',
+            'sale_price_ht' => 'nullable|numeric|min:0',
+            'product_margin' => 'nullable|numeric|min:0',
             'minimum_safety_stock' => 'nullable|integer|min:0',
             'minimum_alert_stock' => 'nullable|integer|min:0',
             'stock_quantity' => 'nullable|integer|min:0',
@@ -114,6 +115,7 @@ class ProductController extends Controller
         }
 
         $validated['stock_quantity'] = (int) ($validated['stock_quantity'] ?? 0);
+        $validated['stock_magasin'] = $validated['stock_quantity'];
 
         Product::create($validated);
 
@@ -138,9 +140,10 @@ class ProductController extends Controller
             'ref' => 'required|string|max:255|unique:products,ref,' . $product->id,
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'cost_price_ht' => 'nullable|numeric|min:0',
-            'cost_price_ttc' => 'nullable|numeric|min:0',
             'last_purchase_price' => 'nullable|numeric|min:0',
             'sale_price' => 'nullable|numeric|min:0',
+            'sale_price_ht' => 'nullable|numeric|min:0',
+            'product_margin' => 'nullable|numeric|min:0',
             'minimum_safety_stock' => 'nullable|integer|min:0',
             'minimum_alert_stock' => 'nullable|integer|min:0',
             'stock_quantity' => 'nullable|integer|min:0',
@@ -161,6 +164,11 @@ class ProductController extends Controller
         }
 
         $validated['stock_quantity'] = (int) ($validated['stock_quantity'] ?? $product->stock_quantity);
+        
+        // Update stock_magasin for non-Shopify products
+        if (!$product->isShopifyProduct()) {
+            $validated['stock_magasin'] = $validated['stock_quantity'];
+        }
 
         $product->update($validated);
 
@@ -191,21 +199,8 @@ class ProductController extends Controller
             'initial_stock' => 'required|integer|min:0',
         ]);
 
-        // Generate a unique reference for the manual product
-        $baseRef = $product->ref;
-        $manualRef = $baseRef . '-MANUAL';
-        
-        // Check if a manual product with this reference already exists
-        $existingManual = Product::query()
-            ->where('ref', $manualRef)
-            ->whereNull('source')
-            ->orWhere('source', '!=', 'shopify')
-            ->first();
-
-        if ($existingManual) {
-            return redirect()->route('products.index')
-                ->with('error', 'Un produit manuel avec cette référence existe déjà: ' . $manualRef);
-        }
+        // Use the same reference as the original Shopify product
+        $manualRef = $product->ref;
 
         // Create the manual product as a copy
         $manualProduct = Product::create([
@@ -219,6 +214,7 @@ class ProductController extends Controller
             'minimum_safety_stock' => $product->minimum_safety_stock,
             'minimum_alert_stock' => $product->minimum_alert_stock,
             'stock_quantity' => $validated['initial_stock'],
+            'stock_magasin' => $validated['initial_stock'],
             'barcode' => $product->barcode,
             'vat_category' => $product->vat_category,
             'element_type' => $product->element_type,
@@ -233,6 +229,6 @@ class ProductController extends Controller
         ]);
 
         return redirect()->route('products.index')
-            ->with('success', 'Produit manuel créé avec succès: ' . $manualProduct->name . ' (Réf: ' . $manualRef . ')');
+            ->with('success', 'Produit manuel créé avec succès: ' . $manualProduct->name . ' (Réf: ' . $manualProduct->ref . ')');
     }
 }

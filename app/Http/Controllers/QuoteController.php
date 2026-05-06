@@ -110,6 +110,12 @@ class QuoteController extends Controller
         return view('sales.quotes.show', compact('quote'));
     }
 
+    public function print(Quote $quote)
+    {
+        $quote->load('client', 'items');
+        return view('sales.quotes.print', compact('quote'));
+    }
+
     public function destroy(Quote $quote)
     {
         $quote->delete();

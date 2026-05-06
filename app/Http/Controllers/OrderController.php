@@ -3,7 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\PosSale;
+use App\Models\Quote;
+use App\Models\Invoice;
+use App\Models\PurchaseOrder;
+use App\Models\InvoiceItem;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class OrderController extends Controller
@@ -21,6 +27,16 @@ class OrderController extends Controller
         // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
+        }
+
+        // Filter by payment status
+        if ($request->filled('payment_status')) {
+            $query->where('payment_status', $request->input('payment_status'));
+        }
+
+        // Filter by fulfillment status
+        if ($request->filled('fulfillment_status')) {
+            $query->where('fulfillment_status', $request->input('fulfillment_status'));
         }
 
         // Search by ticket number, client name, or external ID
@@ -44,7 +60,10 @@ class OrderController extends Controller
             $query->whereDate('sold_at', '<=', $request->input('date_to'));
         }
 
-        $orders = $query->paginate(20);
+        // Pagination with configurable per page
+        $perPage = $request->input('per_page', 20);
+        $perPage = in_array($perPage, [25, 50, 100]) ? $perPage : 20;
+        $orders = $query->paginate($perPage)->withQueryString();
 
         // Calculate totals
         $totalOrders = PosSale::count();
@@ -66,5 +85,202 @@ class OrderController extends Controller
         $order->load(['client', 'user', 'items.product']);
 
         return view('sales.orders.show', compact('order'));
+    }
+
+    /**
+     * Bulk convert orders to other document types
+     */
+    public function bulkConvert(Request $request): JsonResponse
+    {
+        $request->validate([
+            'order_ids' => 'required|array|min:1',
+            'order_ids.*' => 'exists:pos_sales,id',
+            'type' => 'required|in:devis,facture,bon_livraison',
+        ]);
+
+        $orderIds = $request->input('order_ids');
+        $type = $request->input('type');
+
+        $orders = PosSale::with(['client', 'items.product'])->whereIn('id', $orderIds)->get();
+
+        $created = [];
+        $errors = [];
+
+        DB::beginTransaction();
+        try {
+            foreach ($orders as $order) {
+                $result = $this->convertOrder($order, $type);
+                if ($result['success']) {
+                    $created[] = $result['data'];
+                } else {
+                    $errors[] = [
+                        'order_id' => $order->id,
+                        'ticket' => $order->ticket_number,
+                        'error' => $result['error'],
+                    ];
+                }
+            }
+
+            DB::commit();
+
+            $typeLabels = [
+                'devis' => 'devis',
+                'facture' => 'facture(s)',
+                'bon_livraison' => 'bon(s) de livraison',
+            ];
+
+            return response()->json([
+                'success' => true,
+                'message' => count($created) . ' ' . $typeLabels[$type] . ' créé(s) avec succès.',
+                'created' => $created,
+                'errors' => $errors,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la conversion: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Convert a single order to the specified document type
+     */
+    private function convertOrder(PosSale $order, string $type): array
+    {
+        try {
+            $document = match ($type) {
+                'devis' => $this->createQuote($order),
+                'facture' => $this->createInvoice($order),
+                'bon_livraison' => $this->createPurchaseOrder($order),
+            };
+
+            return [
+                'success' => true,
+                'data' => [
+                    'order_id' => $order->id,
+                    'ticket' => $order->ticket_number,
+                    'document_id' => $document->id,
+                    'document_number' => $this->getDocumentNumber($document, $type),
+                ],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Create a Quote (Devis) from an order
+     */
+    private function createQuote(PosSale $order): Quote
+    {
+        $quoteNumber = 'DEV-' . date('Y') . '-' . str_pad(Quote::whereYear('created_at', date('Y'))->count() + 1, 5, '0', STR_PAD_LEFT);
+
+        $quote = Quote::create([
+            'quote_number' => $quoteNumber,
+            'client_id' => $order->client_id,
+            'quote_date' => now(),
+            'expiry_date' => now()->addDays(30),
+            'currency' => $order->currency ?? 'MAD',
+            'status' => 'Brouillon',
+            'subtotal' => $order->subtotal,
+            'discount' => $order->discount,
+            'adjustment' => 0,
+            'total' => $order->total,
+            'remarks' => 'Converti depuis la commande ' . $order->ticket_number,
+        ]);
+
+        $this->copyOrderItems($order, $quote);
+
+        return $quote;
+    }
+
+    /**
+     * Create an Invoice (Facture) from an order
+     */
+    private function createInvoice(PosSale $order): Invoice
+    {
+        $invoiceNumber = 'FAC-' . date('Y') . '-' . str_pad(Invoice::whereYear('created_at', date('Y'))->count() + 1, 5, '0', STR_PAD_LEFT);
+
+        $invoice = Invoice::create([
+            'invoice_number' => $invoiceNumber,
+            'client_id' => $order->client_id,
+            'invoice_date' => now(),
+            'due_date' => now()->addDays(30),
+            'currency' => $order->currency ?? 'MAD',
+            'subtotal' => $order->subtotal,
+            'discount' => $order->discount,
+            'adjustment' => 0,
+            'total' => $order->total,
+            'remarks' => 'Converti depuis la commande ' . $order->ticket_number,
+        ]);
+
+        $this->copyOrderItems($order, $invoice);
+
+        return $invoice;
+    }
+
+    /**
+     * Create a Purchase Order (Bon de livraison) from an order
+     */
+    private function createPurchaseOrder(PosSale $order): PurchaseOrder
+    {
+        $reference = 'BC-' . date('Y') . '-' . str_pad(PurchaseOrder::whereYear('created_at', date('Y'))->count() + 1, 5, '0', STR_PAD_LEFT);
+
+        $purchaseOrder = PurchaseOrder::create([
+            'reference' => $reference,
+            'client_id' => $order->client_id,
+            'order_date' => now(),
+            'expiry_date' => now()->addDays(30),
+            'currency' => $order->currency ?? 'MAD',
+            'status' => 'En cours',
+            'subtotal' => $order->subtotal,
+            'discount' => $order->discount,
+            'adjustment' => 0,
+            'total' => $order->total,
+            'remarks' => 'Converti depuis la commande ' . $order->ticket_number,
+        ]);
+
+        $this->copyOrderItems($order, $purchaseOrder);
+
+        return $purchaseOrder;
+    }
+
+    /**
+     * Copy items from order to document
+     */
+    private function copyOrderItems(PosSale $order, $document): void
+    {
+        foreach ($order->items as $item) {
+            InvoiceItem::create([
+                'itemable_type' => get_class($document),
+                'itemable_id' => $document->id,
+                'product_id' => $item->product_id,
+                'ref' => $item->ref ?? $item->product?->ref,
+                'designation' => $item->designation ?? $item->product?->name,
+                'description' => $item->product?->description,
+                'quantity' => $item->quantity,
+                'unit_price' => $item->unit_price,
+                'tax_rate' => $item->tax_rate ?? 20,
+                'discount' => $item->discount ?? 0,
+                'line_total' => $item->line_total,
+            ]);
+        }
+    }
+
+    /**
+     * Get document number based on type
+     */
+    private function getDocumentNumber($document, string $type): string
+    {
+        return match ($type) {
+            'devis' => $document->quote_number,
+            'facture' => $document->invoice_number,
+            'bon_livraison' => $document->reference,
+        };
     }
 }

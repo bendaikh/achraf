@@ -11,12 +11,15 @@ class Product extends Model
         'ref',
         'image',
         'cost_price_ht',
-        'cost_price_ttc',
         'last_purchase_price',
         'sale_price',
+        'sale_price_ht',
+        'product_margin',
         'minimum_safety_stock',
         'minimum_alert_stock',
         'stock_quantity',
+        'stock_magasin',
+        'stock_enligne',
         'barcode',
         'vat_category',
         'element_type',
@@ -32,12 +35,15 @@ class Product extends Model
 
     protected $casts = [
         'cost_price_ht' => 'decimal:2',
-        'cost_price_ttc' => 'decimal:2',
         'last_purchase_price' => 'decimal:2',
         'sale_price' => 'decimal:2',
+        'sale_price_ht' => 'decimal:2',
+        'product_margin' => 'decimal:2',
         'minimum_safety_stock' => 'integer',
         'minimum_alert_stock' => 'integer',
         'stock_quantity' => 'integer',
+        'stock_magasin' => 'integer',
+        'stock_enligne' => 'integer',
         'shopify_synced_at' => 'datetime',
     ];
 

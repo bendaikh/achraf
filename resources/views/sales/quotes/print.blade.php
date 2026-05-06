@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bon de commande {{ $purchaseOrder->reference }}</title>
+    <title>Devis {{ $quote->quote_number }}</title>
     <style>
         * {
             margin: 0;
@@ -31,7 +31,7 @@
             align-items: start;
             margin-bottom: 30px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #2563eb;
+            border-bottom: 2px solid #059669;
         }
 
         .company-info {
@@ -41,7 +41,7 @@
         .company-name {
             font-size: 24px;
             font-weight: bold;
-            color: #2563eb;
+            color: #059669;
             margin-bottom: 5px;
         }
 
@@ -57,7 +57,7 @@
         .invoice-title {
             font-size: 28px;
             font-weight: bold;
-            color: #2563eb;
+            color: #059669;
             margin-bottom: 10px;
         }
 
@@ -82,7 +82,7 @@
         .client-info h3 {
             font-size: 12px;
             font-weight: bold;
-            color: #2563eb;
+            color: #059669;
             margin-bottom: 10px;
             text-transform: uppercase;
         }
@@ -114,7 +114,7 @@
         }
 
         thead {
-            background: #2563eb;
+            background: #059669;
             color: white;
         }
 
@@ -135,7 +135,7 @@
         }
 
         tbody tr:last-child {
-            border-bottom: 2px solid #2563eb;
+            border-bottom: 2px solid #059669;
         }
 
         td {
@@ -165,7 +165,7 @@
         }
 
         .total-row.grand-total {
-            background: #2563eb;
+            background: #059669;
             color: white;
             font-weight: bold;
             font-size: 14px;
@@ -188,7 +188,7 @@
         .note-section h4 {
             font-size: 12px;
             font-weight: bold;
-            color: #2563eb;
+            color: #059669;
             margin-bottom: 8px;
             text-transform: uppercase;
         }
@@ -228,7 +228,7 @@
             top: 20px;
             right: 20px;
             padding: 10px 20px;
-            background: #2563eb;
+            background: #059669;
             color: white;
             border: none;
             border-radius: 5px;
@@ -239,31 +239,52 @@
         }
 
         .print-button:hover {
-            background: #1d4ed8;
+            background: #047857;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            right: 140px;
+            padding: 10px 20px;
+            background: #6b7280;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-decoration: none;
+        }
+
+        .back-button:hover {
+            background: #4b5563;
         }
     </style>
 </head>
 <body>
+    <a href="{{ route('quotes.show', $quote) }}" class="back-button no-print">← Retour</a>
     <button onclick="window.print()" class="print-button no-print">🖨️ Imprimer</button>
 
     <div class="container">
         <!-- Header -->
         <div class="header">
             <div class="company-info">
-                <div class="company-name">Votre Entreprise</div>
+                <div class="company-name">LAV'FAST</div>
                 <div class="company-details">
                     Adresse de l'entreprise<br>
                     Ville, Code Postal<br>
                     Tél: +212 XXX XXX XXX<br>
-                    Email: contact@entreprise.ma
+                    Email: contact@lavfast.ma
                 </div>
             </div>
             <div class="invoice-info">
-                <div class="invoice-title">BON DE COMMANDE</div>
-                <div class="invoice-number">{{ $purchaseOrder->reference }}</div>
-                <div class="invoice-date">Date: {{ $purchaseOrder->order_date->format('d/m/Y') }}</div>
-                @if($purchaseOrder->expiry_date)
-                <div class="invoice-date">Échéance: {{ $purchaseOrder->expiry_date->format('d/m/Y') }}</div>
+                <div class="invoice-title">DEVIS</div>
+                <div class="invoice-number">{{ $quote->quote_number }}</div>
+                <div class="invoice-date">Date: {{ $quote->quote_date->format('d/m/Y') }}</div>
+                @if($quote->expiry_date)
+                <div class="invoice-date">Validité: {{ $quote->expiry_date->format('d/m/Y') }}</div>
                 @endif
             </div>
         </div>
@@ -274,26 +295,30 @@
             <div class="info-grid">
                 <div class="info-item">
                     <div class="info-label">Client:</div>
-                    <div class="info-value">{{ $purchaseOrder->client->name }}</div>
+                    <div class="info-value">{{ $quote->client->name }}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">Devise:</div>
-                    <div class="info-value">{{ $purchaseOrder->currency }}</div>
+                    <div class="info-value">{{ $quote->currency }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Emplacement de stock:</div>
+                    <div class="info-value">{{ $quote->stock_location }}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">Statut:</div>
-                    <div class="info-value">{{ $purchaseOrder->status }}</div>
+                    <div class="info-value">{{ $quote->status }}</div>
                 </div>
-                @if($purchaseOrder->model)
+                @if($quote->model)
                 <div class="info-item">
                     <div class="info-label">Modèle:</div>
-                    <div class="info-value">{{ $purchaseOrder->model }}</div>
+                    <div class="info-value">{{ $quote->model }}</div>
                 </div>
                 @endif
-                @if($purchaseOrder->matricule)
+                @if($quote->matricule)
                 <div class="info-item">
                     <div class="info-label">Matricule:</div>
-                    <div class="info-value">{{ $purchaseOrder->matricule }}</div>
+                    <div class="info-value">{{ $quote->matricule }}</div>
                 </div>
                 @endif
             </div>
@@ -313,7 +338,7 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($purchaseOrder->items as $item)
+                @foreach($quote->items as $item)
                 <tr>
                     <td>{{ $item->ref ?? '-' }}</td>
                     <td>{{ $item->designation }}</td>
@@ -331,40 +356,40 @@
         <div class="totals">
             <div class="total-row subtotal">
                 <span>Sous-total:</span>
-                <span>{{ number_format($purchaseOrder->subtotal, 2) }} {{ $purchaseOrder->currency }}</span>
+                <span>{{ number_format($quote->subtotal, 2) }} {{ $quote->currency }}</span>
             </div>
-            @if($purchaseOrder->discount > 0)
+            @if($quote->discount > 0)
             <div class="total-row">
                 <span>Remise:</span>
-                <span>{{ number_format($purchaseOrder->discount, 2) }} {{ $purchaseOrder->currency }}</span>
+                <span>{{ number_format($quote->discount, 2) }} {{ $quote->currency }}</span>
             </div>
             @endif
-            @if($purchaseOrder->adjustment != 0)
+            @if($quote->adjustment != 0)
             <div class="total-row">
                 <span>Ajustement:</span>
-                <span>{{ number_format($purchaseOrder->adjustment, 2) }} {{ $purchaseOrder->currency }}</span>
+                <span>{{ number_format($quote->adjustment, 2) }} {{ $quote->currency }}</span>
             </div>
             @endif
             <div class="total-row grand-total">
                 <span>TOTAL:</span>
-                <span>{{ number_format($purchaseOrder->total, 2) }} {{ $purchaseOrder->currency }}</span>
+                <span>{{ number_format($quote->total, 2) }} {{ $quote->currency }}</span>
             </div>
         </div>
 
         <!-- Notes -->
-        @if($purchaseOrder->remarks || $purchaseOrder->conditions)
+        @if($quote->remarks || $quote->conditions)
         <div class="notes">
             <div class="notes-grid">
-                @if($purchaseOrder->remarks)
+                @if($quote->remarks)
                 <div class="note-section">
                     <h4>Remarques</h4>
-                    <div class="note-content">{{ $purchaseOrder->remarks }}</div>
+                    <div class="note-content">{{ $quote->remarks }}</div>
                 </div>
                 @endif
-                @if($purchaseOrder->conditions)
+                @if($quote->conditions)
                 <div class="note-section">
                     <h4>Conditions</h4>
-                    <div class="note-content">{{ $purchaseOrder->conditions }}</div>
+                    <div class="note-content">{{ $quote->conditions }}</div>
                 </div>
                 @endif
             </div>
@@ -376,5 +401,11 @@
             Document généré le {{ now()->format('d/m/Y à H:i') }}
         </div>
     </div>
+
+    <script>
+        window.onload = function() {
+            window.print();
+        };
+    </script>
 </body>
 </html>

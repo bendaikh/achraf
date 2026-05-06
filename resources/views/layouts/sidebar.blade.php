@@ -1,20 +1,20 @@
 <div class="flex flex-col h-full">
     <div class="p-4 border-b border-gray-200 flex-shrink-0">
         <div class="flex items-center space-x-3">
-            <div class="h-10 w-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+            <div class="h-10 w-10 bg-[#fdb819] rounded-lg flex items-center justify-center">
                 <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                 </svg>
             </div>
             <div>
-                <h1 class="text-lg font-bold text-gray-900">hsabati</h1>
-                <p class="text-xs text-gray-500">Fast Tuning Car</p>
+                <h1 class="text-lg font-bold text-gray-900">LAV'FAST</h1>
+                <p class="text-xs text-gray-500">E-commerce Management</p>
             </div>
         </div>
     </div>
 
     <nav class="flex-1 overflow-y-auto p-4 space-y-2">
-    <a href="{{ route('dashboard') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg {{ request()->routeIs('dashboard') ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150">
+    <a href="{{ route('dashboard') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg {{ request()->routeIs('dashboard') ? 'bg-[#fdb819] text-white' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150">
         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
         </svg>
@@ -119,7 +119,7 @@
         </div>
     </div>
 
-    <a href="{{ route('products.index') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg {{ request()->routeIs('products.*') ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150">
+    <a href="{{ route('products.index') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg {{ request()->routeIs('products.*') ? 'bg-[#fdb819] text-white' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150">
         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
         </svg>
@@ -209,11 +209,22 @@
             <span class="font-medium">Shopify Integration</span>
         </a>
     </div>
+
+    <div class="pt-2 mt-2 border-t border-gray-200">
+        <p class="px-4 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Configuration</p>
+        <a href="{{ route('settings.index') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg {{ request()->routeIs('settings.*') ? 'bg-[#fdb819] text-white' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+            <span class="font-medium">Paramètres</span>
+        </a>
+    </div>
     </nav>
 
     <div class="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
     <div class="flex items-center space-x-3 mb-3">
-        <div class="h-10 w-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+        <div class="h-10 w-10 bg-[#fdb819] rounded-full flex items-center justify-center">
             <span class="text-white font-semibold text-sm">{{ substr(Auth::user()->name, 0, 2) }}</span>
         </div>
         <div class="flex-1 min-w-0">

@@ -34,27 +34,84 @@
             </div>
         @endif
 
-        <form action="{{ route('clients.store') }}" method="POST" class="bg-white rounded-lg shadow">
+        <form action="{{ route('clients.store') }}" method="POST" class="bg-white rounded-lg shadow" x-data="clientForm()">
             @csrf
+
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Type de client</h2>
+                <div class="flex gap-4 mb-6">
+                    <label class="flex items-center gap-2 p-4 border rounded-lg cursor-pointer transition" :class="clientType === 'entreprise' ? 'border-[#fdb819] bg-[#fdb819]/10' : 'border-gray-200 hover:border-gray-300'">
+                        <input type="radio" name="client_type" value="entreprise" x-model="clientType" class="text-[#fdb819] focus:ring-[#fdb819]">
+                        <div>
+                            <span class="font-medium text-gray-900">Entreprise</span>
+                            <p class="text-xs text-gray-500">Client professionnel / société</p>
+                        </div>
+                    </label>
+                    <label class="flex items-center gap-2 p-4 border rounded-lg cursor-pointer transition" :class="clientType === 'particulier' ? 'border-[#fdb819] bg-[#fdb819]/10' : 'border-gray-200 hover:border-gray-300'">
+                        <input type="radio" name="client_type" value="particulier" x-model="clientType" class="text-[#fdb819] focus:ring-[#fdb819]">
+                        <div>
+                            <span class="font-medium text-gray-900">Particulier</span>
+                            <p class="text-xs text-gray-500">Client individuel</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
 
             <div class="p-6 border-b border-gray-200">
                 <h2 class="text-lg font-semibold text-gray-900 mb-4">Informations Générales</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
+                    <!-- Fields for Entreprise -->
+                    <div x-show="clientType === 'entreprise'">
                         <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
-                            Entreprise <span class="text-red-500">*</span>
+                            Raison sociale <span class="text-red-500">*</span>
                         </label>
                         <input 
                             type="text" 
                             name="name" 
                             id="name" 
                             value="{{ old('name') }}" 
-                            required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('name') border-red-500 @enderror"
+                            x-bind:required="clientType === 'entreprise'"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('name') border-red-500 @enderror"
                         >
                         @error('name')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
+                    </div>
+
+                    <!-- Fields for Particulier -->
+                    <div x-show="clientType === 'particulier'" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="first_name" class="block text-sm font-medium text-gray-700 mb-1">
+                                Prénom <span class="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                name="first_name" 
+                                id="first_name" 
+                                value="{{ old('first_name') }}" 
+                                x-bind:required="clientType === 'particulier'"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('first_name') border-red-500 @enderror"
+                            >
+                            @error('first_name')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label for="last_name" class="block text-sm font-medium text-gray-700 mb-1">
+                                Nom <span class="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                name="last_name" 
+                                id="last_name" 
+                                value="{{ old('last_name') }}" 
+                                x-bind:required="clientType === 'particulier'"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('last_name') border-red-500 @enderror"
+                            >
+                            @error('last_name')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
                     </div>
 
                     <div>
@@ -66,7 +123,7 @@
                             name="phone" 
                             id="phone" 
                             value="{{ old('phone') }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('phone') border-red-500 @enderror"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('phone') border-red-500 @enderror"
                         >
                         @error('phone')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -75,15 +132,14 @@
 
                     <div>
                         <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
-                            Email <span class="text-red-500">*</span>
+                            Email
                         </label>
                         <input 
                             type="email" 
                             name="email" 
                             id="email" 
                             value="{{ old('email') }}" 
-                            required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('email') border-red-500 @enderror"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('email') border-red-500 @enderror"
                         >
                         @error('email')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -99,7 +155,7 @@
                             name="address" 
                             id="address" 
                             value="{{ old('address') }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('address') border-red-500 @enderror"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('address') border-red-500 @enderror"
                         >
                         @error('address')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -114,8 +170,10 @@
                             type="text" 
                             name="code" 
                             id="code" 
-                            value="{{ old('code') }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('code') border-red-500 @enderror"
+                            value="{{ old('code', $clientCode ?? '') }}" 
+                            readonly
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 @error('code') border-red-500 @enderror"
+                            placeholder="Généré automatiquement"
                         >
                         @error('code')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -138,7 +196,8 @@
                         @enderror
                     </div>
 
-                    <div>
+                    <!-- Business-only fields -->
+                    <div x-show="clientType === 'entreprise'">
                         <label for="ice" class="block text-sm font-medium text-gray-700 mb-1">
                             ICE
                         </label>
@@ -147,7 +206,7 @@
                             name="ice" 
                             id="ice" 
                             value="{{ old('ice') }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('ice') border-red-500 @enderror"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('ice') border-red-500 @enderror"
                         >
                         @error('ice')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -163,14 +222,15 @@
                             name="region" 
                             id="region" 
                             value="{{ old('region') }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('region') border-red-500 @enderror"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('region') border-red-500 @enderror"
                         >
                         @error('region')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
                     </div>
 
-                    <div>
+                    <!-- Business-only fields -->
+                    <div x-show="clientType === 'entreprise'">
                         <label for="fiscal_identifier" class="block text-sm font-medium text-gray-700 mb-1">
                             Identifiant fiscal (IF)
                         </label>
@@ -179,7 +239,7 @@
                             name="fiscal_identifier" 
                             id="fiscal_identifier" 
                             value="{{ old('fiscal_identifier') }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('fiscal_identifier') border-red-500 @enderror"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('fiscal_identifier') border-red-500 @enderror"
                         >
                         @error('fiscal_identifier')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -258,11 +318,29 @@
                 <a href="{{ route('clients.index') }}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition duration-150">
                     Annuler
                 </a>
-                <button type="submit" class="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition duration-150 text-sm font-medium">
+                <button type="submit" class="px-6 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] transition duration-150 text-sm font-medium">
                     Enregistrer
                 </button>
             </div>
         </form>
     </div>
 </main>
+
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script>
+function clientForm() {
+    return {
+        clientType: '{{ old('client_type', 'entreprise') }}',
+        init() {
+            this.$watch('clientType', (value) => {
+                if (value === 'particulier') {
+                    document.getElementById('name').required = false;
+                } else {
+                    document.getElementById('name').required = true;
+                }
+            });
+        }
+    }
+}
+</script>
 @endsection

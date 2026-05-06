@@ -6,7 +6,7 @@
 <div
     class="bg-slate-900 flex text-slate-100"
     :class="posFullView ? 'fixed inset-0 z-50 min-h-screen' : 'min-h-screen relative'"
-    x-data="posRegister(@js($productsForJs))"
+    x-data="posRegister(@js($productsMagasinForJs), @js($productsEnligneForJs))"
     @keydown.escape.window="onGlobalEscape()"
     x-cloak
 >
@@ -108,72 +108,132 @@
                     </template>
                 </div>
 
-                <div class="flex items-center justify-between mb-3">
-                    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                        </svg>
-                        Catalogue Produits
-                    </h2>
-                    <span class="text-xs font-medium text-slate-500 bg-slate-800/60 px-3 py-1.5 rounded-full border border-white/5">
-                        {{ count($products) }} produit{{ count($products) > 1 ? 's' : '' }}
-                    </span>
+                <div class="flex flex-col gap-3 mb-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                                </svg>
+                                Catalogue
+                            </h2>
+                            <div class="flex rounded-lg overflow-hidden border border-white/10">
+                                <button type="button" @click="stockType = 'magasin'; currentPage = 1" :class="stockType === 'magasin' ? 'bg-[#fdb819] text-white' : 'bg-slate-800/60 text-slate-400 hover:bg-slate-700'" class="px-3 py-1.5 text-xs font-semibold transition-colors flex items-center gap-1.5">
+                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                                    Stock Magasin
+                                </button>
+                                <button type="button" @click="stockType = 'enligne'; currentPage = 1" :class="stockType === 'enligne' ? 'bg-[#fdb819] text-white' : 'bg-slate-800/60 text-slate-400 hover:bg-slate-700'" class="px-3 py-1.5 text-xs font-semibold transition-colors flex items-center gap-1.5">
+                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+                                    Stock En Ligne
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <select x-model="perPage" @change="currentPage = 1" class="text-xs bg-slate-800/60 border border-white/10 text-slate-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-[#fdb819] outline-none">
+                                <option value="24">24 / page</option>
+                                <option value="48">48 / page</option>
+                                <option value="96">96 / page</option>
+                            </select>
+                            <span class="text-xs font-medium text-slate-500 bg-slate-800/60 px-3 py-1.5 rounded-full border border-white/5">
+                                <span x-text="currentCatalog.length"></span> produit<span x-show="currentCatalog.length > 1">s</span>
+                            </span>
+                        </div>
+                    </div>
+                    <!-- Pagination controls -->
+                    <div x-show="totalPages > 1" class="flex items-center justify-center gap-2">
+                        <button type="button" @click="currentPage = 1" :disabled="currentPage === 1" class="px-2 py-1 rounded bg-slate-800/60 text-slate-400 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+                        </button>
+                        <button type="button" @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1" class="px-3 py-1 rounded bg-slate-800/60 text-slate-400 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium">
+                            Précédent
+                        </button>
+                        <div class="flex items-center gap-1">
+                            <template x-for="page in visiblePages" :key="page">
+                                <button type="button" @click="if(page !== '...') currentPage = page" :class="page === currentPage ? 'bg-[#fdb819] text-white' : (page === '...' ? 'bg-transparent text-slate-500 cursor-default' : 'bg-slate-800/60 text-slate-400 hover:bg-slate-700')" class="min-w-[28px] px-2 py-1 rounded text-xs font-medium" x-text="page"></button>
+                            </template>
+                        </div>
+                        <button type="button" @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage === totalPages" class="px-3 py-1 rounded bg-slate-800/60 text-slate-400 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium">
+                            Suivant
+                        </button>
+                        <button type="button" @click="currentPage = totalPages" :disabled="currentPage === totalPages" class="px-2 py-1 rounded bg-slate-800/60 text-slate-400 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+                        </button>
+                    </div>
                 </div>
-                @if(count($products) > 0)
+                <template x-if="currentCatalog.length > 0">
                     <div
-                        class="flex-1 overflow-y-auto grid gap-3 pb-4 content-start items-start"
-                        :class="posFullView ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'"
+                        class="flex-1 overflow-y-auto pb-4"
                     >
-                        @foreach($products as $p)
-                            @php
-                                $pj = $productsForJs->firstWhere('id', $p->id);
-                            @endphp
-                            @if($pj)
-                            <button type="button" @click='addProduct(@json($pj))' class="group text-left rounded-xl border border-white/10 bg-slate-800/40 overflow-hidden hover:border-emerald-400/50 hover:bg-slate-800/80 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-200 flex flex-col">
-                                <div class="w-full h-32 bg-gradient-to-br from-slate-700/50 to-slate-800/50 overflow-hidden relative flex-shrink-0">
-                                    @if($p->image)
-                                        <img src="{{ $p->image_url }}" alt="{{ $p->name }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-                                    @else
-                                        <div class="w-full h-full flex items-center justify-center">
+                        <div 
+                            class="grid gap-3 auto-rows-max"
+                            :class="posFullView ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'"
+                        >
+                            <template x-for="p in paginatedCatalog" :key="p.id">
+                                <button type="button" @click='addProduct(p)' class="group text-left rounded-xl border border-white/10 bg-slate-800/40 overflow-hidden hover:border-emerald-400/50 hover:bg-slate-800/80 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-200 h-auto">
+                                    <div class="w-full aspect-square bg-gradient-to-br from-slate-700/50 to-slate-800/50 overflow-hidden relative">
+                                        <img x-show="p.image_url" :src="p.image_url" :alt="p.name" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                                        <div x-show="!p.image_url" class="w-full h-full flex items-center justify-center">
                                             <svg class="w-12 h-12 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                                             </svg>
                                         </div>
-                                    @endif
-                                    <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                </div>
-                                <div class="px-2.5 pt-2 pb-2">
-                                    <p class="font-semibold text-white text-sm line-clamp-1 leading-tight group-hover:text-emerald-200 transition-colors">{{ $p->name }}</p>
-                                    <p class="text-xs text-slate-500 font-mono">{{ $p->ref }}</p>
-                                    <div class="flex items-baseline gap-1 mt-1">
-                                        <span class="text-base font-bold text-emerald-400 group-hover:text-emerald-300">{{ number_format((float)($p->sale_price ?? 0), 2) }}</span>
-                                        <span class="text-xs font-medium text-slate-400">DH</span>
+                                        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                        <div class="absolute top-1.5 right-1.5 px-2 py-0.5 rounded text-xs font-medium" :class="p.stock > 0 ? 'bg-emerald-500/90 text-white' : 'bg-red-500/90 text-white'">
+                                            <span x-text="p.stock"></span> en stock
+                                        </div>
                                     </div>
-                                </div>
-                            </button>
-                            @endif
-                        @endforeach
+                                    <div class="px-2.5 py-2">
+                                        <p class="font-semibold text-white text-sm line-clamp-2 leading-tight group-hover:text-emerald-200 transition-colors" x-text="p.name"></p>
+                                        <p class="text-xs text-slate-500 font-mono truncate" x-text="p.ref"></p>
+                                        <div class="flex items-baseline gap-1 mt-1">
+                                            <span class="text-base font-bold text-emerald-400 group-hover:text-emerald-300" x-text="formatMoney(p.sale_price)"></span>
+                                            <span class="text-xs font-medium text-slate-400">DH</span>
+                                        </div>
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
                     </div>
-                @else
+                </template>
+                <!-- Bottom pagination controls -->
+                <div x-show="totalPages > 1 && currentCatalog.length > 0" class="flex items-center justify-center gap-2 py-3 border-t border-white/10 mt-2">
+                    <button type="button" @click="currentPage = 1" :disabled="currentPage === 1" class="px-2 py-1 rounded bg-slate-800/60 text-slate-400 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+                    </button>
+                    <button type="button" @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1" class="px-3 py-1 rounded bg-slate-800/60 text-slate-400 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium">
+                        Précédent
+                    </button>
+                    <span class="text-xs text-slate-400 px-2">
+                        Page <span x-text="currentPage"></span> / <span x-text="totalPages"></span>
+                    </span>
+                    <button type="button" @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage === totalPages" class="px-3 py-1 rounded bg-slate-800/60 text-slate-400 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium">
+                        Suivant
+                    </button>
+                    <button type="button" @click="currentPage = totalPages" :disabled="currentPage === totalPages" class="px-2 py-1 rounded bg-slate-800/60 text-slate-400 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+                    </button>
+                </div>
+                <template x-if="currentCatalog.length === 0">
                     <div class="flex-1 flex items-center justify-center">
                         <div class="text-center py-12">
                             <svg class="h-24 w-24 mx-auto text-slate-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                             </svg>
                             <p class="text-slate-400 text-lg font-medium mb-2">Aucun produit disponible</p>
-                            <p class="text-slate-600 text-sm">Ajoutez des produits depuis la gestion des produits</p>
+                            <p class="text-slate-600 text-sm" x-text="stockType === 'magasin' ? 'Ajoutez des produits depuis la gestion des produits' : 'Synchronisez des produits depuis Shopify'"></p>
                         </div>
                     </div>
-                @endif
+                </template>
             </section>
 
             <aside class="w-full shrink-0 flex flex-col bg-slate-950/50 backdrop-blur border-t lg:border-t-0 lg:border-l border-white/10" :class="posFullView ? 'lg:w-[min(32rem,38vw)] xl:w-[min(36rem,34vw)]' : 'lg:w-[420px]'">
+                <input type="hidden" name="stock_type" :value="stockType">
                 <div class="p-4 border-b border-white/10">
                     <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Client (optionnel)</label>
-                    <select x-model="clientId" class="w-full rounded-lg bg-slate-800 border border-white/10 text-white text-sm py-2.5 px-3 focus:ring-2 focus:ring-emerald-500 outline-none">
+                    <select id="pos_client_id" x-ref="clientSelect" class="w-full rounded-lg bg-slate-800 border border-white/10 text-white text-sm py-2.5 px-3 focus:ring-2 focus:ring-[#fdb819] outline-none">
                         <option value="">Client comptoir</option>
                         @foreach($clients as $c)
-                            <option value="{{ $c->id }}">{{ $c->name }}</option>
+                            <option value="{{ $c->id }}">{{ $c->name }} {{ $c->email ? '('.$c->email.')' : '' }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -310,11 +370,55 @@
 </div>
 
 <style>[x-cloak]{display:none!important}</style>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<style>
+.select2-container--default .select2-selection--single {
+    background-color: rgb(30 41 59) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 0.5rem !important;
+    height: auto !important;
+    padding: 0.5rem 0.75rem !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: white !important;
+    line-height: 1.5 !important;
+    padding: 0 !important;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 100% !important;
+    right: 8px !important;
+}
+.select2-dropdown {
+    background-color: rgb(30 41 59) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.select2-search--dropdown .select2-search__field {
+    background-color: rgb(15 23 42) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+    border-radius: 0.375rem !important;
+}
+.select2-results__option {
+    color: white !important;
+    padding: 0.5rem 0.75rem !important;
+}
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background-color: #fdb819 !important;
+    color: white !important;
+}
+.select2-container--default .select2-results__option[aria-selected=true] {
+    background-color: rgba(253, 184, 25, 0.3) !important;
+}
+</style>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
-function posRegister(initialCatalog) {
+function posRegister(catalogMagasin, catalogEnligne) {
     return {
-        catalog: initialCatalog,
+        catalogMagasin: catalogMagasin,
+        catalogEnligne: catalogEnligne,
+        stockType: 'magasin',
         posFullView: false,
         sidebarOpen: false,
         cart: [],
@@ -327,6 +431,53 @@ function posRegister(initialCatalog) {
         amountReceived: '',
         globalDiscount: 0,
         notes: '',
+        currentPage: 1,
+        perPage: 24,
+        get currentCatalog() {
+            return this.stockType === 'magasin' ? this.catalogMagasin : this.catalogEnligne;
+        },
+        get totalPages() {
+            return Math.ceil(this.currentCatalog.length / this.perPage);
+        },
+        get paginatedCatalog() {
+            const start = (this.currentPage - 1) * this.perPage;
+            const end = start + this.perPage;
+            return this.currentCatalog.slice(start, end);
+        },
+        get visiblePages() {
+            const total = this.totalPages;
+            const current = this.currentPage;
+            const pages = [];
+            
+            if (total <= 7) {
+                for (let i = 1; i <= total; i++) pages.push(i);
+            } else {
+                pages.push(1);
+                if (current > 3) pages.push('...');
+                
+                const start = Math.max(2, current - 1);
+                const end = Math.min(total - 1, current + 1);
+                
+                for (let i = start; i <= end; i++) pages.push(i);
+                
+                if (current < total - 2) pages.push('...');
+                pages.push(total);
+            }
+            
+            return pages;
+        },
+        init() {
+            const self = this;
+            $(document).ready(function() {
+                $('#pos_client_id').select2({
+                    placeholder: 'Rechercher un client...',
+                    allowClear: true,
+                    width: '100%'
+                }).on('change', function() {
+                    self.clientId = $(this).val() || '';
+                });
+            });
+        },
         addProduct(p) {
             const existing = this.cart.find(c => c.product_id === p.id);
             if (existing) {
@@ -398,7 +549,7 @@ function posRegister(initialCatalog) {
             const q = this.searchQuery.trim();
             if (!q) { this.searchResults = []; return; }
             try {
-                const r = await fetch('{{ route('pos.products.search') }}?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } });
+                const r = await fetch('{{ route('pos.products.search') }}?q=' + encodeURIComponent(q) + '&stock_type=' + this.stockType, { headers: { 'Accept': 'application/json' } });
                 const data = await r.json();
                 this.searchResults = data.products || [];
             } catch (e) { this.searchResults = []; }
@@ -407,7 +558,7 @@ function posRegister(initialCatalog) {
             const b = this.barcode.trim();
             if (!b) return;
             try {
-                const r = await fetch('{{ route('pos.products.search') }}?barcode=' + encodeURIComponent(b), { headers: { 'Accept': 'application/json' } });
+                const r = await fetch('{{ route('pos.products.search') }}?barcode=' + encodeURIComponent(b) + '&stock_type=' + this.stockType, { headers: { 'Accept': 'application/json' } });
                 const data = await r.json();
                 if (data.products && data.products.length) {
                     this.addProduct(data.products[0]);

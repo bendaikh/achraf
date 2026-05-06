@@ -22,6 +22,7 @@ class Client extends Model
         'latitude',
         'longitude',
         'ville',
+        'client_type',
     ];
 
     public function invoices()

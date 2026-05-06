@@ -15,20 +15,22 @@ class ClientController extends Controller
 
     public function create()
     {
-        return view('clients.create');
+        $clientCode = $this->generateClientCode();
+        return view('clients.create', compact('clientCode'));
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:clients,email',
+        $clientType = $request->input('client_type', 'entreprise');
+        
+        $rules = [
+            'client_type' => 'required|in:entreprise,particulier',
+            'email' => 'nullable|email|unique:clients,email',
             'phone' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:255',
             'country' => 'nullable|string|max:255',
             'tax_id' => 'nullable|string|max:255',
-            'code' => 'nullable|string|max:255',
             'postal_code' => 'nullable|string|max:255',
             'region' => 'nullable|string|max:255',
             'ice' => 'nullable|string|max:255',
@@ -36,11 +38,48 @@ class ClientController extends Controller
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
             'ville' => 'nullable|string|max:255',
-        ]);
+        ];
+
+        if ($clientType === 'entreprise') {
+            $rules['name'] = 'required|string|max:255';
+        } else {
+            $rules['first_name'] = 'required|string|max:255';
+            $rules['last_name'] = 'required|string|max:255';
+        }
+
+        $validated = $request->validate($rules);
+
+        // For particulier, combine first_name and last_name into name
+        if ($clientType === 'particulier') {
+            $validated['name'] = trim($validated['first_name'] . ' ' . $validated['last_name']);
+            unset($validated['first_name'], $validated['last_name']);
+        }
+
+        // Auto-generate client code
+        $validated['code'] = $this->generateClientCode();
 
         Client::create($validated);
 
         return redirect()->route('clients.index')->with('success', 'Client créé avec succès.');
+    }
+
+    private function generateClientCode(): string
+    {
+        $prefix = 'CLT';
+        $year = date('Y');
+        
+        // Find the last client code for this year
+        $lastClient = Client::where('code', 'like', $prefix . $year . '%')
+            ->orderBy('code', 'desc')
+            ->first();
+        
+        if ($lastClient && preg_match('/' . $prefix . $year . '(\d+)/', $lastClient->code, $matches)) {
+            $nextNumber = intval($matches[1]) + 1;
+        } else {
+            $nextNumber = 1;
+        }
+        
+        return $prefix . $year . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
     public function show(Client $client)

@@ -110,6 +110,12 @@ class InvoiceController extends Controller
         return view('sales.invoices.show', compact('invoice'));
     }
 
+    public function print(Invoice $invoice)
+    {
+        $invoice->load('client', 'items');
+        return view('sales.invoices.print', compact('invoice'));
+    }
+
     public function destroy(Invoice $invoice)
     {
         $invoice->delete();

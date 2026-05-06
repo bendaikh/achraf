@@ -136,7 +136,7 @@
                                 id="ref" 
                                 value="{{ old('ref') }}" 
                                 required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('ref') border-red-500 @enderror"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('ref') border-red-500 @enderror"
                             >
                             @error('ref')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -144,17 +144,18 @@
                         </div>
 
                         <div>
-                            <label for="cost_price_ttc" class="block text-sm font-medium text-gray-700 mb-1">Prix de Revient TTC (DHS)</label>
+                            <label for="product_margin" class="block text-sm font-medium text-gray-700 mb-1">Marge de produit (%)</label>
                             <input 
                                 type="number" 
-                                name="cost_price_ttc" 
-                                id="cost_price_ttc" 
-                                value="{{ old('cost_price_ttc') }}" 
+                                name="product_margin" 
+                                id="product_margin" 
+                                value="{{ old('product_margin') }}" 
                                 step="0.01"
                                 min="0"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('cost_price_ttc') border-red-500 @enderror"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('product_margin') border-red-500 @enderror"
+                                onchange="calculatePrices()"
                             >
-                            @error('cost_price_ttc')
+                            @error('product_margin')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
@@ -168,7 +169,7 @@
                                 value="{{ old('last_purchase_price') }}" 
                                 step="0.01"
                                 min="0"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('last_purchase_price') border-red-500 @enderror"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('last_purchase_price') border-red-500 @enderror"
                             >
                             @error('last_purchase_price')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -222,7 +223,26 @@
                         </div>
 
                         <div>
-                            <label for="sale_price" class="block text-sm font-medium text-gray-700 mb-1">Prix de Vente (DHS)</label>
+                            <label for="sale_price_ht" class="block text-sm font-medium text-gray-700 mb-1">Prix de Vente HT (DHS)</label>
+                            <input 
+                                type="number" 
+                                name="sale_price_ht" 
+                                id="sale_price_ht" 
+                                value="{{ old('sale_price_ht') }}" 
+                                step="0.01"
+                                min="0"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('sale_price_ht') border-red-500 @enderror"
+                                onchange="calculateTTC()"
+                            >
+                            @error('sale_price_ht')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div>
+                            <label for="sale_price" class="block text-sm font-medium text-gray-700 mb-1">Prix de Vente TTC (DHS)</label>
                             <input 
                                 type="number" 
                                 name="sale_price" 
@@ -230,7 +250,8 @@
                                 value="{{ old('sale_price') }}" 
                                 step="0.01"
                                 min="0"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('sale_price') border-red-500 @enderror"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent @error('sale_price') border-red-500 @enderror"
+                                onchange="calculateHT()"
                             >
                             @error('sale_price')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -339,11 +360,73 @@
                         <a href="{{ route('products.index') }}" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition duration-150">
                             Annuler
                         </a>
-                        <button type="submit" class="px-6 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition duration-150">
+                        <button type="submit" class="px-6 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] transition duration-150">
                             Enregistrer
                         </button>
                     </div>
                 </form>
             </div>
         </main>
+
+<script>
+function getTVARate() {
+    const vatSelect = document.getElementById('vat_category');
+    if (!vatSelect || !vatSelect.value) return 20;
+    
+    const vatMap = {
+        'TVA (20%)': 20,
+        'TVA (10%)': 10,
+        'TVA (5.5%)': 5.5,
+        'TVA (2.1%)': 2.1
+    };
+    return vatMap[vatSelect.value] || 20;
+}
+
+function calculateTTC() {
+    const htInput = document.getElementById('sale_price_ht');
+    const ttcInput = document.getElementById('sale_price');
+    
+    if (htInput && htInput.value) {
+        const ht = parseFloat(htInput.value) || 0;
+        const tva = getTVARate();
+        const ttc = ht * (1 + tva / 100);
+        ttcInput.value = ttc.toFixed(2);
+    }
+}
+
+function calculateHT() {
+    const htInput = document.getElementById('sale_price_ht');
+    const ttcInput = document.getElementById('sale_price');
+    
+    if (ttcInput && ttcInput.value) {
+        const ttc = parseFloat(ttcInput.value) || 0;
+        const tva = getTVARate();
+        const ht = ttc / (1 + tva / 100);
+        htInput.value = ht.toFixed(2);
+    }
+}
+
+function calculatePrices() {
+    const costPriceHT = parseFloat(document.getElementById('cost_price_ht')?.value) || 0;
+    const marginPercent = parseFloat(document.getElementById('product_margin')?.value) || 0;
+    
+    if (costPriceHT > 0 && marginPercent > 0) {
+        const salePriceHT = costPriceHT * (1 + marginPercent / 100);
+        document.getElementById('sale_price_ht').value = salePriceHT.toFixed(2);
+        calculateTTC();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const vatSelect = document.getElementById('vat_category');
+    if (vatSelect) {
+        vatSelect.addEventListener('change', function() {
+            const htInput = document.getElementById('sale_price_ht');
+            if (htInput && htInput.value) {
+                calculateTTC();
+            }
+        });
+    }
+});
+</script>
 @endsection

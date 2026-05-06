@@ -106,6 +106,12 @@ class CreditNoteController extends Controller
         return view('sales.credit-notes.show', compact('creditNote'));
     }
 
+    public function print(CreditNote $creditNote)
+    {
+        $creditNote->load('client', 'invoice', 'items');
+        return view('sales.credit-notes.print', compact('creditNote'));
+    }
+
     public function destroy(CreditNote $creditNote)
     {
         $creditNote->delete();

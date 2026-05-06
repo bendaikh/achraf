@@ -58,6 +58,7 @@ class ShopifyProductImporter
                 'sale_price' => $price,
                 'cost_price_ht' => $compareAtPrice > 0 ? $compareAtPrice : null,
                 'stock_quantity' => $inventoryQuantity,
+                'stock_enligne' => max(0, $inventoryQuantity),
                 'barcode' => $barcode ?: null,
                 'product_category' => $productType ?: null,
                 'tag' => $tags ?: null,
@@ -94,15 +95,31 @@ class ShopifyProductImporter
                 return $existing;
             }
 
-            // Check if ref already exists (from manual entry)
+            // Check if ref already exists (from manual entry or another Shopify product)
             $existingByRef = Product::query()->where('ref', $ref)->first();
-            if ($existingByRef && !$existingByRef->source) {
-                // Update manual product with Shopify data
-                $existingByRef->update($data);
-                // Sync variants
-                $this->syncVariants($existingByRef, $product['variants'] ?? []);
-                Log::info('Linked existing product to Shopify', ['product_id' => $externalId, 'ref' => $ref]);
-                return $existingByRef;
+            if ($existingByRef) {
+                if (!$existingByRef->source) {
+                    // Update manual product with Shopify data
+                    $existingByRef->update($data);
+                    // Sync variants
+                    $this->syncVariants($existingByRef, $product['variants'] ?? []);
+                    Log::info('Linked existing product to Shopify', ['product_id' => $externalId, 'ref' => $ref]);
+                    return $existingByRef;
+                } else {
+                    // Reference already exists for another Shopify product, generate unique reference
+                    $counter = 1;
+                    $originalRef = $ref;
+                    while (Product::where('ref', $ref)->exists()) {
+                        $ref = $originalRef . '-' . $counter;
+                        $counter++;
+                    }
+                    $data['ref'] = $ref;
+                    Log::info('Generated unique ref for Shopify product', [
+                        'product_id' => $externalId,
+                        'original_ref' => $originalRef,
+                        'new_ref' => $ref,
+                    ]);
+                }
             }
 
             // Create new product
