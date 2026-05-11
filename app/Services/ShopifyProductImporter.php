@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -52,10 +53,27 @@ class ShopifyProductImporter
             // Get description
             $description = strip_tags((string) ($product['body_html'] ?? ''));
             
+            // Calculate HT price from TTC if prices come as TTC from Shopify
+            $priceType = Setting::getShopifyPriceType();
+            $defaultTaxRate = 20; // Default VAT rate in Morocco
+            
+            $salePrice = $price;
+            $salePriceHT = null;
+            
+            if ($priceType === 'ttc' && $price > 0) {
+                // Price from Shopify is TTC, calculate HT
+                $salePriceHT = round($price / (1 + $defaultTaxRate / 100), 2);
+            } elseif ($priceType === 'ht' && $price > 0) {
+                // Price from Shopify is HT, calculate TTC
+                $salePriceHT = $price;
+                $salePrice = round($price * (1 + $defaultTaxRate / 100), 2);
+            }
+            
             $data = [
                 'name' => $title,
                 'ref' => $ref,
-                'sale_price' => $price,
+                'sale_price' => $salePrice,
+                'sale_price_ht' => $salePriceHT,
                 'cost_price_ht' => $compareAtPrice > 0 ? $compareAtPrice : null,
                 'stock_quantity' => $inventoryQuantity,
                 'stock_enligne' => max(0, $inventoryQuantity),

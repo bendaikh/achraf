@@ -97,7 +97,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe (%)</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remise</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
@@ -123,11 +123,11 @@
                                 </div>
                                 <div class="flex justify-between items-center mb-2">
                                     <span class="text-sm text-gray-600">Remise</span>
-                                    <span class="text-lg font-semibold" id="discount">0</span>
+                                    <span class="text-lg font-semibold" id="discount">0.00</span>
                                 </div>
                                 <div class="flex justify-between items-center mb-2">
-                                    <span class="text-sm text-gray-600">Ajustement</span>
-                                    <span class="text-lg font-semibold" id="adjustment">0</span>
+                                    <span class="text-sm text-gray-600">TVA</span>
+                                    <span class="text-lg font-semibold" id="taxAmount">0.00</span>
                                 </div>
                                 <div class="border-t border-blue-200 pt-2 mt-2">
                                     <div class="flex justify-between items-center">
@@ -174,7 +174,7 @@ function addItem() {
         <td class="px-4 py-3">
             <select name="items[${itemIndex}][product_id]" onchange="fillProductDetails(this, ${itemIndex})" class="product-select w-full px-2 py-1 border border-gray-300 rounded text-sm" id="product_select_${itemIndex}">
                 <option value="">Rechercher un produit...</option>
-                ${products.map(p => `<option value="${p.id}" data-ref="${p.ref || ''}" data-name="${p.name}" data-price="${p.sale_price || 0}">${p.name} ${p.ref ? '(' + p.ref + ')' : ''}</option>`).join('')}
+                ${products.map(p => `<option value="${p.id}" data-ref="${p.ref || ''}" data-name="${p.name}" data-price-ht="${p.sale_price_ht || 0}" data-price-ttc="${p.sale_price || 0}">${p.name} ${p.ref ? '(' + p.ref + ')' : ''}</option>`).join('')}
             </select>
         </td>
         <td class="px-4 py-3">
@@ -230,11 +230,20 @@ function fillProductDetails(selectElement, index) {
     if (selectedOption.value) {
         const ref = selectedOption.getAttribute('data-ref');
         const name = selectedOption.getAttribute('data-name');
-        const price = selectedOption.getAttribute('data-price');
+        const priceHT = parseFloat(selectedOption.getAttribute('data-price-ht')) || 0;
+        const priceTTC = parseFloat(selectedOption.getAttribute('data-price-ttc')) || 0;
+        const taxRateInput = document.querySelector(`[name="items[${index}][tax_rate]"]`);
+        const taxRate = parseFloat(taxRateInput?.value) || 20;
+        
+        // Use HT price if available, otherwise calculate from TTC
+        let unitPrice = priceHT;
+        if (unitPrice === 0 && priceTTC > 0) {
+            unitPrice = priceTTC / (1 + taxRate / 100);
+        }
         
         document.getElementById('ref_' + index).value = ref;
         document.getElementById('designation_' + index).value = name;
-        document.getElementById('price_' + index).value = price;
+        document.getElementById('price_' + index).value = unitPrice.toFixed(2);
         
         calculateTotal();
     }
@@ -247,7 +256,9 @@ function removeItem(button) {
 
 function calculateTotal() {
     const rows = document.querySelectorAll('#itemsBody tr');
-    let subtotal = 0;
+    let totalHT = 0;
+    let totalDiscount = 0;
+    let totalTax = 0;
     
     rows.forEach(row => {
         const quantity = parseFloat(row.querySelector('[name*="[quantity]"]').value) || 0;
@@ -255,15 +266,21 @@ function calculateTotal() {
         const taxRate = parseFloat(row.querySelector('[name*="[tax_rate]"]').value) || 0;
         const discount = parseFloat(row.querySelector('[name*="[discount]"]').value) || 0;
         
-        let lineTotal = quantity * unitPrice;
-        lineTotal -= discount;
-        lineTotal += lineTotal * (taxRate / 100);
+        let lineHT = quantity * unitPrice;
+        lineHT -= discount;
+        const lineTax = lineHT * (taxRate / 100);
         
-        subtotal += lineTotal;
+        totalHT += lineHT;
+        totalDiscount += discount;
+        totalTax += lineTax;
     });
     
-    document.getElementById('subtotal').textContent = subtotal.toFixed(2);
-    document.getElementById('total').textContent = subtotal.toFixed(2);
+    const totalTTC = totalHT + totalTax;
+    
+    document.getElementById('subtotal').textContent = totalHT.toFixed(2);
+    document.getElementById('discount').textContent = totalDiscount.toFixed(2);
+    document.getElementById('taxAmount').textContent = totalTax.toFixed(2);
+    document.getElementById('total').textContent = totalTTC.toFixed(2);
 }
 </script>
 

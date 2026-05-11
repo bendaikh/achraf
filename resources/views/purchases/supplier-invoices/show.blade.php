@@ -93,7 +93,7 @@
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe (%)</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remise</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
                         </tr>
