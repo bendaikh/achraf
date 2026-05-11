@@ -173,8 +173,8 @@ $(document).ready(function() {
     });
 });
 
-let itemIndex = 0;
-const products = @json($products);
+var itemIndex = 0;
+var products = @json($products);
 
 function addItem() {
     const tbody = document.getElementById('itemsBody');

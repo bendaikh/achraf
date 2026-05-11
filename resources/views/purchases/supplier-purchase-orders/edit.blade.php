@@ -174,7 +174,7 @@
 
 @push('scripts')
 <script>
-let itemIndex = {{ count($supplierPurchaseOrder->items) }};
+var itemIndex = {{ count($supplierPurchaseOrder->items) }};
 
 function addItem() {
     const tbody = document.getElementById('itemsBody');

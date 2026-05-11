@@ -19,19 +19,21 @@
     ></div>
 
     <aside
-        class="fixed inset-y-0 left-0 z-40 w-64 max-w-[min(16rem,88vw)] bg-white shadow-lg border-r border-gray-100 flex flex-col transform transition-transform duration-200 ease-out"
+        class="fixed inset-y-0 left-0 z-40 bg-white shadow-lg border-r border-gray-100 flex flex-col transform transition-all duration-200 ease-out"
         :class="{
             'translate-x-0': sidebarOpen,
             '-translate-x-full': !sidebarOpen,
-            'lg:translate-x-0': !sidebarCollapsed,
-            'lg:-translate-x-full': sidebarCollapsed
+            'lg:translate-x-0': true,
+            'w-64': !sidebarCollapsed,
+            'lg:w-20': sidebarCollapsed,
+            'w-64 max-w-[min(16rem,88vw)]': !sidebarCollapsed || sidebarOpen
         }"
         @click="if ($event.target.closest('a[href]')) sidebarOpen = false"
     >
         @include('layouts.sidebar')
     </aside>
 
-    <div class="flex-1 flex flex-col w-full min-w-0 transition-all duration-200" :class="sidebarCollapsed ? 'lg:ml-0' : 'lg:ml-64'">
+    <div class="flex-1 flex flex-col w-full min-w-0 transition-all duration-200" :class="sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'">
         <header class="sticky top-0 z-20 flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
             <button
                 type="button"
@@ -47,7 +49,6 @@
                 type="button"
                 @click="sidebarCollapsed = !sidebarCollapsed; localStorage.setItem('sidebarCollapsed', sidebarCollapsed)"
                 class="hidden lg:flex p-2 rounded-lg text-gray-600 hover:bg-gray-100 -ml-1 touch-manipulation transition-transform duration-200"
-                :class="sidebarCollapsed ? '' : ''"
                 aria-label="Toggle sidebar"
             >
                 <svg class="h-6 w-6 transition-transform duration-200" :class="sidebarCollapsed ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
