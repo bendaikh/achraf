@@ -6,7 +6,10 @@
 <div
     class="bg-slate-900 flex text-slate-100"
     :class="posFullView ? 'fixed inset-0 z-50 min-h-screen' : 'min-h-screen relative'"
-    x-data="posRegister(@js($productsMagasinForJs), @js($productsEnligneForJs))"
+    x-data="{
+        ...posRegister(@js($productsMagasinForJs), @js($productsEnligneForJs)),
+        sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true'
+    }"
     @keydown.escape.window="onGlobalEscape()"
     x-cloak
 >
@@ -22,17 +25,26 @@
     <aside
         x-show="!posFullView"
         x-transition.opacity.duration.200ms
-        class="w-64 max-w-[min(16rem,88vw)] bg-white shadow-lg fixed inset-y-0 left-0 h-full overflow-y-auto z-40 border-r border-slate-200 transform transition-transform duration-200 ease-out -translate-x-full lg:translate-x-0"
-        :class="{ 'translate-x-0': sidebarOpen }"
+        class="bg-white shadow-lg fixed inset-y-0 left-0 h-full overflow-y-auto z-40 border-r border-slate-200 transform transition-all duration-200 ease-out -translate-x-full lg:translate-x-0"
+        :class="{
+            'translate-x-0': sidebarOpen,
+            'w-64 max-w-[min(16rem,88vw)]': !sidebarCollapsed || sidebarOpen,
+            'lg:w-20': sidebarCollapsed && !sidebarOpen
+        }"
         @click="if ($event.target.closest('a[href]')) sidebarOpen = false"
     >
         @include('layouts.sidebar')
     </aside>
 
-    <main class="flex-1 flex flex-col min-h-screen w-full min-w-0 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 transition-[margin] duration-200" :class="posFullView ? 'ml-0 w-full' : 'ml-0 lg:ml-64'">
-        <div x-show="!posFullView" class="lg:hidden shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-slate-900/95 backdrop-blur">
-            <button type="button" @click="sidebarOpen = true" class="p-2 rounded-lg text-white/90 hover:bg-white/10 touch-manipulation" aria-label="Ouvrir le menu">
+    <main class="flex-1 flex flex-col min-h-screen w-full min-w-0 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 transition-[margin] duration-200" :class="posFullView ? 'ml-0 w-full' : (sidebarCollapsed ? 'ml-0 lg:ml-20' : 'ml-0 lg:ml-64')">
+        <div x-show="!posFullView" class="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-slate-900/95 backdrop-blur">
+            <button type="button" @click="sidebarOpen = true" class="lg:hidden p-2 rounded-lg text-white/90 hover:bg-white/10 touch-manipulation" aria-label="Ouvrir le menu">
                 <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <button type="button" @click="sidebarCollapsed = !sidebarCollapsed; localStorage.setItem('sidebarCollapsed', sidebarCollapsed)" class="hidden lg:flex p-2 rounded-lg text-white/90 hover:bg-white/10 touch-manipulation transition-transform duration-200" aria-label="Toggle sidebar">
+                <svg class="h-6 w-6 transition-transform duration-200" :class="sidebarCollapsed ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                </svg>
             </button>
             <span class="text-sm font-semibold text-white truncate">Point de vente</span>
         </div>
