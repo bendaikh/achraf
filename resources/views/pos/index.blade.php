@@ -6,10 +6,7 @@
 <div
     class="bg-slate-900 flex text-slate-100"
     :class="posFullView ? 'fixed inset-0 z-50 min-h-screen' : 'min-h-screen relative'"
-    x-data="{
-        ...posRegister(@js($productsMagasinForJs), @js($productsEnligneForJs)),
-        sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true'
-    }"
+    x-data="posRegister(@js($productsMagasinForJs), @js($productsEnligneForJs))"
     @keydown.escape.window="onGlobalEscape()"
     x-cloak
 >
@@ -433,6 +430,7 @@ function posRegister(catalogMagasin, catalogEnligne) {
         stockType: 'magasin',
         posFullView: false,
         sidebarOpen: false,
+        sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
         cart: [],
         searchQuery: '',
         searchResults: [],
