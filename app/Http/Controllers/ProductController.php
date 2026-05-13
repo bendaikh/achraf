@@ -199,8 +199,8 @@ class ProductController extends Controller
             'initial_stock' => 'required|integer|min:0',
         ]);
 
-        // Use the same reference as the original Shopify product
-        $manualRef = $product->ref;
+        // Append -m to differentiate the manual duplicate from the original Shopify product
+        $manualRef = $product->ref . '-m';
 
         // Create the manual product as a copy
         $manualProduct = Product::create([
