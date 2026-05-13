@@ -6,7 +6,7 @@
 <div
     class="bg-slate-900 flex text-slate-100"
     :class="posFullView ? 'fixed inset-0 z-50 min-h-screen' : 'min-h-screen relative'"
-    x-data="posRegister(@js($productsMagasinForJs), @js($productsEnligneForJs))"
+    x-data="posRegister(@js($productsMagasinForJs), @js($productsEnligneForJs), @js($pricesAreTtc))"
     @keydown.escape.window="onGlobalEscape()"
     x-cloak
 >
@@ -423,10 +423,11 @@
 </style>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
-function posRegister(catalogMagasin, catalogEnligne) {
+function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc) {
     return {
         catalogMagasin: catalogMagasin,
         catalogEnligne: catalogEnligne,
+        pricesAreTtc: pricesAreTtc,
         stockType: 'magasin',
         posFullView: false,
         sidebarOpen: false,
@@ -511,14 +512,46 @@ function posRegister(catalogMagasin, catalogEnligne) {
             const q = Number(line.quantity) || 0;
             const u = Number(line.unit_price) || 0;
             const d = Number(line.discount) || 0;
-            return Math.max(0, q * u - d);
+            const tr = Number(line.tax_rate) || 0;
+            
+            if (this.pricesAreTtc) {
+                // If prices are TTC, unit_price includes tax, we need to calculate HT
+                const totalTtc = Math.max(0, q * u - d);
+                const ht = totalTtc / (1 + tr / 100);
+                return ht;
+            } else {
+                // If prices are HT, calculate normally
+                return Math.max(0, q * u - d);
+            }
         },
         lineTax(line) {
+            const q = Number(line.quantity) || 0;
+            const u = Number(line.unit_price) || 0;
+            const d = Number(line.discount) || 0;
             const tr = Number(line.tax_rate) || 0;
-            return this.lineBase(line) * (tr / 100);
+            
+            if (this.pricesAreTtc) {
+                // If prices are TTC, calculate tax from the TTC amount
+                const totalTtc = Math.max(0, q * u - d);
+                const ht = totalTtc / (1 + tr / 100);
+                return totalTtc - ht;
+            } else {
+                // If prices are HT, calculate tax normally
+                return this.lineBase(line) * (tr / 100);
+            }
         },
         lineTotal(line) {
-            return this.lineBase(line) + this.lineTax(line);
+            const q = Number(line.quantity) || 0;
+            const u = Number(line.unit_price) || 0;
+            const d = Number(line.discount) || 0;
+            
+            if (this.pricesAreTtc) {
+                // If prices are TTC, the total is directly from unit_price
+                return Math.max(0, q * u - d);
+            } else {
+                // If prices are HT, add tax
+                return this.lineBase(line) + this.lineTax(line);
+            }
         },
         subtotalHt() {
             return this.cart.reduce((s, l) => s + this.lineBase(l), 0);

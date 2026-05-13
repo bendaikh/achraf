@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\PosSale;
 use App\Models\Product;
+use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -59,6 +60,7 @@ class PointOfSaleController extends Controller
         ])->values();
 
         $paymentMethods = PosSale::paymentLabels();
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
         return view('pos.index', compact(
             'clients', 
@@ -66,7 +68,8 @@ class PointOfSaleController extends Controller
             'productsEnligne',
             'productsMagasinForJs', 
             'productsEnligneForJs', 
-            'paymentMethods'
+            'paymentMethods',
+            'pricesAreTtc'
         ));
     }
 
@@ -158,6 +161,7 @@ class PointOfSaleController extends Controller
             $subtotalHt = 0;
             $taxTotal = 0;
             $lineRows = [];
+            $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
             foreach ($validated['items'] as $row) {
                 $product = Product::findOrFail($row['product_id']);
@@ -166,15 +170,24 @@ class PointOfSaleController extends Controller
                 $taxRate = isset($row['tax_rate']) ? (float) $row['tax_rate'] : $this->defaultTaxRate($product);
                 $discount = (float) ($row['discount'] ?? 0);
 
-                $base = ($qty * $unitPrice) - $discount;
-                if ($base < 0) {
-                    $base = 0;
+                if ($pricesAreTtc) {
+                    // If prices are TTC, unit_price includes tax
+                    $totalTtc = max(0, ($qty * $unitPrice) - $discount);
+                    $base = $totalTtc / (1 + $taxRate / 100);
+                    $tax = $totalTtc - $base;
+                    $lineTotal = $totalTtc;
+                } else {
+                    // If prices are HT, calculate normally
+                    $base = ($qty * $unitPrice) - $discount;
+                    if ($base < 0) {
+                        $base = 0;
+                    }
+                    $tax = round($base * ($taxRate / 100), 2);
+                    $lineTotal = round($base + $tax, 2);
                 }
-                $tax = round($base * ($taxRate / 100), 2);
-                $lineTotal = round($base + $tax, 2);
 
                 $subtotalHt += round($base, 2);
-                $taxTotal += $tax;
+                $taxTotal += round($tax, 2);
 
                 $lineRows[] = [
                     'product' => $product,
@@ -182,7 +195,7 @@ class PointOfSaleController extends Controller
                     'unit_price' => $unitPrice,
                     'tax_rate' => $taxRate,
                     'discount' => $discount,
-                    'line_total' => $lineTotal,
+                    'line_total' => round($lineTotal, 2),
                 ];
             }
 
