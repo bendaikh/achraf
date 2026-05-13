@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Models\Product;
+use App\Services\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -22,7 +23,7 @@ class CreditNoteController extends Controller
         $clients = Client::all();
         $products = Product::all();
         $invoices = Invoice::all();
-        $creditNoteNumber = 'AVOIR N°' . date('Y') . '/' . str_pad(CreditNote::whereYear('created_at', date('Y'))->count() + 1, 6, '0', STR_PAD_LEFT);
+        $creditNoteNumber = DocumentNumberService::preview('avoir');
         
         return view('sales.credit-notes.create', compact('clients', 'products', 'invoices', 'creditNoteNumber'));
     }
@@ -51,7 +52,7 @@ class CreditNoteController extends Controller
         DB::beginTransaction();
         try {
             $creditNote = CreditNote::create([
-                'credit_note_number' => 'AVOIR N°' . date('Y') . '/' . str_pad(CreditNote::whereYear('created_at', date('Y'))->count() + 1, 6, '0', STR_PAD_LEFT),
+                'credit_note_number' => DocumentNumberService::generate('avoir'),
                 'client_id' => $validated['client_id'],
                 'invoice_id' => $validated['invoice_id'] ?? null,
                 'credit_note_date' => $validated['credit_note_date'],

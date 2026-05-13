@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Supplier;
 use App\Models\SupplierPurchaseOrder;
 use App\Models\Product;
+use App\Services\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +21,7 @@ class SupplierPurchaseOrderController extends Controller
     {
         $suppliers = Supplier::all();
         $products = Product::all();
-        $orderNumber = 'BC-' . str_pad(SupplierPurchaseOrder::count() + 1, 6, '0', STR_PAD_LEFT);
+        $orderNumber = DocumentNumberService::preview('bc_fournisseur');
         return view('purchases.supplier-purchase-orders.create', compact('suppliers', 'products', 'orderNumber'));
     }
 
@@ -41,7 +42,7 @@ class SupplierPurchaseOrderController extends Controller
         DB::beginTransaction();
         try {
             $order = SupplierPurchaseOrder::create([
-                'order_number' => 'BC-' . str_pad(SupplierPurchaseOrder::count() + 1, 6, '0', STR_PAD_LEFT),
+                'order_number' => DocumentNumberService::generate('bc_fournisseur'),
                 'supplier_id' => $validated['supplier_id'],
                 'order_date' => $validated['order_date'],
                 'due_date' => $validated['due_date'] ?? null,

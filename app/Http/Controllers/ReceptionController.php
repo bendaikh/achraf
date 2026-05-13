@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Supplier;
 use App\Models\Reception;
 use App\Models\Product;
+use App\Services\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +21,7 @@ class ReceptionController extends Controller
     {
         $suppliers = Supplier::all();
         $products = Product::all();
-        $receptionNumber = 'BR' . str_pad(Reception::count() + 1, 6, '0', STR_PAD_LEFT);
+        $receptionNumber = DocumentNumberService::preview('bon_reception');
         return view('purchases.receptions.create', compact('suppliers', 'products', 'receptionNumber'));
     }
 
@@ -41,7 +42,7 @@ class ReceptionController extends Controller
         DB::beginTransaction();
         try {
             $reception = Reception::create([
-                'reception_number' => 'BR' . str_pad(Reception::count() + 1, 6, '0', STR_PAD_LEFT),
+                'reception_number' => DocumentNumberService::generate('bon_reception'),
                 'supplier_id' => $validated['supplier_id'],
                 'reception_date' => $validated['reception_date'],
                 'delivery_date' => $validated['delivery_date'] ?? null,

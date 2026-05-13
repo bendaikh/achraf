@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Product;
+use App\Services\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +21,7 @@ class InvoiceController extends Controller
     {
         $clients = Client::all();
         $products = Product::all();
-        $invoiceNumber = 'FA-' . date('Y') . '/' . str_pad(Invoice::whereYear('created_at', date('Y'))->count() + 1, 6, '0', STR_PAD_LEFT);
+        $invoiceNumber = DocumentNumberService::preview('facture');
         
         return view('sales.invoices.create', compact('clients', 'products', 'invoiceNumber'));
     }
@@ -52,7 +53,7 @@ class InvoiceController extends Controller
         DB::beginTransaction();
         try {
             $invoice = Invoice::create([
-                'invoice_number' => 'FA-' . date('Y') . '/' . str_pad(Invoice::whereYear('created_at', date('Y'))->count() + 1, 6, '0', STR_PAD_LEFT),
+                'invoice_number' => DocumentNumberService::generate('facture'),
                 'client_id' => $validated['client_id'],
                 'invoice_date' => $validated['invoice_date'],
                 'due_date' => $validated['due_date'] ?? null,

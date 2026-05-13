@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
+use App\Services\DocumentNumberService;
 use Illuminate\Http\Request;
 
 class SettingsController extends Controller
@@ -20,7 +21,8 @@ class SettingsController extends Controller
     public function index()
     {
         $settings = $this->getAllSettings();
-        return view('settings.index', compact('settings'));
+        $previews = $this->getPreviewNumbers();
+        return view('settings.index', compact('settings', 'previews'));
     }
 
     public function update(Request $request)
@@ -60,6 +62,17 @@ class SettingsController extends Controller
         $settings['shopify_price_type'] = Setting::getShopifyPriceType();
 
         return $settings;
+    }
+
+    protected function getPreviewNumbers(): array
+    {
+        $previews = [];
+        
+        foreach ($this->documentTypes as $type) {
+            $previews[$type] = DocumentNumberService::preview($type);
+        }
+
+        return $previews;
     }
 
     protected function saveDocumentSettings(Request $request, string $type): void

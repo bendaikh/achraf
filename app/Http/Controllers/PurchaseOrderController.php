@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\PurchaseOrder;
 use App\Models\Product;
+use App\Services\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +21,7 @@ class PurchaseOrderController extends Controller
     {
         $clients = Client::all();
         $products = Product::all();
-        $reference = 'REF-' . date('Y') . '-' . str_pad(PurchaseOrder::whereYear('created_at', date('Y'))->count() + 1, 4, '0', STR_PAD_LEFT);
+        $reference = DocumentNumberService::preview('bc_client');
         
         return view('sales.purchase-orders.create', compact('clients', 'products', 'reference'));
     }
@@ -51,7 +52,7 @@ class PurchaseOrderController extends Controller
         DB::beginTransaction();
         try {
             $purchaseOrder = PurchaseOrder::create([
-                'reference' => 'REF-' . date('Y') . '-' . str_pad(PurchaseOrder::whereYear('created_at', date('Y'))->count() + 1, 4, '0', STR_PAD_LEFT),
+                'reference' => DocumentNumberService::generate('bc_client'),
                 'client_id' => $validated['client_id'],
                 'order_date' => $validated['order_date'],
                 'expiry_date' => $validated['expiry_date'] ?? null,

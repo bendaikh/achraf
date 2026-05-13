@@ -7,6 +7,7 @@ use App\Models\Quote;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\InvoiceItem;
+use App\Services\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -178,7 +179,7 @@ class OrderController extends Controller
      */
     private function createQuote(PosSale $order): Quote
     {
-        $quoteNumber = 'DEV-' . date('Y') . '-' . str_pad(Quote::whereYear('created_at', date('Y'))->count() + 1, 5, '0', STR_PAD_LEFT);
+        $quoteNumber = DocumentNumberService::generate('devis');
 
         $quote = Quote::create([
             'quote_number' => $quoteNumber,
@@ -204,7 +205,7 @@ class OrderController extends Controller
      */
     private function createInvoice(PosSale $order): Invoice
     {
-        $invoiceNumber = 'FAC-' . date('Y') . '-' . str_pad(Invoice::whereYear('created_at', date('Y'))->count() + 1, 5, '0', STR_PAD_LEFT);
+        $invoiceNumber = DocumentNumberService::generate('facture');
 
         $invoice = Invoice::create([
             'invoice_number' => $invoiceNumber,
@@ -229,7 +230,7 @@ class OrderController extends Controller
      */
     private function createPurchaseOrder(PosSale $order): PurchaseOrder
     {
-        $reference = 'BC-' . date('Y') . '-' . str_pad(PurchaseOrder::whereYear('created_at', date('Y'))->count() + 1, 5, '0', STR_PAD_LEFT);
+        $reference = DocumentNumberService::generate('bon_livraison');
 
         $purchaseOrder = PurchaseOrder::create([
             'reference' => $reference,

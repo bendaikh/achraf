@@ -91,6 +91,11 @@
                     <input type="hidden" name="settings_type" value="facture">
                     
                     <div class="space-y-6">
+                        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p class="text-sm font-medium text-blue-800">Aperçu du prochain numéro</p>
+                            <p class="text-lg font-bold text-blue-900 mt-1">{{ $previews['facture'] ?? 'FA-2026/000001' }}</p>
+                        </div>
+
                         <div>
                             <label for="facture_next_number" class="block text-sm font-medium text-gray-700 mb-1">Prochain numéro de facture</label>
                             <input type="text" name="facture_next_number" id="facture_next_number" value="{{ $settings['facture_next_number'] ?? '1' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">
@@ -155,6 +160,11 @@
                     <input type="hidden" name="settings_type" value="devis">
                     
                     <div class="space-y-6">
+                        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p class="text-sm font-medium text-blue-800">Aperçu du prochain numéro</p>
+                            <p class="text-lg font-bold text-blue-900 mt-1">{{ $previews['devis'] ?? 'DV-2026/000001' }}</p>
+                        </div>
+
                         <div>
                             <label for="devis_next_number" class="block text-sm font-medium text-gray-700 mb-1">Prochain numéro de devis</label>
                             <input type="text" name="devis_next_number" id="devis_next_number" value="{{ $settings['devis_next_number'] ?? '1' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">
@@ -224,6 +234,11 @@
                     <input type="hidden" name="settings_type" value="avoir">
                     
                     <div class="space-y-6">
+                        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p class="text-sm font-medium text-blue-800">Aperçu du prochain numéro</p>
+                            <p class="text-lg font-bold text-blue-900 mt-1">{{ $previews['avoir'] ?? 'AV-2026/000001' }}</p>
+                        </div>
+
                         <div>
                             <label for="avoir_next_number" class="block text-sm font-medium text-gray-700 mb-1">Prochain numéro d'avoir</label>
                             <input type="text" name="avoir_next_number" id="avoir_next_number" value="{{ $settings['avoir_next_number'] ?? '1' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">
@@ -288,6 +303,11 @@
                     <input type="hidden" name="settings_type" value="bc_fournisseur">
                     
                     <div class="space-y-6">
+                        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p class="text-sm font-medium text-blue-800">Aperçu du prochain numéro</p>
+                            <p class="text-lg font-bold text-blue-900 mt-1">{{ $previews['bc_fournisseur'] ?? 'BCF-2026/000001' }}</p>
+                        </div>
+
                         <div>
                             <label for="bc_fournisseur_next_number" class="block text-sm font-medium text-gray-700 mb-1">Prochain numéro de BC fournisseur</label>
                             <input type="text" name="bc_fournisseur_next_number" id="bc_fournisseur_next_number" value="{{ $settings['bc_fournisseur_next_number'] ?? '1' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">
@@ -352,6 +372,11 @@
                     <input type="hidden" name="settings_type" value="bc_client">
                     
                     <div class="space-y-6">
+                        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p class="text-sm font-medium text-blue-800">Aperçu du prochain numéro</p>
+                            <p class="text-lg font-bold text-blue-900 mt-1">{{ $previews['bc_client'] ?? 'BC-2026/000001' }}</p>
+                        </div>
+
                         <div>
                             <label for="bc_client_next_number" class="block text-sm font-medium text-gray-700 mb-1">Prochain numéro de BC client</label>
                             <input type="text" name="bc_client_next_number" id="bc_client_next_number" value="{{ $settings['bc_client_next_number'] ?? '1' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">
@@ -416,6 +441,11 @@
                     <input type="hidden" name="settings_type" value="bon_livraison">
                     
                     <div class="space-y-6">
+                        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p class="text-sm font-medium text-blue-800">Aperçu du prochain numéro</p>
+                            <p class="text-lg font-bold text-blue-900 mt-1">{{ $previews['bon_livraison'] ?? 'BL-2026/000001' }}</p>
+                        </div>
+
                         <div>
                             <label for="bon_livraison_next_number" class="block text-sm font-medium text-gray-700 mb-1">Prochain numéro de bon de livraison</label>
                             <input type="text" name="bon_livraison_next_number" id="bon_livraison_next_number" value="{{ $settings['bon_livraison_next_number'] ?? '1' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">
@@ -480,6 +510,11 @@
                     <input type="hidden" name="settings_type" value="bon_reception">
                     
                     <div class="space-y-6">
+                        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p class="text-sm font-medium text-blue-800">Aperçu du prochain numéro</p>
+                            <p class="text-lg font-bold text-blue-900 mt-1">{{ $previews['bon_reception'] ?? 'BR-2026/000001' }}</p>
+                        </div>
+
                         <div>
                             <label for="bon_reception_next_number" class="block text-sm font-medium text-gray-700 mb-1">Prochain numéro de bon de réception</label>
                             <input type="text" name="bon_reception_next_number" id="bon_reception_next_number" value="{{ $settings['bon_reception_next_number'] ?? '1' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">

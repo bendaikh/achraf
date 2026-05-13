@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\Quote;
 use App\Models\Product;
+use App\Services\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +21,7 @@ class QuoteController extends Controller
     {
         $clients = Client::all();
         $products = Product::all();
-        $quoteNumber = 'EST-' . str_pad(Quote::count() + 1, 6, '0', STR_PAD_LEFT);
+        $quoteNumber = DocumentNumberService::preview('devis');
         
         return view('sales.quotes.create', compact('clients', 'products', 'quoteNumber'));
     }
@@ -52,7 +53,7 @@ class QuoteController extends Controller
         DB::beginTransaction();
         try {
             $quote = Quote::create([
-                'quote_number' => 'EST-' . str_pad(Quote::count() + 1, 6, '0', STR_PAD_LEFT),
+                'quote_number' => DocumentNumberService::generate('devis'),
                 'client_id' => $validated['client_id'],
                 'quote_date' => $validated['quote_date'],
                 'expiry_date' => $validated['expiry_date'] ?? null,
