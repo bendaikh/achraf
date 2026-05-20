@@ -1,0 +1,23 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class SupplierInvoicePayment extends Model
+{
+    protected $fillable = [
+        'supplier_invoice_id', 'payment_date', 'amount', 'payment_method',
+        'payment_reference', 'payment_file_path', 'notes',
+    ];
+
+    protected $casts = [
+        'payment_date' => 'date',
+        'amount' => 'decimal:2',
+    ];
+
+    public function supplierInvoice()
+    {
+        return $this->belongsTo(SupplierInvoice::class);
+    }
+}

@@ -23,6 +23,18 @@
                 </div>
             @endif
 
+            @if(session('error'))
+                <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                    <p class="text-sm text-red-700">{{ session('error') }}</p>
+                </div>
+            @endif
+
+            <x-bulk-import-panel
+                label="Devis"
+                :template-route="route('quotes.import.template')"
+                :import-route="route('quotes.import')"
+            />
+
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full">

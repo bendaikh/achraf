@@ -34,11 +34,17 @@
             </svg>
         </button>
         <div x-show="open && (!sidebarCollapsed || sidebarOpen)" x-transition class="ml-4 space-y-1 border-l-2 border-gray-200 pl-4">
-            <a href="{{ route('expenses.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('expenses.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
+            <a href="{{ route('expenses-with-invoice.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('expenses-with-invoice.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <span>Dépense avec facture</span>
+            </a>
+            <a href="{{ route('expenses-without-invoice.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('expenses-without-invoice.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
                 <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
                 </svg>
-                <span>Dépenses</span>
+                <span>Dépense sans facture</span>
             </a>
             <a href="{{ route('supplier-purchase-orders.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('supplier-purchase-orders.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
                 <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -1,14 +1,14 @@
 @extends('layouts.with-sidebar')
 
-@section('title', 'Créer une facture')
+@section('title', 'Modifier une facture')
 
 @section('main')
 <main class="flex-1 w-full min-w-0">
         <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
             <div class="px-8 py-4 flex items-center justify-between">
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900">Créer une facture</h2>
-                    <p class="text-sm text-gray-600 mt-1">Créer une nouvelle facture fournisseur</p>
+                    <h2 class="text-2xl font-bold text-gray-900">Modifier une facture</h2>
+                    <p class="text-sm text-gray-600 mt-1">Modifier la facture fournisseur {{ $supplierInvoice->invoice_number }}</p>
                 </div>
                 <a href="{{ route('supplier-invoices.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
                     Retour à la liste
@@ -34,8 +34,9 @@
                 </div>
             @endif
 
-            <form action="{{ route('supplier-invoices.store') }}" method="POST" id="invoiceForm" enctype="multipart/form-data">
+            <form action="{{ route('supplier-invoices.update', $supplierInvoice) }}" method="POST" id="invoiceForm" enctype="multipart/form-data">
                 @csrf
+                @method('PUT')
                 
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -45,7 +46,7 @@
                                 <select name="supplier_id" required class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                     <option value="">Sélectionner un fournisseur</option>
                                     @foreach($suppliers as $supplier)
-                                        <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                                        <option value="{{ $supplier->id }}" {{ $supplierInvoice->supplier_id == $supplier->id ? 'selected' : '' }}>{{ $supplier->name }}</option>
                                     @endforeach
                                 </select>
                                 <button type="button" onclick="openSupplierModal()" class="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150" title="Créer un nouveau fournisseur">
@@ -58,40 +59,40 @@
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de facture *</label>
-                            <input type="text" name="invoice_number" value="{{ old('invoice_number', $invoiceNumber) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Saisir le numéro de facture fournisseur">
+                            <input type="text" name="invoice_number" value="{{ old('invoice_number', $supplierInvoice->invoice_number) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Saisir le numéro de facture fournisseur">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Devise *</label>
-                            <input type="text" name="currency" value="dh - MAD" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="text" name="currency" value="{{ old('currency', $supplierInvoice->currency) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Date de facture *</label>
-                            <input type="date" name="invoice_date" value="{{ date('Y-m-d') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="date" name="invoice_date" value="{{ old('invoice_date', $supplierInvoice->invoice_date->format('Y-m-d')) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Date d'échéance</label>
-                            <input type="date" name="due_date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="date" name="due_date" value="{{ old('due_date', $supplierInvoice->due_date?->format('Y-m-d')) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Emplacement du stock *</label>
                             <select name="stock_location" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="Stock magasin">Stock magasin</option>
-                                <option value="Stock en ligne">Stock en ligne</option>
+                                <option value="Stock magasin" {{ $supplierInvoice->stock_location == 'Stock magasin' ? 'selected' : '' }}>Stock magasin</option>
+                                <option value="Stock en ligne" {{ $supplierInvoice->stock_location == 'Stock en ligne' ? 'selected' : '' }}>Stock en ligne</option>
                             </select>
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Contact commercial</label>
-                            <input type="text" name="commercial_contact" placeholder="Achraf Qassoudi" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="text" name="commercial_contact" value="{{ old('commercial_contact', $supplierInvoice->commercial_contact) }}" placeholder="Achraf Qassoudi" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Modèle</label>
-                            <input type="text" name="model" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="text" name="model" value="{{ old('model', $supplierInvoice->model) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
@@ -134,7 +135,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Remarques</label>
-                            <textarea name="remarks" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
+                            <textarea name="remarks" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">{{ old('remarks', $supplierInvoice->remarks) }}</textarea>
                         </div>
 
                         <div>
@@ -183,7 +184,66 @@ function openSupplierModal() {
 var itemIndex = 0;
 var products = @json($products);
 
+function addItemWithData(data) {
+    const tbody = document.getElementById('itemsBody');
+    const row = document.createElement('tr');
+    row.className = 'border-b border-gray-200';
+    row.innerHTML = `
+        <td class="px-4 py-3">
+            <select name="items[${itemIndex}][product_id]" onchange="fillProductDetails(this, ${itemIndex})" class="product-select w-full px-2 py-1 border border-gray-300 rounded text-sm" id="product_select_${itemIndex}">
+                <option value="">Rechercher un produit...</option>
+                ${products.map(p => `<option value="${p.id}" ${p.id == data.product_id ? 'selected' : ''} data-ref="${p.ref || ''}" data-name="${p.name}" data-price-ht="${p.cost_price_ht || p.sale_price_ht || 0}" data-price-ttc="${p.sale_price || 0}">${p.name} ${p.ref ? '(' + p.ref + ')' : ''}</option>`).join('')}
+            </select>
+        </td>
+        <td class="px-4 py-3">
+            <input type="text" name="items[${itemIndex}][ref]" value="${data.ref || ''}" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" id="ref_${itemIndex}">
+        </td>
+        <td class="px-4 py-3">
+            <input type="text" name="items[${itemIndex}][designation]" value="${data.designation || ''}" required class="w-full px-2 py-1 border border-gray-300 rounded text-sm" id="designation_${itemIndex}">
+        </td>
+        <td class="px-4 py-3">
+            <input type="number" name="items[${itemIndex}][quantity]" value="${data.quantity || 1}" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
+        </td>
+        <td class="px-4 py-3">
+            <input type="number" step="0.01" name="items[${itemIndex}][unit_price]" value="${data.unit_price || 0}" required class="w-24 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()" id="price_${itemIndex}">
+        </td>
+        <td class="px-4 py-3">
+            <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="${data.tax_rate || 20}" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
+        </td>
+        <td class="px-4 py-3">
+            <input type="number" step="0.01" name="items[${itemIndex}][discount]" value="${data.discount || 0}" class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
+        </td>
+        <td class="px-4 py-3">
+            <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(row);
+    
+    if (typeof $ !== 'undefined' && $.fn.select2) {
+        $('#product_select_' + itemIndex).select2({
+            placeholder: 'Rechercher un produit...',
+            allowClear: true,
+            width: '100%',
+            language: {
+                noResults: function() { return "Aucun produit trouvé"; },
+                searching: function() { return "Recherche..."; }
+            }
+        });
+    }
+    
+    itemIndex++;
+    calculateTotal();
+}
+
 function addItem() {
+    addItemWithData({});
+}
+
+function addItemOld() {
     const tbody = document.getElementById('itemsBody');
     const row = document.createElement('tr');
     row.className = 'border-b border-gray-200';
@@ -302,7 +362,21 @@ function calculateTotal() {
 
 // Wait for DOM to be ready
 document.addEventListener('DOMContentLoaded', function() {
-    addItem();
+    @if($supplierInvoice->items->count() > 0)
+        @foreach($supplierInvoice->items as $item)
+            addItemWithData({
+                product_id: '{{ $item->product_id }}',
+                ref: '{{ $item->ref }}',
+                designation: '{{ $item->designation }}',
+                quantity: {{ $item->quantity }},
+                unit_price: {{ $item->unit_price }},
+                tax_rate: {{ $item->tax_rate }},
+                discount: {{ $item->discount }}
+            });
+        @endforeach
+    @else
+        addItem();
+    @endif
     
     document.getElementById('invoiceForm').addEventListener('submit', function(e) {
         const itemRows = document.querySelectorAll('#itemsBody tr');

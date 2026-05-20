@@ -193,7 +193,7 @@ The products page now displays:
 - Updates prices
 - Updates product status
 - Updates sync timestamp
-- Does NOT re-download images (preserves bandwidth)
+- **Re-downloads images when they change** (compares Shopify image URL)
 
 ### Duplicate Handling
 - Products are matched by `source='shopify'` AND `external_id`
@@ -313,6 +313,13 @@ tail -f storage/logs/laravel.log
 - Check PHP `allow_url_fopen` is enabled
 - Verify storage/app/public/products folder is writable
 - Check Shopify image URLs are accessible
+
+### Images Not Updating When Changed on Shopify
+- ✅ **FIXED** (May 16, 2026): Images now sync automatically when updated
+- The system compares Shopify image URLs to detect changes
+- Images are re-downloaded only when the URL changes
+- Check logs for confirmation: `grep "Updated Shopify product image" storage/logs/laravel.log`
+- See `SHOPIFY_IMAGE_SYNC_FIX.md` for details
 
 ### Slow Sync
 - Large product catalogs take time (this is normal)

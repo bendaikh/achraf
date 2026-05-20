@@ -31,6 +31,7 @@ class Product extends Model
         'external_id',
         'shopify_status',
         'shopify_synced_at',
+        'shopify_image_url',
     ];
 
     protected $casts = [

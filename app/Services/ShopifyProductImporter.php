@@ -89,11 +89,43 @@ class ShopifyProductImporter
             ];
 
             // Download and store image if available
-            if ($imageUrl && !$existing) {
+            if ($imageUrl) {
                 try {
-                    $imagePath = $this->downloadImage($imageUrl, $externalId);
-                    if ($imagePath) {
-                        $data['image'] = $imagePath;
+                    // For new products, always download the image
+                    // For existing products, download if the image URL has changed
+                    $shouldDownload = !$existing;
+                    
+                    if ($existing) {
+                        // Check if we need to update the image
+                        // We'll store the Shopify image URL to compare
+                        $currentShopifyImageUrl = $existing->shopify_image_url ?? null;
+                        
+                        // Download if:
+                        // 1. No image exists yet
+                        // 2. The Shopify image URL has changed
+                        // 3. The stored URL is different (first time storing URL)
+                        if (!$existing->image || $currentShopifyImageUrl !== $imageUrl) {
+                            $shouldDownload = true;
+                        }
+                    }
+                    
+                    if ($shouldDownload) {
+                        $imagePath = $this->downloadImage($imageUrl, $externalId);
+                        if ($imagePath) {
+                            $data['image'] = $imagePath;
+                            $data['shopify_image_url'] = $imageUrl; // Store URL for comparison
+                            
+                            if ($existing) {
+                                Log::info('Updated Shopify product image', [
+                                    'product_id' => $externalId,
+                                    'old_image' => $existing->image,
+                                    'new_image' => $imagePath,
+                                ]);
+                            }
+                        }
+                    } else {
+                        // Keep existing image
+                        $data['shopify_image_url'] = $imageUrl;
                     }
                 } catch (\Exception $e) {
                     Log::warning('Failed to download Shopify product image', [

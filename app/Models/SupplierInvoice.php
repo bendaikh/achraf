@@ -9,7 +9,7 @@ class SupplierInvoice extends Model
     protected $fillable = [
         'invoice_number', 'supplier_id', 'invoice_date', 'due_date', 'reference_invoice',
         'currency', 'stock_location', 'commercial_contact', 'model', 'matricule', 'remarks', 'conditions',
-        'subtotal', 'discount', 'adjustment', 'total',
+        'subtotal', 'discount', 'adjustment', 'total', 'invoice_file_path',
     ];
 
     protected $casts = [
@@ -34,5 +34,20 @@ class SupplierInvoice extends Model
     public function creditNotes()
     {
         return $this->hasMany(SupplierCreditNote::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(SupplierInvoicePayment::class);
+    }
+
+    public function getTotalPaidAttribute()
+    {
+        return $this->payments()->sum('amount');
+    }
+
+    public function getRemainingBalanceAttribute()
+    {
+        return $this->total - $this->total_paid;
     }
 }
