@@ -2,22 +2,30 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\LoadsExpenseFormOptions;
 use App\Models\Client;
 use App\Models\Expense;
 use Illuminate\Http\Request;
 
 class ExpenseWithoutInvoiceController extends Controller
 {
+    use LoadsExpenseFormOptions;
+
     public function index()
     {
         $expenses = Expense::where('expense_type', 'without_invoice')->with('client')->latest()->paginate(15);
+
         return view('purchases.expenses-without-invoice.index', compact('expenses'));
     }
 
     public function create()
     {
-        $clients = Client::all();
-        return view('purchases.expenses-without-invoice.create', compact('clients'));
+        $clients = Client::orderBy('name')->get();
+
+        return view('purchases.expenses-without-invoice.create', array_merge(
+            compact('clients'),
+            $this->expenseFormOptions()
+        ));
     }
 
     public function store(Request $request)
@@ -45,13 +53,18 @@ class ExpenseWithoutInvoiceController extends Controller
     public function show(Expense $expenseWithoutInvoice)
     {
         $expenseWithoutInvoice->load('client');
+
         return view('purchases.expenses-without-invoice.show', compact('expenseWithoutInvoice'));
     }
 
     public function edit(Expense $expenseWithoutInvoice)
     {
-        $clients = Client::all();
-        return view('purchases.expenses-without-invoice.edit', compact('expenseWithoutInvoice', 'clients'));
+        $clients = Client::orderBy('name')->get();
+
+        return view('purchases.expenses-without-invoice.edit', array_merge(
+            ['expense' => $expenseWithoutInvoice, 'clients' => $clients],
+            $this->expenseFormOptions()
+        ));
     }
 
     public function update(Request $request, Expense $expenseWithoutInvoice)
@@ -77,6 +90,7 @@ class ExpenseWithoutInvoiceController extends Controller
     public function destroy(Expense $expenseWithoutInvoice)
     {
         $expenseWithoutInvoice->delete();
+
         return redirect()->route('expenses-without-invoice.index')->with('success', 'Dépense sans facture supprimée avec succès!');
     }
 }

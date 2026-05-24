@@ -60,6 +60,20 @@ class Product extends Model
         return false;
     }
 
+    public function scopeLowStock($query)
+    {
+        return $query->where(function ($q) {
+            $q->where(function ($q2) {
+                $q2->whereNotNull('minimum_alert_stock')
+                    ->whereColumn('stock_quantity', '<=', 'minimum_alert_stock');
+            })->orWhere(function ($q2) {
+                $q2->whereNull('minimum_alert_stock')
+                    ->whereNotNull('minimum_safety_stock')
+                    ->whereColumn('stock_quantity', '<=', 'minimum_safety_stock');
+            });
+        });
+    }
+
     public function isOutOfStock(): bool
     {
         return $this->stock_quantity <= 0;

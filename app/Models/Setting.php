@@ -33,4 +33,33 @@ class Setting extends Model
     {
         return static::get('shopify_price_type', 'ttc');
     }
+
+    /**
+     * @return list<string>
+     */
+    public static function getList(string $key, array $default = []): array
+    {
+        $raw = static::get($key);
+        if ($raw === null || $raw === '') {
+            return $default;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (! is_array($decoded)) {
+            $lines = preg_split('/\r\n|\r|\n/', (string) $raw) ?: [];
+
+            return array_values(array_filter(array_map('trim', $lines)));
+        }
+
+        return array_values(array_filter(array_map('strval', $decoded)));
+    }
+
+    /**
+     * @param  list<string>  $items
+     */
+    public static function setList(string $key, array $items, ?string $description = null): void
+    {
+        $clean = array_values(array_unique(array_filter(array_map('trim', $items))));
+        static::set($key, json_encode($clean, JSON_UNESCAPED_UNICODE), $description);
+    }
 }

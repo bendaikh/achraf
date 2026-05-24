@@ -8,7 +8,7 @@ class Expense extends Model
 {
     protected $fillable = [
         'designation', 'expense_type', 'expense_category', 'expense_date', 'amount', 'currency',
-        'reference', 'client_id', 'payment_method', 'account', 'tax_type', 'invoice_file_path',
+        'reference', 'client_id', 'supplier_id', 'payment_method', 'account', 'tax_type', 'invoice_file_path',
     ];
 
     protected $casts = [
@@ -19,5 +19,10 @@ class Expense extends Model
     public function client()
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class);
     }
 }

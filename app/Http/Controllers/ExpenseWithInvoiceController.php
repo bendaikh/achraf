@@ -2,23 +2,25 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Client;
+use App\Http\Controllers\Concerns\LoadsExpenseFormOptions;
 use App\Models\Expense;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class ExpenseWithInvoiceController extends Controller
 {
+    use LoadsExpenseFormOptions;
+
     public function index()
     {
-        $expenses = Expense::where('expense_type', 'with_invoice')->with('client')->latest()->paginate(15);
+        $expenses = Expense::where('expense_type', 'with_invoice')->with('supplier')->latest()->paginate(15);
+
         return view('purchases.expenses-with-invoice.index', compact('expenses'));
     }
 
     public function create()
     {
-        $clients = Client::all();
-        return view('purchases.expenses-with-invoice.create', compact('clients'));
+        return view('purchases.expenses-with-invoice.create', $this->expenseFormOptions());
     }
 
     public function store(Request $request)
@@ -30,7 +32,7 @@ class ExpenseWithInvoiceController extends Controller
             'amount' => 'required|numeric|min:0',
             'currency' => 'required|string',
             'reference' => 'nullable|string',
-            'client_id' => 'nullable|exists:clients,id',
+            'supplier_id' => 'nullable|exists:suppliers,id',
             'payment_method' => 'nullable|string',
             'account' => 'nullable|string',
             'tax_type' => 'required|string',
@@ -50,14 +52,17 @@ class ExpenseWithInvoiceController extends Controller
 
     public function show(Expense $expenseWithInvoice)
     {
-        $expenseWithInvoice->load('client');
+        $expenseWithInvoice->load('supplier');
+
         return view('purchases.expenses-with-invoice.show', compact('expenseWithInvoice'));
     }
 
     public function edit(Expense $expenseWithInvoice)
     {
-        $clients = Client::all();
-        return view('purchases.expenses-with-invoice.edit', compact('expenseWithInvoice', 'clients'));
+        return view('purchases.expenses-with-invoice.edit', array_merge(
+            ['expense' => $expenseWithInvoice],
+            $this->expenseFormOptions()
+        ));
     }
 
     public function update(Request $request, Expense $expenseWithInvoice)
@@ -69,7 +74,7 @@ class ExpenseWithInvoiceController extends Controller
             'amount' => 'required|numeric|min:0',
             'currency' => 'required|string',
             'reference' => 'nullable|string',
-            'client_id' => 'nullable|exists:clients,id',
+            'supplier_id' => 'nullable|exists:suppliers,id',
             'payment_method' => 'nullable|string',
             'account' => 'nullable|string',
             'tax_type' => 'required|string',
@@ -94,6 +99,7 @@ class ExpenseWithInvoiceController extends Controller
             Storage::disk('public')->delete($expenseWithInvoice->invoice_file_path);
         }
         $expenseWithInvoice->delete();
+
         return redirect()->route('expenses-with-invoice.index')->with('success', 'Dépense avec facture supprimée avec succès!');
     }
 }

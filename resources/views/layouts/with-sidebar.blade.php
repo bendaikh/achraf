@@ -61,5 +61,7 @@
     </div>
 </div>
 @stack('scripts')
+<script>window.tableBulkExportUrl = @json(route('table.export'));</script>
+<script src="{{ asset('js/table-bulk-selection.js') }}"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 @endsection

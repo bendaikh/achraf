@@ -192,14 +192,21 @@
         </div>
 
         <!-- Bulk Actions (shown when orders selected) -->
-        <div id="bulkActionsBar" class="hidden bg-[#fdb819]/10 border border-[#fdb819]/30 rounded-lg p-4 mb-6">
+        <div id="bulkActionsBar-orders" class="hidden bg-[#fdb819]/10 border border-[#fdb819]/30 rounded-lg p-4 mb-6">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
                     <span class="text-sm font-medium text-gray-700">
-                        <span id="selectedCount">0</span> commande(s) sélectionnée(s)
+                        <span id="selectedCount-orders">0</span> commande(s) sélectionnée(s)
                     </span>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button type="button" onclick="exportSelectedToExcel('orders')"
+                        class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Exporter vers Excel
+                    </button>
                     <div class="relative">
                         <button type="button" id="actionsDropdownBtn" class="inline-flex items-center px-4 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] transition text-sm font-medium">
                             Actions
@@ -230,7 +237,7 @@
                             </div>
                         </div>
                     </div>
-                    <button type="button" onclick="clearSelection()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium">
+                    <button type="button" onclick="clearTableSelection('orders')" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium">
                         Annuler
                     </button>
                 </div>
@@ -244,7 +251,7 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" class="rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819]">
+                                <input type="checkbox" id="selectAll-orders" onchange="toggleTableSelectAll(this, 'orders')" class="rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819]">
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-numero">N° Commande</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-source">Source</th>
@@ -260,7 +267,7 @@
                         @forelse($orders as $order)
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-4 whitespace-nowrap">
-                                <input type="checkbox" class="order-checkbox rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819]" value="{{ $order->id }}" onchange="updateSelectedCount()">
+                                <input type="checkbox" class="order-checkbox table-row-checkbox rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819]" data-export-type="orders" value="{{ $order->id }}" onchange="updateTableSelectedCount('orders')">
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap column-numero">
                                 <div class="text-sm font-medium text-gray-900">{{ $order->ticket_number }}</div>
@@ -536,45 +543,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Bulk selection functions
-function toggleSelectAll(checkbox) {
-    const checkboxes = document.querySelectorAll('.order-checkbox');
-    checkboxes.forEach(cb => cb.checked = checkbox.checked);
-    updateSelectedCount();
-}
-
-function updateSelectedCount() {
-    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
-    const count = checkboxes.length;
-    const bulkActionsBar = document.getElementById('bulkActionsBar');
-    const selectedCountSpan = document.getElementById('selectedCount');
-    
-    if (count > 0) {
-        bulkActionsBar.classList.remove('hidden');
-        selectedCountSpan.textContent = count;
-    } else {
-        bulkActionsBar.classList.add('hidden');
-    }
-    
-    // Update select all checkbox state
-    const allCheckboxes = document.querySelectorAll('.order-checkbox');
-    const selectAllCheckbox = document.getElementById('selectAll');
-    if (selectAllCheckbox) {
-        selectAllCheckbox.checked = count > 0 && count === allCheckboxes.length;
-        selectAllCheckbox.indeterminate = count > 0 && count < allCheckboxes.length;
-    }
-}
-
-function clearSelection() {
-    const checkboxes = document.querySelectorAll('.order-checkbox');
-    checkboxes.forEach(cb => cb.checked = false);
-    document.getElementById('selectAll').checked = false;
-    updateSelectedCount();
-}
-
 function getSelectedOrderIds() {
-    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
-    return Array.from(checkboxes).map(cb => cb.value);
+    return getSelectedTableIds('orders');
 }
 
 function convertSelected(type) {
@@ -619,7 +589,7 @@ function convertSelected(type) {
         
         if (data.success) {
             alert(data.message);
-            clearSelection();
+            clearTableSelection('orders');
             // Optionally reload the page or redirect
             if (data.created && data.created.length > 0) {
                 const redirectUrls = {

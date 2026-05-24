@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\ShopifyIntegration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -40,10 +41,7 @@ class ProductController extends Controller
         $totalProducts = Product::count();
         $totalShopifyProducts = Product::where('source', 'shopify')->count();
         $totalManualProducts = Product::whereNull('source')->orWhere('source', '!=', 'shopify')->count();
-        $lowStockProducts = Product::where(function ($q) {
-            $q->whereColumn('stock_quantity', '<=', 'minimum_alert_stock')
-              ->orWhereColumn('stock_quantity', '<=', 'minimum_safety_stock');
-        })->count();
+        $lowStockProducts = Product::lowStock()->count();
 
         // Get Shopify integration status
         $shopifyIntegration = ShopifyIntegration::first();
@@ -84,7 +82,9 @@ class ProductController extends Controller
 
     public function create()
     {
-        return view('products.create');
+        $elementTypes = Setting::getList('product_element_types', ['Produit', 'Service']);
+
+        return view('products.create', compact('elementTypes'));
     }
 
     public function store(Request $request)
@@ -130,7 +130,9 @@ class ProductController extends Controller
 
     public function edit(Product $product)
     {
-        return view('products.edit', compact('product'));
+        $elementTypes = Setting::getList('product_element_types', ['Produit', 'Service']);
+
+        return view('products.edit', compact('product', 'elementTypes'));
     }
 
     public function update(Request $request, Product $product)

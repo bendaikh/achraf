@@ -43,11 +43,14 @@
                 <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900">Filtrer</button>
             </form>
 
+            <x-table-bulk-bar export-type="pos-sales" item-label="vente(s)" />
+
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
+                                <x-table-checkbox-header export-type="pos-sales" />
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ticket</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
@@ -60,6 +63,7 @@
                         <tbody class="divide-y divide-gray-200">
                             @forelse($sales as $sale)
                                 <tr class="hover:bg-gray-50">
+                                    <x-table-checkbox-cell export-type="pos-sales" :id="$sale->id" />
                                     <td class="px-6 py-4 text-sm font-semibold text-gray-900">{{ $sale->ticket_number }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->sold_at->format('d/m/Y H:i') }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->client?->name ?? 'Comptoir' }}</td>
@@ -72,7 +76,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-6 py-12 text-center text-gray-500">Aucune vente enregistrée.</td>
+                                    <td colspan="8" class="px-6 py-12 text-center text-gray-500">Aucune vente enregistrée.</td>
                                 </tr>
                             @endforelse
                         </tbody>

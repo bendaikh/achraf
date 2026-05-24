@@ -266,8 +266,9 @@
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('element_type') border-red-500 @enderror"
                             >
                                 <option value="">Sélectionner...</option>
-                                <option value="Produit" {{ old('element_type', $product->element_type) == 'Produit' ? 'selected' : '' }}>Produit</option>
-                                <option value="Service" {{ old('element_type', $product->element_type) == 'Service' ? 'selected' : '' }}>Service</option>
+                                @foreach($elementTypes as $type)
+                                    <option value="{{ $type }}" {{ old('element_type', $product->element_type) == $type ? 'selected' : '' }}>{{ $type }}</option>
+                                @endforeach
                             </select>
                             @error('element_type')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>

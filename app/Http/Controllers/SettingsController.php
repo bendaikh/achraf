@@ -5,23 +5,31 @@ namespace App\Http\Controllers;
 use App\Models\Setting;
 use App\Services\DocumentNumberService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class SettingsController extends Controller
 {
     protected $documentTypes = [
-        'facture', 'devis', 'avoir', 'bc_fournisseur', 'bc_client', 
-        'bon_livraison', 'bon_reception', 'produit'
+        'facture', 'devis', 'avoir', 'bc_fournisseur', 'bc_client',
+        'bon_livraison', 'bon_reception', 'produit',
     ];
 
     protected $settingFields = [
-        'next_number', 'format', 'apply_to_old', 'year', 
-        'code_length', 'reset_period', 'conditions', 'remarks'
+        'next_number', 'format', 'apply_to_old', 'year',
+        'code_length', 'reset_period', 'conditions', 'remarks',
+    ];
+
+    protected array $companyFields = [
+        'company_name', 'company_address', 'company_country', 'company_city',
+        'company_postal_code', 'company_phone', 'company_ice', 'company_patente',
+        'company_rc', 'company_if', 'company_cnss', 'company_email',
     ];
 
     public function index()
     {
         $settings = $this->getAllSettings();
         $previews = $this->getPreviewNumbers();
+
         return view('settings.index', compact('settings', 'previews'));
     }
 
@@ -30,8 +38,21 @@ class SettingsController extends Controller
         $settingsType = $request->input('settings_type');
         $tab = $settingsType;
 
-        if ($settingsType && in_array($settingsType, $this->documentTypes)) {
+        if ($settingsType && in_array($settingsType, $this->documentTypes, true)) {
             $this->saveDocumentSettings($request, $settingsType);
+        }
+
+        if ($settingsType === 'mon_entreprise') {
+            $this->saveCompanySettings($request);
+        }
+
+        if ($settingsType === 'depenses') {
+            $this->saveExpenseParameterSettings($request);
+        }
+
+        if ($settingsType === 'produit_types') {
+            $this->saveListFromTextarea($request, 'product_element_types', 'Types d\'élément produit');
+            $tab = 'produit';
         }
 
         if ($request->has('shopify_price_type')) {
@@ -40,6 +61,7 @@ class SettingsController extends Controller
                 $request->input('shopify_price_type'),
                 'Détermine si les prix des produits Shopify sont TTC ou HT'
             );
+            $tab = $tab ?: 'produit';
         }
 
         return redirect()->route('settings.index', ['tab' => $tab])->with('success', 'Paramètres mis à jour avec succès.');
@@ -48,7 +70,7 @@ class SettingsController extends Controller
     protected function getAllSettings(): array
     {
         $settings = [];
-        
+
         foreach ($this->documentTypes as $type) {
             foreach ($this->settingFields as $field) {
                 $key = "{$type}_{$field}";
@@ -61,13 +83,23 @@ class SettingsController extends Controller
 
         $settings['shopify_price_type'] = Setting::getShopifyPriceType();
 
+        foreach ($this->companyFields as $field) {
+            $settings[$field] = Setting::get($field, '');
+        }
+        $settings['company_logo'] = Setting::get('company_logo');
+
+        $settings['expense_categories'] = implode("\n", Setting::getList('expense_categories'));
+        $settings['expense_accounts'] = implode("\n", Setting::getList('expense_accounts'));
+        $settings['expense_payment_methods'] = implode("\n", Setting::getList('expense_payment_methods'));
+        $settings['product_element_types'] = implode("\n", Setting::getList('product_element_types', ['Produit', 'Service']));
+
         return $settings;
     }
 
     protected function getPreviewNumbers(): array
     {
         $previews = [];
-        
+
         foreach ($this->documentTypes as $type) {
             $previews[$type] = DocumentNumberService::preview($type);
         }
@@ -106,5 +138,62 @@ class SettingsController extends Controller
         if ($type === 'devis' && $request->has('devis_validity_days')) {
             Setting::set('devis_validity_days', $request->input('devis_validity_days'), 'Durée de validité des devis en jours');
         }
+    }
+
+    protected function saveCompanySettings(Request $request): void
+    {
+        $validated = $request->validate([
+            'company_name' => 'nullable|string|max:255',
+            'company_address' => 'nullable|string|max:500',
+            'company_country' => 'nullable|string|max:100',
+            'company_city' => 'nullable|string|max:100',
+            'company_postal_code' => 'nullable|string|max:20',
+            'company_phone' => 'nullable|string|max:50',
+            'company_ice' => 'nullable|string|max:50',
+            'company_patente' => 'nullable|string|max:50',
+            'company_rc' => 'nullable|string|max:50',
+            'company_if' => 'nullable|string|max:50',
+            'company_cnss' => 'nullable|string|max:50',
+            'company_email' => 'nullable|string|max:255',
+            'company_logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'remove_logo' => 'nullable|boolean',
+        ]);
+
+        foreach ($this->companyFields as $field) {
+            if (array_key_exists($field, $validated)) {
+                Setting::set($field, $validated[$field] ?? '', 'Informations entreprise');
+            }
+        }
+
+        if ($request->boolean('remove_logo')) {
+            $old = Setting::get('company_logo');
+            if ($old) {
+                Storage::disk('public')->delete($old);
+            }
+            Setting::set('company_logo', null, 'Logo entreprise');
+        }
+
+        if ($request->hasFile('company_logo')) {
+            $old = Setting::get('company_logo');
+            if ($old) {
+                Storage::disk('public')->delete($old);
+            }
+            $path = $request->file('company_logo')->store('company', 'public');
+            Setting::set('company_logo', $path, 'Logo entreprise');
+        }
+    }
+
+    protected function saveExpenseParameterSettings(Request $request): void
+    {
+        $this->saveListFromTextarea($request, 'expense_categories', 'Catégories de dépense');
+        $this->saveListFromTextarea($request, 'expense_accounts', 'Comptes de dépense');
+        $this->saveListFromTextarea($request, 'expense_payment_methods', 'Modes de règlement');
+    }
+
+    protected function saveListFromTextarea(Request $request, string $key, string $description): void
+    {
+        $raw = $request->input($key, '');
+        $items = preg_split('/\r\n|\r|\n/', (string) $raw) ?: [];
+        Setting::setList($key, $items, $description);
     }
 }

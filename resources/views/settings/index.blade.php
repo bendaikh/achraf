@@ -11,7 +11,7 @@
         <div class="w-64 bg-white border-r border-gray-200 flex-shrink-0">
             <div class="p-4 border-b border-gray-200">
                 <h2 class="text-lg font-semibold text-gray-900">Paramètres</h2>
-                <p class="text-sm text-gray-500">Configuration des documents</p>
+                <p class="text-sm text-gray-500">Configuration générale</p>
             </div>
             <nav class="p-2 space-y-1">
                 <button @click="activeTab = 'facture'" :class="activeTab === 'facture' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
@@ -61,6 +61,18 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                     </svg>
                     <span class="font-medium">Produit</span>
+                </button>
+                <button @click="activeTab = 'depenses'" :class="activeTab === 'depenses' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
+                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    <span class="font-medium">Dépenses</span>
+                </button>
+                <button @click="activeTab = 'mon_entreprise'" :class="activeTab === 'mon_entreprise' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
+                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                    </svg>
+                    <span class="font-medium">Mon Entreprise</span>
                 </button>
             </nav>
         </div>
@@ -632,14 +644,35 @@
                             </div>
                         </div>
 
-                        <div class="flex justify-end">
+                        <div class="border-t border-gray-200 pt-6">
+                            <h3 class="text-sm font-semibold text-gray-900 mb-2">Types d'élément (produits)</h3>
+                            <p class="text-sm text-gray-500 mb-3">Une valeur par ligne. Ces types apparaissent dans le formulaire de création de produit.</p>
+                        </div>
+
+                        <div class="flex justify-end gap-2">
                             <button type="submit" class="px-6 py-2 bg-[#0a5d8a] text-white rounded-lg hover:bg-[#084a6e] transition duration-150 text-sm font-medium">
-                                Enregistrer
+                                Enregistrer produit
                             </button>
                         </div>
                     </div>
                 </form>
+
+                <form action="{{ route('settings.update') }}" method="POST" class="mt-6 border-t border-gray-200 pt-6">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="settings_type" value="produit_types">
+                    <label for="product_element_types" class="block text-sm font-medium text-gray-700 mb-1">Types d'élément</label>
+                    <textarea name="product_element_types" id="product_element_types" rows="5" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">{{ $settings['product_element_types'] ?? "Produit\nService" }}</textarea>
+                    <div class="flex justify-end mt-4">
+                        <button type="submit" class="px-6 py-2 bg-[#0a5d8a] text-white rounded-lg hover:bg-[#084a6e] transition duration-150 text-sm font-medium">
+                            Enregistrer les types
+                        </button>
+                    </div>
+                </form>
             </div>
+
+            @include('settings.partials.depenses')
+            @include('settings.partials.mon-entreprise')
         </div>
     </div>
 </main>

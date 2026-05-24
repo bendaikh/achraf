@@ -23,11 +23,14 @@
                 </div>
             @endif
 
+            <x-table-bulk-bar export-type="expenses-without-invoice" item-label="dépense(s)" />
+
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
+                                <x-table-checkbox-header export-type="expenses-without-invoice" />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
@@ -38,6 +41,7 @@
                         <tbody class="bg-white divide-y divide-gray-200">
                             @forelse($expenses as $expense)
                                 <tr class="hover:bg-gray-50">
+                                    <x-table-checkbox-cell export-type="expenses-without-invoice" :id="$expense->id" />
                                     <td class="px-6 py-4">{{ $expense->designation }}</td>
                                     <td class="px-6 py-4">{{ $expense->expense_date->format('d/m/Y') }}</td>
                                     <td class="px-6 py-4 font-semibold">{{ number_format($expense->amount, 2) }} {{ $expense->currency }}</td>
@@ -69,7 +73,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="px-6 py-12 text-center text-gray-500">Aucune dépense trouvée</td>
+                                    <td colspan="6" class="px-6 py-12 text-center text-gray-500">Aucune dépense trouvée</td>
                                 </tr>
                             @endforelse
                         </tbody>

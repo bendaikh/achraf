@@ -136,11 +136,14 @@
                     </form>
                 </div>
 
+                <x-table-bulk-bar export-type="products" item-label="produit(s)" />
+
                 <div class="bg-white rounded-lg shadow overflow-hidden">
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <x-table-checkbox-header export-type="products" />
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
@@ -155,6 +158,7 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @forelse($products as $product)
                                     <tr class="hover:bg-gray-50">
+                                        <x-table-checkbox-cell export-type="products" :id="$product->id" />
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             @if($product->isShopifyProduct())
                                                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -268,7 +272,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="9" class="px-6 py-12 text-center">
+                                        <td colspan="10" class="px-6 py-12 text-center">
                                             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                                             </svg>

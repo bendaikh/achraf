@@ -56,8 +56,8 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Client</label>
-                            <p class="text-base text-gray-900">{{ $expense->client ? $expense->client->name : '-' }}</p>
+                            <label class="block text-sm font-medium text-gray-500 mb-1">Fournisseur</label>
+                            <p class="text-base text-gray-900">{{ $expense->supplier ? $expense->supplier->name : '-' }}</p>
                         </div>
 
                         <div>

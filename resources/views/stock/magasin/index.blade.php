@@ -52,11 +52,14 @@
                     </div>
                 </div>
 
+                <x-table-bulk-bar export-type="stock-magasin" item-label="produit(s)" />
+
                 <div class="bg-white rounded-lg shadow overflow-hidden">
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <x-table-checkbox-header export-type="stock-magasin" />
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
@@ -68,6 +71,7 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @forelse($products as $product)
                                     <tr class="hover:bg-gray-50">
+                                        <x-table-checkbox-cell export-type="stock-magasin" :id="$product->id" />
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $product->ref }}</td>
                                         <td class="px-6 py-4">
                                             <div class="flex items-center">
@@ -115,7 +119,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">Aucun produit magasin ne correspond à votre recherche.</td>
+                                        <td colspan="7" class="px-6 py-12 text-center text-gray-500">Aucun produit magasin ne correspond à votre recherche.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

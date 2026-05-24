@@ -23,6 +23,7 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\TableExportController;
 use App\Http\Controllers\DocumentImportController;
 use Illuminate\Support\Facades\Route;
 
@@ -124,4 +125,6 @@ Route::middleware('auth')->group(function () {
     // Settings
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
+
+    Route::post('/export/table', [TableExportController::class, 'export'])->name('table.export');
 });
