@@ -261,9 +261,7 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                <input type="checkbox" id="selectAll-orders" class="table-select-all h-4 w-4 rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819] cursor-pointer" data-export-type="orders" onchange="toggleTableSelectAll(this, 'orders')" aria-label="Tout sélectionner">
-                            </th>
+                            <x-table-checkbox-header export-type="orders" />
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-numero">N° Commande</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-source">Source</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-client">Client</th>
@@ -277,9 +275,7 @@
                     <tbody class="bg-white divide-y divide-gray-200">
                         @forelse($orders as $order)
                         <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-4 whitespace-nowrap">
-                                <input type="checkbox" class="order-checkbox table-row-checkbox h-4 w-4 rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819] cursor-pointer" data-export-type="orders" value="{{ $order->id }}" onchange="updateTableSelectedCount('orders')" aria-label="Sélectionner la commande">
-                            </td>
+                            <x-table-checkbox-cell export-type="orders" :id="$order->id" />
                             <td class="px-6 py-4 whitespace-nowrap column-numero">
                                 <div class="text-sm font-medium text-gray-900">{{ $order->ticket_number }}</div>
                                 @if($order->external_id)

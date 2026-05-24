@@ -70,6 +70,13 @@
     }
 </style>
 <script>window.tableBulkExportUrl = @json(route('table.export'));</script>
-<script src="{{ asset('js/table-bulk-selection.js') }}?v=2"></script>
+@php
+    $tableBulkSelectionScript = public_path('js/table-bulk-selection.js');
+@endphp
+@if (is_readable($tableBulkSelectionScript))
+<script>{!! file_get_contents($tableBulkSelectionScript) !!}</script>
+@else
+<script src="{{ asset('js/table-bulk-selection.js') }}?v=3"></script>
+@endif
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 @endsection
