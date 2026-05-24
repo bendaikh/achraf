@@ -23,6 +23,18 @@
                 </div>
             @endif
 
+            <x-table-filters
+                :action="route('receptions.index')"
+                search-placeholder="N° réception, référence, fournisseur..."
+                grid-cols="md:grid-cols-5"
+            >
+                <x-table-filter-select
+                    name="status"
+                    label="Statut"
+                    :options="['brouillon' => 'Brouillon', 'validé' => 'Validé', 'annulé' => 'Annulé']"
+                />
+            </x-table-filters>
+
             <x-table-bulk-bar export-type="receptions" item-label="réception(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

@@ -35,6 +35,18 @@
                 :import-route="route('quotes.import')"
             />
 
+            <x-table-filters
+                :action="route('quotes.index')"
+                search-placeholder="N° devis, client..."
+                grid-cols="md:grid-cols-5"
+            >
+                <x-table-filter-select
+                    name="status"
+                    label="Statut"
+                    :options="['brouillon' => 'Brouillon', 'envoyé' => 'Envoyé', 'accepté' => 'Accepté', 'refusé' => 'Refusé']"
+                />
+            </x-table-filters>
+
             <x-table-bulk-bar export-type="quotes" item-label="devis" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

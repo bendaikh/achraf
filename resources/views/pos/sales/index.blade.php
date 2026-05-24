@@ -22,26 +22,18 @@
                 <div class="mb-6 bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-lg text-sm text-emerald-800">{{ session('success') }}</div>
             @endif
 
-            <form method="get" class="mb-6 flex flex-wrap gap-4 items-end bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Du</label>
-                    <input type="date" name="from" value="{{ request('from') }}" class="rounded-lg border-gray-300 text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Au</label>
-                    <input type="date" name="to" value="{{ request('to') }}" class="rounded-lg border-gray-300 text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Paiement</label>
-                    <select name="payment_method" class="rounded-lg border-gray-300 text-sm min-w-[160px]">
-                        <option value="">Tous</option>
-                        @foreach($paymentMethods as $val => $label)
-                            <option value="{{ $val }}" @selected(request('payment_method') === $val)>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900">Filtrer</button>
-            </form>
+            <x-table-filters
+                :action="route('pos.sales.index')"
+                search-placeholder="N° ticket, client..."
+                :date-to="true"
+                grid-cols="md:grid-cols-6"
+            >
+                <x-table-filter-select
+                    name="payment_method"
+                    label="Mode de paiement"
+                    :options="$paymentMethods"
+                />
+            </x-table-filters>
 
             <x-table-bulk-bar export-type="pos-sales" item-label="vente(s)" />
 

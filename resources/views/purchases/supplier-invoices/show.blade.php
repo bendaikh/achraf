@@ -128,30 +128,7 @@
         @endif
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div class="max-w-md ml-auto">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-sm text-gray-600">Sous-total</span>
-                    <span class="text-lg font-semibold">{{ number_format($supplierInvoice->subtotal, 2) }}</span>
-                </div>
-                @if($supplierInvoice->discount > 0)
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-sm text-gray-600">Remise</span>
-                    <span class="text-lg font-semibold">{{ number_format($supplierInvoice->discount, 2) }}</span>
-                </div>
-                @endif
-                @if($supplierInvoice->adjustment != 0)
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-sm text-gray-600">Ajustement</span>
-                    <span class="text-lg font-semibold">{{ number_format($supplierInvoice->adjustment, 2) }}</span>
-                </div>
-                @endif
-                <div class="border-t border-gray-200 pt-2 mt-2">
-                    <div class="flex justify-between items-center">
-                        <span class="text-base font-semibold text-gray-900">Total TTC</span>
-                        <span class="text-2xl font-bold text-blue-600">{{ number_format($supplierInvoice->total, 2) }} {{ $supplierInvoice->currency }}</span>
-                    </div>
-                </div>
-            </div>
+            <x-document-tax-totals :document="$supplierInvoice" :items="$supplierInvoice->items" />
         </div>
     </div>
 </main>

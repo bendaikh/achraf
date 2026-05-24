@@ -1,32 +1,45 @@
 (function () {
+    'use strict';
+
     function getBar(exportType) {
         return document.getElementById('bulkActionsBar-' + exportType);
     }
 
     function getCheckboxes(exportType) {
-        return document.querySelectorAll('.table-row-checkbox[data-export-type="' + exportType + '"]');
+        return document.querySelectorAll(
+            'input.table-row-checkbox[data-export-type="' + exportType + '"]'
+        );
     }
 
-    window.toggleTableSelectAll = function (checkbox, exportType) {
-        getCheckboxes(exportType).forEach(function (cb) {
-            cb.checked = checkbox.checked;
-        });
-        updateTableSelectedCount(exportType);
-    };
+    function getSelectAll(exportType) {
+        return document.querySelector(
+            'input.table-select-all[data-export-type="' + exportType + '"]'
+        );
+    }
+
+    function highlightRow(checkbox) {
+        var row = checkbox.closest('tr');
+        if (row) {
+            row.classList.toggle('table-row-selected', checkbox.checked);
+        }
+    }
 
     window.updateTableSelectedCount = function (exportType) {
-        var checked = document.querySelectorAll('.table-row-checkbox[data-export-type="' + exportType + '"]:checked');
+        var checked = document.querySelectorAll(
+            'input.table-row-checkbox[data-export-type="' + exportType + '"]:checked'
+        );
         var bar = getBar(exportType);
         var countEl = document.getElementById('selectedCount-' + exportType);
-        var selectAll = document.getElementById('selectAll-' + exportType);
+        var selectAll = getSelectAll(exportType);
 
-        if (!bar || !countEl) return;
-
-        if (checked.length > 0) {
-            bar.classList.remove('hidden');
-            countEl.textContent = checked.length;
-        } else {
-            bar.classList.add('hidden');
+        if (bar && countEl) {
+            if (checked.length > 0) {
+                bar.classList.remove('hidden');
+                countEl.textContent = String(checked.length);
+            } else {
+                bar.classList.add('hidden');
+                countEl.textContent = '0';
+            }
         }
 
         if (selectAll) {
@@ -36,11 +49,21 @@
         }
     };
 
+    window.toggleTableSelectAll = function (checkbox, exportType) {
+        var isChecked = checkbox.checked;
+        getCheckboxes(exportType).forEach(function (cb) {
+            cb.checked = isChecked;
+            highlightRow(cb);
+        });
+        updateTableSelectedCount(exportType);
+    };
+
     window.clearTableSelection = function (exportType) {
         getCheckboxes(exportType).forEach(function (cb) {
             cb.checked = false;
+            highlightRow(cb);
         });
-        var selectAll = document.getElementById('selectAll-' + exportType);
+        var selectAll = getSelectAll(exportType);
         if (selectAll) {
             selectAll.checked = false;
             selectAll.indeterminate = false;
@@ -50,7 +73,9 @@
 
     window.getSelectedTableIds = function (exportType) {
         return Array.from(
-            document.querySelectorAll('.table-row-checkbox[data-export-type="' + exportType + '"]:checked')
+            document.querySelectorAll(
+                'input.table-row-checkbox[data-export-type="' + exportType + '"]:checked'
+            )
         ).map(function (cb) {
             return cb.value;
         });
@@ -95,4 +120,55 @@
         form.submit();
         document.body.removeChild(form);
     };
+
+    function handleCheckboxChange(target) {
+        var exportType = target.getAttribute('data-export-type');
+        if (!exportType) {
+            return;
+        }
+
+        if (target.classList.contains('table-select-all')) {
+            toggleTableSelectAll(target, exportType);
+            return;
+        }
+
+        if (target.classList.contains('table-row-checkbox')) {
+            highlightRow(target);
+            updateTableSelectedCount(exportType);
+        }
+    }
+
+    function initTableBulkSelection() {
+        document.body.addEventListener('change', function (event) {
+            var target = event.target;
+            if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') {
+                return;
+            }
+            if (
+                target.classList.contains('table-row-checkbox') ||
+                target.classList.contains('table-select-all')
+            ) {
+                handleCheckboxChange(target);
+            }
+        });
+
+        document.body.addEventListener('click', function (event) {
+            var target = event.target;
+            if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') {
+                return;
+            }
+            if (
+                target.classList.contains('table-row-checkbox') ||
+                target.classList.contains('table-select-all')
+            ) {
+                event.stopPropagation();
+            }
+        }, true);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTableBulkSelection);
+    } else {
+        initTableBulkSelection();
+    }
 })();

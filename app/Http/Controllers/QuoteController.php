@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Client;
 use App\Models\Quote;
 use App\Models\Product;
@@ -11,9 +13,18 @@ use Illuminate\Support\Facades\DB;
 
 class QuoteController extends Controller
 {
-    public function index()
+    use FiltersIndexTables, PreparesPrintView;
+
+    public function index(Request $request)
     {
-        $quotes = Quote::with('client')->latest()->paginate(15);
+        $query = Quote::with('client')->latest();
+
+        $this->applyTableSearch($query, $request, ['quote_number', 'client.name']);
+        $this->applyTableDateRange($query, $request, 'quote_date');
+        $this->applyTableFilter($query, $request, 'status', 'status');
+
+        $quotes = $query->paginate(15)->withQueryString();
+
         return view('sales.quotes.index', compact('quotes'));
     }
 
@@ -114,7 +125,11 @@ class QuoteController extends Controller
     public function print(Quote $quote)
     {
         $quote->load('client', 'items');
-        return view('sales.quotes.print', compact('quote'));
+
+        return view('sales.quotes.print', array_merge(
+            compact('quote'),
+            $this->printViewData($quote, $quote->items)
+        ));
     }
 
     public function destroy(Quote $quote)

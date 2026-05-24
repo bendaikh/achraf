@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Supplier;
 use App\Models\Reception;
 use App\Models\Product;
@@ -11,9 +12,18 @@ use Illuminate\Support\Facades\DB;
 
 class ReceptionController extends Controller
 {
-    public function index()
+    use FiltersIndexTables;
+
+    public function index(Request $request)
     {
-        $receptions = Reception::with('supplier')->latest()->paginate(15);
+        $query = Reception::with('supplier')->latest();
+
+        $this->applyTableSearch($query, $request, ['reception_number', 'reference', 'supplier.name']);
+        $this->applyTableDateRange($query, $request, 'reception_date');
+        $this->applyTableFilter($query, $request, 'status', 'status');
+
+        $receptions = $query->paginate(15)->withQueryString();
+
         return view('purchases.receptions.index', compact('receptions'));
     }
 

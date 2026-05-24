@@ -23,6 +23,18 @@
                 </div>
             @endif
 
+            <x-table-filters
+                :action="route('expenses.index')"
+                search-placeholder="Désignation, référence, client, fournisseur..."
+                grid-cols="md:grid-cols-5"
+            >
+                <x-table-filter-select
+                    name="expense_type"
+                    label="Type"
+                    :options="['with_invoice' => 'Avec facture', 'without_invoice' => 'Sans facture']"
+                />
+            </x-table-filters>
+
             <x-table-bulk-bar export-type="expenses" item-label="dépense(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

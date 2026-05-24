@@ -20,6 +20,18 @@
             </a>
         </div>
 
+        <x-crm-import-panel
+            label="Clients"
+            :template-route="route('clients.import.template')"
+            :import-route="route('clients.import')"
+        />
+
+        @if(session('error'))
+            <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded">
+                <p class="text-red-700">{{ session('error') }}</p>
+            </div>
+        @endif
+
         @if(session('success'))
             <div class="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded">
                 <div class="flex items-center">
@@ -30,6 +42,13 @@
                 </div>
             </div>
         @endif
+
+        <x-table-filters
+            :action="route('clients.index')"
+            search-placeholder="Nom, email, téléphone, code, ICE..."
+            :date-from="false"
+            grid-cols="md:grid-cols-3"
+        />
 
         <x-table-bulk-bar export-type="clients" item-label="client(s)" />
 

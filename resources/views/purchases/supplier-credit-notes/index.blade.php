@@ -23,6 +23,12 @@
                 </div>
             @endif
 
+            <x-table-filters
+                :action="route('supplier-credit-notes.index')"
+                search-placeholder="N° avoir, fournisseur..."
+                grid-cols="md:grid-cols-4"
+            />
+
             <x-table-bulk-bar export-type="supplier-credit-notes" item-label="avoir(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

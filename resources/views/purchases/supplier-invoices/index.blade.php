@@ -35,6 +35,12 @@
                 :import-route="route('supplier-invoices.import')"
             />
 
+            <x-table-filters
+                :action="route('supplier-invoices.index')"
+                search-placeholder="N° facture, fournisseur..."
+                grid-cols="md:grid-cols-4"
+            />
+
             <x-table-bulk-bar export-type="supplier-invoices" item-label="facture(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

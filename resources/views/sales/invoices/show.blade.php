@@ -107,28 +107,7 @@
 
             <!-- Totals -->
             <div class="p-6 bg-gray-50">
-                <div class="max-w-md ml-auto space-y-2">
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Sous-total:</span>
-                        <span class="font-medium text-gray-900">{{ number_format($invoice->subtotal, 2) }} {{ $invoice->currency }}</span>
-                    </div>
-                    @if($invoice->discount > 0)
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Remise:</span>
-                        <span class="font-medium text-gray-900">{{ number_format($invoice->discount, 2) }} {{ $invoice->currency }}</span>
-                    </div>
-                    @endif
-                    @if($invoice->adjustment != 0)
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Ajustement:</span>
-                        <span class="font-medium text-gray-900">{{ number_format($invoice->adjustment, 2) }} {{ $invoice->currency }}</span>
-                    </div>
-                    @endif
-                    <div class="flex justify-between text-lg font-semibold border-t pt-2">
-                        <span class="text-gray-900">Total:</span>
-                        <span class="text-gray-900">{{ number_format($invoice->total, 2) }} {{ $invoice->currency }}</span>
-                    </div>
-                </div>
+                <x-document-tax-totals :document="$invoice" :items="$invoice->items" />
             </div>
 
             <!-- Remarks and Conditions -->

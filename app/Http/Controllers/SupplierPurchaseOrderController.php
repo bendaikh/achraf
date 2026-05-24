@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Supplier;
 use App\Models\SupplierPurchaseOrder;
 use App\Models\Product;
@@ -11,9 +12,17 @@ use Illuminate\Support\Facades\DB;
 
 class SupplierPurchaseOrderController extends Controller
 {
-    public function index()
+    use FiltersIndexTables;
+
+    public function index(Request $request)
     {
-        $orders = SupplierPurchaseOrder::with('supplier')->latest()->paginate(15);
+        $query = SupplierPurchaseOrder::with('supplier')->latest();
+
+        $this->applyTableSearch($query, $request, ['order_number', 'supplier.name']);
+        $this->applyTableDateRange($query, $request, 'order_date');
+
+        $orders = $query->paginate(15)->withQueryString();
+
         return view('purchases.supplier-purchase-orders.index', compact('orders'));
     }
 

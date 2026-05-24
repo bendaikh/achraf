@@ -35,6 +35,12 @@
                 :import-route="route('credit-notes.import')"
             />
 
+            <x-table-filters
+                :action="route('credit-notes.index')"
+                search-placeholder="N° avoir, client..."
+                grid-cols="md:grid-cols-4"
+            />
+
             <x-table-bulk-bar export-type="credit-notes" item-label="avoir(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

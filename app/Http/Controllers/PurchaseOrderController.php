@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Client;
 use App\Models\PurchaseOrder;
 use App\Models\Product;
@@ -11,9 +13,18 @@ use Illuminate\Support\Facades\DB;
 
 class PurchaseOrderController extends Controller
 {
-    public function index()
+    use FiltersIndexTables, PreparesPrintView;
+
+    public function index(Request $request)
     {
-        $purchaseOrders = PurchaseOrder::with('client')->latest()->paginate(15);
+        $query = PurchaseOrder::with('client')->latest();
+
+        $this->applyTableSearch($query, $request, ['reference', 'client.name']);
+        $this->applyTableDateRange($query, $request, 'order_date');
+        $this->applyTableFilter($query, $request, 'status', 'status');
+
+        $purchaseOrders = $query->paginate(15)->withQueryString();
+
         return view('sales.purchase-orders.index', compact('purchaseOrders'));
     }
 
@@ -112,7 +123,11 @@ class PurchaseOrderController extends Controller
     public function print(PurchaseOrder $purchaseOrder)
     {
         $purchaseOrder->load('client', 'items');
-        return view('sales.purchase-orders.print', compact('purchaseOrder'));
+
+        return view('sales.purchase-orders.print', array_merge(
+            compact('purchaseOrder'),
+            $this->printViewData($purchaseOrder, $purchaseOrder->items)
+        ));
     }
 
     public function destroy(PurchaseOrder $purchaseOrder)

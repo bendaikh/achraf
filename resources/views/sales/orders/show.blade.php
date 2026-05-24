@@ -201,8 +201,13 @@
 
 <style>
 @media print {
-    aside, header button, header a { display: none !important; }
-    main { margin-left: 0 !important; }
+    aside, nav, header, footer, .no-print { display: none !important; }
+    main, .flex-1 { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
+    body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .bg-gray-50 { background: #fffbeb !important; }
+    .text-blue-600 { color: #e5a617 !important; }
+    table thead { background: #fdb819 !important; }
+    @page { size: A4; margin: 15mm; }
 }
 </style>
 

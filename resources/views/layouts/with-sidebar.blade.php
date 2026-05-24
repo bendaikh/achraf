@@ -61,7 +61,15 @@
     </div>
 </div>
 @stack('scripts')
+<style>
+    tr.table-row-selected {
+        background-color: #fffbeb !important;
+    }
+    tr.table-row-selected td {
+        background-color: #fffbeb !important;
+    }
+</style>
 <script>window.tableBulkExportUrl = @json(route('table.export'));</script>
-<script src="{{ asset('js/table-bulk-selection.js') }}"></script>
+<script src="{{ asset('js/table-bulk-selection.js') }}?v=2"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 @endsection

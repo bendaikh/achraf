@@ -2,15 +2,25 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Client;
 use App\Models\Expense;
 use Illuminate\Http\Request;
 
 class ExpenseController extends Controller
 {
-    public function index()
+    use FiltersIndexTables;
+
+    public function index(Request $request)
     {
-        $expenses = Expense::with('client')->latest()->paginate(15);
+        $query = Expense::with(['client', 'supplier'])->latest();
+
+        $this->applyTableSearch($query, $request, ['designation', 'reference', 'client.name', 'supplier.name']);
+        $this->applyTableDateRange($query, $request, 'expense_date');
+        $this->applyTableFilter($query, $request, 'expense_type', 'expense_type');
+
+        $expenses = $query->paginate(15)->withQueryString();
+
         return view('purchases.expenses.index', compact('expenses'));
     }
 

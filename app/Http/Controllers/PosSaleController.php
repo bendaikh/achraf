@@ -2,26 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\PosSale;
 use Illuminate\Http\Request;
 
 class PosSaleController extends Controller
 {
+    use FiltersIndexTables;
+
     public function index(Request $request)
     {
         $query = PosSale::with(['client', 'user'])
             ->where('status', PosSale::STATUS_COMPLETED)
             ->latest('sold_at');
 
-        if ($request->filled('from')) {
-            $query->whereDate('sold_at', '>=', $request->date('from'));
-        }
-        if ($request->filled('to')) {
-            $query->whereDate('sold_at', '<=', $request->date('to'));
-        }
-        if ($request->filled('payment_method')) {
-            $query->where('payment_method', $request->string('payment_method'));
-        }
+        $this->applyTableSearch($query, $request, ['ticket_number', 'client.name']);
+        $this->applyTableDateRange($query, $request, 'sold_at', 'date_from', 'date_to');
+        $this->applyTableFilter($query, $request, 'payment_method', 'payment_method');
 
         $sales = $query->paginate(20)->withQueryString();
         $paymentMethods = PosSale::paymentLabels();

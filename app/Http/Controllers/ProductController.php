@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Models\ShopifyIntegration;
@@ -11,31 +12,27 @@ use Illuminate\Support\Facades\Artisan;
 
 class ProductController extends Controller
 {
+    use FiltersIndexTables;
+
     public function index(Request $request)
     {
         $query = Product::query();
 
-        // Filter by source
-        if ($request->has('source')) {
+        if ($request->filled('source')) {
             $source = $request->input('source');
             if ($source === 'shopify') {
                 $query->where('source', 'shopify');
             } elseif ($source === 'manual') {
-                $query->whereNull('source')->orWhere('source', '!=', 'shopify');
+                $query->where(function ($q) {
+                    $q->whereNull('source')->orWhere('source', '!=', 'shopify');
+                });
             }
         }
 
-        // Search functionality
-        if ($request->has('search') && $request->input('search') !== '') {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('ref', 'like', "%{$search}%")
-                  ->orWhere('barcode', 'like', "%{$search}%");
-            });
-        }
+        $this->applyTableSearch($query, $request, ['name', 'ref', 'barcode']);
+        $this->applyTableFilter($query, $request, 'status', 'status');
 
-        $products = $query->withCount('variants')->latest()->paginate(20);
+        $products = $query->withCount('variants')->latest()->paginate(20)->withQueryString();
 
         // Get statistics
         $totalProducts = Product::count();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\LoadsExpenseFormOptions;
 use App\Models\Client;
 use App\Models\Expense;
@@ -9,11 +10,16 @@ use Illuminate\Http\Request;
 
 class ExpenseWithoutInvoiceController extends Controller
 {
-    use LoadsExpenseFormOptions;
+    use FiltersIndexTables, LoadsExpenseFormOptions;
 
-    public function index()
+    public function index(Request $request)
     {
-        $expenses = Expense::where('expense_type', 'without_invoice')->with('client')->latest()->paginate(15);
+        $query = Expense::where('expense_type', 'without_invoice')->with('client')->latest();
+
+        $this->applyTableSearch($query, $request, ['designation', 'reference', 'client.name']);
+        $this->applyTableDateRange($query, $request, 'expense_date');
+
+        $expenses = $query->paginate(15)->withQueryString();
 
         return view('purchases.expenses-without-invoice.index', compact('expenses'));
     }

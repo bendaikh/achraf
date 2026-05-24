@@ -31,26 +31,21 @@
                         <p class="text-sm font-medium text-gray-500">Produits sous seuil</p>
                         <p class="mt-1 text-2xl font-bold {{ $lowStockCount > 0 ? 'text-orange-600' : 'text-gray-900' }}">{{ $lowStockCount }}</p>
                     </div>
-                    <div class="bg-white rounded-lg shadow border border-gray-100 p-5 flex items-center">
-                        <form method="get" action="{{ route('stock.enligne.index') }}" class="flex flex-wrap items-end gap-3 w-full">
-                            <div class="flex-1 min-w-[160px]">
-                                <label for="q" class="block text-xs font-medium text-gray-500 mb-1">Recherche</label>
-                                <input type="search" name="q" id="q" value="{{ request('q') }}" placeholder="Référence ou nom…"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-500 mb-1 invisible">Filtre</label>
-                                <div class="flex rounded-lg border border-gray-200 overflow-hidden">
-                                    <a href="{{ route('stock.enligne.index', array_filter(['q' => request('q')])) }}"
-                                        class="px-3 py-2 text-sm {{ request('filter') !== 'low' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50' }}">Tous</a>
-                                    <a href="{{ route('stock.enligne.index', array_filter(['q' => request('q'), 'filter' => 'low'])) }}"
-                                        class="px-3 py-2 text-sm border-l border-gray-200 {{ request('filter') === 'low' ? 'bg-orange-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-50' }}">Sous seuil</a>
-                                </div>
-                            </div>
-                            <button type="submit" class="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800">Filtrer</button>
-                        </form>
-                    </div>
                 </div>
+
+                <x-table-filters
+                    :action="route('stock.enligne.index')"
+                    search-placeholder="Référence, nom, code-barres..."
+                    :date-from="false"
+                    grid-cols="md:grid-cols-4"
+                >
+                    <x-table-filter-select
+                        name="filter"
+                        label="Niveau de stock"
+                        :options="['low' => 'Sous seuil uniquement']"
+                        placeholder="Tous les produits"
+                    />
+                </x-table-filters>
 
                 <x-table-bulk-bar export-type="stock-enligne" item-label="produit(s)" />
 

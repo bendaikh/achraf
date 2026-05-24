@@ -25,6 +25,8 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TableExportController;
 use App\Http\Controllers\DocumentImportController;
+use App\Http\Controllers\CrmImportController;
+use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -48,7 +50,7 @@ Route::post('/api/webhooks/shopify/products/delete', [ShopifyWebhookController::
     ->name('webhooks.shopify.products.delete');
 
 Route::middleware('auth')->group(function () {
-    Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
     Route::resource('products', ProductController::class);
     Route::post('/products/sync-shopify', [ProductController::class, 'syncShopify'])->name('products.sync-shopify');
@@ -65,6 +67,10 @@ Route::middleware('auth')->group(function () {
     });
     
     Route::prefix('crm')->group(function () {
+        Route::get('clients/import/template', [CrmImportController::class, 'clientTemplate'])->name('clients.import.template');
+        Route::post('clients/import', [CrmImportController::class, 'importClients'])->name('clients.import');
+        Route::get('suppliers/import/template', [CrmImportController::class, 'supplierTemplate'])->name('suppliers.import.template');
+        Route::post('suppliers/import', [CrmImportController::class, 'importSuppliers'])->name('suppliers.import');
         Route::resource('clients', ClientController::class);
         Route::resource('suppliers', SupplierController::class);
     });

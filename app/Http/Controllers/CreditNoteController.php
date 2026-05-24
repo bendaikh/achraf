@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Client;
 use App\Models\CreditNote;
 use App\Models\Invoice;
@@ -12,9 +14,17 @@ use Illuminate\Support\Facades\DB;
 
 class CreditNoteController extends Controller
 {
-    public function index()
+    use FiltersIndexTables, PreparesPrintView;
+
+    public function index(Request $request)
     {
-        $creditNotes = CreditNote::with('client', 'invoice')->latest()->paginate(15);
+        $query = CreditNote::with('client', 'invoice')->latest();
+
+        $this->applyTableSearch($query, $request, ['credit_note_number', 'client.name']);
+        $this->applyTableDateRange($query, $request, 'credit_note_date');
+
+        $creditNotes = $query->paginate(15)->withQueryString();
+
         return view('sales.credit-notes.index', compact('creditNotes'));
     }
 
@@ -110,7 +120,11 @@ class CreditNoteController extends Controller
     public function print(CreditNote $creditNote)
     {
         $creditNote->load('client', 'invoice', 'items');
-        return view('sales.credit-notes.print', compact('creditNote'));
+
+        return view('sales.credit-notes.print', array_merge(
+            compact('creditNote'),
+            $this->printViewData($creditNote, $creditNote->items)
+        ));
     }
 
     public function destroy(CreditNote $creditNote)

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Supplier;
 use App\Models\SupplierCreditNote;
 use App\Models\SupplierInvoice;
@@ -11,9 +12,17 @@ use Illuminate\Support\Facades\DB;
 
 class SupplierCreditNoteController extends Controller
 {
-    public function index()
+    use FiltersIndexTables;
+
+    public function index(Request $request)
     {
-        $supplierCreditNotes = SupplierCreditNote::with('supplier')->latest()->paginate(15);
+        $query = SupplierCreditNote::with('supplier')->latest();
+
+        $this->applyTableSearch($query, $request, ['credit_note_number', 'supplier.name']);
+        $this->applyTableDateRange($query, $request, 'credit_note_date');
+
+        $supplierCreditNotes = $query->paginate(15)->withQueryString();
+
         return view('purchases.supplier-credit-notes.index', compact('supplierCreditNotes'));
     }
 

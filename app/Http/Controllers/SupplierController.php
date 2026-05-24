@@ -2,14 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
 
 class SupplierController extends Controller
 {
-    public function index()
+    use FiltersIndexTables;
+
+    public function index(Request $request)
     {
-        $suppliers = Supplier::orderBy('created_at', 'desc')->paginate(15);
+        $query = Supplier::query()->orderBy('created_at', 'desc');
+
+        $this->applyTableSearch($query, $request, [
+            'name', 'email', 'phone', 'code', 'ice', 'ville', 'city',
+        ]);
+
+        $suppliers = $query->paginate(15)->withQueryString();
+
         return view('suppliers.index', compact('suppliers'));
     }
 

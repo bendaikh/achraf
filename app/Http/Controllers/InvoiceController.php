@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Product;
@@ -11,9 +13,17 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
-    public function index()
+    use FiltersIndexTables, PreparesPrintView;
+
+    public function index(Request $request)
     {
-        $invoices = Invoice::with('client')->latest()->paginate(15);
+        $query = Invoice::with('client')->latest();
+
+        $this->applyTableSearch($query, $request, ['invoice_number', 'client.name']);
+        $this->applyTableDateRange($query, $request, 'invoice_date');
+
+        $invoices = $query->paginate(15)->withQueryString();
+
         return view('sales.invoices.index', compact('invoices'));
     }
 
@@ -114,7 +124,11 @@ class InvoiceController extends Controller
     public function print(Invoice $invoice)
     {
         $invoice->load('client', 'items');
-        return view('sales.invoices.print', compact('invoice'));
+
+        return view('sales.invoices.print', array_merge(
+            compact('invoice'),
+            $this->printViewData($invoice, $invoice->items)
+        ));
     }
 
     public function destroy(Invoice $invoice)

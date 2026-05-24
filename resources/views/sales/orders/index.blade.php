@@ -139,7 +139,7 @@
 
         <!-- Filters -->
         <div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-            <form method="GET" action="{{ route('orders.index') }}" class="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <form method="GET" action="{{ route('orders.index') }}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
                 <div>
                     <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Rechercher</label>
                     <input type="text" name="search" id="search" value="{{ request('search') }}" 
@@ -183,10 +183,21 @@
                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
                 </div>
 
-                <div class="flex items-end">
-                    <button type="submit" class="w-full px-4 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] transition">
+                <div>
+                    <label for="date_to" class="block text-sm font-medium text-gray-700 mb-1">Date fin</label>
+                    <input type="date" name="date_to" id="date_to" value="{{ request('date_to') }}" 
+                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                </div>
+
+                <div class="flex items-end gap-2">
+                    <button type="submit" class="flex-1 px-4 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] transition font-medium">
                         Filtrer
                     </button>
+                    @if(count(request()->except(['page', 'per_page'])) > 0)
+                        <a href="{{ route('orders.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm whitespace-nowrap">
+                            Réinitialiser
+                        </a>
+                    @endif
                 </div>
             </form>
         </div>
@@ -251,7 +262,7 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                <input type="checkbox" id="selectAll-orders" onchange="toggleTableSelectAll(this, 'orders')" class="rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819]">
+                                <input type="checkbox" id="selectAll-orders" class="table-select-all h-4 w-4 rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819] cursor-pointer" data-export-type="orders" onchange="toggleTableSelectAll(this, 'orders')" aria-label="Tout sélectionner">
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-numero">N° Commande</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-source">Source</th>
@@ -267,7 +278,7 @@
                         @forelse($orders as $order)
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-4 whitespace-nowrap">
-                                <input type="checkbox" class="order-checkbox table-row-checkbox rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819]" data-export-type="orders" value="{{ $order->id }}" onchange="updateTableSelectedCount('orders')">
+                                <input type="checkbox" class="order-checkbox table-row-checkbox h-4 w-4 rounded border-gray-300 text-[#fdb819] focus:ring-[#fdb819] cursor-pointer" data-export-type="orders" value="{{ $order->id }}" onchange="updateTableSelectedCount('orders')" aria-label="Sélectionner la commande">
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap column-numero">
                                 <div class="text-sm font-medium text-gray-900">{{ $order->ticket_number }}</div>

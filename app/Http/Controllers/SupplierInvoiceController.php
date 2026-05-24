@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\Product;
@@ -11,9 +13,17 @@ use Illuminate\Support\Facades\Storage;
 
 class SupplierInvoiceController extends Controller
 {
-    public function index()
+    use FiltersIndexTables, PreparesPrintView;
+
+    public function index(Request $request)
     {
-        $invoices = SupplierInvoice::with('supplier')->latest()->paginate(15);
+        $query = SupplierInvoice::with('supplier')->latest();
+
+        $this->applyTableSearch($query, $request, ['invoice_number', 'supplier.name']);
+        $this->applyTableDateRange($query, $request, 'invoice_date');
+
+        $invoices = $query->paginate(15)->withQueryString();
+
         return view('purchases.supplier-invoices.index', compact('invoices'));
     }
 
@@ -222,7 +232,11 @@ class SupplierInvoiceController extends Controller
         }
 
         $supplierInvoice->load('supplier', 'items');
-        return view('purchases.supplier-invoices.print', compact('supplierInvoice'));
+
+        return view('purchases.supplier-invoices.print', array_merge(
+            compact('supplierInvoice'),
+            $this->printViewData($supplierInvoice, $supplierInvoice->items)
+        ));
     }
 
     public function destroy(SupplierInvoice $supplierInvoice)

@@ -35,6 +35,18 @@
                 :import-route="route('purchase-orders.import')"
             />
 
+            <x-table-filters
+                :action="route('purchase-orders.index')"
+                search-placeholder="Référence, client..."
+                grid-cols="md:grid-cols-5"
+            >
+                <x-table-filter-select
+                    name="status"
+                    label="Statut"
+                    :options="['brouillon' => 'Brouillon', 'confirmé' => 'Confirmé', 'livré' => 'Livré', 'annulé' => 'Annulé']"
+                />
+            </x-table-filters>
+
             <x-table-bulk-bar export-type="purchase-orders" item-label="bon(s) de commande" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

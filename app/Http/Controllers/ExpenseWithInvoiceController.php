@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\LoadsExpenseFormOptions;
 use App\Models\Expense;
 use Illuminate\Http\Request;
@@ -9,11 +10,16 @@ use Illuminate\Support\Facades\Storage;
 
 class ExpenseWithInvoiceController extends Controller
 {
-    use LoadsExpenseFormOptions;
+    use FiltersIndexTables, LoadsExpenseFormOptions;
 
-    public function index()
+    public function index(Request $request)
     {
-        $expenses = Expense::where('expense_type', 'with_invoice')->with('supplier')->latest()->paginate(15);
+        $query = Expense::where('expense_type', 'with_invoice')->with('supplier')->latest();
+
+        $this->applyTableSearch($query, $request, ['designation', 'reference', 'supplier.name']);
+        $this->applyTableDateRange($query, $request, 'expense_date');
+
+        $expenses = $query->paginate(15)->withQueryString();
 
         return view('purchases.expenses-with-invoice.index', compact('expenses'));
     }

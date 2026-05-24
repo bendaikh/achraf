@@ -23,6 +23,12 @@
                 </div>
             @endif
 
+            <x-table-filters
+                :action="route('supplier-purchase-orders.index')"
+                search-placeholder="N° bon, fournisseur..."
+                grid-cols="md:grid-cols-4"
+            />
+
             <x-table-bulk-bar export-type="supplier-purchase-orders" item-label="bon(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

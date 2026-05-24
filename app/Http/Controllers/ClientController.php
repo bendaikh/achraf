@@ -2,14 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Client;
 use Illuminate\Http\Request;
 
 class ClientController extends Controller
 {
-    public function index()
+    use FiltersIndexTables;
+
+    public function index(Request $request)
     {
-        $clients = Client::orderBy('created_at', 'desc')->paginate(15);
+        $query = Client::query()->orderBy('created_at', 'desc');
+
+        $this->applyTableSearch($query, $request, [
+            'name', 'email', 'phone', 'code', 'ice', 'ville', 'city',
+        ]);
+
+        $clients = $query->paginate(15)->withQueryString();
+
         return view('clients.index', compact('clients'));
     }
 

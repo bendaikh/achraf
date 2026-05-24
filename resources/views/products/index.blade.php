@@ -114,27 +114,23 @@
                     </div>
                 </div>
 
-                <!-- Filters -->
-                <div class="mb-4 bg-white rounded-lg shadow p-4">
-                    <form method="GET" action="{{ route('products.index') }}" class="flex flex-col md:flex-row gap-3">
-                        <div class="flex-1">
-                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Rechercher par nom, référence ou code-barres..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
-                        <select name="source" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                            <option value="">Toutes les sources</option>
-                            <option value="shopify" {{ request('source') === 'shopify' ? 'selected' : '' }}>Shopify uniquement</option>
-                            <option value="manual" {{ request('source') === 'manual' ? 'selected' : '' }}>Manuels uniquement</option>
-                        </select>
-                        <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-                            Filtrer
-                        </button>
-                        @if(request('search') || request('source'))
-                        <a href="{{ route('products.index') }}" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-center">
-                            Réinitialiser
-                        </a>
-                        @endif
-                    </form>
-                </div>
+                <x-table-filters
+                    :action="route('products.index')"
+                    search-placeholder="Nom, référence, code-barres..."
+                    :date-from="false"
+                    grid-cols="md:grid-cols-5"
+                >
+                    <x-table-filter-select
+                        name="source"
+                        label="Source"
+                        :options="['shopify' => 'Shopify', 'manual' => 'Manuel']"
+                    />
+                    <x-table-filter-select
+                        name="status"
+                        label="Statut"
+                        :options="['Activer' => 'Actif', 'Désactiver' => 'Inactif']"
+                    />
+                </x-table-filters>
 
                 <x-table-bulk-bar export-type="products" item-label="produit(s)" />
 

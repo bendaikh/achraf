@@ -105,28 +105,7 @@
 
             <!-- Totals -->
             <div class="p-6 bg-gray-50">
-                <div class="max-w-md ml-auto space-y-2">
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Sous-total:</span>
-                        <span class="font-medium text-gray-900">{{ number_format($quote->subtotal, 2) }} {{ $quote->currency }}</span>
-                    </div>
-                    @if($quote->discount > 0)
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Remise:</span>
-                        <span class="font-medium text-gray-900">{{ number_format($quote->discount, 2) }} {{ $quote->currency }}</span>
-                    </div>
-                    @endif
-                    @if($quote->adjustment != 0)
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Ajustement:</span>
-                        <span class="font-medium text-gray-900">{{ number_format($quote->adjustment, 2) }} {{ $quote->currency }}</span>
-                    </div>
-                    @endif
-                    <div class="flex justify-between text-lg font-semibold border-t pt-2">
-                        <span class="text-gray-900">Total:</span>
-                        <span class="text-gray-900">{{ number_format($quote->total, 2) }} {{ $quote->currency }}</span>
-                    </div>
-                </div>
+                <x-document-tax-totals :document="$quote" :items="$quote->items" />
             </div>
 
             <!-- Remarks and Conditions -->

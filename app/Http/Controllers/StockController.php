@@ -2,22 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Product;
 use Illuminate\Http\Request;
 
 class StockController extends Controller
 {
-    public function index(Request $request)
-    {
-        $query = Product::query()->orderBy('name');
+    use FiltersIndexTables;
 
-        if ($request->filled('q')) {
-            $search = '%'.$request->string('q').'%';
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', $search)
-                    ->orWhere('ref', 'like', $search);
-            });
+    private function applyStockFilters($query, Request $request): void
+    {
+        if ($request->filled('q') && ! $request->filled('search')) {
+            $request->merge(['search' => $request->input('q')]);
         }
+
+        $this->applyTableSearch($query, $request, ['name', 'ref', 'barcode']);
 
         if ($request->get('filter') === 'low') {
             $query->where(function ($q) {
@@ -31,6 +30,13 @@ class StockController extends Controller
                 });
             });
         }
+    }
+
+    public function index(Request $request)
+    {
+        $query = Product::query()->orderBy('name');
+
+        $this->applyStockFilters($query, $request);
 
         $products = $query->paginate(20)->withQueryString();
 
@@ -71,26 +77,7 @@ class StockController extends Controller
             ->where('source', 'shopify')
             ->orderBy('name');
 
-        if ($request->filled('q')) {
-            $search = '%'.$request->string('q').'%';
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', $search)
-                    ->orWhere('ref', 'like', $search);
-            });
-        }
-
-        if ($request->get('filter') === 'low') {
-            $query->where(function ($q) {
-                $q->where(function ($q2) {
-                    $q2->whereNotNull('minimum_alert_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_alert_stock');
-                })->orWhere(function ($q2) {
-                    $q2->whereNull('minimum_alert_stock')
-                        ->whereNotNull('minimum_safety_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_safety_stock');
-                });
-            });
-        }
+        $this->applyStockFilters($query, $request);
 
         $products = $query->paginate(20)->withQueryString();
 
@@ -143,26 +130,7 @@ class StockController extends Controller
             })
             ->orderBy('name');
 
-        if ($request->filled('q')) {
-            $search = '%'.$request->string('q').'%';
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', $search)
-                    ->orWhere('ref', 'like', $search);
-            });
-        }
-
-        if ($request->get('filter') === 'low') {
-            $query->where(function ($q) {
-                $q->where(function ($q2) {
-                    $q2->whereNotNull('minimum_alert_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_alert_stock');
-                })->orWhere(function ($q2) {
-                    $q2->whereNull('minimum_alert_stock')
-                        ->whereNotNull('minimum_safety_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_safety_stock');
-                });
-            });
-        }
+        $this->applyStockFilters($query, $request);
 
         $products = $query->paginate(20)->withQueryString();
 
