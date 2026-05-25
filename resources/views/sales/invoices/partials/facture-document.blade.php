@@ -13,6 +13,20 @@
     $emptyRows = max(0, $minRows - $invoice->items->count());
     $generatedBy = $generatedBy ?? auth()->user()?->name ?? '—';
     $logoSrc = $logoSrc ?? ($company['logo_url'] ?? null);
+
+    $client = $invoice->client;
+    $isEntreprise = ($client->client_type ?? 'entreprise') === 'entreprise';
+    $clientCity = $client->ville ?? $client->city ?? null;
+    $clientAddress = collect([
+        $client->address,
+        trim(collect([$client->postal_code, $clientCity])->filter()->implode(' ')),
+        $client->region,
+        $client->country,
+    ])->filter()->implode(', ');
+    $clientLegal = [
+        'ICE' => $client->ice,
+        'IF' => $client->fiscal_identifier,
+    ];
 @endphp
 
 <div class="facture-doc">
@@ -63,7 +77,27 @@
         <div class="facture-client-tab">Informations client</div>
         <div class="facture-client-box">
             <div class="facture-client-label">Client</div>
-            <div class="facture-client-name">{{ $invoice->client->name }}</div>
+            <div class="facture-client-name">{{ $client->name }}</div>
+            @if($clientAddress)
+                <div class="facture-client-line"><strong>Adresse :</strong> {{ strtoupper($clientAddress) }}</div>
+            @endif
+            @if($client->phone)
+                <div class="facture-client-line"><strong>Tél :</strong> {{ $client->phone }}</div>
+            @endif
+            @if($client->email)
+                <div class="facture-client-line"><strong>Email :</strong> {{ strtoupper($client->email) }}</div>
+            @endif
+            @if($isEntreprise)
+                <div>
+                    @foreach($clientLegal as $label => $value)
+                        @if($value)
+                            <span class="facture-legal-item">
+                                <span class="facture-legal-dot">{{ substr($label, 0, 1) }}</span>{{ $label }}: {{ $value }}
+                            </span>
+                        @endif
+                    @endforeach
+                </div>
+            @endif
         </div>
     </div>
 

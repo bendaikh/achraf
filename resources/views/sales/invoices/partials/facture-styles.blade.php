@@ -56,7 +56,8 @@
         padding: 12px 14px;
     }
     .facture-client-label { font-size: 9px; font-weight: bold; text-transform: uppercase; color: #6b7280; }
-    .facture-client-name { font-size: 14px; font-weight: bold; margin-top: 4px; }
+    .facture-client-name { font-size: 14px; font-weight: bold; margin-top: 4px; margin-bottom: 6px; }
+    .facture-client-line { font-size: 10px; color: #374151; margin-bottom: 3px; }
     .facture-items { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
     .facture-items thead { background: #fdb819; color: #111; }
     .facture-items th {
