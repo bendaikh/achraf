@@ -8,8 +8,10 @@ use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class InvoiceController extends Controller
 {
@@ -78,6 +80,7 @@ class InvoiceController extends Controller
                 'discount' => 0,
                 'adjustment' => 0,
                 'total' => 0,
+                'payment_status' => Invoice::PAYMENT_UNPAID,
             ]);
 
             $subtotal = 0;
@@ -127,8 +130,38 @@ class InvoiceController extends Controller
 
         return view('sales.invoices.print', array_merge(
             compact('invoice'),
-            $this->printViewData($invoice, $invoice->items)
+            $this->printViewData($invoice, $invoice->items),
+            ['generatedBy' => auth()->user()?->name]
         ));
+    }
+
+    public function downloadPdf(Invoice $invoice)
+    {
+        $invoice->load('client', 'items');
+
+        $pdf = Pdf::loadView('sales.invoices.pdf', array_merge(
+            compact('invoice'),
+            $this->printViewData($invoice, $invoice->items),
+            ['generatedBy' => auth()->user()?->name]
+        ));
+
+        $pdf->setPaper('a4', 'portrait');
+
+        $filename = 'facture-'.Str::slug($invoice->invoice_number).'.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    public function updatePaymentStatus(Request $request, Invoice $invoice)
+    {
+        $validated = $request->validate([
+            'payment_status' => 'required|in:unpaid,paid',
+        ]);
+
+        $invoice->update(['payment_status' => $validated['payment_status']]);
+
+        return redirect()->route('invoices.show', $invoice)
+            ->with('success', 'Statut de paiement mis à jour.');
     }
 
     public function destroy(Invoice $invoice)

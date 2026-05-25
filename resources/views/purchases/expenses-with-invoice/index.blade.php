@@ -26,7 +26,7 @@
             <x-table-filters
                 :action="route('expenses-with-invoice.index')"
                 search-placeholder="Désignation, référence, fournisseur..."
-                grid-cols="md:grid-cols-4"
+                grid-cols="md:grid-cols-5"
             />
 
             <x-table-bulk-bar export-type="expenses-with-invoice" item-label="dépense(s)" />

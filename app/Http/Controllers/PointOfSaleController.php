@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\PosSale;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Support\PosDefaultClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +16,11 @@ class PointOfSaleController extends Controller
 {
     public function index()
     {
-        $clients = Client::orderBy('name')->get();
+        $comptoirClient = PosDefaultClient::ensure();
+        $clients = Client::query()
+            ->where('id', '!=', $comptoirClient->id)
+            ->orderBy('name')
+            ->get();
         
         // Stock Magasin: products that are NOT from Shopify (local/manual products)
         $productsMagasin = Product::query()
@@ -63,11 +68,12 @@ class PointOfSaleController extends Controller
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
         return view('pos.index', compact(
-            'clients', 
-            'productsMagasin', 
+            'clients',
+            'comptoirClient',
+            'productsMagasin',
             'productsEnligne',
-            'productsMagasinForJs', 
-            'productsEnligneForJs', 
+            'productsMagasinForJs',
+            'productsEnligneForJs',
             'paymentMethods',
             'pricesAreTtc'
         ));

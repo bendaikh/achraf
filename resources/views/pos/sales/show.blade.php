@@ -31,7 +31,7 @@
                 <div class="px-8 py-6 space-y-4 text-sm">
                     <div class="grid grid-cols-2 gap-2 text-gray-600">
                         <span>Client</span>
-                        <span class="text-gray-900 font-medium text-right">{{ $sale->client?->name ?? 'Client comptoir' }}</span>
+                        <span class="text-gray-900 font-medium text-right">{{ $sale->client?->name ?? \App\Support\PosDefaultClient::NAME }}</span>
                         <span>Caissier</span>
                         <span class="text-gray-900 text-right">{{ $sale->user?->name ?? '—' }}</span>
                         <span>Paiement</span>

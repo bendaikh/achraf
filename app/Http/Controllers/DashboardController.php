@@ -18,6 +18,7 @@ class DashboardController extends Controller
       'paymentChart' => $this->dashboard->getPaymentMethodsChart(),
       'recentOrders' => $this->dashboard->getRecentOrders(),
       'recentInvoices' => $this->dashboard->getRecentInvoices(),
+      'unpaidInvoices' => $this->dashboard->getUnpaidInvoices(),
     ]);
   }
 }

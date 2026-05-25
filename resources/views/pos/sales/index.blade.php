@@ -58,7 +58,7 @@
                                     <x-table-checkbox-cell export-type="pos-sales" :id="$sale->id" />
                                     <td class="px-6 py-4 text-sm font-semibold text-gray-900">{{ $sale->ticket_number }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->sold_at->format('d/m/Y H:i') }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->client?->name ?? 'Comptoir' }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->client?->name ?? \App\Support\PosDefaultClient::NAME }}</td>
                                     <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->paymentLabel() }}</td>
                                     <td class="px-6 py-4 text-sm font-semibold text-emerald-700 text-right">{{ number_format($sale->total, 2) }} DH</td>
                                     <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->user?->name ?? '—' }}</td>

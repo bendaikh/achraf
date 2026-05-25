@@ -100,6 +100,45 @@
             </div>
         </div>
 
+        {{-- Unpaid invoices --}}
+        <div class="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-amber-100 bg-amber-50 flex flex-wrap justify-between items-center gap-3">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Les factures non payées</h3>
+                    <p class="text-sm text-amber-800 mt-0.5">
+                        {{ $unpaidInvoices['count'] }} facture(s) · {{ number_format($unpaidInvoices['total'], 2) }} DH en attente
+                    </p>
+                </div>
+                <a href="{{ route('invoices.index') }}" class="text-sm text-[#e5a617] hover:underline font-medium">Voir toutes les factures</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">N°</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Échéance</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        @forelse($unpaidInvoices['items'] as $invoice)
+                            <tr class="hover:bg-amber-50/50">
+                                <td class="px-4 py-3"><a href="{{ $invoice['url'] }}" class="text-blue-600 hover:underline font-medium">{{ $invoice['number'] }}</a></td>
+                                <td class="px-4 py-3 text-gray-700">{{ $invoice['client'] }}</td>
+                                <td class="px-4 py-3 text-right font-semibold text-amber-700">{{ number_format($invoice['total'], 2) }} DH</td>
+                                <td class="px-4 py-3 text-gray-500">{{ $invoice['date'] }}</td>
+                                <td class="px-4 py-3 text-gray-500">{{ $invoice['due_date'] ?? '—' }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">Aucune facture impayée</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         {{-- Recent activity --}}
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

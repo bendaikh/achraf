@@ -82,6 +82,8 @@ Route::middleware('auth')->group(function () {
         Route::get('invoices/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'invoices')->name('invoices.import.template');
         Route::post('invoices/import', [DocumentImportController::class, 'import'])->defaults('type', 'invoices')->name('invoices.import');
         Route::get('invoices/{invoice}/print', [InvoiceController::class, 'print'])->name('invoices.print');
+        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'downloadPdf'])->name('invoices.pdf');
+        Route::patch('invoices/{invoice}/payment-status', [InvoiceController::class, 'updatePaymentStatus'])->name('invoices.payment-status');
         Route::resource('invoices', InvoiceController::class);
         Route::get('quotes/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'quotes')->name('quotes.import.template');
         Route::post('quotes/import', [DocumentImportController::class, 'import'])->defaults('type', 'quotes')->name('quotes.import');

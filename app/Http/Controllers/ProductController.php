@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Setting;
 use App\Models\ShopifyIntegration;
 use Illuminate\Http\Request;
@@ -122,6 +123,8 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
+        $product->load('variants');
+
         return view('products.show', compact('product'));
     }
 
@@ -227,7 +230,28 @@ class ProductController extends Controller
             'shopify_synced_at' => null,
         ]);
 
-        return redirect()->route('products.index')
+        $product->load('variants');
+
+        foreach ($product->variants as $variant) {
+            ProductVariant::create([
+                'product_id' => $manualProduct->id,
+                'shopify_variant_id' => null,
+                'title' => $variant->title,
+                'sku' => $variant->sku ? $variant->sku.'-m' : null,
+                'price' => $variant->price,
+                'compare_at_price' => $variant->compare_at_price,
+                'barcode' => $variant->barcode,
+                'inventory_quantity' => 0,
+                'option1' => $variant->option1,
+                'option2' => $variant->option2,
+                'option3' => $variant->option3,
+                'weight' => $variant->weight,
+                'weight_unit' => $variant->weight_unit,
+                'position' => $variant->position,
+            ]);
+        }
+
+        return redirect()->route('products.show', $manualProduct)
             ->with('success', 'Produit manuel créé avec succès: ' . $manualProduct->name . ' (Réf: ' . $manualProduct->ref . ')');
     }
 }

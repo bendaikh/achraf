@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
 {
+    public const PAYMENT_UNPAID = 'unpaid';
+
+    public const PAYMENT_PAID = 'paid';
+
     protected $fillable = [
         'invoice_number',
         'client_id',
@@ -22,6 +26,7 @@ class Invoice extends Model
         'discount',
         'adjustment',
         'total',
+        'payment_status',
     ];
 
     protected $casts = [
@@ -46,5 +51,15 @@ class Invoice extends Model
     public function creditNotes()
     {
         return $this->hasMany(CreditNote::class);
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->payment_status === self::PAYMENT_PAID;
+    }
+
+    public function scopeUnpaid($query)
+    {
+        return $query->where('payment_status', '!=', self::PAYMENT_PAID);
     }
 }

@@ -38,7 +38,7 @@
             <x-table-filters
                 :action="route('quotes.index')"
                 search-placeholder="N° devis, client..."
-                grid-cols="md:grid-cols-5"
+                grid-cols="md:grid-cols-6"
             >
                 <x-table-filter-select
                     name="status"

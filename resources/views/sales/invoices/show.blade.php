@@ -11,8 +11,11 @@
                 <p class="text-sm text-gray-600 mt-1">Détails de la facture</p>
             </div>
             <div class="flex items-center space-x-3">
+                <a href="{{ route('invoices.pdf', $invoice) }}" class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition duration-150">
+                    Télécharger PDF
+                </a>
                 <a href="{{ route('invoices.print', $invoice) }}" target="_blank" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150">
-                    🖨️ Imprimer
+                    Imprimer
                 </a>
                 <a href="{{ route('invoices.index') }}" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition duration-150">
                     Retour à la liste
@@ -22,7 +25,37 @@
     </header>
 
     <div class="p-8">
+        @if(session('success'))
+            <div class="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded-lg">
+                <p class="text-sm text-green-700">{{ session('success') }}</p>
+            </div>
+        @endif
+
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="p-6 border-b border-gray-200 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Statut de paiement</h3>
+                    <p class="mt-1">
+                        @if($invoice->isPaid())
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">Payée</span>
+                        @else
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">Non payée</span>
+                        @endif
+                    </p>
+                </div>
+                <form action="{{ route('invoices.payment-status', $invoice) }}" method="POST" class="flex items-center gap-2">
+                    @csrf
+                    @method('PATCH')
+                    <select name="payment_status" class="rounded-lg border-gray-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                        <option value="unpaid" @selected(!$invoice->isPaid())>Non payée</option>
+                        <option value="paid" @selected($invoice->isPaid())>Payée</option>
+                    </select>
+                    <button type="submit" class="px-4 py-2 bg-[#fdb819] text-gray-900 rounded-lg hover:bg-[#e5a617] text-sm font-medium transition">
+                        Mettre à jour
+                    </button>
+                </form>
+            </div>
+
             <!-- Client Information -->
             <div class="p-6 border-b border-gray-200">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Informations Client</h3>

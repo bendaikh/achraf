@@ -177,4 +177,31 @@ class DashboardService
       ])
       ->all();
   }
+
+  /**
+   * @return array{count: int, total: float, items: list<array<string, mixed>>}
+   */
+  public function getUnpaidInvoices(int $limit = 8): array
+  {
+    $query = Invoice::with('client')->unpaid()->latest('invoice_date');
+
+    $items = (clone $query)
+      ->limit($limit)
+      ->get()
+      ->map(fn (Invoice $invoice) => [
+        'number' => $invoice->invoice_number,
+        'client' => $invoice->client?->name ?? '—',
+        'total' => (float) $invoice->total,
+        'date' => $invoice->invoice_date?->format('d/m/Y'),
+        'due_date' => $invoice->due_date?->format('d/m/Y'),
+        'url' => route('invoices.show', $invoice),
+      ])
+      ->all();
+
+    return [
+      'count' => (clone $query)->count(),
+      'total' => (float) (clone $query)->sum('total'),
+      'items' => $items,
+    ];
+  }
 }

@@ -26,7 +26,7 @@
             <x-table-filters
                 :action="route('supplier-purchase-orders.index')"
                 search-placeholder="N° bon, fournisseur..."
-                grid-cols="md:grid-cols-4"
+                grid-cols="md:grid-cols-5"
             />
 
             <x-table-bulk-bar export-type="supplier-purchase-orders" item-label="bon(s)" />

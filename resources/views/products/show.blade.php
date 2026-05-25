@@ -204,10 +204,10 @@
                             </div>
                         </div>
 
-                        @if($product->isShopifyProduct() && $product->variants->count() > 0)
+                        @if($product->variants->isNotEmpty())
                         <div class="bg-white rounded-lg shadow p-6">
                             <h2 class="text-lg font-semibold text-gray-900 mb-4">
-                                Variantes Shopify
+                                Variantes du produit
                                 <span class="ml-2 text-sm font-normal text-gray-500">({{ $product->variants->count() }} variante{{ $product->variants->count() > 1 ? 's' : '' }})</span>
                             </h2>
                             <div class="overflow-x-auto">

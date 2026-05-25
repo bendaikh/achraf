@@ -196,7 +196,7 @@
                                             @if($product->product_category)
                                                 <div class="text-xs text-gray-500">{{ $product->product_category }}</div>
                                             @endif
-                                            @if($product->isShopifyProduct() && $product->variants_count > 1)
+                                            @if($product->variants_count > 0)
                                                 <div class="mt-1">
                                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                                                         {{ $product->variants_count }} variantes

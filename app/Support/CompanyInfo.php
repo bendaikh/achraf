@@ -30,7 +30,19 @@ class CompanyInfo
       'logo_url' => $logoPath && Storage::disk('public')->exists($logoPath)
         ? Storage::disk('public')->url($logoPath)
         : null,
+      'logo_path' => static::logoFilePath(),
     ];
+  }
+
+  public static function logoFilePath(): ?string
+  {
+    $logoPath = Setting::get('company_logo');
+
+    if ($logoPath && Storage::disk('public')->exists($logoPath)) {
+      return Storage::disk('public')->path($logoPath);
+    }
+
+    return null;
   }
 
   public static function formattedAddress(): string

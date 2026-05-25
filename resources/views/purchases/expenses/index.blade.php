@@ -26,7 +26,7 @@
             <x-table-filters
                 :action="route('expenses.index')"
                 search-placeholder="Désignation, référence, client, fournisseur..."
-                grid-cols="md:grid-cols-5"
+                grid-cols="md:grid-cols-6"
             >
                 <x-table-filter-select
                     name="expense_type"

@@ -26,7 +26,7 @@
             <x-table-filters
                 :action="route('receptions.index')"
                 search-placeholder="N° réception, référence, fournisseur..."
-                grid-cols="md:grid-cols-5"
+                grid-cols="md:grid-cols-6"
             >
                 <x-table-filter-select
                     name="status"

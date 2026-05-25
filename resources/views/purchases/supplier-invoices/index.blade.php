@@ -38,7 +38,7 @@
             <x-table-filters
                 :action="route('supplier-invoices.index')"
                 search-placeholder="N° facture, fournisseur..."
-                grid-cols="md:grid-cols-4"
+                grid-cols="md:grid-cols-5"
             />
 
             <x-table-bulk-bar export-type="supplier-invoices" item-label="facture(s)" />

@@ -6,7 +6,7 @@
 <div
     class="bg-slate-900 flex text-slate-100"
     :class="posFullView ? 'fixed inset-0 z-50 min-h-screen' : 'min-h-screen relative'"
-    x-data="posRegister(@js($productsMagasinForJs), @js($productsEnligneForJs), @js($pricesAreTtc))"
+    x-data="posRegister(@js($productsMagasinForJs), @js($productsEnligneForJs), @js($pricesAreTtc), @js($comptoirClient->id))"
     @keydown.escape.window="onGlobalEscape()"
     x-cloak
 >
@@ -240,7 +240,7 @@
                 <div class="p-4 border-b border-white/10">
                     <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Client (optionnel)</label>
                     <select id="pos_client_id" x-ref="clientSelect" class="w-full rounded-lg bg-slate-800 border border-white/10 text-white text-sm py-2.5 px-3 focus:ring-2 focus:ring-[#fdb819] outline-none">
-                        <option value="">Client comptoir</option>
+                        <option value="{{ $comptoirClient->id }}" selected>{{ $comptoirClient->name }}</option>
                         @foreach($clients as $c)
                             <option value="{{ $c->id }}">{{ $c->name }} {{ $c->email ? '('.$c->email.')' : '' }}</option>
                         @endforeach
@@ -423,11 +423,12 @@
 </style>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
-function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc) {
+function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc, defaultClientId) {
     return {
         catalogMagasin: catalogMagasin,
         catalogEnligne: catalogEnligne,
         pricesAreTtc: pricesAreTtc,
+        defaultClientId: defaultClientId,
         stockType: 'magasin',
         posFullView: false,
         sidebarOpen: false,
@@ -436,7 +437,7 @@ function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc) {
         searchQuery: '',
         searchResults: [],
         barcode: '',
-        clientId: '',
+        clientId: String(defaultClientId || ''),
         paymentOpen: false,
         paymentMethod: 'cash',
         amountReceived: '',
@@ -480,13 +481,16 @@ function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc) {
         init() {
             const self = this;
             $(document).ready(function() {
-                $('#pos_client_id').select2({
+                const $clientSelect = $('#pos_client_id');
+                $clientSelect.select2({
                     placeholder: 'Rechercher un client...',
-                    allowClear: true,
+                    allowClear: false,
                     width: '100%'
-                }).on('change', function() {
-                    self.clientId = $(this).val() || '';
+                }).val(self.defaultClientId).trigger('change');
+                $clientSelect.on('change', function() {
+                    self.clientId = $(this).val() || String(self.defaultClientId);
                 });
+                self.clientId = $clientSelect.val() || String(self.defaultClientId);
             });
         },
         addProduct(p) {

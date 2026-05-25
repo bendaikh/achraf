@@ -3,7 +3,7 @@
     'search' => true,
     'searchPlaceholder' => 'Rechercher...',
     'dateFrom' => true,
-    'dateTo' => false,
+    'dateTo' => true,
     'resetUrl' => null,
     'gridCols' => 'md:grid-cols-6',
 ])
@@ -33,7 +33,7 @@
 
         @if($dateFrom)
             <div>
-                <label for="date_from" class="block text-sm font-medium text-gray-700 mb-1">Date début</label>
+                <label for="date_from" class="block text-sm font-medium text-gray-700 mb-1">Date de début</label>
                 <input
                     type="date"
                     name="date_from"
@@ -46,7 +46,7 @@
 
         @if($dateTo)
             <div>
-                <label for="date_to" class="block text-sm font-medium text-gray-700 mb-1">Date fin</label>
+                <label for="date_to" class="block text-sm font-medium text-gray-700 mb-1">Date de fin</label>
                 <input
                     type="date"
                     name="date_to"
