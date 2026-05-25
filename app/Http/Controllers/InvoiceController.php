@@ -124,6 +124,104 @@ class InvoiceController extends Controller
         return view('sales.invoices.show', compact('invoice'));
     }
 
+    public function edit(Invoice $invoice)
+    {
+        $invoice->load('client', 'items');
+        $clients = Client::all();
+        $products = Product::all();
+        $existingItems = $invoice->items->map(fn ($item) => [
+            'product_id' => $item->product_id,
+            'ref' => $item->ref,
+            'designation' => $item->designation,
+            'quantity' => $item->quantity,
+            'unit_price' => $item->unit_price,
+            'tax_rate' => $item->tax_rate,
+            'discount' => $item->discount,
+        ])->values();
+
+        return view('sales.invoices.edit', compact('invoice', 'clients', 'products', 'existingItems'));
+    }
+
+    public function update(Request $request, Invoice $invoice)
+    {
+        $validated = $request->validate([
+            'client_id' => 'required|exists:clients,id',
+            'invoice_date' => 'required|date',
+            'due_date' => 'nullable|date',
+            'currency' => 'required|string',
+            'stock_location' => 'required|string',
+            'commercial_contact' => 'nullable|string',
+            'model' => 'nullable|string',
+            'matricule' => 'nullable|string',
+            'remarks' => 'nullable|string',
+            'conditions' => 'nullable|string',
+            'items' => 'required|array',
+            'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.ref' => 'nullable|string',
+            'items.*.designation' => 'required|string',
+            'items.*.description' => 'nullable|string',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.tax_rate' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $invoice->update([
+                'client_id' => $validated['client_id'],
+                'invoice_date' => $validated['invoice_date'],
+                'due_date' => $validated['due_date'] ?? null,
+                'currency' => $validated['currency'],
+                'stock_location' => $validated['stock_location'],
+                'commercial_contact' => $validated['commercial_contact'] ?? null,
+                'model' => $validated['model'] ?? null,
+                'matricule' => $validated['matricule'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
+                'conditions' => $validated['conditions'] ?? null,
+            ]);
+
+            $invoice->items()->delete();
+
+            $subtotal = 0;
+            foreach ($validated['items'] as $item) {
+                $lineTotal = $item['quantity'] * $item['unit_price'];
+                $discount = $item['discount'] ?? 0;
+                $lineTotal -= $discount;
+                $lineTotal += $lineTotal * ($item['tax_rate'] / 100);
+
+                $invoice->items()->create([
+                    'product_id' => $item['product_id'] ?? null,
+                    'ref' => $item['ref'] ?? null,
+                    'designation' => $item['designation'],
+                    'description' => $item['description'] ?? null,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'tax_rate' => $item['tax_rate'],
+                    'discount' => $discount,
+                    'line_total' => $lineTotal,
+                ]);
+
+                $subtotal += $lineTotal;
+            }
+
+            $invoice->update([
+                'subtotal' => $subtotal,
+                'total' => $subtotal + ($request->adjustment ?? 0),
+            ]);
+
+            DB::commit();
+
+            return redirect()->route('invoices.show', $invoice)
+                ->with('success', 'Facture modifiée avec succès!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return back()->withInput()
+                ->with('error', 'Erreur lors de la modification de la facture: ' . $e->getMessage());
+        }
+    }
+
     public function print(Invoice $invoice)
     {
         $invoice->load('client', 'items');
