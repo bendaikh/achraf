@@ -29,6 +29,25 @@
     ];
 @endphp
 
+<div class="facture-footer-fixed">
+    <table class="facture-footer-table" cellpadding="0" cellspacing="0">
+        <tr>
+            <td>
+                <div class="facture-footer-meta">
+                    Document généré le : <strong>{{ now()->format('d/m/Y à H:i') }}</strong><br>
+                    Par : <strong>{{ $generatedBy }}</strong>
+                </div>
+            </td>
+            <td width="240">
+                <div class="facture-signature-label">Cachet de la société &amp; signature</div>
+                <div class="facture-signature-box"></div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="facture-accent-bar"></div>
+</div>
+
 <div class="facture-doc">
     <table class="facture-header-table" cellpadding="0" cellspacing="0">
         <tr>
@@ -104,13 +123,13 @@
     <table class="facture-items" cellpadding="0" cellspacing="0">
         <thead>
             <tr>
-                <th width="10%">Réf</th>
-                <th width="34%">Désignation</th>
-                <th class="text-right" width="8%">Qté</th>
-                <th class="text-right" width="14%">Prix unit. HT</th>
-                <th class="text-right" width="9%">TVA</th>
-                <th class="text-right" width="10%">Remise</th>
-                <th class="text-right" width="15%">Total TTC</th>
+                <th width="20%">Réf</th>
+                <th width="32%">Désignation</th>
+                <th class="text-right" width="7%">Qté</th>
+                <th class="text-right" width="13%">Prix unit. HT</th>
+                <th class="text-right" width="8%">TVA</th>
+                <th class="text-right" width="8%">Remise</th>
+                <th class="text-right" width="12%">Total TTC</th>
             </tr>
         </thead>
         <tbody>
@@ -175,20 +194,5 @@
         </tr>
     </table>
 
-    <table class="facture-footer-table" cellpadding="0" cellspacing="0">
-        <tr>
-            <td>
-                <div class="facture-footer-meta">
-                    Document généré le : <strong>{{ now()->format('d/m/Y à H:i') }}</strong><br>
-                    Par : <strong>{{ $generatedBy }}</strong>
-                </div>
-            </td>
-            <td width="240">
-                <div class="facture-signature-label">Cachet de la société &amp; signature</div>
-                <div class="facture-signature-box"></div>
-            </td>
-        </tr>
-    </table>
-
-    <div class="facture-accent-bar"></div>
+    <div class="facture-footer-spacer"></div>
 </div>

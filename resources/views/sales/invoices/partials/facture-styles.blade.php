@@ -1,4 +1,5 @@
 <style>
+    @page { margin: 16mm 12mm 50mm 12mm; }
     body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #111; margin: 0; }
     .facture-doc { font-size: 11px; color: #111; }
     .facture-header-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; border-bottom: 3px solid #111; }
@@ -6,10 +7,7 @@
     .facture-logo {
         width: 88px;
         height: 88px;
-        border: 2px dashed #d1d5db;
-        border-radius: 6px;
         text-align: center;
-        background: #fafafa;
     }
     .facture-logo img { max-width: 84px; max-height: 84px; }
     .facture-logo-placeholder { font-size: 9px; font-weight: 700; color: #9ca3af; padding-top: 36px; display: block; }
@@ -86,4 +84,14 @@
     .facture-signature-label { font-size: 9px; font-weight: bold; text-transform: uppercase; text-align: center; margin-bottom: 6px; }
     .facture-signature-box { height: 68px; border: 2px solid #111; border-radius: 6px; }
     .facture-accent-bar { height: 10px; margin-top: 16px; background-color: #fdb819; border-top: 10px solid #111; }
+
+    .facture-footer-fixed {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: -35mm;
+        height: 40mm;
+    }
+
+    .facture-footer-spacer { height: 20px; }
 </style>
