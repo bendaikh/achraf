@@ -51,7 +51,7 @@
 <div class="facture-doc">
     <table class="facture-header-table" cellpadding="0" cellspacing="0">
         <tr>
-            <td width="90">
+            <td width="105">
                 <div class="facture-logo">
                     @if($logoSrc)
                         <img src="{{ $logoSrc }}" alt="{{ $company['name'] }}">
@@ -95,7 +95,6 @@
     <div style="margin-bottom: 16px;">
         <div class="facture-client-tab">Informations client</div>
         <div class="facture-client-box">
-            <div class="facture-client-label">Client</div>
             <div class="facture-client-name">{{ $client->name }}</div>
             @if($clientAddress)
                 <div class="facture-client-line"><strong>Adresse :</strong> {{ strtoupper($clientAddress) }}</div>
@@ -127,7 +126,7 @@
                 <th width="32%">Désignation</th>
                 <th class="text-right" width="7%">Qté</th>
                 <th class="text-right" width="13%">Prix unit. HT</th>
-                <th class="text-right" width="8%">TVA</th>
+                <th class="text-center" width="8%">TVA</th>
                 <th class="text-right" width="8%">Remise</th>
                 <th class="text-right" width="12%">Total TTC</th>
             </tr>
@@ -139,7 +138,7 @@
                     <td>{{ $item->designation }}</td>
                     <td class="text-right">{{ $item->quantity }}</td>
                     <td class="text-right">{{ number_format($item->unit_price, 2) }}</td>
-                    <td class="text-right">{{ number_format($item->tax_rate, 2) }}%</td>
+                    <td class="text-center">{{ number_format($item->tax_rate, 2) }}%</td>
                     <td class="text-right">{{ number_format($item->discount ?? 0, 2) }}</td>
                     <td class="text-right"><strong>{{ number_format($item->line_total, 2) }}</strong></td>
                 </tr>

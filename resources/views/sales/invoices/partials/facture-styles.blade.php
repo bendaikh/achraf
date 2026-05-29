@@ -5,12 +5,12 @@
     .facture-header-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; border-bottom: 3px solid #111; }
     .facture-header-table td { vertical-align: top; padding-bottom: 14px; }
     .facture-logo {
-        width: 88px;
-        height: 88px;
+        width: 100px;
+        height: 100px;
         text-align: center;
     }
-    .facture-logo img { max-width: 84px; max-height: 84px; }
-    .facture-logo-placeholder { font-size: 9px; font-weight: 700; color: #9ca3af; padding-top: 36px; display: block; }
+    .facture-logo img { max-width: 96px; max-height: 96px; }
+    .facture-logo-placeholder { font-size: 9px; font-weight: 700; color: #9ca3af; padding-top: 42px; display: block; }
     .facture-company-name { font-size: 22px; font-weight: bold; margin-bottom: 6px; }
     .facture-contact-line { font-size: 10px; color: #374151; margin-bottom: 3px; }
     .facture-legal-item { font-size: 9px; font-weight: 600; color: #374151; display: inline-block; margin-right: 12px; margin-top: 4px; }
@@ -53,8 +53,7 @@
         border-top: none;
         padding: 12px 14px;
     }
-    .facture-client-label { font-size: 9px; font-weight: bold; text-transform: uppercase; color: #6b7280; }
-    .facture-client-name { font-size: 14px; font-weight: bold; margin-top: 4px; margin-bottom: 6px; }
+    .facture-client-name { font-size: 14px; font-weight: bold; margin-bottom: 6px; }
     .facture-client-line { font-size: 10px; color: #374151; margin-bottom: 3px; }
     .facture-items { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
     .facture-items thead { background: #fdb819; color: #111; }
@@ -65,8 +64,10 @@
         font-weight: bold;
         text-transform: uppercase;
         border: 1px solid #e5a617;
+        vertical-align: middle;
     }
     .facture-items th.text-right, .facture-items td.text-right { text-align: right; }
+    .facture-items th.text-center, .facture-items td.text-center { text-align: center; }
     .facture-items td { padding: 7px 5px; font-size: 10px; border: 1px solid #e5e7eb; vertical-align: top; }
     .facture-items tbody tr.empty-row td { height: 24px; }
     .facture-bottom-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
