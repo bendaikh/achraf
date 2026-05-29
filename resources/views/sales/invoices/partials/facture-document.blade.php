@@ -51,10 +51,10 @@
 <div class="facture-doc">
     <table class="facture-header-table" cellpadding="0" cellspacing="0">
         <tr>
-            <td width="105">
+            <td class="facture-logo-cell">
                 <div class="facture-logo">
                     @if($logoSrc)
-                        <img src="{{ $logoSrc }}" alt="{{ $company['name'] }}">
+                        <img src="{{ $logoSrc }}" alt="{{ $company['name'] }}" width="140">
                     @else
                         <span class="facture-logo-placeholder">LOGO</span>
                     @endif

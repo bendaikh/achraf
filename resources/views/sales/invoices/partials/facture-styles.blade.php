@@ -4,13 +4,18 @@
     .facture-doc { font-size: 11px; color: #111; }
     .facture-header-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; border-bottom: 3px solid #111; }
     .facture-header-table td { vertical-align: top; padding-bottom: 14px; }
+    .facture-header-table td.facture-logo-cell { width: 150px; padding-right: 10px; }
     .facture-logo {
-        width: 100px;
-        height: 100px;
+        width: 140px;
         text-align: center;
     }
-    .facture-logo img { max-width: 96px; max-height: 96px; }
-    .facture-logo-placeholder { font-size: 9px; font-weight: 700; color: #9ca3af; padding-top: 42px; display: block; }
+    .facture-logo img {
+        width: 140px;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+    }
+    .facture-logo-placeholder { font-size: 9px; font-weight: 700; color: #9ca3af; padding-top: 62px; display: block; min-height: 140px; }
     .facture-company-name { font-size: 22px; font-weight: bold; margin-bottom: 6px; }
     .facture-contact-line { font-size: 10px; color: #374151; margin-bottom: 3px; }
     .facture-legal-item { font-size: 9px; font-weight: 600; color: #374151; display: inline-block; margin-right: 12px; margin-top: 4px; }
