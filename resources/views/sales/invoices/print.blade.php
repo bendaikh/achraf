@@ -15,6 +15,7 @@
 @section('print_content')
     @include('sales.invoices.partials.facture-document', [
         'logoSrc' => $company['logo_url'] ?? null,
+        'cachetSrc' => $company['cachet_url'] ?? null,
     ])
 @endsection
 

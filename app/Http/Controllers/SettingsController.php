@@ -87,6 +87,7 @@ class SettingsController extends Controller
             $settings[$field] = Setting::get($field, '');
         }
         $settings['company_logo'] = Setting::get('company_logo');
+        $settings['company_cachet'] = Setting::get('company_cachet');
 
         $settings['expense_categories'] = implode("\n", Setting::getList('expense_categories'));
         $settings['expense_accounts'] = implode("\n", Setting::getList('expense_accounts'));
@@ -156,7 +157,9 @@ class SettingsController extends Controller
             'company_cnss' => 'nullable|string|max:50',
             'company_email' => 'nullable|string|max:255',
             'company_logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'company_cachet' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'remove_logo' => 'nullable|boolean',
+            'remove_cachet' => 'nullable|boolean',
         ]);
 
         foreach ($this->companyFields as $field) {
@@ -180,6 +183,23 @@ class SettingsController extends Controller
             }
             $path = $request->file('company_logo')->store('company', 'public');
             Setting::set('company_logo', $path, 'Logo entreprise');
+        }
+
+        if ($request->boolean('remove_cachet')) {
+            $old = Setting::get('company_cachet');
+            if ($old) {
+                Storage::disk('public')->delete($old);
+            }
+            Setting::set('company_cachet', null, 'Cachet entreprise');
+        }
+
+        if ($request->hasFile('company_cachet')) {
+            $old = Setting::get('company_cachet');
+            if ($old) {
+                Storage::disk('public')->delete($old);
+            }
+            $path = $request->file('company_cachet')->store('company', 'public');
+            Setting::set('company_cachet', $path, 'Cachet entreprise');
         }
     }
 

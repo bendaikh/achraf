@@ -62,5 +62,7 @@
         </div>
     @endif
 
+    <x-print.company-stamp :company="$company" />
+
     <div class="print-footer">Document généré le {{ now()->format('d/m/Y à H:i') }}</div>
 @endsection

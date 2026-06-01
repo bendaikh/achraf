@@ -238,6 +238,18 @@
             white-space: pre-line;
         }
 
+        .print-company-stamp {
+            margin-top: 28px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .print-company-stamp-img {
+            max-width: 180px;
+            max-height: 90px;
+            object-fit: contain;
+        }
+
         .print-footer {
             margin-top: 36px;
             padding-top: 14px;

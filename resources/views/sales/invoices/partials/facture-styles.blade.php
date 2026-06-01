@@ -20,16 +20,25 @@
     .facture-contact-line { font-size: 10px; color: #374151; margin-bottom: 3px; }
     .facture-legal-item { font-size: 9px; font-weight: 600; color: #374151; display: inline-block; margin-right: 12px; margin-top: 4px; }
     .facture-legal-dot {
-        display: inline-block;
+        display: inline-table;
         width: 16px;
         height: 16px;
-        border-radius: 50%;
-        background: #fdb819;
-        text-align: center;
-        line-height: 16px;
-        font-size: 7px;
-        font-weight: bold;
         margin-right: 4px;
+        vertical-align: middle;
+        border-collapse: collapse;
+    }
+    .facture-legal-dot td {
+        width: 16px;
+        height: 16px;
+        background: #fdb819;
+        border-radius: 50%;
+        text-align: center;
+        vertical-align: middle;
+        font-size: 8px;
+        font-weight: bold;
+        color: #111;
+        line-height: 1;
+        padding: 0;
     }
     .facture-meta { text-align: right; }
     .facture-title { font-size: 30px; font-weight: bold; margin-bottom: 8px; }
@@ -88,7 +97,19 @@
     .facture-footer-table td { padding-top: 12px; vertical-align: bottom; }
     .facture-footer-meta { font-size: 10px; color: #6b7280; }
     .facture-signature-label { font-size: 9px; font-weight: bold; text-transform: uppercase; text-align: center; margin-bottom: 6px; }
-    .facture-signature-box { height: 68px; border: 2px solid #111; border-radius: 6px; }
+    .facture-signature-box {
+        height: 68px;
+        border: 2px solid #111;
+        border-radius: 6px;
+        text-align: center;
+        vertical-align: middle;
+    }
+    .facture-signature-box .facture-cachet-img {
+        max-width: 100%;
+        max-height: 64px;
+        margin: 2px auto;
+        display: block;
+    }
     .facture-accent-bar { height: 10px; margin-top: 16px; background-color: #fdb819; border-top: 10px solid #111; }
 
     .facture-footer-fixed {

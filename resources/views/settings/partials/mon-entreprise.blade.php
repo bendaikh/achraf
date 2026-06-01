@@ -38,6 +38,38 @@
             </div>
 
             <div class="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-900">Cachet de l'entreprise</h3>
+                <p class="text-sm text-gray-500 mt-1">Image du cachet affichée sur les factures et documents imprimables</p>
+
+                <div class="mt-6 flex flex-col sm:flex-row sm:items-start gap-6">
+                    <div class="flex-shrink-0">
+                        @if(!empty($settings['company_cachet']))
+                            <img src="{{ asset('storage/' . $settings['company_cachet']) }}" alt="Cachet" class="h-24 w-auto max-w-[140px] object-contain border border-gray-200 rounded-lg p-1 bg-white">
+                        @else
+                            <div class="h-24 w-32 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 text-xs text-center px-2">
+                                Aucun cachet
+                            </div>
+                        @endif
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Télécharger le cachet :</label>
+                        <div class="flex flex-wrap gap-2">
+                            <label class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer text-sm font-medium">
+                                Télécharger
+                                <input type="file" name="company_cachet" accept="image/*" class="hidden">
+                            </label>
+                            @if(!empty($settings['company_cachet']))
+                                <button type="submit" name="remove_cachet" value="1" class="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium" onclick="return confirm('Supprimer le cachet ?')">
+                                    Supprimer
+                                </button>
+                            @endif
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">PNG ou JPG recommandé, fond transparent si possible</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg border border-gray-200 p-6">
                 <h3 class="text-lg font-semibold text-gray-900">Informations de l'entreprise</h3>
                 <p class="text-sm text-gray-500 mt-1">Renseignez les informations relatives à votre entreprise</p>
 

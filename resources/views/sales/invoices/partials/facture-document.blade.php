@@ -13,6 +13,7 @@
     $emptyRows = max(0, $minRows - $invoice->items->count());
     $generatedBy = $generatedBy ?? auth()->user()?->name ?? '—';
     $logoSrc = $logoSrc ?? ($company['logo_url'] ?? null);
+    $cachetSrc = $cachetSrc ?? ($company['cachet_url'] ?? null);
 
     $client = $invoice->client;
     $isEntreprise = ($client->client_type ?? 'entreprise') === 'entreprise';
@@ -40,7 +41,11 @@
             </td>
             <td width="240">
                 <div class="facture-signature-label">Cachet de la société &amp; signature</div>
-                <div class="facture-signature-box"></div>
+                <div class="facture-signature-box">
+                    @if($cachetSrc)
+                        <img src="{{ $cachetSrc }}" alt="Cachet {{ $company['name'] }}" class="facture-cachet-img" width="200">
+                    @endif
+                </div>
             </td>
         </tr>
     </table>
@@ -75,7 +80,7 @@
                     @foreach($legal as $label => $value)
                         @if($value)
                             <span class="facture-legal-item">
-                                <span class="facture-legal-dot">{{ substr($label, 0, 1) }}</span>{{ $label }}: {{ $value }}
+                                @include('sales.invoices.partials.facture-legal-badge', ['letter' => substr($label, 0, 1)]){{ $label }}: {{ $value }}
                             </span>
                         @endif
                     @endforeach
@@ -110,7 +115,7 @@
                     @foreach($clientLegal as $label => $value)
                         @if($value)
                             <span class="facture-legal-item">
-                                <span class="facture-legal-dot">{{ substr($label, 0, 1) }}</span>{{ $label }}: {{ $value }}
+                                @include('sales.invoices.partials.facture-legal-badge', ['letter' => substr($label, 0, 1)]){{ $label }}: {{ $value }}
                             </span>
                         @endif
                     @endforeach

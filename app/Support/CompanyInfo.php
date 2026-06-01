@@ -27,19 +27,36 @@ class CompanyInfo
       'rc' => Setting::get('company_rc'),
       'if' => Setting::get('company_if'),
       'cnss' => Setting::get('company_cnss'),
-      'logo_url' => $logoPath && Storage::disk('public')->exists($logoPath)
-        ? Storage::disk('public')->url($logoPath)
-        : null,
+      'logo_url' => static::publicAssetUrl($logoPath),
       'logo_path' => static::logoFilePath(),
+      'cachet_url' => static::publicAssetUrl(Setting::get('company_cachet')),
+      'cachet_path' => static::cachetFilePath(),
     ];
   }
 
   public static function logoFilePath(): ?string
   {
-    $logoPath = Setting::get('company_logo');
+    return static::storedFilePath(Setting::get('company_logo'));
+  }
 
-    if ($logoPath && Storage::disk('public')->exists($logoPath)) {
-      return Storage::disk('public')->path($logoPath);
+  public static function cachetFilePath(): ?string
+  {
+    return static::storedFilePath(Setting::get('company_cachet'));
+  }
+
+  protected static function storedFilePath(?string $path): ?string
+  {
+    if ($path && Storage::disk('public')->exists($path)) {
+      return Storage::disk('public')->path($path);
+    }
+
+    return null;
+  }
+
+  protected static function publicAssetUrl(?string $path): ?string
+  {
+    if ($path && Storage::disk('public')->exists($path)) {
+      return Storage::disk('public')->url($path);
     }
 
     return null;
