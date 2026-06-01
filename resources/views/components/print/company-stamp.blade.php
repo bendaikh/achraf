@@ -1,9 +1,15 @@
 @php
     $company = $company ?? \App\Support\CompanyInfo::all();
-    $cachetSrc = $cachetSrc ?? ($company['cachet_url'] ?? null);
+    $cachet = $cachet ?? \App\Support\CompanyInfo::cachetForPrint($forPdf ?? false, 200, 72);
 @endphp
-@if($cachetSrc)
+@if($cachet)
     <div class="print-company-stamp">
-        <img src="{{ $cachetSrc }}" alt="Cachet {{ $company['name'] ?? '' }}" class="print-company-stamp-img">
+        <img
+            src="{{ $cachet['src'] }}"
+            alt="Cachet {{ $company['name'] ?? '' }}"
+            class="print-company-stamp-img"
+            width="{{ $cachet['width'] }}"
+            height="{{ $cachet['height'] }}"
+        >
     </div>
 @endif

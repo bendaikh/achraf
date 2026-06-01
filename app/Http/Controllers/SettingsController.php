@@ -191,6 +191,7 @@ class SettingsController extends Controller
                 Storage::disk('public')->delete($old);
             }
             Setting::set('company_cachet', null, 'Cachet entreprise');
+            \App\Support\CompanyInfo::forgetCachetBoostCache();
         }
 
         if ($request->hasFile('company_cachet')) {
@@ -200,6 +201,7 @@ class SettingsController extends Controller
             }
             $path = $request->file('company_cachet')->store('company', 'public');
             Setting::set('company_cachet', $path, 'Cachet entreprise');
+            \App\Support\CompanyInfo::forgetCachetBoostCache();
         }
     }
 

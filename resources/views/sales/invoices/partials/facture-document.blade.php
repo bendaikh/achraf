@@ -13,7 +13,7 @@
     $emptyRows = max(0, $minRows - $invoice->items->count());
     $generatedBy = $generatedBy ?? auth()->user()?->name ?? '—';
     $logoSrc = $logoSrc ?? ($company['logo_url'] ?? null);
-    $cachetSrc = $cachetSrc ?? ($company['cachet_url'] ?? null);
+    $cachet = $cachet ?? \App\Support\CompanyInfo::cachetForPrint($forPdf ?? false);
 
     $client = $invoice->client;
     $isEntreprise = ($client->client_type ?? 'entreprise') === 'entreprise';
@@ -42,8 +42,20 @@
             <td width="240">
                 <div class="facture-signature-label">Cachet de la société &amp; signature</div>
                 <div class="facture-signature-box">
-                    @if($cachetSrc)
-                        <img src="{{ $cachetSrc }}" alt="Cachet {{ $company['name'] }}" class="facture-cachet-img" width="200">
+                    @if($cachet)
+                        <table class="facture-signature-box-table" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td>
+                                    <img
+                                        src="{{ $cachet['src'] }}"
+                                        alt="Cachet {{ $company['name'] }}"
+                                        class="facture-cachet-img"
+                                        width="{{ $cachet['width'] }}"
+                                        height="{{ $cachet['height'] }}"
+                                    >
+                                </td>
+                            </tr>
+                        </table>
                     @endif
                 </div>
             </td>

@@ -98,17 +98,26 @@
     .facture-footer-meta { font-size: 10px; color: #6b7280; }
     .facture-signature-label { font-size: 9px; font-weight: bold; text-transform: uppercase; text-align: center; margin-bottom: 6px; }
     .facture-signature-box {
-        height: 68px;
+        height: 130px;
         border: 2px solid #111;
         border-radius: 6px;
         text-align: center;
+        padding: 0;
+        overflow: hidden;
+    }
+    .facture-signature-box-table {
+        width: 100%;
+        height: 130px;
+        border-collapse: collapse;
+    }
+    .facture-signature-box-table td {
+        text-align: center;
         vertical-align: middle;
+        padding: 1px 2px;
     }
     .facture-signature-box .facture-cachet-img {
-        max-width: 100%;
-        max-height: 64px;
-        margin: 2px auto;
-        display: block;
+        display: inline-block;
+        margin: 0 auto;
     }
     .facture-accent-bar { height: 10px; margin-top: 16px; background-color: #fdb819; border-top: 10px solid #111; }
 

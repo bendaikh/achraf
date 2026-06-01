@@ -7,8 +7,8 @@
 </head>
 <body>
     @include('sales.invoices.partials.facture-document', [
-        'logoSrc' => \App\Support\CompanyInfo::logoFilePath(),
-        'cachetSrc' => \App\Support\CompanyInfo::cachetFilePath(),
+        'logoSrc' => \App\Support\CompanyInfo::logoFilePathForPdf(),
+        'forPdf' => true,
     ])
 </body>
 </html>
