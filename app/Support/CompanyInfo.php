@@ -17,6 +17,7 @@ class CompanyInfo
 
     return [
       'name' => Setting::get('company_name', "LAV'FAST"),
+      'subtitle' => Setting::get('company_subtitle'),
       'address' => Setting::get('company_address'),
       'city' => Setting::get('company_city'),
       'postal_code' => Setting::get('company_postal_code'),

@@ -16,30 +16,10 @@
         margin: 0 auto;
     }
     .facture-logo-placeholder { font-size: 9px; font-weight: 700; color: #9ca3af; padding-top: 62px; display: block; min-height: 140px; }
-    .facture-company-name { font-size: 22px; font-weight: bold; margin-bottom: 6px; }
+    .facture-company-name { font-size: 22px; font-weight: bold; margin-bottom: 4px; }
+    .facture-company-subtitle { font-size: 11px; font-weight: 600; color: #374151; margin-bottom: 6px; }
     .facture-contact-line { font-size: 10px; color: #374151; margin-bottom: 3px; }
-    .facture-legal-item { font-size: 9px; font-weight: 600; color: #374151; display: inline-block; margin-right: 12px; margin-top: 4px; }
-    .facture-legal-dot {
-        display: inline-table;
-        width: 16px;
-        height: 16px;
-        margin-right: 4px;
-        vertical-align: middle;
-        border-collapse: collapse;
-    }
-    .facture-legal-dot td {
-        width: 16px;
-        height: 16px;
-        background: #fdb819;
-        border-radius: 50%;
-        text-align: center;
-        vertical-align: middle;
-        font-size: 8px;
-        font-weight: bold;
-        color: #111;
-        line-height: 1;
-        padding: 0;
-    }
+    .facture-legal-item { font-size: 9px; color: #374151; display: inline-block; margin-right: 12px; margin-top: 4px; }
     .facture-meta { text-align: right; }
     .facture-title { font-size: 30px; font-weight: bold; margin-bottom: 8px; }
     .facture-number-badge {

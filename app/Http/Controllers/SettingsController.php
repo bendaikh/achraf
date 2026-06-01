@@ -20,7 +20,7 @@ class SettingsController extends Controller
     ];
 
     protected array $companyFields = [
-        'company_name', 'company_address', 'company_country', 'company_city',
+        'company_name', 'company_subtitle', 'company_address', 'company_country', 'company_city',
         'company_postal_code', 'company_phone', 'company_ice', 'company_patente',
         'company_rc', 'company_if', 'company_cnss', 'company_email',
     ];
@@ -145,6 +145,7 @@ class SettingsController extends Controller
     {
         $validated = $request->validate([
             'company_name' => 'nullable|string|max:255',
+            'company_subtitle' => 'nullable|string|max:255',
             'company_address' => 'nullable|string|max:500',
             'company_country' => 'nullable|string|max:100',
             'company_city' => 'nullable|string|max:100',

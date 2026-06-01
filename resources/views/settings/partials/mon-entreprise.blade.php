@@ -79,6 +79,11 @@
                         <input type="text" name="company_name" id="company_name" value="{{ old('company_name', $settings['company_name'] ?? '') }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">
                     </div>
                     <div>
+                        <label for="company_subtitle" class="block text-sm font-medium text-gray-700 mb-1">Sous-titre</label>
+                        <input type="text" name="company_subtitle" id="company_subtitle" value="{{ old('company_subtitle', $settings['company_subtitle'] ?? '') }}" placeholder="Ex. SARL AU" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">
+                        <p class="text-xs text-gray-500 mt-1">Affiché sous le nom de l'entreprise sur les factures</p>
+                    </div>
+                    <div>
                         <label for="company_address" class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
                         <input type="text" name="company_address" id="company_address" value="{{ old('company_address', $settings['company_address'] ?? '') }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">
                     </div>

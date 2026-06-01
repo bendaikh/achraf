@@ -79,8 +79,11 @@
             </td>
             <td>
                 <div class="facture-company-name">{{ $company['name'] }}</div>
+                @if(!empty($company['subtitle']))
+                    <div class="facture-company-subtitle">{{ $company['subtitle'] }}</div>
+                @endif
                 @if($address)
-                    <div class="facture-contact-line"><strong>Adresse :</strong> {{ strtoupper($address) }}</div>
+                    <div class="facture-contact-line"><strong>ADRESSE :</strong> {{ strtoupper($address) }}</div>
                 @endif
                 @if($company['phone'])
                     <div class="facture-contact-line"><strong>TÉL :</strong> {{ $company['phone'] }}</div>
@@ -91,9 +94,7 @@
                 <div>
                     @foreach($legal as $label => $value)
                         @if($value)
-                            <span class="facture-legal-item">
-                                @include('sales.invoices.partials.facture-legal-badge', ['letter' => substr($label, 0, 1)]){{ $label }}: {{ $value }}
-                            </span>
+                            <span class="facture-legal-item"><strong>{{ $label }} :</strong> {{ $value }}</span>
                         @endif
                     @endforeach
                 </div>
@@ -114,7 +115,7 @@
         <div class="facture-client-box">
             <div class="facture-client-name">{{ $client->name }}</div>
             @if($clientAddress)
-                <div class="facture-client-line"><strong>Adresse :</strong> {{ strtoupper($clientAddress) }}</div>
+                <div class="facture-client-line"><strong>ADRESSE :</strong> {{ strtoupper($clientAddress) }}</div>
             @endif
             @if($client->phone)
                 <div class="facture-client-line"><strong>Tél :</strong> {{ $client->phone }}</div>
@@ -126,9 +127,7 @@
                 <div>
                     @foreach($clientLegal as $label => $value)
                         @if($value)
-                            <span class="facture-legal-item">
-                                @include('sales.invoices.partials.facture-legal-badge', ['letter' => substr($label, 0, 1)]){{ $label }}: {{ $value }}
-                            </span>
+                            <span class="facture-legal-item"><strong>{{ $label }} :</strong> {{ $value }}</span>
                         @endif
                     @endforeach
                 </div>
