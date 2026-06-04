@@ -1,51 +1,16 @@
-@extends('layouts.app')
+@extends('layouts.with-sidebar')
 
 @section('title', 'Point de vente')
+@section('sidebar_page_title', 'Point de vente')
+@section('hide_shell_header')
 
-@section('content')
+@section('main')
 <div
-    class="bg-slate-900 flex text-slate-100"
-    :class="posFullView ? 'fixed inset-0 z-50 min-h-screen' : 'min-h-screen relative'"
+    class="bg-slate-900 flex flex-col text-slate-100 min-h-screen w-full -m-0"
+    :class="posFullView ? 'fixed inset-0 z-50 min-h-screen' : 'min-h-screen'"
     x-data="posRegister(@js($productsMagasinForJs), @js($productsEnligneForJs), @js($pricesAreTtc), @js($comptoirClient->id))"
     @keydown.escape.window="onGlobalEscape()"
-    x-cloak
 >
-    <div
-        x-show="!posFullView && sidebarOpen"
-        x-transition.opacity.duration.200ms
-        @click="sidebarOpen = false"
-        class="fixed inset-0 z-30 bg-black/50 lg:hidden"
-        style="display: none;"
-        x-cloak
-    ></div>
-
-    <aside
-        x-show="!posFullView"
-        x-transition.opacity.duration.200ms
-        class="bg-white shadow-lg fixed inset-y-0 left-0 h-full overflow-y-auto z-40 border-r border-slate-200 transform transition-all duration-200 ease-out -translate-x-full lg:translate-x-0"
-        :class="{
-            'translate-x-0': sidebarOpen,
-            'w-64 max-w-[min(16rem,88vw)]': !sidebarCollapsed || sidebarOpen,
-            'lg:w-20': sidebarCollapsed && !sidebarOpen
-        }"
-        @click="if ($event.target.closest('a[href]')) sidebarOpen = false"
-    >
-        @include('layouts.sidebar')
-    </aside>
-
-    <main class="flex-1 flex flex-col min-h-screen w-full min-w-0 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 transition-[margin] duration-200" :class="posFullView ? 'ml-0 w-full' : (sidebarCollapsed ? 'ml-0 lg:ml-20' : 'ml-0 lg:ml-64')">
-        <div x-show="!posFullView" class="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-slate-900/95 backdrop-blur">
-            <button type="button" @click="sidebarOpen = true" class="lg:hidden p-2 rounded-lg text-white/90 hover:bg-white/10 touch-manipulation" aria-label="Ouvrir le menu">
-                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-            </button>
-            <button type="button" @click="sidebarCollapsed = !sidebarCollapsed; localStorage.setItem('sidebarCollapsed', sidebarCollapsed)" class="hidden lg:flex p-2 rounded-lg text-white/90 hover:bg-white/10 touch-manipulation transition-transform duration-200" aria-label="Toggle sidebar">
-                <svg class="h-6 w-6 transition-transform duration-200" :class="sidebarCollapsed ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                </svg>
-            </button>
-            <span class="text-sm font-semibold text-white truncate">Point de vente</span>
-        </div>
-
         <button type="button" x-show="posFullView" x-transition @click="posFullView = false" class="fixed top-3 right-3 z-[60] inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800/95 text-white text-sm font-semibold border border-white/15 shadow-lg hover:bg-slate-700 backdrop-blur">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
             Quitter l’aperçu
@@ -77,7 +42,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('pos.checkout') }}" class="flex-1 flex flex-col lg:flex-row min-h-0" @submit="if (cart.length === 0) { $event.preventDefault(); alert('Panier vide.'); }">
+        <form method="POST" action="{{ route('pos.checkout') }}" class="flex-1 flex flex-col lg:flex-row min-h-0" @submit.prevent="submitCheckout($event)">
             @csrf
             <input type="hidden" name="client_id" :value="clientId || ''">
 
@@ -85,10 +50,10 @@
                 <div class="flex flex-col sm:flex-row gap-3 mb-4">
                     <div class="flex-1 relative">
                         <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                        <input type="search" x-model="searchQuery" @input.debounce.300ms="runSearch()" placeholder="Rechercher un produit (nom, réf.)…" class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800/80 border border-white/10 text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
+                        <input type="text" autocomplete="off" x-model="searchQuery" @input.debounce.300ms="runSearch()" @keydown.enter.prevent="onSearchEnter($event)" placeholder="Rechercher un produit (nom, réf.)…" class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800/80 border border-white/10 text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
                     </div>
                     <div class="w-full sm:w-64 flex gap-2">
-                        <input type="text" x-model="barcode" @keydown.enter.prevent="scanBarcode()" placeholder="Code-barres" class="flex-1 min-w-0 px-3 py-3 rounded-xl bg-slate-800/80 border border-white/10 text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 outline-none text-sm">
+                        <input type="text" x-ref="barcodeInput" x-model="barcode" @keydown.enter.prevent="scanBarcode()" placeholder="Code-barres" class="flex-1 min-w-0 px-3 py-3 rounded-xl bg-slate-800/80 border border-white/10 text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 outline-none text-sm">
                         <button type="button" @click="scanBarcode()" class="px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 transition whitespace-nowrap flex-shrink-0">OK</button>
                     </div>
                 </div>
@@ -370,18 +335,16 @@
 
                     <div class="flex gap-3 pt-2">
                         <button type="button" @click="paymentOpen = false" class="flex-1 py-3 rounded-xl border border-white/20 text-slate-300 font-medium hover:bg-white/5">Annuler</button>
-                        <button type="submit" @click="if (paymentMethod === 'cash' && parseFloat(amountReceived) < totalTtc()) { $event.preventDefault(); alert('Montant insuffisant.'); }" class="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500">Valider la vente</button>
+                        <button type="button" @click="submitCheckout()" class="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500">Valider la vente</button>
                     </div>
                 </div>
             </div>
         </form>
-    </main>
 </div>
+@endsection
 
-<style>[x-cloak]{display:none!important}</style>
+@push('scripts')
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <style>
 .select2-container--default .select2-selection--single {
     background-color: rgb(30 41 59) !important;
@@ -421,7 +384,6 @@
     background-color: rgba(253, 184, 25, 0.3) !important;
 }
 </style>
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
 function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc, defaultClientId) {
     return {
@@ -431,8 +393,6 @@ function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc, defaultClient
         defaultClientId: defaultClientId,
         stockType: 'magasin',
         posFullView: false,
-        sidebarOpen: false,
-        sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
         cart: [],
         searchQuery: '',
         searchResults: [],
@@ -479,6 +439,12 @@ function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc, defaultClient
             return pages;
         },
         init() {
+            this.restoreCart();
+            this.$watch('cart', () => this.persistCart());
+            this.$watch('stockType', () => { this.currentPage = 1; });
+            this.$watch('posFullView', (active) => {
+                document.documentElement.classList.toggle('pos-full-view-active', active);
+            });
             const self = this;
             $(document).ready(function() {
                 const $clientSelect = $('#pos_client_id');
@@ -493,10 +459,37 @@ function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc, defaultClient
                 self.clientId = $clientSelect.val() || String(self.defaultClientId);
             });
         },
+        persistCart() {
+            try {
+                sessionStorage.setItem('pos_cart', JSON.stringify(this.cart));
+                sessionStorage.setItem('pos_stock_type', this.stockType);
+            } catch (e) {}
+        },
+        restoreCart() {
+            try {
+                const saved = sessionStorage.getItem('pos_cart');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) {
+                        this.cart = parsed;
+                    }
+                }
+                const savedType = sessionStorage.getItem('pos_stock_type');
+                if (savedType === 'magasin' || savedType === 'enligne') {
+                    this.stockType = savedType;
+                }
+            } catch (e) {}
+        },
+        clearCartStorage() {
+            try {
+                sessionStorage.removeItem('pos_cart');
+            } catch (e) {}
+        },
         addProduct(p) {
             const existing = this.cart.find(c => c.product_id === p.id);
             if (existing) {
                 existing.quantity += 1;
+                this.persistCart();
                 return;
             }
             this.cart.push({
@@ -510,8 +503,58 @@ function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc, defaultClient
                 discount: 0,
                 image_url: p.image_url || null,
             });
+            this.persistCart();
         },
-        removeLine(i) { this.cart.splice(i, 1); },
+        removeLine(i) {
+            this.cart.splice(i, 1);
+            this.persistCart();
+        },
+        onSearchEnter(event) {
+            event.preventDefault();
+            if (this.searchResults.length > 0) {
+                this.addProduct(this.searchResults[0]);
+                this.searchQuery = '';
+                this.searchResults = [];
+            }
+        },
+        async submitCheckout(event) {
+            if (event) event.preventDefault();
+            if (this.cart.length === 0) {
+                alert('Panier vide.');
+                return;
+            }
+            if (this.paymentMethod === 'cash' && parseFloat(this.amountReceived) < this.totalTtc()) {
+                alert('Montant insuffisant.');
+                return;
+            }
+
+            const form = event?.target?.closest('form') || document.querySelector('form[action="{{ route('pos.checkout') }}"]');
+            const formData = new FormData(form);
+            formData.set('stock_type', this.stockType);
+
+            try {
+                const response = await fetch('{{ route('pos.checkout') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    },
+                    body: formData,
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    alert(data.message || 'Erreur lors de la vente.');
+                    return;
+                }
+                this.clearCartStorage();
+                this.cart = [];
+                this.paymentOpen = false;
+                window.location.href = data.redirect;
+            } catch (e) {
+                alert('Erreur réseau lors de la vente.');
+            }
+        },
         lineBase(line) {
             const q = Number(line.quantity) || 0;
             const u = Number(line.unit_price) || 0;
@@ -580,10 +623,6 @@ function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc, defaultClient
                 this.paymentOpen = false;
                 return;
             }
-            if (this.sidebarOpen) {
-                this.sidebarOpen = false;
-                return;
-            }
             if (this.posFullView) {
                 this.posFullView = false;
             }
@@ -609,11 +648,14 @@ function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc, defaultClient
                 const data = await r.json();
                 if (data.products && data.products.length) {
                     this.addProduct(data.products[0]);
+                    this.searchQuery = '';
+                    this.searchResults = [];
                 }
             } catch (e) {}
             this.barcode = '';
+            this.$nextTick(() => this.$refs.barcodeInput?.focus());
         },
     };
 }
 </script>
-@endsection
+@endpush

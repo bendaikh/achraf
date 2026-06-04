@@ -3,18 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Client;
 use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
+use App\Services\StockMovementService;
+use App\Support\CommercialDocumentView;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CreditNoteController extends Controller
 {
-    use FiltersIndexTables, PreparesPrintView;
+    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+
+    public function __construct(
+        protected StockMovementService $stockMovement
+    ) {}
 
     public function index(Request $request)
     {
@@ -103,6 +110,12 @@ class CreditNoteController extends Controller
                 'total' => $subtotal + ($request->adjustment ?? 0),
             ]);
 
+            $creditNote->load('items');
+            $this->stockMovement->increaseFromItems(
+                $creditNote->items,
+                $validated['stock_location']
+            );
+
             DB::commit();
             return redirect()->route('credit-notes.index')->with('success', 'Avoir créé avec succès!');
         } catch (\Exception $e) {
@@ -120,11 +133,30 @@ class CreditNoteController extends Controller
     public function print(CreditNote $creditNote)
     {
         $creditNote->load('client', 'invoice', 'items');
+        $printData = $this->printViewData($creditNote, $creditNote->items);
 
         return view('sales.credit-notes.print', array_merge(
+            CommercialDocumentView::forCreditNote($creditNote, $printData['taxes']),
+            $printData,
             compact('creditNote'),
-            $this->printViewData($creditNote, $creditNote->items)
+            ['generatedBy' => auth()->user()?->name]
         ));
+    }
+
+    public function downloadPdf(CreditNote $creditNote)
+    {
+        $creditNote->load('client', 'invoice', 'items');
+        $printData = $this->printViewData($creditNote, $creditNote->items);
+
+        return $this->downloadCommercialPdf(
+            array_merge(
+                CommercialDocumentView::forCreditNote($creditNote, $printData['taxes']),
+                $printData,
+                ['generatedBy' => auth()->user()?->name]
+            ),
+            'avoir',
+            $creditNote->credit_note_number
+        );
     }
 
     public function destroy(CreditNote $creditNote)

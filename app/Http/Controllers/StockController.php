@@ -10,7 +10,7 @@ class StockController extends Controller
 {
     use FiltersIndexTables;
 
-    private function applyStockFilters($query, Request $request): void
+    private function applyStockFilters($query, Request $request, string $stockField = 'stock_quantity'): void
     {
         if ($request->filled('q') && ! $request->filled('search')) {
             $request->merge(['search' => $request->input('q')]);
@@ -19,17 +19,36 @@ class StockController extends Controller
         $this->applyTableSearch($query, $request, ['name', 'ref', 'barcode']);
 
         if ($request->get('filter') === 'low') {
-            $query->where(function ($q) {
-                $q->where(function ($q2) {
+            $query->where(function ($q) use ($stockField) {
+                $q->where(function ($q2) use ($stockField) {
                     $q2->whereNotNull('minimum_alert_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_alert_stock');
-                })->orWhere(function ($q2) {
+                        ->whereColumn($stockField, '<=', 'minimum_alert_stock');
+                })->orWhere(function ($q2) use ($stockField) {
                     $q2->whereNull('minimum_alert_stock')
                         ->whereNotNull('minimum_safety_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_safety_stock');
+                        ->whereColumn($stockField, '<=', 'minimum_safety_stock');
                 });
             });
         }
+    }
+
+    private function lowStockCountQuery(string $stockField, ?\Closure $scope = null): int
+    {
+        $query = Product::query();
+        if ($scope) {
+            $scope($query);
+        }
+
+        return $query->where(function ($q) use ($stockField) {
+            $q->where(function ($q2) use ($stockField) {
+                $q2->whereNotNull('minimum_alert_stock')
+                    ->whereColumn($stockField, '<=', 'minimum_alert_stock');
+            })->orWhere(function ($q2) use ($stockField) {
+                $q2->whereNull('minimum_alert_stock')
+                    ->whereNotNull('minimum_safety_stock')
+                    ->whereColumn($stockField, '<=', 'minimum_safety_stock');
+            });
+        })->count();
     }
 
     public function index(Request $request)
@@ -77,22 +96,11 @@ class StockController extends Controller
             ->where('source', 'shopify')
             ->orderBy('name');
 
-        $this->applyStockFilters($query, $request);
+        $this->applyStockFilters($query, $request, 'stock_enligne');
 
         $products = $query->paginate(20)->withQueryString();
 
-        $lowStockCount = Product::query()
-            ->where('source', 'shopify')
-            ->where(function ($q) {
-                $q->where(function ($q2) {
-                    $q2->whereNotNull('minimum_alert_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_alert_stock');
-                })->orWhere(function ($q2) {
-                    $q2->whereNull('minimum_alert_stock')
-                        ->whereNotNull('minimum_safety_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_safety_stock');
-                });
-            })->count();
+        $lowStockCount = $this->lowStockCountQuery('stock_enligne', fn ($q) => $q->where('source', 'shopify'));
 
         return view('stock.enligne.index', compact('products', 'lowStockCount'));
     }
@@ -112,10 +120,13 @@ class StockController extends Controller
         }
 
         $validated = $request->validate([
-            'stock_quantity' => 'required|integer|min:0',
+            'stock_enligne' => 'required|integer|min:0',
         ]);
 
-        $product->update($validated);
+        $product->update([
+            'stock_enligne' => $validated['stock_enligne'],
+            'stock_quantity' => $validated['stock_enligne'],
+        ]);
 
         return redirect()->route('stock.enligne.index')
             ->with('success', 'Stock enligne mis à jour pour « '.$product->name.' ».');
@@ -130,25 +141,13 @@ class StockController extends Controller
             })
             ->orderBy('name');
 
-        $this->applyStockFilters($query, $request);
+        $this->applyStockFilters($query, $request, 'stock_magasin');
 
         $products = $query->paginate(20)->withQueryString();
 
-        $lowStockCount = Product::query()
-            ->where(function ($q) {
-                $q->whereNull('source')
-                    ->orWhere('source', '!=', 'shopify');
-            })
-            ->where(function ($q) {
-                $q->where(function ($q2) {
-                    $q2->whereNotNull('minimum_alert_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_alert_stock');
-                })->orWhere(function ($q2) {
-                    $q2->whereNull('minimum_alert_stock')
-                        ->whereNotNull('minimum_safety_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_safety_stock');
-                });
-            })->count();
+        $lowStockCount = $this->lowStockCountQuery('stock_magasin', fn ($q) => $q->where(function ($sub) {
+            $sub->whereNull('source')->orWhere('source', '!=', 'shopify');
+        }));
 
         return view('stock.magasin.index', compact('products', 'lowStockCount'));
     }
@@ -168,10 +167,13 @@ class StockController extends Controller
         }
 
         $validated = $request->validate([
-            'stock_quantity' => 'required|integer|min:0',
+            'stock_magasin' => 'required|integer|min:0',
         ]);
 
-        $product->update($validated);
+        $product->update([
+            'stock_magasin' => $validated['stock_magasin'],
+            'stock_quantity' => $validated['stock_magasin'],
+        ]);
 
         return redirect()->route('stock.magasin.index')
             ->with('success', 'Stock magasin mis à jour pour « '.$product->name.' ».');

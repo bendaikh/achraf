@@ -7,12 +7,17 @@ use App\Models\Supplier;
 use App\Models\SupplierCreditNote;
 use App\Models\SupplierInvoice;
 use App\Models\Product;
+use App\Services\StockMovementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SupplierCreditNoteController extends Controller
 {
     use FiltersIndexTables;
+
+    public function __construct(
+        protected StockMovementService $stockMovement
+    ) {}
 
     public function index(Request $request)
     {
@@ -94,6 +99,12 @@ class SupplierCreditNoteController extends Controller
             }
 
             $creditNote->update(['subtotal' => $subtotal, 'total' => $subtotal]);
+
+            $creditNote->load('items');
+            $this->stockMovement->decreaseFromItems(
+                $creditNote->items,
+                $validated['stock_location']
+            );
 
             DB::commit();
             return redirect()->route('supplier-credit-notes.index')->with('success', 'Avoir fournisseur créé avec succès!');

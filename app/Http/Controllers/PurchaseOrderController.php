@@ -3,17 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Client;
 use App\Models\PurchaseOrder;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
+use App\Support\CommercialDocumentView;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class PurchaseOrderController extends Controller
 {
-    use FiltersIndexTables, PreparesPrintView;
+    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function index(Request $request)
     {
@@ -123,11 +125,30 @@ class PurchaseOrderController extends Controller
     public function print(PurchaseOrder $purchaseOrder)
     {
         $purchaseOrder->load('client', 'items');
+        $printData = $this->printViewData($purchaseOrder, $purchaseOrder->items);
 
         return view('sales.purchase-orders.print', array_merge(
+            CommercialDocumentView::forPurchaseOrder($purchaseOrder, $printData['taxes']),
+            $printData,
             compact('purchaseOrder'),
-            $this->printViewData($purchaseOrder, $purchaseOrder->items)
+            ['generatedBy' => auth()->user()?->name]
         ));
+    }
+
+    public function downloadPdf(PurchaseOrder $purchaseOrder)
+    {
+        $purchaseOrder->load('client', 'items');
+        $printData = $this->printViewData($purchaseOrder, $purchaseOrder->items);
+
+        return $this->downloadCommercialPdf(
+            array_merge(
+                CommercialDocumentView::forPurchaseOrder($purchaseOrder, $printData['taxes']),
+                $printData,
+                ['generatedBy' => auth()->user()?->name]
+            ),
+            'bon-commande',
+            $purchaseOrder->reference
+        );
     }
 
     public function destroy(PurchaseOrder $purchaseOrder)

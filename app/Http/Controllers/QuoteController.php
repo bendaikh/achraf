@@ -3,17 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Client;
 use App\Models\Quote;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
+use App\Support\CommercialDocumentView;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class QuoteController extends Controller
 {
-    use FiltersIndexTables, PreparesPrintView;
+    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function index(Request $request)
     {
@@ -125,11 +127,30 @@ class QuoteController extends Controller
     public function print(Quote $quote)
     {
         $quote->load('client', 'items');
+        $printData = $this->printViewData($quote, $quote->items);
 
         return view('sales.quotes.print', array_merge(
+            CommercialDocumentView::forQuote($quote, $printData['taxes']),
+            $printData,
             compact('quote'),
-            $this->printViewData($quote, $quote->items)
+            ['generatedBy' => auth()->user()?->name]
         ));
+    }
+
+    public function downloadPdf(Quote $quote)
+    {
+        $quote->load('client', 'items');
+        $printData = $this->printViewData($quote, $quote->items);
+
+        return $this->downloadCommercialPdf(
+            array_merge(
+                CommercialDocumentView::forQuote($quote, $printData['taxes']),
+                $printData,
+                ['generatedBy' => auth()->user()?->name]
+            ),
+            'devis',
+            $quote->quote_number
+        );
     }
 
     public function destroy(Quote $quote)

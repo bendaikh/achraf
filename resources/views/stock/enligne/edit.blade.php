@@ -39,7 +39,7 @@ Ajuster le stock enligne — {{ $product->ref }}
                     <dl class="grid grid-cols-2 gap-4 text-sm">
                         <div>
                             <dt class="text-gray-500">Stock actuel</dt>
-                            <dd class="text-lg font-semibold text-gray-900">{{ $product->stock_quantity }}</dd>
+                            <dd class="text-lg font-semibold text-gray-900">{{ $product->stock_enligne ?? $product->stock_quantity }}</dd>
                         </div>
                         <div>
                             <dt class="text-gray-500">Seuils</dt>
@@ -52,9 +52,9 @@ Ajuster le stock enligne — {{ $product->ref }}
                     @csrf
                     @method('PATCH')
                     <div class="mb-6">
-                        <label for="stock_quantity" class="block text-sm font-medium text-gray-700 mb-1">Nouvelle quantité en stock</label>
-                        <input type="number" name="stock_quantity" id="stock_quantity" min="0" required
-                            value="{{ old('stock_quantity', $product->stock_quantity) }}"
+                        <label for="stock_enligne" class="block text-sm font-medium text-gray-700 mb-1">Nouvelle quantité en stock</label>
+                        <input type="number" name="stock_enligne" id="stock_enligne" min="0" required
+                            value="{{ old('stock_enligne', $product->stock_enligne ?? $product->stock_quantity) }}"
                             class="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         <p class="mt-2 text-xs text-gray-500">Saisissez la quantité physique après inventaire ou réception.</p>
                     </div>

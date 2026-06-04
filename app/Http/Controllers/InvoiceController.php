@@ -3,19 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\StockMovementService;
+use App\Support\CommercialDocumentView;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class InvoiceController extends Controller
 {
-    use FiltersIndexTables, PreparesPrintView;
+    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+
+    public function __construct(
+        protected StockMovementService $stockMovement
+    ) {}
 
     public function index(Request $request)
     {
@@ -110,8 +115,17 @@ class InvoiceController extends Controller
                 'total' => $subtotal + ($request->adjustment ?? 0),
             ]);
 
+            $this->stockMovement->decreaseForSale(
+                $validated['items'],
+                $validated['stock_location']
+            );
+
             DB::commit();
             return redirect()->route('invoices.index')->with('success', 'Facture créée avec succès!');
+        } catch (\RuntimeException $e) {
+            DB::rollBack();
+
+            return back()->withInput()->with('error', $e->getMessage());
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->withInput()->with('error', 'Erreur lors de la création de la facture: ' . $e->getMessage());
@@ -225,10 +239,11 @@ class InvoiceController extends Controller
     public function print(Invoice $invoice)
     {
         $invoice->load('client', 'items');
+        $printData = $this->printViewData($invoice, $invoice->items);
 
         return view('sales.invoices.print', array_merge(
-            compact('invoice'),
-            $this->printViewData($invoice, $invoice->items),
+            CommercialDocumentView::forInvoice($invoice, $printData['taxes']),
+            $printData,
             ['generatedBy' => auth()->user()?->name]
         ));
     }
@@ -236,18 +251,17 @@ class InvoiceController extends Controller
     public function downloadPdf(Invoice $invoice)
     {
         $invoice->load('client', 'items');
+        $printData = $this->printViewData($invoice, $invoice->items);
 
-        $pdf = Pdf::loadView('sales.invoices.pdf', array_merge(
-            compact('invoice'),
-            $this->printViewData($invoice, $invoice->items),
-            ['generatedBy' => auth()->user()?->name]
-        ));
-
-        $pdf->setPaper('a4', 'portrait');
-
-        $filename = 'facture-'.Str::slug($invoice->invoice_number).'.pdf';
-
-        return $pdf->download($filename);
+        return $this->downloadCommercialPdf(
+            array_merge(
+                CommercialDocumentView::forInvoice($invoice, $printData['taxes']),
+                $printData,
+                ['generatedBy' => auth()->user()?->name]
+            ),
+            'facture',
+            $invoice->invoice_number
+        );
     }
 
     public function updatePaymentStatus(Request $request, Invoice $invoice)
@@ -264,7 +278,18 @@ class InvoiceController extends Controller
 
     public function destroy(Invoice $invoice)
     {
-        $invoice->delete();
+        DB::beginTransaction();
+        try {
+            $invoice->load('items');
+            $this->stockMovement->increaseFromItems($invoice->items, $invoice->stock_location);
+            $invoice->delete();
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return back()->with('error', 'Erreur lors de la suppression : '.$e->getMessage());
+        }
+
         return redirect()->route('invoices.index')->with('success', 'Facture supprimée avec succès!');
     }
 }

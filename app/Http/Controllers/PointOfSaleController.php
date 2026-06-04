@@ -6,14 +6,19 @@ use App\Models\Client;
 use App\Models\PosSale;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Services\StockMovementService;
 use App\Support\PosDefaultClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use RuntimeException;
 
 class PointOfSaleController extends Controller
 {
+    public function __construct(
+        protected StockMovementService $stockMovement
+    ) {}
     public function index()
     {
         $comptoirClient = PosDefaultClient::ensure();
@@ -22,27 +27,7 @@ class PointOfSaleController extends Controller
             ->orderBy('name')
             ->get();
         
-        // Stock Magasin: products that are NOT from Shopify (local/manual products)
-        $productsMagasin = Product::query()
-            ->where(function ($q) {
-                $q->where('status', 'Activer')->orWhereNull('status');
-            })
-            ->where(function ($q) {
-                $q->whereNull('source')->orWhere('source', '!=', 'shopify');
-            })
-            ->orderBy('name')
-            ->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category', 'image', 'stock_magasin']);
-
-        // Stock En Ligne: products from Shopify (online stock)
-        $productsEnligne = Product::query()
-            ->where(function ($q) {
-                $q->where('status', 'Activer')->orWhereNull('status');
-            })
-            ->where('source', 'shopify')
-            ->orderBy('name')
-            ->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category', 'image', 'stock_enligne']);
-
-        $productsMagasinForJs = $productsMagasin->map(fn (Product $p) => [
+        $productsMagasinForJs = $this->catalogQuery('magasin')->get()->map(fn (Product $p) => [
             'id' => $p->id,
             'name' => $p->name,
             'ref' => $p->ref,
@@ -53,7 +38,7 @@ class PointOfSaleController extends Controller
             'stock' => (int) ($p->stock_magasin ?? 0),
         ])->values();
 
-        $productsEnligneForJs = $productsEnligne->map(fn (Product $p) => [
+        $productsEnligneForJs = $this->catalogQuery('enligne')->get()->map(fn (Product $p) => [
             'id' => $p->id,
             'name' => $p->name,
             'ref' => $p->ref,
@@ -70,13 +55,29 @@ class PointOfSaleController extends Controller
         return view('pos.index', compact(
             'clients',
             'comptoirClient',
-            'productsMagasin',
-            'productsEnligne',
             'productsMagasinForJs',
             'productsEnligneForJs',
             'paymentMethods',
             'pricesAreTtc'
         ));
+    }
+
+    public function catalog(Request $request): JsonResponse
+    {
+        $stockType = $request->get('stock_type', 'magasin');
+        $page = max(1, (int) $request->get('page', 1));
+        $perPage = min(96, max(12, (int) $request->get('per_page', 24)));
+
+        $paginator = $this->catalogQuery($stockType)
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'products' => $paginator->getCollection()->map(fn (Product $p) => $this->mapProductForPos($p, $stockType))->values(),
+            'total' => $paginator->total(),
+            'page' => $paginator->currentPage(),
+            'per_page' => $perPage,
+            'total_pages' => $paginator->lastPage(),
+        ]);
     }
 
     public function searchProducts(Request $request): JsonResponse
@@ -137,6 +138,7 @@ class PointOfSaleController extends Controller
 
         $validated = $request->validate([
             'client_id' => 'nullable|exists:clients,id',
+            'stock_type' => 'nullable|in:magasin,enligne',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
@@ -252,16 +254,87 @@ class PointOfSaleController extends Controller
                 ]);
             }
 
+            $stockLocation = ($validated['stock_type'] ?? 'magasin') === 'enligne'
+                ? 'Stock en ligne'
+                : 'Stock magasin';
+
+            $this->stockMovement->decreaseForSale(
+                collect($lineRows)->map(fn ($row) => [
+                    'product_id' => $row['product']->id,
+                    'quantity' => $row['quantity'],
+                ])->all(),
+                $stockLocation
+            );
+
             DB::commit();
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'redirect' => route('pos.sales.show', $sale),
+                    'message' => 'Vente enregistrée. Ticket '.$ticketNumber,
+                ]);
+            }
 
             return redirect()
                 ->route('pos.sales.show', $sale)
                 ->with('success', 'Vente enregistrée. Ticket '.$ticketNumber);
+        } catch (RuntimeException $e) {
+            DB::rollBack();
+
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+
+            return back()->with('error', $e->getMessage());
         } catch (\Throwable $e) {
             DB::rollBack();
 
-            return back()->withInput()->with('error', 'Erreur lors de la vente : '.$e->getMessage());
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Erreur lors de la vente : '.$e->getMessage()], 500);
+            }
+
+            return back()->with('error', 'Erreur lors de la vente : '.$e->getMessage());
         }
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Builder<Product>
+     */
+    protected function catalogQuery(string $stockType)
+    {
+        $query = Product::query()
+            ->where(function ($q) {
+                $q->where('status', 'Activer')->orWhereNull('status');
+            })
+            ->orderBy('name');
+
+        if ($stockType === 'enligne') {
+            return $query->where('source', 'shopify');
+        }
+
+        return $query->where(function ($q) {
+            $q->whereNull('source')->orWhere('source', '!=', 'shopify');
+        });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function mapProductForPos(Product $p, string $stockType): array
+    {
+        $stockField = $stockType === 'enligne' ? 'stock_enligne' : 'stock_magasin';
+
+        return [
+            'id' => $p->id,
+            'name' => $p->name,
+            'ref' => $p->ref,
+            'sale_price' => (float) ($p->sale_price ?? 0),
+            'barcode' => $p->barcode,
+            'tax_rate' => $this->defaultTaxRate($p),
+            'image_url' => $p->image_url,
+            'stock' => (int) ($p->{$stockField} ?? 0),
+        ];
     }
 
     private function defaultTaxRate(Product $product): float

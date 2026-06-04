@@ -7,12 +7,17 @@ use App\Models\Supplier;
 use App\Models\Reception;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
+use App\Services\StockMovementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ReceptionController extends Controller
 {
     use FiltersIndexTables;
+
+    public function __construct(
+        protected StockMovementService $stockMovement
+    ) {}
 
     public function index(Request $request)
     {
@@ -82,6 +87,12 @@ class ReceptionController extends Controller
             }
 
             $reception->update(['subtotal' => $subtotal, 'total' => $subtotal]);
+
+            $reception->load('items');
+            $this->stockMovement->increaseFromItems(
+                $reception->items,
+                $validated['stock_location']
+            );
 
             DB::commit();
             return redirect()->route('receptions.index')->with('success', 'Bon de réception créé avec succès!');

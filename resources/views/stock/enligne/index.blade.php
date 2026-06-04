@@ -12,6 +12,14 @@
                         <h1 class="text-3xl font-bold text-gray-900">Stock Enligne</h1>
                         <p class="text-gray-500 mt-1">Gestion du stock des produits en ligne (Shopify)</p>
                     </div>
+                    <div class="flex flex-wrap gap-2">
+                        <a href="{{ route('stock.enligne.export', array_merge(['format' => 'excel'], request()->query())) }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">
+                            Exporter Excel
+                        </a>
+                        <a href="{{ route('stock.enligne.export', array_merge(['format' => 'pdf'], request()->query())) }}" class="inline-flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition">
+                            Exporter PDF
+                        </a>
+                    </div>
                     <a href="{{ route('products.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-150">
                         <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
@@ -79,13 +87,14 @@
                                                 <div class="text-xs text-gray-500">{{ $product->product_category }}</div>
                                             @endif
                                         </td>
+                                        @php $qty = (int) ($product->stock_enligne ?? 0); @endphp
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            @if($product->isOutOfStock())
-                                                <span class="text-sm font-bold text-red-600">{{ $product->stock_quantity }}</span>
-                                            @elseif($product->isStockLow())
-                                                <span class="text-sm font-bold text-orange-600">{{ $product->stock_quantity }}</span>
+                                            @if($qty <= 0)
+                                                <span class="text-sm font-bold text-red-600">{{ $qty }}</span>
+                                            @elseif($product->minimum_alert_stock !== null && $qty <= $product->minimum_alert_stock)
+                                                <span class="text-sm font-bold text-orange-600">{{ $qty }}</span>
                                             @else
-                                                <span class="text-sm text-gray-900">{{ $product->stock_quantity }}</span>
+                                                <span class="text-sm text-gray-900">{{ $qty }}</span>
                                             @endif
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -98,9 +107,9 @@
                                             @endif
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            @if($product->isOutOfStock())
+                                            @if($qty <= 0)
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Rupture</span>
-                                            @elseif($product->isStockLow())
+                                            @elseif($product->minimum_alert_stock !== null && $qty <= $product->minimum_alert_stock)
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">Sous seuil</span>
                                             @else
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">OK</span>

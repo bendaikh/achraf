@@ -3,17 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\Product;
+use App\Services\StockMovementService;
+use App\Support\CommercialDocumentView;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class SupplierInvoiceController extends Controller
 {
-    use FiltersIndexTables, PreparesPrintView;
+    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+
+    public function __construct(
+        protected StockMovementService $stockMovement
+    ) {}
 
     public function index(Request $request)
     {
@@ -112,6 +119,12 @@ class SupplierInvoiceController extends Controller
                 'subtotal' => $subtotal,
                 'total' => $subtotal + ($request->adjustment ?? 0),
             ]);
+
+            $invoice->load('items');
+            $this->stockMovement->increaseFromItems(
+                $invoice->items,
+                $validated['stock_location']
+            );
 
             DB::commit();
             return redirect()->route('supplier-invoices.index')->with('success', 'Facture fournisseur créée avec succès!');
@@ -232,11 +245,30 @@ class SupplierInvoiceController extends Controller
         }
 
         $supplierInvoice->load('supplier', 'items');
+        $printData = $this->printViewData($supplierInvoice, $supplierInvoice->items);
 
         return view('purchases.supplier-invoices.print', array_merge(
+            CommercialDocumentView::forSupplierInvoice($supplierInvoice, $printData['taxes']),
+            $printData,
             compact('supplierInvoice'),
-            $this->printViewData($supplierInvoice, $supplierInvoice->items)
+            ['generatedBy' => auth()->user()?->name]
         ));
+    }
+
+    public function downloadPdf(SupplierInvoice $supplierInvoice)
+    {
+        $supplierInvoice->load('supplier', 'items');
+        $printData = $this->printViewData($supplierInvoice, $supplierInvoice->items);
+
+        return $this->downloadCommercialPdf(
+            array_merge(
+                CommercialDocumentView::forSupplierInvoice($supplierInvoice, $printData['taxes']),
+                $printData,
+                ['generatedBy' => auth()->user()?->name]
+            ),
+            'facture-fournisseur',
+            $supplierInvoice->invoice_number
+        );
     }
 
     public function destroy(SupplierInvoice $supplierInvoice)

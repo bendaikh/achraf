@@ -52,8 +52,9 @@ class DashboardService
       ->sum('amount');
 
     $openSupplierBalance = (float) SupplierInvoice::query()
+      ->withSum('payments as payments_sum', 'amount')
       ->get()
-      ->sum(fn (SupplierInvoice $inv) => (float) $inv->remaining_balance);
+      ->sum(fn (SupplierInvoice $inv) => max(0, (float) $inv->total - (float) ($inv->payments_sum ?? 0)));
 
     return [
       'clients_count' => Client::count(),
