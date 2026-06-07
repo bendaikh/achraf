@@ -36,11 +36,10 @@ class InvoiceController extends Controller
 
     public function create()
     {
-        $clients = Client::all();
         $products = Product::all();
         $invoiceNumber = DocumentNumberService::preview('facture');
         
-        return view('sales.invoices.create', compact('clients', 'products', 'invoiceNumber'));
+        return view('sales.invoices.create', compact('products', 'invoiceNumber'));
     }
 
     public function store(Request $request)
@@ -134,14 +133,13 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load('client', 'items');
+        $invoice->load('client', 'items', 'posSale');
         return view('sales.invoices.show', compact('invoice'));
     }
 
     public function edit(Invoice $invoice)
     {
         $invoice->load('client', 'items');
-        $clients = Client::all();
         $products = Product::all();
         $existingItems = $invoice->items->map(fn ($item) => [
             'product_id' => $item->product_id,
@@ -153,7 +151,7 @@ class InvoiceController extends Controller
             'discount' => $item->discount,
         ])->values();
 
-        return view('sales.invoices.edit', compact('invoice', 'clients', 'products', 'existingItems'));
+        return view('sales.invoices.edit', compact('invoice', 'products', 'existingItems'));
     }
 
     public function update(Request $request, Invoice $invoice)

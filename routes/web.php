@@ -74,6 +74,7 @@ Route::middleware('auth')->group(function () {
         Route::post('clients/import', [CrmImportController::class, 'importClients'])->name('clients.import');
         Route::get('suppliers/import/template', [CrmImportController::class, 'supplierTemplate'])->name('suppliers.import.template');
         Route::post('suppliers/import', [CrmImportController::class, 'importSuppliers'])->name('suppliers.import');
+        Route::get('clients/search', [ClientController::class, 'search'])->name('clients.search');
         Route::resource('clients', ClientController::class);
         Route::resource('suppliers', SupplierController::class);
     });

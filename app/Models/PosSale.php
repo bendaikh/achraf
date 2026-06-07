@@ -68,6 +68,16 @@ class PosSale extends Model
         return $this->hasMany(PosSaleItem::class);
     }
 
+    public function invoice(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Invoice::class);
+    }
+
+    public function isPaidAndFulfilled(): bool
+    {
+        return $this->payment_status === 'paid' && $this->fulfillment_status === 'fulfilled';
+    }
+
     public static function paymentLabels(): array
     {
         return [

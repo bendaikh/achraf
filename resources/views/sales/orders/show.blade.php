@@ -121,6 +121,18 @@
                     </div>
                 </div>
 
+                @if($order->invoice)
+                <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="text-sm font-medium text-green-900">Facture liée</p>
+                        <p class="text-sm text-green-800">{{ $order->invoice->invoice_number }}</p>
+                    </div>
+                    <a href="{{ route('invoices.show', $order->invoice) }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition">
+                        Voir la facture
+                    </a>
+                </div>
+                @endif
+
                 <!-- Order Items -->
                 <div>
                     <h3 class="text-sm font-semibold text-gray-900 mb-3">Articles</h3>

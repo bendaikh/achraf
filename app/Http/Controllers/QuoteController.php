@@ -32,11 +32,10 @@ class QuoteController extends Controller
 
     public function create()
     {
-        $clients = Client::all();
         $products = Product::all();
         $quoteNumber = DocumentNumberService::preview('devis');
         
-        return view('sales.quotes.create', compact('clients', 'products', 'quoteNumber'));
+        return view('sales.quotes.create', compact('products', 'quoteNumber'));
     }
 
     public function store(Request $request)

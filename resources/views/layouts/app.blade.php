@@ -63,6 +63,45 @@
     
     <!-- Select2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        window.initClientSelect2 = function (selector, options) {
+            options = options || {};
+            var config = {
+                placeholder: options.placeholder || 'Rechercher un client...',
+                allowClear: options.allowClear !== false,
+                width: options.width || '100%',
+                minimumInputLength: options.minimumInputLength ?? 1,
+                ajax: {
+                    url: options.url || @json(route('clients.search')),
+                    dataType: 'json',
+                    delay: 300,
+                    data: function (params) {
+                        return {
+                            q: params.term || '',
+                            page: params.page || 1
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.results,
+                            pagination: { more: data.pagination.more }
+                        };
+                    }
+                },
+                language: {
+                    noResults: function () { return 'Aucun client trouvé'; },
+                    searching: function () { return 'Recherche...'; },
+                    inputTooShort: function () { return 'Tapez au moins 1 caractère'; }
+                }
+            };
+
+            if (options.allowClear === false) {
+                config.allowClear = false;
+            }
+
+            return $(selector).select2(config);
+        };
+    </script>
 </head>
 <body class="bg-gray-50">
     @yield('content')

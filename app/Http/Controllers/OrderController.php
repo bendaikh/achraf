@@ -8,6 +8,7 @@ use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\InvoiceItem;
 use App\Services\DocumentNumberService;
+use App\Services\OrderToInvoiceConverter;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,10 @@ use Illuminate\View\View;
 
 class OrderController extends Controller
 {
+    public function __construct(
+        protected OrderToInvoiceConverter $orderToInvoiceConverter
+    ) {}
+
     public function index(Request $request): View
     {
         $query = PosSale::with(['client', 'user', 'items'])
@@ -94,7 +99,7 @@ class OrderController extends Controller
 
     public function show(PosSale $order): View
     {
-        $order->load(['client', 'user', 'items.product']);
+        $order->load(['client', 'user', 'items.product', 'invoice']);
 
         return view('sales.orders.show', compact('order'));
     }
@@ -164,7 +169,7 @@ class OrderController extends Controller
         try {
             $document = match ($type) {
                 'devis' => $this->createQuote($order),
-                'facture' => $this->createInvoice($order),
+                'facture' => $this->orderToInvoiceConverter->convert($order),
                 'bon_livraison' => $this->createPurchaseOrder($order),
             };
 
@@ -209,31 +214,6 @@ class OrderController extends Controller
         $this->copyOrderItems($order, $quote);
 
         return $quote;
-    }
-
-    /**
-     * Create an Invoice (Facture) from an order
-     */
-    private function createInvoice(PosSale $order): Invoice
-    {
-        $invoiceNumber = DocumentNumberService::generate('facture');
-
-        $invoice = Invoice::create([
-            'invoice_number' => $invoiceNumber,
-            'client_id' => $order->client_id,
-            'invoice_date' => now(),
-            'due_date' => now()->addDays(30),
-            'currency' => $order->currency ?? 'MAD',
-            'subtotal' => $order->subtotal,
-            'discount' => $order->discount,
-            'adjustment' => 0,
-            'total' => $order->total,
-            'remarks' => 'Converti depuis la commande ' . $order->ticket_number,
-        ]);
-
-        $this->copyOrderItems($order, $invoice);
-
-        return $invoice;
     }
 
     /**

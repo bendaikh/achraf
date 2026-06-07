@@ -6,10 +6,15 @@ use App\Models\Client;
 use App\Models\Product;
 use App\Models\PosSale;
 use App\Models\PosSaleItem;
+use App\Services\OrderToInvoiceConverter;
 use Illuminate\Support\Facades\DB;
 
 class ShopifyOrderImporter
 {
+    public function __construct(
+        protected OrderToInvoiceConverter $orderToInvoiceConverter
+    ) {}
+
     public function import(array $order): PosSale
     {
         return DB::transaction(function () use ($order) {
@@ -103,6 +108,9 @@ class ShopifyOrderImporter
                         'order_id' => $externalId,
                         'ticket_number' => $existing->ticket_number,
                     ]);
+
+                    $existing->refresh();
+                    $this->orderToInvoiceConverter->tryAutoGenerate($existing);
 
                     return $existing;
                 }
@@ -203,6 +211,9 @@ class ShopifyOrderImporter
                     'new_items' => count($lineRows),
                 ]);
 
+                $existing->refresh();
+                $this->orderToInvoiceConverter->tryAutoGenerate($existing);
+
                 return $existing;
             }
 
@@ -242,6 +253,9 @@ class ShopifyOrderImporter
                     'line_total' => $row['line_total'],
                 ]);
             }
+
+            $sale->refresh();
+            $this->orderToInvoiceConverter->tryAutoGenerate($sale);
 
             return $sale;
         });

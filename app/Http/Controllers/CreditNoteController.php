@@ -37,12 +37,11 @@ class CreditNoteController extends Controller
 
     public function create()
     {
-        $clients = Client::all();
         $products = Product::all();
         $invoices = Invoice::all();
         $creditNoteNumber = DocumentNumberService::preview('avoir');
         
-        return view('sales.credit-notes.create', compact('clients', 'products', 'invoices', 'creditNoteNumber'));
+        return view('sales.credit-notes.create', compact('products', 'invoices', 'creditNoteNumber'));
     }
 
     public function store(Request $request)

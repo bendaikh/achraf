@@ -1,0 +1,117 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use App\Models\PosSale;
+use App\Models\Setting;
+
+class OrderToInvoiceConverter
+{
+    public function invoiceExistsForOrder(PosSale $order): bool
+    {
+        return Invoice::query()->where('pos_sale_id', $order->id)->exists();
+    }
+
+    public function shouldAutoGenerate(PosSale $order): bool
+    {
+        if ($order->payment_status !== 'paid' || $order->fulfillment_status !== 'fulfilled') {
+            return false;
+        }
+
+        if (! $order->client_id) {
+            return false;
+        }
+
+        $startNumber = Setting::get('auto_invoice_start_order_number');
+        if ($startNumber === null || $startNumber === '') {
+            return false;
+        }
+
+        $orderNumber = $this->extractOrderNumber($order->ticket_number);
+        if ($orderNumber === null) {
+            return false;
+        }
+
+        return $orderNumber >= (int) $startNumber;
+    }
+
+    public function tryAutoGenerate(PosSale $order): ?Invoice
+    {
+        if (! $this->shouldAutoGenerate($order) || $this->invoiceExistsForOrder($order)) {
+            return null;
+        }
+
+        return $this->convert($order, markAsPaid: true);
+    }
+
+    public function convert(PosSale $order, bool $markAsPaid = false): Invoice
+    {
+        if ($this->invoiceExistsForOrder($order)) {
+            throw new \RuntimeException('Une facture existe déjà pour cette commande.');
+        }
+
+        if (! $order->client_id) {
+            throw new \RuntimeException('La commande n\'a pas de client associé.');
+        }
+
+        $order->loadMissing('items.product');
+
+        $invoice = Invoice::create([
+            'invoice_number' => DocumentNumberService::generate('facture'),
+            'client_id' => $order->client_id,
+            'pos_sale_id' => $order->id,
+            'invoice_date' => now(),
+            'due_date' => now()->addDays(30),
+            'currency' => $this->normalizeCurrency($order->currency),
+            'subtotal' => $order->subtotal,
+            'discount' => $order->discount,
+            'adjustment' => 0,
+            'total' => $order->total,
+            'remarks' => 'Générée automatiquement depuis la commande ' . $order->ticket_number,
+            'conditions' => Setting::get('facture_conditions'),
+            'payment_status' => $markAsPaid ? Invoice::PAYMENT_PAID : Invoice::PAYMENT_UNPAID,
+        ]);
+
+        foreach ($order->items as $item) {
+            InvoiceItem::create([
+                'itemable_type' => Invoice::class,
+                'itemable_id' => $invoice->id,
+                'product_id' => $item->product_id,
+                'ref' => $item->ref ?? $item->product?->ref,
+                'designation' => $item->designation ?? $item->product?->name,
+                'description' => $item->product?->description,
+                'quantity' => $item->quantity,
+                'unit_price' => $item->unit_price,
+                'tax_rate' => $item->tax_rate ?? 20,
+                'discount' => $item->discount ?? 0,
+                'line_total' => $item->line_total,
+            ]);
+        }
+
+        return $invoice;
+    }
+
+    public function extractOrderNumber(string $ticketNumber): ?int
+    {
+        if (preg_match('/(\d+)\s*$/', trim($ticketNumber), $matches)) {
+            return (int) $matches[1];
+        }
+
+        return null;
+    }
+
+    private function normalizeCurrency(?string $currency): string
+    {
+        if ($currency === null || $currency === '') {
+            return 'dh - MAD';
+        }
+
+        if (str_contains(strtoupper($currency), 'MAD')) {
+            return 'dh - MAD';
+        }
+
+        return $currency;
+    }
+}

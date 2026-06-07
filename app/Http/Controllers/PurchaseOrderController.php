@@ -32,11 +32,10 @@ class PurchaseOrderController extends Controller
 
     public function create()
     {
-        $clients = Client::all();
         $products = Product::all();
         $reference = DocumentNumberService::preview('bc_client');
         
-        return view('sales.purchase-orders.create', compact('clients', 'products', 'reference'));
+        return view('sales.purchase-orders.create', compact('products', 'reference'));
     }
 
     public function store(Request $request)

@@ -93,6 +93,7 @@ class SettingsController extends Controller
         $settings['expense_accounts'] = implode("\n", Setting::getList('expense_accounts'));
         $settings['expense_payment_methods'] = implode("\n", Setting::getList('expense_payment_methods'));
         $settings['product_element_types'] = implode("\n", Setting::getList('product_element_types', ['Produit', 'Service']));
+        $settings['auto_invoice_start_order_number'] = Setting::get('auto_invoice_start_order_number', '');
 
         return $settings;
     }
@@ -138,6 +139,14 @@ class SettingsController extends Controller
 
         if ($type === 'devis' && $request->has('devis_validity_days')) {
             Setting::set('devis_validity_days', $request->input('devis_validity_days'), 'Durée de validité des devis en jours');
+        }
+
+        if ($type === 'facture' && $request->has('auto_invoice_start_order_number')) {
+            Setting::set(
+                'auto_invoice_start_order_number',
+                trim((string) $request->input('auto_invoice_start_order_number')),
+                'Numéro de commande de départ pour la génération automatique de factures'
+            );
         }
     }
 

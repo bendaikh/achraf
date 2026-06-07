@@ -13,6 +13,7 @@ class Invoice extends Model
     protected $fillable = [
         'invoice_number',
         'client_id',
+        'pos_sale_id',
         'invoice_date',
         'due_date',
         'currency',
@@ -41,6 +42,11 @@ class Invoice extends Model
     public function client()
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function posSale()
+    {
+        return $this->belongsTo(PosSale::class);
     }
 
     public function items()

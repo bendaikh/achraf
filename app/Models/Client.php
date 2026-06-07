@@ -25,6 +25,11 @@ class Client extends Model
         'client_type',
     ];
 
+    public function selectLabel(): string
+    {
+        return $this->name . ($this->email ? ' (' . $this->email . ')' : '');
+    }
+
     public function invoices()
     {
         return $this->hasMany(Invoice::class);

@@ -22,11 +22,6 @@ class PointOfSaleController extends Controller
     public function index()
     {
         $comptoirClient = PosDefaultClient::ensure();
-        $clients = Client::query()
-            ->where('id', '!=', $comptoirClient->id)
-            ->orderBy('name')
-            ->get();
-        
         $productsMagasinForJs = $this->catalogQuery('magasin')->get()->map(fn (Product $p) => [
             'id' => $p->id,
             'name' => $p->name,
@@ -53,7 +48,6 @@ class PointOfSaleController extends Controller
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
         return view('pos.index', compact(
-            'clients',
             'comptoirClient',
             'productsMagasinForJs',
             'productsEnligneForJs',

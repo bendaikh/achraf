@@ -32,9 +32,6 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">Client *</label>
                             <select name="client_id" id="client_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#fdb819] focus:border-transparent">
                                 <option value="">Sélectionner un client</option>
-                                @foreach($clients as $client)
-                                    <option value="{{ $client->id }}">{{ $client->name }} {{ $client->email ? '('.$client->email.')' : '' }}</option>
-                                @endforeach
                             </select>
                         </div>
 
@@ -152,15 +149,7 @@
 
 <script>
 $(document).ready(function() {
-    $('#client_id').select2({
-        placeholder: 'Rechercher un client...',
-        allowClear: true,
-        width: '100%',
-        language: {
-            noResults: function() { return "Aucun client trouvé"; },
-            searching: function() { return "Recherche..."; }
-        }
-    });
+    initClientSelect2('#client_id');
 });
 
 var itemIndex = 0;

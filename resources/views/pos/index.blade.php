@@ -206,9 +206,6 @@
                     <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Client (optionnel)</label>
                     <select id="pos_client_id" x-ref="clientSelect" class="w-full rounded-lg bg-slate-800 border border-white/10 text-white text-sm py-2.5 px-3 focus:ring-2 focus:ring-[#fdb819] outline-none">
                         <option value="{{ $comptoirClient->id }}" selected>{{ $comptoirClient->name }}</option>
-                        @foreach($clients as $c)
-                            <option value="{{ $c->id }}">{{ $c->name }} {{ $c->email ? '('.$c->email.')' : '' }}</option>
-                        @endforeach
                     </select>
                 </div>
 
@@ -447,12 +444,11 @@ function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc, defaultClient
             });
             const self = this;
             $(document).ready(function() {
-                const $clientSelect = $('#pos_client_id');
-                $clientSelect.select2({
-                    placeholder: 'Rechercher un client...',
+                const $clientSelect = initClientSelect2('#pos_client_id', {
                     allowClear: false,
-                    width: '100%'
-                }).val(self.defaultClientId).trigger('change');
+                    minimumInputLength: 1
+                });
+                $clientSelect.val(self.defaultClientId).trigger('change');
                 $clientSelect.on('change', function() {
                     self.clientId = $(this).val() || String(self.defaultClientId);
                 });

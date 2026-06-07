@@ -78,6 +78,16 @@
                         <label class="text-sm font-medium text-gray-500">Devise</label>
                         <p class="text-sm text-gray-900 mt-1">{{ $invoice->currency }}</p>
                     </div>
+                    @if($invoice->posSale)
+                    <div>
+                        <label class="text-sm font-medium text-gray-500">Commande liée</label>
+                        <p class="text-sm text-gray-900 mt-1">
+                            <a href="{{ route('orders.show', $invoice->posSale) }}" class="text-blue-600 hover:text-blue-800 font-medium">
+                                {{ $invoice->posSale->ticket_number }}
+                            </a>
+                        </p>
+                    </div>
+                    @endif
                     <div>
                         <label class="text-sm font-medium text-gray-500">Emplacement de stock</label>
                         <p class="text-sm text-gray-900 mt-1">{{ $invoice->stock_location }}</p>

@@ -155,6 +155,18 @@
                             <textarea name="facture_remarks" id="facture_remarks" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">{{ $settings['facture_remarks'] ?? '' }}</textarea>
                         </div>
 
+                        <div class="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+                            <div>
+                                <label for="auto_invoice_start_order_number" class="block text-sm font-medium text-gray-900 mb-1">
+                                    Numéro de commande de départ pour la génération automatique de factures
+                                </label>
+                                <input type="number" name="auto_invoice_start_order_number" id="auto_invoice_start_order_number" min="0" value="{{ $settings['auto_invoice_start_order_number'] ?? '' }}" placeholder="Ex: 8800" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">
+                            </div>
+                            <p class="text-sm text-amber-900">
+                                Lorsqu'une commande est marquée <strong>Traité</strong> et <strong>Payé</strong>, une facture est créée automatiquement uniquement si son N° Commande est supérieur ou égal à cette valeur. Laissez vide pour désactiver.
+                            </p>
+                        </div>
+
                         <div class="flex justify-end">
                             <button type="submit" class="px-6 py-2 bg-[#0a5d8a] text-white rounded-lg hover:bg-[#084a6e] transition duration-150 text-sm font-medium">
                                 Enregistrer

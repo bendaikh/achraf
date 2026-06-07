@@ -132,4 +132,34 @@ class ClientController extends Controller
         $client->delete();
         return redirect()->route('clients.index')->with('success', 'Client supprimé avec succès.');
     }
+
+    public function search(Request $request)
+    {
+        $term = trim((string) $request->input('q', ''));
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = 20;
+
+        $query = Client::query()->orderBy('name');
+
+        if ($term !== '') {
+            $query->where(function ($builder) use ($term) {
+                $builder->where('name', 'like', "%{$term}%")
+                    ->orWhere('email', 'like', "%{$term}%")
+                    ->orWhere('phone', 'like', "%{$term}%")
+                    ->orWhere('code', 'like', "%{$term}%");
+            });
+        }
+
+        $paginator = $query->paginate($perPage, ['id', 'name', 'email'], 'page', $page);
+
+        return response()->json([
+            'results' => $paginator->getCollection()->map(fn (Client $client) => [
+                'id' => $client->id,
+                'text' => $client->selectLabel(),
+            ])->values(),
+            'pagination' => [
+                'more' => $paginator->hasMorePages(),
+            ],
+        ]);
+    }
 }
