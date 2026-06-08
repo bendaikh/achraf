@@ -14,6 +14,7 @@ class Invoice extends Model
         'invoice_number',
         'client_id',
         'pos_sale_id',
+        'is_auto_generated',
         'invoice_date',
         'due_date',
         'currency',
@@ -31,6 +32,7 @@ class Invoice extends Model
     ];
 
     protected $casts = [
+        'is_auto_generated' => 'boolean',
         'invoice_date' => 'date',
         'due_date' => 'date',
         'subtotal' => 'decimal:2',

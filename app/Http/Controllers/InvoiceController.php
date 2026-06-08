@@ -24,9 +24,9 @@ class InvoiceController extends Controller
 
     public function index(Request $request)
     {
-        $query = Invoice::with('client')->latest();
+        $query = Invoice::with(['client', 'posSale'])->latest();
 
-        $this->applyTableSearch($query, $request, ['invoice_number', 'client.name']);
+        $this->applyTableSearch($query, $request, ['invoice_number', 'client.name', 'posSale.ticket_number']);
         $this->applyTableDateRange($query, $request, 'invoice_date');
 
         $invoices = $query->paginate(15)->withQueryString();
