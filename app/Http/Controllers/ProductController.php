@@ -32,6 +32,7 @@ class ProductController extends Controller
 
         $this->applyTableSearch($query, $request, ['name', 'ref', 'barcode']);
         $this->applyTableFilter($query, $request, 'status', 'status');
+        $this->applyTableDateRange($query, $request, 'created_at', 'date_from', 'date_to');
 
         $products = $query->withCount('variants')->latest()->paginate(20)->withQueryString();
 
@@ -81,8 +82,10 @@ class ProductController extends Controller
     public function create()
     {
         $elementTypes = Setting::getList('product_element_types', ['Produit', 'Service']);
+        $vatCategories = \App\Support\VatCategoryHelper::all();
+        $productTypeCategories = Setting::getList('product_type_categories', ['Électronique', 'Textile', 'Alimentaire', 'Service']);
 
-        return view('products.create', compact('elementTypes'));
+        return view('products.create', compact('elementTypes', 'vatCategories', 'productTypeCategories'));
     }
 
     public function store(Request $request)
@@ -105,6 +108,7 @@ class ProductController extends Controller
             'tag' => 'nullable|string|max:255',
             'status' => 'nullable|string|max:255',
             'product_category' => 'nullable|string|max:255',
+            'product_type_category' => 'nullable|string|max:255',
             'description' => 'nullable|string',
         ]);
 
@@ -131,8 +135,10 @@ class ProductController extends Controller
     public function edit(Product $product)
     {
         $elementTypes = Setting::getList('product_element_types', ['Produit', 'Service']);
+        $vatCategories = \App\Support\VatCategoryHelper::all();
+        $productTypeCategories = Setting::getList('product_type_categories', ['Électronique', 'Textile', 'Alimentaire', 'Service']);
 
-        return view('products.edit', compact('product', 'elementTypes'));
+        return view('products.edit', compact('product', 'elementTypes', 'vatCategories', 'productTypeCategories'));
     }
 
     public function update(Request $request, Product $product)
@@ -155,6 +161,7 @@ class ProductController extends Controller
             'tag' => 'nullable|string|max:255',
             'status' => 'nullable|string|max:255',
             'product_category' => 'nullable|string|max:255',
+            'product_type_category' => 'nullable|string|max:255',
             'description' => 'nullable|string',
         ]);
 

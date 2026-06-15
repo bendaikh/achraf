@@ -117,7 +117,7 @@
                 <x-table-filters
                     :action="route('products.index')"
                     search-placeholder="Nom, référence, code-barres..."
-                    :date-from="false"
+                    :date-from="true"
                     grid-cols="md:grid-cols-5"
                 >
                     <x-table-filter-select

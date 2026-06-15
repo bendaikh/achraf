@@ -11,4 +11,5 @@ Artisan::command('inspire', function () {
 // Automatic Shopify synchronization every 5 minutes for near real-time updates
 Schedule::command('shopify:sync-orders')->everyFiveMinutes();
 Schedule::command('shopify:sync-products')->everyFiveMinutes();
+Schedule::command('jumia:sync-orders')->everyFifteenMinutes();
 

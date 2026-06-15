@@ -19,6 +19,7 @@ class CreditNote extends Model
         'discount',
         'adjustment',
         'total',
+        'receipt_file_path',
     ];
 
     protected $casts = [

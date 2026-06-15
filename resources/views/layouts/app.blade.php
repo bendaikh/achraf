@@ -99,7 +99,11 @@
                 config.allowClear = false;
             }
 
-            return $(selector).select2(config);
+            var $el = $(selector).select2(config);
+            if ($el.closest('.party-select-wrap').length) {
+                $el.next('.select2-container').css('width', '100%');
+            }
+            return $el;
         };
     </script>
 </head>

@@ -9,6 +9,9 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseWithInvoiceController;
 use App\Http\Controllers\ExpenseWithoutInvoiceController;
 use App\Http\Controllers\SupplierInvoicePaymentController;
+use App\Http\Controllers\PurchasePaymentController;
+use App\Http\Controllers\SalesPaymentController;
+use App\Http\Controllers\InvoicePaymentController;
 use App\Http\Controllers\SupplierPurchaseOrderController;
 use App\Http\Controllers\ReceptionController;
 use App\Http\Controllers\SupplierInvoiceController;
@@ -18,6 +21,7 @@ use App\Http\Controllers\StockController;
 use App\Http\Controllers\PointOfSaleController;
 use App\Http\Controllers\PosSaleController;
 use App\Http\Controllers\ShopifyIntegrationController;
+use App\Http\Controllers\JumiaIntegrationController;
 use App\Http\Controllers\ShopifyWebhookController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\SupplierController;
@@ -28,6 +32,7 @@ use App\Http\Controllers\StockReportController;
 use App\Http\Controllers\DocumentImportController;
 use App\Http\Controllers\CrmImportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentFileController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -52,6 +57,7 @@ Route::post('/api/webhooks/shopify/products/delete', [ShopifyWebhookController::
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::post('/document-files/{type}/{id}', [DocumentFileController::class, 'store'])->name('document-files.store');
     
     Route::resource('products', ProductController::class);
     Route::post('/products/sync-shopify', [ProductController::class, 'syncShopify'])->name('products.sync-shopify');
@@ -75,7 +81,9 @@ Route::middleware('auth')->group(function () {
         Route::get('suppliers/import/template', [CrmImportController::class, 'supplierTemplate'])->name('suppliers.import.template');
         Route::post('suppliers/import', [CrmImportController::class, 'importSuppliers'])->name('suppliers.import');
         Route::get('clients/search', [ClientController::class, 'search'])->name('clients.search');
+        Route::post('clients/quick-store', [ClientController::class, 'quickStore'])->name('clients.quick-store');
         Route::resource('clients', ClientController::class);
+        Route::post('suppliers/quick-store', [SupplierController::class, 'quickStore'])->name('suppliers.quick-store');
         Route::resource('suppliers', SupplierController::class);
     });
     
@@ -85,9 +93,14 @@ Route::middleware('auth')->group(function () {
         Route::post('orders/bulk-convert', [OrderController::class, 'bulkConvert'])->name('orders.bulk-convert');
         Route::get('invoices/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'invoices')->name('invoices.import.template');
         Route::post('invoices/import', [DocumentImportController::class, 'import'])->defaults('type', 'invoices')->name('invoices.import');
+        Route::get('invoices/by-client/{client}', [InvoiceController::class, 'byClient'])->name('invoices.by-client');
         Route::get('invoices/{invoice}/print', [InvoiceController::class, 'print'])->name('invoices.print');
         Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'downloadPdf'])->name('invoices.pdf');
         Route::patch('invoices/{invoice}/payment-status', [InvoiceController::class, 'updatePaymentStatus'])->name('invoices.payment-status');
+        Route::get('invoices/{invoice}/payments', [InvoicePaymentController::class, 'index'])->name('invoices.payments.index');
+        Route::post('invoices/{invoice}/payments', [InvoicePaymentController::class, 'store'])->name('invoices.payments.store');
+        Route::delete('invoices/{invoice}/payments/{payment}', [InvoicePaymentController::class, 'destroy'])->name('invoices.payments.destroy');
+        Route::get('payments', [SalesPaymentController::class, 'index'])->name('sales.payments.index');
         Route::resource('invoices', InvoiceController::class);
         Route::get('quotes/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'quotes')->name('quotes.import.template');
         Route::post('quotes/import', [DocumentImportController::class, 'import'])->defaults('type', 'quotes')->name('quotes.import');
@@ -107,6 +120,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::prefix('purchases')->group(function () {
+        Route::get('payments', [PurchasePaymentController::class, 'index'])->name('purchases.payments.index');
         Route::resource('expenses', ExpenseController::class);
         Route::resource('expenses-with-invoice', ExpenseWithInvoiceController::class)->parameters(['expenses-with-invoice' => 'expenseWithInvoice']);
         Route::resource('expenses-without-invoice', ExpenseWithoutInvoiceController::class)->parameters(['expenses-without-invoice' => 'expenseWithoutInvoice']);
@@ -114,6 +128,7 @@ Route::middleware('auth')->group(function () {
         Route::resource('receptions', ReceptionController::class);
         Route::get('supplier-invoices/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'supplier-invoices')->name('supplier-invoices.import.template');
         Route::post('supplier-invoices/import', [DocumentImportController::class, 'import'])->defaults('type', 'supplier-invoices')->name('supplier-invoices.import');
+        Route::get('supplier-invoices/by-supplier/{supplier}', [SupplierInvoiceController::class, 'bySupplier'])->name('supplier-invoices.by-supplier');
         Route::resource('supplier-invoices', SupplierInvoiceController::class);
         Route::get('supplier-invoices/{supplierInvoice}/print', [SupplierInvoiceController::class, 'print'])->name('supplier-invoices.print');
         Route::get('supplier-invoices/{supplierInvoice}/pdf', [SupplierInvoiceController::class, 'downloadPdf'])->name('supplier-invoices.pdf');
@@ -130,6 +145,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/checkout', [PointOfSaleController::class, 'checkout'])->name('checkout');
         Route::get('/sales', [PosSaleController::class, 'index'])->name('sales.index');
         Route::get('/sales/{sale}', [PosSaleController::class, 'show'])->name('sales.show');
+        Route::delete('/sales/{sale}', [PosSaleController::class, 'destroy'])->name('sales.destroy');
     });
 
     Route::get('/integrations/shopify', [ShopifyIntegrationController::class, 'edit'])->name('integrations.shopify.edit');
@@ -139,9 +155,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/integrations/shopify/install', [ShopifyIntegrationController::class, 'install'])->name('integrations.shopify.install');
     Route::get('/integrations/shopify/callback', [ShopifyIntegrationController::class, 'callback'])->name('integrations.shopify.callback');
 
+    Route::get('/integrations/jumia', [JumiaIntegrationController::class, 'edit'])->name('integrations.jumia.edit');
+    Route::put('/integrations/jumia', [JumiaIntegrationController::class, 'update'])->name('integrations.jumia.update');
+    Route::post('/integrations/jumia/test', [JumiaIntegrationController::class, 'test'])->name('integrations.jumia.test');
+    Route::post('/integrations/jumia/sync', [JumiaIntegrationController::class, 'sync'])->name('integrations.jumia.sync');
+    Route::delete('/integrations/jumia', [JumiaIntegrationController::class, 'destroy'])->name('integrations.jumia.destroy');
+
     // Settings
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
 
     Route::post('/export/table', [TableExportController::class, 'export'])->name('table.export');
+    Route::post('/export/table-zip', [TableExportController::class, 'exportZip'])->name('table.export.zip');
 });

@@ -70,6 +70,12 @@
                 </svg>
                 <span>Avoirs fournisseur</span>
             </a>
+            <a href="{{ route('purchases.payments.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('purchases.payments.*') || request()->routeIs('supplier-invoices.payments.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+                <span>Gestion Paiement</span>
+            </a>
         </div>
     </div>
 
@@ -203,6 +209,12 @@
                 </svg>
                 <span>Avoirs</span>
             </a>
+            <a href="{{ route('sales.payments.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('sales.payments.*') || request()->routeIs('invoices.payments.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+                <span>Gestion Paiement</span>
+            </a>
         </div>
     </div>
 
@@ -213,6 +225,12 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
             </svg>
             <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Shopify Integration</span>
+        </a>
+        <a href="{{ route('integrations.jumia.edit') }}" class="flex items-center rounded-lg {{ request()->routeIs('integrations.jumia.*') ? 'bg-[#F68B1E]/15 text-[#b35f0f] ring-1 ring-[#F68B1E]/40' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'space-x-3 px-4 py-3'" title="Jumia Integration">
+            <svg class="h-5 w-5 shrink-0 text-[#F68B1E]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
+            <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Jumia Integration</span>
         </a>
     </div>
 

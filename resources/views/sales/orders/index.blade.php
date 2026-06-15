@@ -25,7 +25,7 @@
 
     <div class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         <!-- Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <div class="bg-white rounded-lg border border-gray-200 p-4">
                 <div class="flex items-center justify-between">
                     <div>
@@ -48,6 +48,20 @@
                     </div>
                     <div class="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
                         <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600">Jumia</p>
+                        <p class="text-2xl font-bold text-orange-600 mt-1">{{ number_format($totalJumiaOrders) }}</p>
+                    </div>
+                    <div class="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <svg class="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
                         </svg>
                     </div>
@@ -152,6 +166,7 @@
                     <select name="source" id="source" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
                         <option value="">Toutes</option>
                         <option value="shopify" {{ request('source') === 'shopify' ? 'selected' : '' }}>Shopify</option>
+                        <option value="jumia" {{ request('source') === 'jumia' ? 'selected' : '' }}>Jumia</option>
                         <option value="pos" {{ request('source') === 'pos' ? 'selected' : '' }}>Point de Vente</option>
                     </select>
                 </div>
@@ -290,6 +305,13 @@
                                     </svg>
                                     Shopify
                                 </span>
+                                @elseif($order->source === 'jumia')
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                    </svg>
+                                    Jumia
+                                </span>
                                 @else
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                                     <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -312,7 +334,7 @@
                                 <div class="text-sm font-medium text-gray-900">{{ number_format($order->total, 2) }} {{ $order->currency ?? 'DH' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap column-paiement">
-                                @if($order->source === 'shopify' && $order->payment_status)
+                                @if(in_array($order->source, ['shopify', 'jumia']) && $order->payment_status)
                                     @if($order->payment_status === 'paid')
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                         <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -351,7 +373,7 @@
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap column-livraison">
-                                @if($order->source === 'shopify' && $order->fulfillment_status)
+                                @if(in_array($order->source, ['shopify', 'jumia']) && $order->fulfillment_status)
                                     @php
                                         $fulfillmentLabels = [
                                             'fulfilled' => 'Traité',

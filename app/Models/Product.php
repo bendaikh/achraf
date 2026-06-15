@@ -22,6 +22,7 @@ class Product extends Model
         'stock_enligne',
         'barcode',
         'vat_category',
+        'product_type_category',
         'element_type',
         'tag',
         'status',

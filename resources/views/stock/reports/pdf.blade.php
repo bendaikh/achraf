@@ -26,6 +26,10 @@
                 <th>Référence</th>
                 <th>Produit</th>
                 <th class="text-right">{{ $stockLabel }}</th>
+                @if(($reportType ?? '') === 'magasin')
+                    <th class="text-right">Prix d'achat</th>
+                    <th class="text-right">Prix de vente</th>
+                @endif
                 <th class="text-right">Seuil alerte</th>
                 <th>État</th>
             </tr>
@@ -37,6 +41,10 @@
                     <td>{{ $product->ref }}</td>
                     <td>{{ $product->name }}</td>
                     <td class="text-right">{{ $qty }}</td>
+                    @if(($reportType ?? '') === 'magasin')
+                        <td class="text-right">{{ number_format($product->cost_price_ht ?? 0, 2) }}</td>
+                        <td class="text-right">{{ number_format($product->sale_price ?? 0, 2) }}</td>
+                    @endif
                     <td class="text-right">{{ $product->minimum_alert_stock ?? '—' }}</td>
                     <td>
                         @if($qty <= 0) Rupture
@@ -49,6 +57,9 @@
             <tr class="total">
                 <td colspan="2">Total quantités</td>
                 <td class="text-right">{{ $totalStock }}</td>
+                @if(($reportType ?? '') === 'magasin')
+                    <td colspan="2"></td>
+                @endif
                 <td colspan="2"></td>
             </tr>
         </tbody>

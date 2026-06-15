@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\BulkCommercialPdfExportService;
 use App\Services\TableExportService;
 use Illuminate\Http\Request;
 
 class TableExportController extends Controller
 {
     public function __construct(
-        protected TableExportService $exportService
+        protected TableExportService $exportService,
+        protected BulkCommercialPdfExportService $pdfZipService,
     ) {}
 
     public function export(Request $request)
@@ -24,5 +26,20 @@ class TableExportController extends Controller
         }
 
         return $this->exportService->export($validated['type'], $validated['ids']);
+    }
+
+    public function exportZip(Request $request)
+    {
+        $validated = $request->validate([
+            'type' => 'required|string',
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer',
+        ]);
+
+        if (! $this->pdfZipService->supportsZip($validated['type'])) {
+            return response()->json(['message' => 'Export ZIP PDF non disponible pour ce type.'], 422);
+        }
+
+        return $this->pdfZipService->exportZip($validated['type'], $validated['ids']);
     }
 }

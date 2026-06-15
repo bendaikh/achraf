@@ -56,6 +56,18 @@
                     </svg>
                     <span class="font-medium">Bon de Réception</span>
                 </button>
+                <button @click="activeTab = 'categorie_tva'" :class="activeTab === 'categorie_tva' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
+                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                    <span class="font-medium">Catégorie TVA</span>
+                </button>
+                <button @click="activeTab = 'type_produit'" :class="activeTab === 'type_produit' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
+                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                    </svg>
+                    <span class="font-medium">Type produit</span>
+                </button>
                 <button @click="activeTab = 'produit'" :class="activeTab === 'produit' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
                     <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
@@ -679,6 +691,34 @@
                         <button type="submit" class="px-6 py-2 bg-[#0a5d8a] text-white rounded-lg hover:bg-[#084a6e] transition duration-150 text-sm font-medium">
                             Enregistrer les types
                         </button>
+                    </div>
+                </form>
+            </div>
+
+            <div x-show="activeTab === 'categorie_tva'" x-cloak class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Catégories TVA</h3>
+                <p class="text-sm text-gray-500 mb-4">Une catégorie par ligne (ex: TVA (20%)). Utilisées dans Gestion Produit.</p>
+                <form action="{{ route('settings.update') }}" method="POST">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="settings_type" value="vat_categories">
+                    <textarea name="vat_categories" rows="8" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">{{ $settings['vat_categories'] ?? '' }}</textarea>
+                    <div class="flex justify-end mt-4">
+                        <button type="submit" class="px-6 py-2 bg-[#0a5d8a] text-white rounded-lg hover:bg-[#084a6e] text-sm font-medium">Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+
+            <div x-show="activeTab === 'type_produit'" x-cloak class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Catégories de type produit</h3>
+                <p class="text-sm text-gray-500 mb-4">Une catégorie par ligne. Proposées lors de la création de produit.</p>
+                <form action="{{ route('settings.update') }}" method="POST">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="settings_type" value="product_type_categories">
+                    <textarea name="product_type_categories" rows="8" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a5d8a] focus:border-transparent">{{ $settings['product_type_categories'] ?? '' }}</textarea>
+                    <div class="flex justify-end mt-4">
+                        <button type="submit" class="px-6 py-2 bg-[#0a5d8a] text-white rounded-lg hover:bg-[#084a6e] text-sm font-medium">Enregistrer</button>
                     </div>
                 </form>
             </div>

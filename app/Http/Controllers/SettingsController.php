@@ -55,6 +55,16 @@ class SettingsController extends Controller
             $tab = 'produit';
         }
 
+        if ($settingsType === 'vat_categories') {
+            $this->saveListFromTextarea($request, 'vat_categories', 'Catégories TVA');
+            $tab = 'categorie_tva';
+        }
+
+        if ($settingsType === 'product_type_categories') {
+            $this->saveListFromTextarea($request, 'product_type_categories', 'Catégories de type produit');
+            $tab = 'type_produit';
+        }
+
         if ($request->has('shopify_price_type')) {
             Setting::set(
                 'shopify_price_type',
@@ -93,6 +103,8 @@ class SettingsController extends Controller
         $settings['expense_accounts'] = implode("\n", Setting::getList('expense_accounts'));
         $settings['expense_payment_methods'] = implode("\n", Setting::getList('expense_payment_methods'));
         $settings['product_element_types'] = implode("\n", Setting::getList('product_element_types', ['Produit', 'Service']));
+        $settings['vat_categories'] = implode("\n", Setting::getList('vat_categories', \App\Support\VatCategoryHelper::defaultCategories()));
+        $settings['product_type_categories'] = implode("\n", Setting::getList('product_type_categories', ['Électronique', 'Textile', 'Alimentaire', 'Service']));
         $settings['auto_invoice_start_order_number'] = Setting::get('auto_invoice_start_order_number', '');
 
         return $settings;

@@ -8,6 +8,7 @@ use App\Models\SupplierCreditNote;
 use App\Models\SupplierInvoice;
 use App\Models\Product;
 use App\Services\StockMovementService;
+use App\Support\LineItemCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -35,9 +36,10 @@ class SupplierCreditNoteController extends Controller
     {
         $suppliers = Supplier::all();
         $products = Product::all();
-        $invoices = SupplierInvoice::all();
         $creditNoteNumber = 'AVOIR-FOUR N°' . str_pad(SupplierCreditNote::count() + 1, 6, '0', STR_PAD_LEFT);
-        return view('purchases.supplier-credit-notes.create', compact('suppliers', 'products', 'invoices', 'creditNoteNumber'));
+        $pricesAreTtc = \App\Models\Setting::getShopifyPriceType() === 'ttc';
+
+        return view('purchases.supplier-credit-notes.create', compact('suppliers', 'products', 'creditNoteNumber', 'pricesAreTtc'));
     }
 
     public function store(Request $request)
@@ -57,6 +59,7 @@ class SupplierCreditNoteController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
         ]);
 
         DB::beginTransaction();
@@ -76,26 +79,20 @@ class SupplierCreditNoteController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $quantity = $item['quantity'] ?? 1;
-                $unitPrice = $item['unit_price'] ?? 0;
-                $taxRate = $item['tax_rate'] ?? 20;
-                $discount = $item['discount'] ?? 0;
-                
-                $lineTotal = $quantity * $unitPrice;
-                $lineTotal -= $discount;
-                $lineTotal += $lineTotal * ($taxRate / 100);
-                
+                $computed = LineItemCalculator::compute($item);
+
                 $creditNote->items()->create([
-                    'product_id' => null,
+                    'product_id' => $item['product_id'] ?? null,
                     'ref' => $item['ref'] ?? null,
                     'designation' => $item['designation'],
-                    'quantity' => $quantity,
-                    'unit_price' => $unitPrice,
-                    'tax_rate' => $taxRate,
-                    'discount' => $discount,
-                    'line_total' => $lineTotal,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'tax_rate' => $item['tax_rate'],
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
                 ]);
-                $subtotal += $lineTotal;
+                $subtotal += $computed['line_total'];
             }
 
             $creditNote->update(['subtotal' => $subtotal, 'total' => $subtotal]);

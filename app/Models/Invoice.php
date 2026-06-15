@@ -28,6 +28,7 @@ class Invoice extends Model
         'discount',
         'adjustment',
         'total',
+        'document_file_path',
         'payment_status',
     ];
 
@@ -61,9 +62,46 @@ class Invoice extends Model
         return $this->hasMany(CreditNote::class);
     }
 
+    public function payments()
+    {
+        return $this->hasMany(InvoicePayment::class);
+    }
+
+    public function getTotalPaidAttribute(): float
+    {
+        return (float) $this->payments()->sum('amount');
+    }
+
+    public function getRemainingBalanceAttribute(): float
+    {
+        return max(0, (float) $this->total - $this->total_paid);
+    }
+
+    public function getComputedPaymentStatusAttribute(): string
+    {
+        if ($this->total_paid <= 0) {
+            return 'unpaid';
+        }
+
+        if ($this->total_paid >= (float) $this->total) {
+            return 'paid';
+        }
+
+        return 'partial';
+    }
+
     public function isPaid(): bool
     {
         return $this->payment_status === self::PAYMENT_PAID;
+    }
+
+    public function syncPaymentStatus(): void
+    {
+        $this->update([
+            'payment_status' => $this->total_paid >= (float) $this->total
+                ? self::PAYMENT_PAID
+                : self::PAYMENT_UNPAID,
+        ]);
     }
 
     public function scopeUnpaid($query)

@@ -10,6 +10,8 @@ use App\Models\PurchaseOrder;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
 use App\Support\CommercialDocumentView;
+use App\Support\LineItemCalculator;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -35,7 +37,9 @@ class PurchaseOrderController extends Controller
         $products = Product::all();
         $reference = DocumentNumberService::preview('bc_client');
         
-        return view('sales.purchase-orders.create', compact('products', 'reference'));
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+
+        return view('sales.purchase-orders.create', compact('products', 'reference', 'pricesAreTtc'));
     }
 
     public function store(Request $request)
@@ -59,6 +63,7 @@ class PurchaseOrderController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
         ]);
 
         DB::beginTransaction();
@@ -82,11 +87,8 @@ class PurchaseOrderController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $lineTotal = $item['quantity'] * $item['unit_price'];
-                $discount = $item['discount'] ?? 0;
-                $lineTotal -= $discount;
-                $lineTotal += $lineTotal * ($item['tax_rate'] / 100);
-                
+                $computed = LineItemCalculator::compute($item);
+
                 $purchaseOrder->items()->create([
                     'product_id' => $item['product_id'] ?? null,
                     'ref' => $item['ref'] ?? null,
@@ -95,11 +97,12 @@ class PurchaseOrderController extends Controller
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'tax_rate' => $item['tax_rate'],
-                    'discount' => $discount,
-                    'line_total' => $lineTotal,
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
                 ]);
 
-                $subtotal += $lineTotal;
+                $subtotal += $computed['line_total'];
             }
 
             $purchaseOrder->update([

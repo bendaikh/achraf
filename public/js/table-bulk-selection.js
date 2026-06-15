@@ -121,6 +121,53 @@
         document.body.removeChild(form);
     };
 
+    var zipPdfTypes = ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'supplier-invoices'];
+
+    window.exportSelectedToZip = function (exportType) {
+        if (zipPdfTypes.indexOf(exportType) === -1) {
+            alert('Export ZIP PDF non disponible pour ce type de tableau.');
+            return;
+        }
+
+        var ids = getSelectedTableIds(exportType);
+        if (ids.length === 0) {
+            alert('Veuillez sélectionner au moins un élément.');
+            return;
+        }
+
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.tableBulkZipExportUrl || '/export/table-zip';
+        form.style.display = 'none';
+
+        var csrf = document.querySelector('meta[name="csrf-token"]');
+        if (csrf) {
+            var tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = '_token';
+            tokenInput.value = csrf.getAttribute('content');
+            form.appendChild(tokenInput);
+        }
+
+        var typeInput = document.createElement('input');
+        typeInput.type = 'hidden';
+        typeInput.name = 'type';
+        typeInput.value = exportType;
+        form.appendChild(typeInput);
+
+        ids.forEach(function (id) {
+            var idInput = document.createElement('input');
+            idInput.type = 'hidden';
+            idInput.name = 'ids[]';
+            idInput.value = id;
+            form.appendChild(idInput);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    };
+
     function handleCheckboxChange(target) {
         var exportType = target.getAttribute('data-export-type');
         if (!exportType) {

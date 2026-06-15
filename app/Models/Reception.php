@@ -9,7 +9,7 @@ class Reception extends Model
     protected $fillable = [
         'reception_number', 'supplier_id', 'reference', 'reception_date', 'delivery_date',
         'currency', 'status', 'stock_location', 'model', 'remarks',
-        'subtotal', 'discount', 'adjustment', 'total',
+        'subtotal', 'discount', 'adjustment', 'total', 'document_file_path',
     ];
 
     protected $casts = [

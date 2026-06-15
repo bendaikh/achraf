@@ -30,7 +30,28 @@ class SupplierController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $validated = $this->validatedSupplierPayload($request);
+
+        Supplier::create($validated);
+
+        return redirect()->route('suppliers.index')->with('success', 'Fournisseur créé avec succès.');
+    }
+
+    public function quickStore(Request $request)
+    {
+        $validated = $this->validatedSupplierPayload($request);
+
+        $supplier = Supplier::create($validated);
+
+        return response()->json([
+            'id' => $supplier->id,
+            'text' => $supplier->name,
+        ]);
+    }
+
+    private function validatedSupplierPayload(Request $request): array
+    {
+        return $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:suppliers,email',
             'phone' => 'nullable|string|max:255',
@@ -47,10 +68,6 @@ class SupplierController extends Controller
             'longitude' => 'nullable|numeric',
             'ville' => 'nullable|string|max:255',
         ]);
-
-        Supplier::create($validated);
-
-        return redirect()->route('suppliers.index')->with('success', 'Fournisseur créé avec succès.');
     }
 
     public function show(Supplier $supplier)

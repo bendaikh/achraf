@@ -36,24 +36,36 @@
                 <div>
                     <h3 class="text-lg font-semibold text-gray-900">Statut de paiement</h3>
                     <p class="mt-1">
-                        @if($invoice->isPaid())
+                        @php $paymentStatus = $invoice->computed_payment_status; @endphp
+                        @if($paymentStatus === 'paid')
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">Payée</span>
+                        @elseif($paymentStatus === 'partial')
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">Partiellement payée</span>
                         @else
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">Non payée</span>
                         @endif
                     </p>
+                    <p class="mt-2 text-sm text-gray-600">
+                        Encaissé : <span class="font-semibold text-green-600">{{ number_format($invoice->total_paid, 2) }} {{ $invoice->currency }}</span>
+                        — Solde : <span class="font-semibold text-red-600">{{ number_format($invoice->remaining_balance, 2) }} {{ $invoice->currency }}</span>
+                    </p>
                 </div>
-                <form action="{{ route('invoices.payment-status', $invoice) }}" method="POST" class="flex items-center gap-2">
-                    @csrf
-                    @method('PATCH')
-                    <select name="payment_status" class="rounded-lg border-gray-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
-                        <option value="unpaid" @selected(!$invoice->isPaid())>Non payée</option>
-                        <option value="paid" @selected($invoice->isPaid())>Payée</option>
-                    </select>
-                    <button type="submit" class="px-4 py-2 bg-[#fdb819] text-gray-900 rounded-lg hover:bg-[#e5a617] text-sm font-medium transition">
-                        Mettre à jour
-                    </button>
-                </form>
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('invoices.payments.index', $invoice) }}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium transition">
+                        Gérer les paiements
+                    </a>
+                    <form action="{{ route('invoices.payment-status', $invoice) }}" method="POST" class="flex items-center gap-2">
+                        @csrf
+                        @method('PATCH')
+                        <select name="payment_status" class="rounded-lg border-gray-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                            <option value="unpaid" @selected(!$invoice->isPaid())>Non payée</option>
+                            <option value="paid" @selected($invoice->isPaid())>Payée</option>
+                        </select>
+                        <button type="submit" class="px-4 py-2 bg-[#fdb819] text-gray-900 rounded-lg hover:bg-[#e5a617] text-sm font-medium transition">
+                            Mettre à jour
+                        </button>
+                    </form>
+                </div>
             </div>
 
             <!-- Client Information -->
@@ -122,7 +134,6 @@
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantité</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Prix unitaire</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">TVA (%)</th>
@@ -135,7 +146,6 @@
                             <tr>
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->ref ?? '-' }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->designation }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-500">{{ $item->description ?? '-' }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $item->quantity }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->unit_price, 2) }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $item->tax_rate }}%</td>

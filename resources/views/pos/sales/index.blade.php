@@ -49,7 +49,7 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Paiement</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total TTC</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Caissier</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase"></th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">
@@ -63,7 +63,18 @@
                                     <td class="px-6 py-4 text-sm font-semibold text-emerald-700 text-right">{{ number_format($sale->total, 2) }} DH</td>
                                     <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->user?->name ?? '—' }}</td>
                                     <td class="px-6 py-4 text-right">
-                                        <a href="{{ route('pos.sales.show', $sale) }}" class="text-emerald-600 hover:text-emerald-800 text-sm font-medium">Ticket</a>
+                                        <div class="flex items-center justify-end gap-3">
+                                            <a href="{{ route('pos.sales.show', $sale) }}" class="text-emerald-600 hover:text-emerald-800 text-sm font-medium">Ticket</a>
+                                            <form action="{{ route('pos.sales.destroy', $sale) }}" method="POST" onsubmit="return confirm('Supprimer cette vente ?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="text-red-600 hover:text-red-800" title="Supprimer">
+                                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                                    </svg>
+                                                </button>
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty

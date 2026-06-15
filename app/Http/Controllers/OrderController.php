@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PosSale;
+use App\Support\OrderSource;
 use App\Models\Quote;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
@@ -25,9 +26,17 @@ class OrderController extends Controller
         $query = PosSale::with(['client', 'user', 'items'])
             ->orderBy('sold_at', 'desc');
 
-        // Filter by source (Shopify, POS, etc.)
+        // Filter by source (Shopify, Jumia, POS, etc.)
         if ($request->filled('source')) {
-            $query->where('source', $request->input('source'));
+            $source = $request->input('source');
+            if ($source === 'pos') {
+                $query->where(function ($q) {
+                    $q->whereNull('source')
+                        ->orWhereNotIn('source', [OrderSource::SHOPIFY, OrderSource::JUMIA]);
+                });
+            } else {
+                $query->where('source', $source);
+            }
         }
 
         // Filter by status
@@ -84,14 +93,19 @@ class OrderController extends Controller
 
         // Calculate totals
         $totalOrders = PosSale::count();
-        $totalShopifyOrders = PosSale::where('source', 'shopify')->count();
-        $totalPosOrders = PosSale::whereNull('source')->orWhere('source', '!=', 'shopify')->count();
+        $totalShopifyOrders = PosSale::where('source', OrderSource::SHOPIFY)->count();
+        $totalJumiaOrders = PosSale::where('source', OrderSource::JUMIA)->count();
+        $totalPosOrders = PosSale::where(function ($q) {
+            $q->whereNull('source')
+                ->orWhereNotIn('source', [OrderSource::SHOPIFY, OrderSource::JUMIA]);
+        })->count();
         $totalRevenue = PosSale::where('status', PosSale::STATUS_COMPLETED)->sum('total');
 
         return view('sales.orders.index', compact(
             'orders',
             'totalOrders',
             'totalShopifyOrders',
+            'totalJumiaOrders',
             'totalPosOrders',
             'totalRevenue'
         ));

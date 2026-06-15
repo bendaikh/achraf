@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Services\DocumentNumberService;
 use App\Services\StockMovementService;
 use App\Support\CommercialDocumentView;
+use App\Support\LineItemCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -38,8 +39,23 @@ class InvoiceController extends Controller
     {
         $products = Product::all();
         $invoiceNumber = DocumentNumberService::preview('facture');
-        
-        return view('sales.invoices.create', compact('products', 'invoiceNumber'));
+        $pricesAreTtc = \App\Models\Setting::getShopifyPriceType() === 'ttc';
+
+        return view('sales.invoices.create', compact('products', 'invoiceNumber', 'pricesAreTtc'));
+    }
+
+    public function byClient(\App\Models\Client $client)
+    {
+        $invoices = Invoice::query()
+            ->where('client_id', $client->id)
+            ->orderByDesc('invoice_date')
+            ->get(['id', 'invoice_number'])
+            ->map(fn (Invoice $invoice) => [
+                'id' => $invoice->id,
+                'label' => $invoice->invoice_number,
+            ]);
+
+        return response()->json(['invoices' => $invoices]);
     }
 
     public function store(Request $request)
@@ -64,6 +80,7 @@ class InvoiceController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
         ]);
 
         DB::beginTransaction();
@@ -89,11 +106,8 @@ class InvoiceController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $lineTotal = $item['quantity'] * $item['unit_price'];
-                $discount = $item['discount'] ?? 0;
-                $lineTotal -= $discount;
-                $lineTotal += $lineTotal * ($item['tax_rate'] / 100);
-                
+                $computed = LineItemCalculator::compute($item);
+
                 $invoice->items()->create([
                     'product_id' => $item['product_id'] ?? null,
                     'ref' => $item['ref'] ?? null,
@@ -102,11 +116,12 @@ class InvoiceController extends Controller
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'tax_rate' => $item['tax_rate'],
-                    'discount' => $discount,
-                    'line_total' => $lineTotal,
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
                 ]);
 
-                $subtotal += $lineTotal;
+                $subtotal += $computed['line_total'];
             }
 
             $invoice->update([
@@ -133,7 +148,7 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load('client', 'items', 'posSale');
+        $invoice->load('client', 'items', 'posSale', 'payments');
         return view('sales.invoices.show', compact('invoice'));
     }
 
@@ -149,9 +164,12 @@ class InvoiceController extends Controller
             'unit_price' => $item->unit_price,
             'tax_rate' => $item->tax_rate,
             'discount' => $item->discount,
+            'discount_type' => $item->discount_type ?? 'fixed',
         ])->values();
 
-        return view('sales.invoices.edit', compact('invoice', 'products', 'existingItems'));
+        $pricesAreTtc = \App\Models\Setting::getShopifyPriceType() === 'ttc';
+
+        return view('sales.invoices.edit', compact('invoice', 'products', 'existingItems', 'pricesAreTtc'));
     }
 
     public function update(Request $request, Invoice $invoice)
@@ -176,6 +194,7 @@ class InvoiceController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
         ]);
 
         DB::beginTransaction();
@@ -197,10 +216,7 @@ class InvoiceController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $lineTotal = $item['quantity'] * $item['unit_price'];
-                $discount = $item['discount'] ?? 0;
-                $lineTotal -= $discount;
-                $lineTotal += $lineTotal * ($item['tax_rate'] / 100);
+                $computed = LineItemCalculator::compute($item);
 
                 $invoice->items()->create([
                     'product_id' => $item['product_id'] ?? null,
@@ -210,11 +226,12 @@ class InvoiceController extends Controller
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'tax_rate' => $item['tax_rate'],
-                    'discount' => $discount,
-                    'line_total' => $lineTotal,
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
                 ]);
 
-                $subtotal += $lineTotal;
+                $subtotal += $computed['line_total'];
             }
 
             $invoice->update([

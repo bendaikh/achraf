@@ -8,6 +8,8 @@ use App\Models\Reception;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
 use App\Services\StockMovementService;
+use App\Support\LineItemCalculator;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -37,7 +39,9 @@ class ReceptionController extends Controller
         $suppliers = Supplier::all();
         $products = Product::all();
         $receptionNumber = DocumentNumberService::preview('bon_reception');
-        return view('purchases.receptions.create', compact('suppliers', 'products', 'receptionNumber'));
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+
+        return view('purchases.receptions.create', compact('suppliers', 'products', 'receptionNumber', 'pricesAreTtc'));
     }
 
     public function store(Request $request)
@@ -52,6 +56,12 @@ class ReceptionController extends Controller
             'stock_location' => 'required|string',
             'model' => 'nullable|string',
             'items' => 'required|array',
+            'items.*.designation' => 'required|string',
+            'items.*.quantity' => 'required|numeric|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.tax_rate' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
         ]);
 
         DB::beginTransaction();
@@ -71,19 +81,20 @@ class ReceptionController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $lineTotal = ($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0);
-                $lineTotal += $lineTotal * (($item['tax_rate'] ?? 20) / 100);
-                
+                $computed = LineItemCalculator::compute($item);
+
                 $reception->items()->create([
                     'product_id' => $item['product_id'] ?? null,
                     'ref' => $item['ref'] ?? null,
                     'designation' => $item['designation'],
-                    'quantity' => $item['quantity'] ?? 1,
-                    'unit_price' => $item['unit_price'] ?? 0,
-                    'tax_rate' => $item['tax_rate'] ?? 20,
-                    'line_total' => $lineTotal,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'tax_rate' => $item['tax_rate'],
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
                 ]);
-                $subtotal += $lineTotal;
+                $subtotal += $computed['line_total'];
             }
 
             $reception->update(['subtotal' => $subtotal, 'total' => $subtotal]);
@@ -128,6 +139,12 @@ class ReceptionController extends Controller
             'stock_location' => 'required|string',
             'model' => 'nullable|string',
             'items' => 'required|array',
+            'items.*.designation' => 'required|string',
+            'items.*.quantity' => 'required|numeric|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.tax_rate' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
         ]);
 
         DB::beginTransaction();
@@ -147,19 +164,20 @@ class ReceptionController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $lineTotal = ($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0);
-                $lineTotal += $lineTotal * (($item['tax_rate'] ?? 20) / 100);
-                
+                $computed = LineItemCalculator::compute($item);
+
                 $reception->items()->create([
                     'product_id' => $item['product_id'] ?? null,
                     'ref' => $item['ref'] ?? null,
                     'designation' => $item['designation'],
-                    'quantity' => $item['quantity'] ?? 1,
-                    'unit_price' => $item['unit_price'] ?? 0,
-                    'tax_rate' => $item['tax_rate'] ?? 20,
-                    'line_total' => $lineTotal,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'tax_rate' => $item['tax_rate'],
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
                 ]);
-                $subtotal += $lineTotal;
+                $subtotal += $computed['line_total'];
             }
 
             $reception->update(['subtotal' => $subtotal, 'total' => $subtotal]);

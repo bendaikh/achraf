@@ -37,9 +37,11 @@ class PosSale extends Model
         'payment_status',
         'fulfillment_status',
         'shopify_synced_at',
+        'jumia_synced_at',
         'notes',
         'source',
         'external_id',
+        'external_metadata',
     ];
 
     protected $casts = [
@@ -51,6 +53,8 @@ class PosSale extends Model
         'amount_received' => 'decimal:2',
         'change_amount' => 'decimal:2',
         'shopify_synced_at' => 'datetime',
+        'jumia_synced_at' => 'datetime',
+        'external_metadata' => 'array',
     ];
 
     public function client(): BelongsTo

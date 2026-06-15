@@ -13,6 +13,9 @@
             <a href="{{ route('supplier-invoices.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
                 Retour à la liste
             </a>
+            <a href="{{ route('purchases.payments.index') }}" class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition duration-150">
+                Gestion Paiement
+            </a>
         </div>
     </header>
 

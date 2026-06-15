@@ -48,6 +48,19 @@ class SupplierInvoice extends Model
 
     public function getRemainingBalanceAttribute()
     {
-        return $this->total - $this->total_paid;
+        return max(0, (float) $this->total - (float) $this->total_paid);
+    }
+
+    public function getComputedPaymentStatusAttribute(): string
+    {
+        if ($this->total_paid <= 0) {
+            return 'unpaid';
+        }
+
+        if ($this->total_paid >= (float) $this->total) {
+            return 'paid';
+        }
+
+        return 'partial';
     }
 }

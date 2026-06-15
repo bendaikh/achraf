@@ -12,7 +12,17 @@
                 <h2 class="text-2xl font-bold text-gray-900">Tableau de bord</h2>
                 <p class="text-sm text-gray-600 mt-1">Vue d'ensemble de votre activité — {{ now()->translatedFormat('d F Y') }}</p>
             </div>
-            <p class="text-sm text-gray-500">Connecté : <span class="font-medium text-gray-800">{{ Auth::user()->name }}</span></p>
+            <form method="GET" action="{{ route('dashboard') }}" class="flex flex-wrap items-end gap-3">
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Date de début</label>
+                    <input type="date" name="date_from" value="{{ $dateFrom }}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Date de fin</label>
+                    <input type="date" name="date_to" value="{{ $dateTo }}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+                <button type="submit" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-medium hover:bg-[#084a6e]">Filtrer</button>
+            </form>
         </div>
     </header>
 
@@ -26,17 +36,17 @@
         {{-- KPI cards --}}
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-                <p class="text-sm text-gray-500">Chiffre d'affaires (mois)</p>
+                <p class="text-sm text-gray-500">Chiffre d'affaires (période)</p>
                 <p class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($stats['revenue_month'], 2) }} DH</p>
                 <p class="text-xs text-gray-400 mt-2">Année : {{ number_format($stats['revenue_year'], 2) }} DH</p>
             </div>
             <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-                <p class="text-sm text-gray-500">Dépenses (mois)</p>
+                <p class="text-sm text-gray-500">Dépenses (période)</p>
                 <p class="text-2xl font-bold text-red-600 mt-1">{{ number_format($stats['expenses_month'], 2) }} DH</p>
                 <p class="text-xs text-gray-400 mt-2">Année : {{ number_format($stats['expenses_year'], 2) }} DH</p>
             </div>
             <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-                <p class="text-sm text-gray-500">Résultat net (mois)</p>
+                <p class="text-sm text-gray-500">Résultat net (période)</p>
                 <p class="text-2xl font-bold mt-1 {{ $stats['profit_month'] >= 0 ? 'text-emerald-600' : 'text-red-600' }}">
                     {{ number_format($stats['profit_month'], 2) }} DH
                 </p>

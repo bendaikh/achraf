@@ -7,6 +7,8 @@ use App\Models\Supplier;
 use App\Models\SupplierPurchaseOrder;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
+use App\Support\LineItemCalculator;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -31,7 +33,9 @@ class SupplierPurchaseOrderController extends Controller
         $suppliers = Supplier::all();
         $products = Product::all();
         $orderNumber = DocumentNumberService::preview('bc_fournisseur');
-        return view('purchases.supplier-purchase-orders.create', compact('suppliers', 'products', 'orderNumber'));
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+
+        return view('purchases.supplier-purchase-orders.create', compact('suppliers', 'products', 'orderNumber', 'pricesAreTtc'));
     }
 
     public function store(Request $request)
@@ -46,6 +50,12 @@ class SupplierPurchaseOrderController extends Controller
             'model' => 'nullable|string',
             'remarks' => 'nullable|string',
             'items' => 'required|array',
+            'items.*.designation' => 'required|string',
+            'items.*.quantity' => 'required|numeric|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.tax_rate' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
         ]);
 
         DB::beginTransaction();
@@ -65,19 +75,20 @@ class SupplierPurchaseOrderController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $lineTotal = ($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0);
-                $lineTotal += $lineTotal * (($item['tax_rate'] ?? 20) / 100);
-                
+                $computed = LineItemCalculator::compute($item);
+
                 $order->items()->create([
                     'product_id' => $item['product_id'] ?? null,
                     'ref' => $item['ref'] ?? null,
                     'designation' => $item['designation'],
-                    'quantity' => $item['quantity'] ?? 1,
-                    'unit_price' => $item['unit_price'] ?? 0,
-                    'tax_rate' => $item['tax_rate'] ?? 20,
-                    'line_total' => $lineTotal,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'tax_rate' => $item['tax_rate'],
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
                 ]);
-                $subtotal += $lineTotal;
+                $subtotal += $computed['line_total'];
             }
 
             $order->update(['subtotal' => $subtotal, 'total' => $subtotal]);
@@ -116,6 +127,12 @@ class SupplierPurchaseOrderController extends Controller
             'model' => 'nullable|string',
             'remarks' => 'nullable|string',
             'items' => 'required|array',
+            'items.*.designation' => 'required|string',
+            'items.*.quantity' => 'required|numeric|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.tax_rate' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
         ]);
 
         DB::beginTransaction();
@@ -135,19 +152,20 @@ class SupplierPurchaseOrderController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $lineTotal = ($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0);
-                $lineTotal += $lineTotal * (($item['tax_rate'] ?? 20) / 100);
-                
+                $computed = LineItemCalculator::compute($item);
+
                 $supplierPurchaseOrder->items()->create([
                     'product_id' => $item['product_id'] ?? null,
                     'ref' => $item['ref'] ?? null,
                     'designation' => $item['designation'],
-                    'quantity' => $item['quantity'] ?? 1,
-                    'unit_price' => $item['unit_price'] ?? 0,
-                    'tax_rate' => $item['tax_rate'] ?? 20,
-                    'line_total' => $lineTotal,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'tax_rate' => $item['tax_rate'],
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
                 ]);
-                $subtotal += $lineTotal;
+                $subtotal += $computed['line_total'];
             }
 
             $supplierPurchaseOrder->update(['subtotal' => $subtotal, 'total' => $subtotal]);

@@ -10,6 +10,8 @@ use App\Models\Quote;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
 use App\Support\CommercialDocumentView;
+use App\Support\LineItemCalculator;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -35,7 +37,9 @@ class QuoteController extends Controller
         $products = Product::all();
         $quoteNumber = DocumentNumberService::preview('devis');
         
-        return view('sales.quotes.create', compact('products', 'quoteNumber'));
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+
+        return view('sales.quotes.create', compact('products', 'quoteNumber', 'pricesAreTtc'));
     }
 
     public function store(Request $request)
@@ -60,6 +64,7 @@ class QuoteController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
         ]);
 
         DB::beginTransaction();
@@ -84,11 +89,8 @@ class QuoteController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $lineTotal = $item['quantity'] * $item['unit_price'];
-                $discount = $item['discount'] ?? 0;
-                $lineTotal -= $discount;
-                $lineTotal += $lineTotal * ($item['tax_rate'] / 100);
-                
+                $computed = LineItemCalculator::compute($item);
+
                 $quote->items()->create([
                     'product_id' => $item['product_id'] ?? null,
                     'ref' => $item['ref'] ?? null,
@@ -97,11 +99,12 @@ class QuoteController extends Controller
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'tax_rate' => $item['tax_rate'],
-                    'discount' => $discount,
-                    'line_total' => $lineTotal,
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
                 ]);
 
-                $subtotal += $lineTotal;
+                $subtotal += $computed['line_total'];
             }
 
             $quote->update([

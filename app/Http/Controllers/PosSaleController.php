@@ -35,4 +35,11 @@ class PosSaleController extends Controller
             'paymentMethods' => PosSale::paymentLabels(),
         ]);
     }
+
+    public function destroy(PosSale $sale)
+    {
+        $sale->delete();
+
+        return redirect()->route('pos.sales.index')->with('success', 'Vente supprimée avec succès.');
+    }
 }

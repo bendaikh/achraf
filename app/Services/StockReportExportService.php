@@ -71,7 +71,10 @@ class StockReportExportService
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle($label);
 
-        $headers = ['Référence', 'Produit', $label, 'Seuil alerte', 'Seuil sécurité', 'État'];
+        $headers = ['Référence', 'Produit', $label, 'Prix d\'achat', 'Prix de vente', 'Seuil alerte', 'Seuil sécurité', 'État'];
+        if ($type !== 'magasin') {
+            $headers = ['Référence', 'Produit', $label, 'Seuil alerte', 'Seuil sécurité', 'État'];
+        }
         foreach ($headers as $col => $header) {
             $sheet->setCellValue([$col + 1, 1], $header);
         }
@@ -84,9 +87,17 @@ class StockReportExportService
             $sheet->setCellValue([1, $rowNum], $product->ref);
             $sheet->setCellValue([2, $rowNum], $product->name);
             $sheet->setCellValue([3, $rowNum], $qty);
-            $sheet->setCellValue([4, $rowNum], $product->minimum_alert_stock);
-            $sheet->setCellValue([5, $rowNum], $product->minimum_safety_stock);
-            $sheet->setCellValue([6, $rowNum], $this->stockStateLabel($product, $stockField));
+            if ($type === 'magasin') {
+                $sheet->setCellValue([4, $rowNum], $product->cost_price_ht);
+                $sheet->setCellValue([5, $rowNum], $product->sale_price);
+                $sheet->setCellValue([6, $rowNum], $product->minimum_alert_stock);
+                $sheet->setCellValue([7, $rowNum], $product->minimum_safety_stock);
+                $sheet->setCellValue([8, $rowNum], $this->stockStateLabel($product, $stockField));
+            } else {
+                $sheet->setCellValue([4, $rowNum], $product->minimum_alert_stock);
+                $sheet->setCellValue([5, $rowNum], $product->minimum_safety_stock);
+                $sheet->setCellValue([6, $rowNum], $this->stockStateLabel($product, $stockField));
+            }
             $rowNum++;
         }
 
@@ -113,6 +124,7 @@ class StockReportExportService
             'title' => $title,
             'stockField' => $stockField,
             'stockLabel' => $type === 'enligne' ? 'Stock en ligne' : 'Stock magasin',
+            'reportType' => $type,
             'products' => $products,
             'totalStock' => $totalStock,
             'filters' => $this->filterSummary($request),

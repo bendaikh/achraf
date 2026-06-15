@@ -9,7 +9,7 @@ class SupplierCreditNote extends Model
     protected $fillable = [
         'credit_note_number', 'supplier_id', 'supplier_invoice_id', 'credit_note_date',
         'invoice', 'currency', 'stock_location', 'model', 'remarks',
-        'subtotal', 'discount', 'adjustment', 'total',
+        'subtotal', 'discount', 'adjustment', 'total', 'receipt_file_path',
     ];
 
     protected $casts = [

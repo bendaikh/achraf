@@ -22,6 +22,7 @@ class Quote extends Model
         'discount',
         'adjustment',
         'total',
+        'document_file_path',
     ];
 
     protected $casts = [

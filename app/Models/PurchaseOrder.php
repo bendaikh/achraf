@@ -21,6 +21,7 @@ class PurchaseOrder extends Model
         'discount',
         'adjustment',
         'total',
+        'document_file_path',
     ];
 
     protected $casts = [

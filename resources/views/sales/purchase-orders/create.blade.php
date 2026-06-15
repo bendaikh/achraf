@@ -181,12 +181,20 @@
 
 @push('scripts')
 <script>
+window.commercialDocConfig = {
+    pricesAreTtc: @json($pricesAreTtc ?? false),
+    priceMode: 'sale',
+    products: @json($products),
+};
+</script>
+<script src="{{ asset('js/commercial-document-form.js') }}"></script>
+<script>
 $(document).ready(function() {
     initClientSelect2('#client_id');
 });
 
 var itemIndex = 0;
-var products = @json($products);
+var products = commercialDocConfig.products;
 
 function addItem() {
     const tbody = document.getElementById('itemsBody');
@@ -194,7 +202,7 @@ function addItem() {
     row.className = 'border-b border-gray-200';
     row.innerHTML = `
         <td class="px-4 py-3">
-            <select name="items[${itemIndex}][product_id]" onchange="fillProductDetails(this, ${itemIndex})" class="product-select w-full px-2 py-1 border border-gray-300 rounded text-sm" id="product_select_${itemIndex}">
+            <select name="items[${itemIndex}][product_id]" onchange="fillCommercialProductDetails(this, ${itemIndex})" class="product-select w-full px-2 py-1 border border-gray-300 rounded text-sm" id="product_select_${itemIndex}">
                 <option value="">Rechercher un produit...</option>
                 ${products.map(p => `<option value="${p.id}" data-ref="${p.ref || ''}" data-name="${p.name}" data-price-ht="${p.sale_price_ht || 0}" data-price-ttc="${p.sale_price || 0}">${p.name} ${p.ref ? '(' + p.ref + ')' : ''}</option>`).join('')}
             </select>
@@ -215,7 +223,7 @@ function addItem() {
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
         <td class="px-4 py-3">
-            <input type="number" step="0.01" name="items[${itemIndex}][discount]" value="0" class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
+            ${discountRowHtml(itemIndex)}
         </td>
         <td class="px-4 py-3">
             <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
@@ -245,64 +253,12 @@ function addItem() {
     }
     
     itemIndex++;
-}
-
-function fillProductDetails(selectElement, index) {
-    const selectedOption = selectElement.options[selectElement.selectedIndex];
-    if (selectedOption.value) {
-        const ref = selectedOption.getAttribute('data-ref');
-        const name = selectedOption.getAttribute('data-name');
-        const priceHT = parseFloat(selectedOption.getAttribute('data-price-ht')) || 0;
-        const priceTTC = parseFloat(selectedOption.getAttribute('data-price-ttc')) || 0;
-        const taxRateInput = document.querySelector(`[name="items[${index}][tax_rate]"]`);
-        const taxRate = parseFloat(taxRateInput?.value) || 20;
-        
-        // Use HT price if available, otherwise calculate from TTC
-        let unitPrice = priceHT;
-        if (unitPrice === 0 && priceTTC > 0) {
-            unitPrice = priceTTC / (1 + taxRate / 100);
-        }
-        
-        document.getElementById('ref_' + index).value = ref;
-        document.getElementById('designation_' + index).value = name;
-        document.getElementById('price_' + index).value = unitPrice.toFixed(2);
-        
-        calculateTotal();
-    }
+    calculateCommercialTotal();
 }
 
 function removeItem(button) {
     button.closest('tr').remove();
-    calculateTotal();
-}
-
-function calculateTotal() {
-    const rows = document.querySelectorAll('#itemsBody tr');
-    let totalHT = 0;
-    let totalDiscount = 0;
-    let totalTax = 0;
-    
-    rows.forEach(row => {
-        const quantity = parseFloat(row.querySelector('[name*="[quantity]"]').value) || 0;
-        const unitPrice = parseFloat(row.querySelector('[name*="[unit_price]"]').value) || 0;
-        const taxRate = parseFloat(row.querySelector('[name*="[tax_rate]"]').value) || 0;
-        const discount = parseFloat(row.querySelector('[name*="[discount]"]').value) || 0;
-        
-        let lineHT = quantity * unitPrice;
-        lineHT -= discount;
-        const lineTax = lineHT * (taxRate / 100);
-        
-        totalHT += lineHT;
-        totalDiscount += discount;
-        totalTax += lineTax;
-    });
-    
-    const totalTTC = totalHT + totalTax;
-    
-    document.getElementById('subtotal').textContent = totalHT.toFixed(2);
-    document.getElementById('discount').textContent = totalDiscount.toFixed(2);
-    document.getElementById('taxAmount').textContent = totalTax.toFixed(2);
-    document.getElementById('total').textContent = totalTTC.toFixed(2);
+    calculateCommercialTotal();
 }
 
 document.addEventListener('DOMContentLoaded', function() {

@@ -31,41 +31,7 @@ class ClientController extends Controller
 
     public function store(Request $request)
     {
-        $clientType = $request->input('client_type', 'entreprise');
-        
-        $rules = [
-            'client_type' => 'required|in:entreprise,particulier',
-            'email' => 'nullable|email|unique:clients,email',
-            'phone' => 'nullable|string|max:255',
-            'address' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:255',
-            'country' => 'nullable|string|max:255',
-            'tax_id' => 'nullable|string|max:255',
-            'postal_code' => 'nullable|string|max:255',
-            'region' => 'nullable|string|max:255',
-            'ice' => 'nullable|string|max:255',
-            'fiscal_identifier' => 'nullable|string|max:255',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'ville' => 'nullable|string|max:255',
-        ];
-
-        if ($clientType === 'entreprise') {
-            $rules['name'] = 'required|string|max:255';
-        } else {
-            $rules['first_name'] = 'required|string|max:255';
-            $rules['last_name'] = 'required|string|max:255';
-        }
-
-        $validated = $request->validate($rules);
-
-        // For particulier, combine first_name and last_name into name
-        if ($clientType === 'particulier') {
-            $validated['name'] = trim($validated['first_name'] . ' ' . $validated['last_name']);
-            unset($validated['first_name'], $validated['last_name']);
-        }
-
-        // Auto-generate client code
+        $validated = $this->validatedClientPayload($request);
         $validated['code'] = $this->generateClientCode();
 
         Client::create($validated);
@@ -131,6 +97,57 @@ class ClientController extends Controller
     {
         $client->delete();
         return redirect()->route('clients.index')->with('success', 'Client supprimé avec succès.');
+    }
+
+    public function quickStore(Request $request)
+    {
+        $validated = $this->validatedClientPayload($request);
+        $validated['code'] = $this->generateClientCode();
+
+        $client = Client::create($validated);
+
+        return response()->json([
+            'id' => $client->id,
+            'text' => $client->selectLabel(),
+        ]);
+    }
+
+    private function validatedClientPayload(Request $request): array
+    {
+        $clientType = $request->input('client_type', 'entreprise');
+
+        $rules = [
+            'client_type' => 'required|in:entreprise,particulier',
+            'email' => 'nullable|email|unique:clients,email',
+            'phone' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:255',
+            'country' => 'nullable|string|max:255',
+            'tax_id' => 'nullable|string|max:255',
+            'postal_code' => 'nullable|string|max:255',
+            'region' => 'nullable|string|max:255',
+            'ice' => 'nullable|string|max:255',
+            'fiscal_identifier' => 'nullable|string|max:255',
+            'latitude' => 'nullable|numeric',
+            'longitude' => 'nullable|numeric',
+            'ville' => 'nullable|string|max:255',
+        ];
+
+        if ($clientType === 'entreprise') {
+            $rules['name'] = 'required|string|max:255';
+        } else {
+            $rules['first_name'] = 'required|string|max:255';
+            $rules['last_name'] = 'required|string|max:255';
+        }
+
+        $validated = $request->validate($rules);
+
+        if ($clientType === 'particulier') {
+            $validated['name'] = trim($validated['first_name'] . ' ' . $validated['last_name']);
+            unset($validated['first_name'], $validated['last_name']);
+        }
+
+        return $validated;
     }
 
     public function search(Request $request)

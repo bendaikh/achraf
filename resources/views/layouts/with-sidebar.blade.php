@@ -102,8 +102,18 @@
     tr.table-row-selected td {
         background-color: #fffbeb !important;
     }
+    .party-select-field .select2-container {
+        width: 100% !important;
+        max-width: 100%;
+    }
+    .party-select-wrap .select2-container--default .select2-selection--single {
+        min-height: 38px;
+    }
 </style>
-<script>window.tableBulkExportUrl = @json(route('table.export'));</script>
+<script>
+    window.tableBulkExportUrl = @json(route('table.export'));
+    window.tableBulkZipExportUrl = @json(route('table.export.zip'));
+</script>
 @php
     $tableBulkSelectionScript = public_path('js/table-bulk-selection.js');
 @endphp

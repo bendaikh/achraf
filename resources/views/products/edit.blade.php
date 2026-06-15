@@ -248,10 +248,9 @@
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('vat_category') border-red-500 @enderror"
                             >
                                 <option value="">Sélectionner...</option>
-                                <option value="TVA (20%)" {{ old('vat_category', $product->vat_category) == 'TVA (20%)' ? 'selected' : '' }}>TVA (20%)</option>
-                                <option value="TVA (10%)" {{ old('vat_category', $product->vat_category) == 'TVA (10%)' ? 'selected' : '' }}>TVA (10%)</option>
-                                <option value="TVA (5.5%)" {{ old('vat_category', $product->vat_category) == 'TVA (5.5%)' ? 'selected' : '' }}>TVA (5.5%)</option>
-                                <option value="TVA (2.1%)" {{ old('vat_category', $product->vat_category) == 'TVA (2.1%)' ? 'selected' : '' }}>TVA (2.1%)</option>
+                                @foreach($vatCategories as $vatCategory)
+                                    <option value="{{ $vatCategory }}" {{ old('vat_category', $product->vat_category) == $vatCategory ? 'selected' : '' }}>{{ $vatCategory }}</option>
+                                @endforeach
                             </select>
                             @error('vat_category')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -304,6 +303,16 @@
                             @error('status')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
+                        </div>
+
+                        <div>
+                            <label for="product_type_category" class="block text-sm font-medium text-gray-700 mb-1">Catégorie de type produit</label>
+                            <select name="product_type_category" id="product_type_category" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Sélectionner...</option>
+                                @foreach($productTypeCategories as $category)
+                                    <option value="{{ $category }}" {{ old('product_type_category', $product->product_type_category) == $category ? 'selected' : '' }}>{{ $category }}</option>
+                                @endforeach
+                            </select>
                         </div>
 
                         <div>

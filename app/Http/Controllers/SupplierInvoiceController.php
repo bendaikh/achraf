@@ -10,6 +10,8 @@ use App\Models\SupplierInvoice;
 use App\Models\Product;
 use App\Services\StockMovementService;
 use App\Support\CommercialDocumentView;
+use App\Support\LineItemCalculator;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -34,13 +36,29 @@ class SupplierInvoiceController extends Controller
         return view('purchases.supplier-invoices.index', compact('invoices'));
     }
 
+    public function bySupplier(Supplier $supplier)
+    {
+        $invoices = SupplierInvoice::query()
+            ->where('supplier_id', $supplier->id)
+            ->orderByDesc('invoice_date')
+            ->get(['id', 'invoice_number'])
+            ->map(fn (SupplierInvoice $invoice) => [
+                'id' => $invoice->id,
+                'label' => $invoice->invoice_number,
+            ]);
+
+        return response()->json(['invoices' => $invoices]);
+    }
+
     public function create()
     {
         $suppliers = Supplier::all();
         $products = Product::all();
         $invoiceNumber = 'FSI-' . date('Y') . '/' . str_pad(SupplierInvoice::whereYear('created_at', date('Y'))->count() + 1, 6, '0', STR_PAD_LEFT);
         
-        return view('purchases.supplier-invoices.create', compact('suppliers', 'products', 'invoiceNumber'));
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+
+        return view('purchases.supplier-invoices.create', compact('suppliers', 'products', 'invoiceNumber', 'pricesAreTtc'));
     }
 
     public function store(Request $request)
@@ -66,6 +84,7 @@ class SupplierInvoiceController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
         ]);
 
         DB::beginTransaction();
@@ -95,11 +114,8 @@ class SupplierInvoiceController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $lineTotal = $item['quantity'] * $item['unit_price'];
-                $discount = $item['discount'] ?? 0;
-                $lineTotal -= $discount;
-                $lineTotal += $lineTotal * ($item['tax_rate'] / 100);
-                
+                $computed = LineItemCalculator::compute($item);
+
                 $invoice->items()->create([
                     'product_id' => $item['product_id'] ?? null,
                     'ref' => $item['ref'] ?? null,
@@ -108,11 +124,12 @@ class SupplierInvoiceController extends Controller
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'tax_rate' => $item['tax_rate'],
-                    'discount' => $discount,
-                    'line_total' => $lineTotal,
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
                 ]);
 
-                $subtotal += $lineTotal;
+                $subtotal += $computed['line_total'];
             }
 
             $invoice->update([
@@ -145,7 +162,9 @@ class SupplierInvoiceController extends Controller
         $supplierInvoice->load('supplier', 'items');
         $suppliers = Supplier::all();
         $products = Product::all();
-        return view('purchases.supplier-invoices.edit', compact('supplierInvoice', 'suppliers', 'products'));
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+
+        return view('purchases.supplier-invoices.edit', compact('supplierInvoice', 'suppliers', 'products', 'pricesAreTtc'));
     }
 
     public function update(Request $request, SupplierInvoice $supplierInvoice)
@@ -171,6 +190,7 @@ class SupplierInvoiceController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
         ]);
 
         DB::beginTransaction();
@@ -200,11 +220,8 @@ class SupplierInvoiceController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $lineTotal = $item['quantity'] * $item['unit_price'];
-                $discount = $item['discount'] ?? 0;
-                $lineTotal -= $discount;
-                $lineTotal += $lineTotal * ($item['tax_rate'] / 100);
-                
+                $computed = LineItemCalculator::compute($item);
+
                 $supplierInvoice->items()->create([
                     'product_id' => $item['product_id'] ?? null,
                     'ref' => $item['ref'] ?? null,
@@ -213,11 +230,12 @@ class SupplierInvoiceController extends Controller
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'tax_rate' => $item['tax_rate'],
-                    'discount' => $discount,
-                    'line_total' => $lineTotal,
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
                 ]);
 
-                $subtotal += $lineTotal;
+                $subtotal += $computed['line_total'];
             }
 
             $supplierInvoice->update([
