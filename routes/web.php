@@ -32,6 +32,7 @@ use App\Http\Controllers\StockReportController;
 use App\Http\Controllers\DocumentImportController;
 use App\Http\Controllers\CrmImportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FinancialManagementController;
 use App\Http\Controllers\DocumentFileController;
 use Illuminate\Support\Facades\Route;
 
@@ -57,6 +58,7 @@ Route::post('/api/webhooks/shopify/products/delete', [ShopifyWebhookController::
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/financial', [FinancialManagementController::class, 'index'])->name('financial.index');
     Route::post('/document-files/{type}/{id}', [DocumentFileController::class, 'store'])->name('document-files.store');
     
     Route::resource('products', ProductController::class);

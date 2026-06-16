@@ -142,7 +142,7 @@ window.commercialDocConfig = {
     products: @json($products),
 };
 </script>
-<script src="{{ asset('js/commercial-document-form.js') }}"></script>
+@include('partials.commercial-document-form-script')
 <script>
 var itemIndex = 0;
 var products = commercialDocConfig.products;
@@ -171,7 +171,7 @@ function addItemWithData(data) {
         <td class="px-4 py-3"><input type="number" name="items[${itemIndex}][quantity]" value="${data.quantity || 1}" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateCommercialTotal()"></td>
         <td class="px-4 py-3"><input type="number" step="0.01" name="items[${itemIndex}][unit_price]" value="${data.unit_price || 0}" required class="w-24 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateCommercialTotal()" id="price_${itemIndex}"></td>
         <td class="px-4 py-3"><input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="${data.tax_rate ?? 20}" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateCommercialTotal()"></td>
-        <td class="px-4 py-3">${discountRowHtmlWithData(itemIndex, data)}</td>
+        <td class="px-4 py-3">${window.discountRowHtmlWithData(itemIndex, data)}</td>
         <td class="px-4 py-3">
             <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>

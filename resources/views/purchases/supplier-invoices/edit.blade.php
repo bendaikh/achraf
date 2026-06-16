@@ -168,7 +168,7 @@ window.commercialDocConfig = {
     products: @json($products),
 };
 </script>
-<script src="{{ asset('js/commercial-document-form.js') }}"></script>
+@include('partials.commercial-document-form-script')
 <script>
 var itemIndex = 0;
 var products = commercialDocConfig.products;
@@ -199,7 +199,7 @@ function addItemWithData(data) {
         <td class="px-4 py-3">
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="${data.tax_rate || 20}" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
-        <td class="px-4 py-3">${discountRowHtmlWithData(itemIndex, data)}</td>
+        <td class="px-4 py-3">${window.discountRowHtmlWithData(itemIndex, data)}</td>
         <td class="px-4 py-3">
             <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -256,7 +256,7 @@ function addItemOld() {
         <td class="px-4 py-3">
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
-        <td class="px-4 py-3">${discountRowHtml(itemIndex)}</td>
+        <td class="px-4 py-3">${window.discountRowHtml(itemIndex)}</td>
         <td class="px-4 py-3">
             <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

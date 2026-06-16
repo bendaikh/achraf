@@ -139,7 +139,7 @@ window.commercialDocConfig = {
     products: @json($products),
 };
 </script>
-<script src="{{ asset('js/commercial-document-form.js') }}"></script>
+@include('partials.commercial-document-form-script')
 <script>
 
 var itemIndex = 0;
@@ -172,7 +172,7 @@ function addItem() {
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateCommercialTotal()">
         </td>
         <td class="px-4 py-3">
-            ${discountRowHtml(itemIndex)}
+            ${window.discountRowHtml(itemIndex)}
         </td>
         <td class="px-4 py-3">
             <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">

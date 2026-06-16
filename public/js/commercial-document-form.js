@@ -102,11 +102,16 @@
         var cfg = config();
 
         rows.forEach(function (row) {
-            var quantity = parseFloat(row.querySelector('[name*="[quantity]"]')?.value) || 0;
-            var unitPrice = parseFloat(row.querySelector('[name*="[unit_price]"]')?.value) || 0;
-            var taxRate = parseFloat(row.querySelector('[name*="[tax_rate]"]')?.value) || 0;
-            var discountInput = parseFloat(row.querySelector('[name*="[discount]"]')?.value) || 0;
-            var discountType = row.querySelector('[name*="[discount_type]"]')?.value || 'fixed';
+            var quantityEl = row.querySelector('[name*="[quantity]"]');
+            var unitPriceEl = row.querySelector('[name*="[unit_price]"]');
+            var taxRateEl = row.querySelector('[name*="[tax_rate]"]');
+            var discountEl = row.querySelector('[name*="[discount]"]');
+            var discountTypeEl = row.querySelector('[name*="[discount_type]"]');
+            var quantity = parseFloat(quantityEl && quantityEl.value) || 0;
+            var unitPrice = parseFloat(unitPriceEl && unitPriceEl.value) || 0;
+            var taxRate = parseFloat(taxRateEl && taxRateEl.value) || 0;
+            var discountInput = parseFloat(discountEl && discountEl.value) || 0;
+            var discountType = (discountTypeEl && discountTypeEl.value) || 'fixed';
 
             var lineBase = quantity * unitPrice;
             var discountAmount = discountType === 'percent'

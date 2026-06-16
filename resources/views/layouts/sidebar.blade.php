@@ -21,6 +21,13 @@
         <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Tableau de bord</span>
     </a>
 
+    <a href="{{ route('financial.index') }}" class="flex items-center rounded-lg {{ request()->routeIs('financial.*') ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'space-x-3 px-4 py-3'" title="Gestion Financière">
+        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+        </svg>
+        <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Gestion Financière</span>
+    </a>
+
     <div x-data="{ open: {{ request()->is('purchases/*') ? 'true' : 'false' }} }" class="space-y-1">
         <button @click="open = !open" class="w-full flex items-center rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'justify-between px-4 py-3'" title="Gestion achats">
             <div class="flex items-center" :class="sidebarCollapsed && !sidebarOpen ? '' : 'space-x-3'">
