@@ -121,7 +121,7 @@
                                         <div class="text-sm text-gray-900">{{ $invoice->currency }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-semibold text-gray-900">{{ number_format($invoice->total, 2) }}</div>
+                                        <div class="text-sm font-semibold text-gray-900">{{ number_format($invoice->computed_total, 2) }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <x-document-import-status :imported="(bool) $invoice->document_file_path" />

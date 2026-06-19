@@ -22,8 +22,10 @@ class JumiaIntegrationController extends Controller
     {
         $validated = $request->validate([
             'integration_name' => 'required|string|max:255',
-            'api_base_url' => 'required|url|max:500',
-            'user_id' => 'required|email|max:255',
+            'client_id' => 'required|string|max:255',
+            'refresh_token' => 'nullable|string|max:4000',
+            'api_base_url' => 'nullable|url|max:500',
+            'user_id' => 'nullable|email|max:255',
             'api_key' => 'nullable|string|max:2000',
             'api_version' => 'nullable|string|max:10',
             'enabled' => 'sometimes|boolean',
@@ -33,18 +35,25 @@ class JumiaIntegrationController extends Controller
 
         $integration->fill([
             'integration_name' => $validated['integration_name'],
-            'api_base_url' => rtrim($validated['api_base_url'], '/'),
-            'user_id' => $validated['user_id'],
+            'client_id' => $validated['client_id'],
+            'api_base_url' => rtrim($validated['api_base_url'] ?? JumiaIntegration::DEFAULT_API_BASE_URL, '/'),
+            'user_id' => $validated['user_id'] ?? null,
             'api_version' => $validated['api_version'] ?? '1.0',
             'enabled' => $request->boolean('enabled'),
         ]);
 
-        if ($request->filled('api_key')) {
-            $integration->api_key = $validated['api_key'];
-        } elseif (! $integration->exists) {
+        if ($request->filled('refresh_token')) {
+            $integration->refresh_token = $validated['refresh_token'];
+            $integration->access_token = null;
+            $integration->access_token_expires_at = null;
+        } elseif (! $integration->exists || ! $integration->refresh_token) {
             return redirect()
                 ->route('integrations.jumia.edit')
-                ->withErrors(['api_key' => 'API key is required for a new integration.']);
+                ->withErrors(['refresh_token' => 'Refresh token is required for a new integration.']);
+        }
+
+        if ($request->filled('api_key')) {
+            $integration->api_key = $validated['api_key'];
         }
 
         $integration->save();
@@ -57,7 +66,7 @@ class JumiaIntegrationController extends Controller
 
                     return redirect()
                         ->route('integrations.jumia.edit')
-                        ->with('error', 'Settings saved but the Jumia API connection test failed. Verify your API URL, User ID, and API key.');
+                        ->with('error', 'Settings saved but the Jumia API connection test failed. Verify your Client ID and Refresh Token.');
                 }
 
                 $integration->update(['last_error' => null]);
@@ -82,7 +91,7 @@ class JumiaIntegrationController extends Controller
         if (! $integration || ! $integration->isConfigured()) {
             return redirect()
                 ->route('integrations.jumia.edit')
-                ->with('error', 'Configure API URL, User ID, and API key first.');
+                ->with('error', 'Configure your Client ID and Refresh Token first.');
         }
 
         try {
@@ -92,7 +101,7 @@ class JumiaIntegrationController extends Controller
 
                 return redirect()
                     ->route('integrations.jumia.edit')
-                    ->with('success', 'Connection to Jumia API successful.');
+                    ->with('success', 'Connection to Jumia Vendor API successful.');
             }
 
             $integration->update(['last_error' => 'Connection test returned no data.']);

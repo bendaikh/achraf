@@ -25,19 +25,19 @@
             if (priceHt === 0 && priceTtc > 0) {
                 priceHt = priceTtc / (1 + taxRate / 100);
             }
-        } else if (cfg.pricesAreTtc) {
-            if (priceTtc > 0) return priceTtc;
-            if (priceHt > 0) return priceHt * (1 + taxRate / 100);
-            return 0;
-        } else {
-            if (priceHt > 0) return priceHt;
-            if (priceTtc > 0) return priceTtc / (1 + taxRate / 100);
-            return 0;
+
+            return priceHt;
         }
 
-        return cfg.pricesAreTtc
-            ? (priceTtc > 0 ? priceTtc : priceHt * (1 + taxRate / 100))
-            : priceHt;
+        if (priceHt > 0) {
+            return priceHt;
+        }
+
+        if (priceTtc > 0) {
+            return priceTtc / (1 + taxRate / 100);
+        }
+
+        return 0;
     };
 
     window.fillCommercialProductDetails = function (selectElement, index) {
@@ -118,17 +118,8 @@
                 ? lineBase * (discountInput / 100)
                 : discountInput;
 
-            var lineHT;
-            var lineTax;
-
-            if (cfg.pricesAreTtc && cfg.priceMode === 'sale') {
-                var lineTtc = lineBase - discountAmount;
-                lineHT = lineTtc / (1 + taxRate / 100);
-                lineTax = lineTtc - lineHT;
-            } else {
-                lineHT = Math.max(0, lineBase - discountAmount);
-                lineTax = lineHT * (taxRate / 100);
-            }
+            var lineHT = Math.max(0, lineBase - discountAmount);
+            var lineTax = lineHT * (taxRate / 100);
 
             totalHT += lineHT;
             totalDiscount += discountAmount;

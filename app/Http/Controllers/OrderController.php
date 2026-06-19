@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\JumiaIntegration;
 use App\Models\PosSale;
+use App\Models\ShopifyIntegration;
 use App\Support\OrderSource;
 use App\Models\Quote;
 use App\Models\Invoice;
@@ -23,7 +25,7 @@ class OrderController extends Controller
 
     public function index(Request $request): View
     {
-        $query = PosSale::with(['client', 'user', 'items'])
+        $query = PosSale::with(['client'])
             ->orderBy('sold_at', 'desc');
 
         // Filter by source (Shopify, Jumia, POS, etc.)
@@ -75,21 +77,13 @@ class OrderController extends Controller
             $query->whereDate('sold_at', '<=', $request->input('date_to'));
         }
 
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('ticket_number', 'like', "%{$search}%")
-                    ->orWhere('external_id', 'like', "%{$search}%")
-                    ->orWhereHas('client', function ($q) use ($search) {
-                        $q->where('name', 'like', "%{$search}%");
-                    });
-            });
-        }
-
         // Pagination with configurable per page
         $perPage = $request->input('per_page', 20);
         $perPage = in_array($perPage, [25, 50, 100]) ? $perPage : 20;
         $orders = $query->paginate($perPage)->withQueryString();
+
+        $shopifyIntegration = ShopifyIntegration::query()->first();
+        $jumiaIntegration = JumiaIntegration::query()->first();
 
         // Calculate totals
         $totalOrders = PosSale::count();
@@ -107,7 +101,9 @@ class OrderController extends Controller
             'totalShopifyOrders',
             'totalJumiaOrders',
             'totalPosOrders',
-            'totalRevenue'
+            'totalRevenue',
+            'shopifyIntegration',
+            'jumiaIntegration',
         ));
     }
 

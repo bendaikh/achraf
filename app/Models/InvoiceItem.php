@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\LineItemCalculator;
 use Illuminate\Database\Eloquent\Model;
 
 class InvoiceItem extends Model
@@ -37,5 +38,24 @@ class InvoiceItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function getDisplayLineTotalAttribute(): float
+    {
+        return LineItemCalculator::forDisplay($this, $this->resolvePriceMode())['line_total'];
+    }
+
+    public function getDisplayUnitPriceHtAttribute(): float
+    {
+        return LineItemCalculator::forDisplay($this, $this->resolvePriceMode())['unit_price_ht'];
+    }
+
+    protected function resolvePriceMode(): string
+    {
+        if ($this->relationLoaded('itemable') && $this->itemable) {
+            return LineItemCalculator::priceModeForDocument($this->itemable);
+        }
+
+        return 'sale';
     }
 }

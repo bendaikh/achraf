@@ -9,6 +9,7 @@ use App\Models\Quote;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\Client;
+use App\Support\LineItemCalculator;
 use Illuminate\Support\Collection;
 
 class CommercialDocumentView
@@ -36,6 +37,7 @@ class CommercialDocumentView
             taxes: $taxes,
             currency: $invoice->currency,
             remarks: $invoice->remarks,
+            priceMode: LineItemCalculator::priceModeForDocument($invoice),
         );
     }
 
@@ -64,6 +66,7 @@ class CommercialDocumentView
             taxes: $taxes,
             currency: $quote->currency,
             remarks: trim(collect([$quote->remarks, $quote->conditions])->filter()->implode("\n\n")) ?: null,
+            priceMode: LineItemCalculator::priceModeForDocument($quote),
         );
     }
 
@@ -91,6 +94,7 @@ class CommercialDocumentView
             taxes: $taxes,
             currency: $order->currency ?? 'dh - MAD',
             remarks: trim(collect([$order->remarks, $order->conditions])->filter()->implode("\n\n")) ?: null,
+            priceMode: LineItemCalculator::priceModeForDocument($order),
         );
     }
 
@@ -121,6 +125,7 @@ class CommercialDocumentView
             taxes: $taxes,
             currency: $creditNote->currency,
             remarks: trim(collect([$creditNote->remarks, $creditNote->conditions])->filter()->implode("\n\n")) ?: null,
+            priceMode: LineItemCalculator::priceModeForDocument($creditNote),
         );
     }
 
@@ -153,6 +158,7 @@ class CommercialDocumentView
             taxes: $taxes,
             currency: $invoice->currency,
             remarks: trim(collect([$invoice->remarks, $invoice->conditions])->filter()->implode("\n\n")) ?: null,
+            priceMode: LineItemCalculator::priceModeForDocument($invoice),
         );
     }
 
@@ -174,6 +180,7 @@ class CommercialDocumentView
         array $taxes,
         string $currency,
         ?string $remarks,
+        string $priceMode = 'sale',
     ): array {
         $currencyLabel = str_contains(strtolower($currency), 'mad') ? 'MAD' : $currency;
 
@@ -191,6 +198,7 @@ class CommercialDocumentView
                 'currency_label' => $currencyLabel,
                 'remarks' => $remarks,
                 'show_amount_in_words' => true,
+                'price_mode' => $priceMode,
             ],
         ];
     }

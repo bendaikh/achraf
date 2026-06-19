@@ -17,6 +17,7 @@
     $logoSrc = $logoSrc ?? ($company['logo_url'] ?? null);
     $cachet = $cachet ?? \App\Support\CompanyInfo::cachetForPrint($forPdf ?? false);
     $currencyLabel = $doc['currency_label'] ?? 'MAD';
+    $priceMode = $doc['price_mode'] ?? 'sale';
 @endphp
 
 <div class="facture-footer-fixed">
@@ -130,14 +131,15 @@
         </thead>
         <tbody>
             @foreach($items as $item)
+                @php($line = \App\Support\LineItemCalculator::forDisplay($item, $priceMode))
                 <tr>
                     <td>{{ $item->ref ?? '-' }}</td>
                     <td>{{ $item->designation }}</td>
                     <td class="text-right">{{ $item->quantity }}</td>
-                    <td class="text-right">{{ number_format($item->unit_price, 2) }}</td>
+                    <td class="text-right">{{ number_format($line['unit_price_ht'], 2) }}</td>
                     <td class="text-center">{{ number_format($item->tax_rate, 2) }}%</td>
                     <td class="text-right">{{ number_format($item->discount ?? 0, 2) }}</td>
-                    <td class="text-right"><strong>{{ number_format($item->line_total, 2) }}</strong></td>
+                    <td class="text-right"><strong>{{ number_format($line['line_total'], 2) }}</strong></td>
                 </tr>
             @endforeach
             @for($i = 0; $i < $emptyRows; $i++)

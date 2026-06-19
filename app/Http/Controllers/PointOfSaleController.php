@@ -173,19 +173,19 @@ class PointOfSaleController extends Controller
                 $discount = (float) ($row['discount'] ?? 0);
 
                 if ($pricesAreTtc) {
-                    // If prices are TTC, unit_price includes tax
                     $totalTtc = max(0, ($qty * $unitPrice) - $discount);
                     $base = $totalTtc / (1 + $taxRate / 100);
                     $tax = $totalTtc - $base;
                     $lineTotal = $totalTtc;
+                    $unitPriceHt = $qty > 0 ? round($base / $qty, 2) : 0;
                 } else {
-                    // If prices are HT, calculate normally
                     $base = ($qty * $unitPrice) - $discount;
                     if ($base < 0) {
                         $base = 0;
                     }
                     $tax = round($base * ($taxRate / 100), 2);
                     $lineTotal = round($base + $tax, 2);
+                    $unitPriceHt = $unitPrice;
                 }
 
                 $subtotalHt += round($base, 2);
@@ -194,7 +194,7 @@ class PointOfSaleController extends Controller
                 $lineRows[] = [
                     'product' => $product,
                     'quantity' => $qty,
-                    'unit_price' => $unitPrice,
+                    'unit_price' => $unitPriceHt,
                     'tax_rate' => $taxRate,
                     'discount' => $discount,
                     'line_total' => round($lineTotal, 2),

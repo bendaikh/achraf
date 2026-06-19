@@ -6,6 +6,8 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\PosSale;
 use App\Models\Setting;
+use App\Support\DocumentTaxBreakdown;
+use App\Support\LineItemCalculator;
 
 class OrderToInvoiceConverter
 {
@@ -66,16 +68,28 @@ class OrderToInvoiceConverter
             'invoice_date' => now(),
             'due_date' => now()->addDays(30),
             'currency' => $this->normalizeCurrency($order->currency),
-            'subtotal' => $order->subtotal,
+            'stock_location' => $this->defaultStockLocation($order),
+            'subtotal' => 0,
             'discount' => $order->discount,
             'adjustment' => 0,
-            'total' => $order->total,
+            'total' => 0,
             'remarks' => 'Générée automatiquement depuis la commande ' . $order->ticket_number,
             'conditions' => Setting::get('facture_conditions'),
             'payment_status' => $markAsPaid ? Invoice::PAYMENT_PAID : Invoice::PAYMENT_UNPAID,
         ]);
 
+        $linesSubtotal = 0.0;
+
         foreach ($order->items as $item) {
+            $unitPriceHt = LineItemCalculator::normalizeStoredUnitPriceToHt($item);
+            $computed = LineItemCalculator::compute([
+                'quantity' => $item->quantity,
+                'unit_price' => $unitPriceHt,
+                'tax_rate' => $item->tax_rate ?? 20,
+                'discount' => $item->discount ?? 0,
+                'discount_type' => 'fixed',
+            ]);
+
             InvoiceItem::create([
                 'itemable_type' => Invoice::class,
                 'itemable_id' => $invoice->id,
@@ -84,14 +98,33 @@ class OrderToInvoiceConverter
                 'designation' => $item->designation ?? $item->product?->name,
                 'description' => $item->product?->description,
                 'quantity' => $item->quantity,
-                'unit_price' => $item->unit_price,
+                'unit_price' => $unitPriceHt,
                 'tax_rate' => $item->tax_rate ?? 20,
                 'discount' => $item->discount ?? 0,
-                'line_total' => $item->line_total,
+                'discount_type' => 'fixed',
+                'line_total' => $computed['line_total'],
             ]);
+
+            $linesSubtotal += $computed['line_total'];
         }
 
-        return $invoice;
+        $taxes = DocumentTaxBreakdown::fromDocument($invoice, $invoice->items()->get());
+
+        $invoice->update([
+            'subtotal' => round($linesSubtotal, 2),
+            'total' => $taxes['total_ttc'],
+        ]);
+
+        return $invoice->fresh('items');
+    }
+
+    protected function defaultStockLocation(PosSale $order): string
+    {
+        return match ($order->source) {
+            'shopify' => 'Stock en ligne',
+            'jumia' => 'Stock en ligne',
+            default => 'Stock magasin',
+        };
     }
 
     public function extractOrderNumber(string $ticketNumber): ?int

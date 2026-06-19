@@ -33,6 +33,8 @@ class Product extends Model
         'shopify_status',
         'shopify_synced_at',
         'shopify_image_url',
+        'jumia_product_sid',
+        'jumia_stock_synced_at',
     ];
 
     protected $casts = [
@@ -47,6 +49,7 @@ class Product extends Model
         'stock_magasin' => 'integer',
         'stock_enligne' => 'integer',
         'shopify_synced_at' => 'datetime',
+        'jumia_stock_synced_at' => 'datetime',
     ];
 
     public function isStockLow(): bool

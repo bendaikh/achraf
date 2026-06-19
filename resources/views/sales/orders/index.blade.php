@@ -10,86 +10,115 @@
         <div class="px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">Les Commandes</h1>
-                <p class="text-sm text-gray-600 mt-0.5">Gérez toutes vos commandes (POS, Shopify, etc.)</p>
+                <p class="text-sm text-gray-600 mt-0.5">Commandes POS, Shopify et Jumia — synchronisation automatique</p>
             </div>
-            <div class="flex items-center gap-3">
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                    <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                    </svg>
-                    Sync automatique activée
-                </span>
+            <div class="flex flex-wrap items-center gap-2">
+                @if($shopifyIntegration?->enabled && ($shopifyIntegration->oauth_access_token || $shopifyIntegration->api_access_token))
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Shopify
+                        @if($shopifyIntegration->last_sync_at)
+                            · {{ $shopifyIntegration->last_sync_at->diffForHumans() }}
+                        @else
+                            · en attente
+                        @endif
+                    </span>
+                @endif
+                @if($jumiaIntegration?->enabled && $jumiaIntegration->isConfigured())
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                        Jumia
+                        @if($jumiaIntegration->last_sync_at)
+                            · {{ $jumiaIntegration->last_sync_at->diffForHumans() }}
+                        @else
+                            · en attente
+                        @endif
+                    </span>
+                @elseif($jumiaIntegration && ! $jumiaIntegration->isConfigured())
+                    <a href="{{ route('integrations.jumia.edit') }}" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200">
+                        Jumia · configurer
+                    </a>
+                @endif
+                @if(
+                    ($shopifyIntegration?->enabled && ($shopifyIntegration->oauth_access_token || $shopifyIntegration->api_access_token))
+                    || ($jumiaIntegration?->enabled && $jumiaIntegration->isConfigured())
+                )
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        Sync auto activée
+                    </span>
+                @endif
             </div>
         </div>
     </header>
 
     <div class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         <!-- Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4 mb-6">
+            <div class="bg-white rounded-lg border border-gray-200 p-4 min-w-0">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
                         <p class="text-sm text-gray-600">Total Commandes</p>
-                        <p class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($totalOrders) }}</p>
+                        <p class="text-xl sm:text-2xl font-bold text-gray-900 mt-1 tabular-nums">{{ number_format($totalOrders) }}</p>
                     </div>
-                    <div class="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="h-11 w-11 shrink-0 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                         </svg>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
+            <a href="{{ route('orders.index', ['source' => 'shopify']) }}"
+                class="bg-white rounded-lg border border-gray-200 p-4 block min-w-0 hover:border-green-300 hover:shadow-sm transition {{ request('source') === 'shopify' ? 'ring-2 ring-green-400' : '' }}">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
                         <p class="text-sm text-gray-600">Shopify</p>
-                        <p class="text-2xl font-bold text-green-600 mt-1">{{ number_format($totalShopifyOrders) }}</p>
+                        <p class="text-xl sm:text-2xl font-bold text-green-600 mt-1 tabular-nums">{{ number_format($totalShopifyOrders) }}</p>
                     </div>
-                    <div class="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-                        <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="h-11 w-11 shrink-0 bg-green-100 rounded-lg flex items-center justify-center">
+                        <svg class="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
                         </svg>
                     </div>
                 </div>
-            </div>
+            </a>
 
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
+            <a href="{{ route('orders.index', ['source' => 'jumia']) }}"
+                class="bg-white rounded-lg border border-gray-200 p-4 block min-w-0 hover:border-orange-300 hover:shadow-sm transition {{ request('source') === 'jumia' ? 'ring-2 ring-orange-400' : '' }}">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
                         <p class="text-sm text-gray-600">Jumia</p>
-                        <p class="text-2xl font-bold text-orange-600 mt-1">{{ number_format($totalJumiaOrders) }}</p>
+                        <p class="text-xl sm:text-2xl font-bold text-orange-600 mt-1 tabular-nums">{{ number_format($totalJumiaOrders) }}</p>
+                        @if($jumiaIntegration?->last_sync_at)
+                            <p class="text-xs text-gray-500 mt-1 truncate">Sync {{ $jumiaIntegration->last_sync_at->diffForHumans() }}</p>
+                        @endif
                     </div>
-                    <div class="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                        <svg class="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                        </svg>
-                    </div>
+                    <div class="h-11 w-11 shrink-0 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600 font-bold text-lg">J</div>
                 </div>
-            </div>
+            </a>
 
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
+            <div class="bg-white rounded-lg border border-gray-200 p-4 min-w-0">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
                         <p class="text-sm text-gray-600">Point de Vente</p>
-                        <p class="text-2xl font-bold text-purple-600 mt-1">{{ number_format($totalPosOrders) }}</p>
+                        <p class="text-xl sm:text-2xl font-bold text-purple-600 mt-1 tabular-nums">{{ number_format($totalPosOrders) }}</p>
                     </div>
-                    <div class="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <svg class="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="h-11 w-11 shrink-0 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <svg class="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
                         </svg>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg border border-gray-200 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
+            <div class="bg-white rounded-lg border border-gray-200 p-4 min-w-0 sm:col-span-2 lg:col-span-1">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
                         <p class="text-sm text-gray-600">Chiffre d'affaires</p>
-                        <p class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($totalRevenue, 2) }} DH</p>
+                        <p class="text-base sm:text-lg lg:text-xl 2xl:text-2xl font-bold text-gray-900 mt-1 tabular-nums leading-tight break-words">
+                            {{ number_format($totalRevenue, 2) }} <span class="text-sm sm:text-base font-semibold text-gray-600">DH</span>
+                        </p>
                     </div>
-                    <div class="h-12 w-12 bg-amber-100 rounded-lg flex items-center justify-center">
-                        <svg class="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="h-11 w-11 shrink-0 bg-amber-100 rounded-lg flex items-center justify-center">
+                        <svg class="h-5 w-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                     </div>
@@ -329,6 +358,9 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 column-date">
                                 {{ $order->sold_at->format('d/m/Y H:i') }}
+                                @if($order->source === 'jumia' && $order->jumia_synced_at)
+                                    <div class="text-xs text-orange-600">Sync {{ $order->jumia_synced_at->diffForHumans() }}</div>
+                                @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap column-total">
                                 <div class="text-sm font-medium text-gray-900">{{ number_format($order->total, 2) }} {{ $order->currency ?? 'DH' }}</div>
@@ -472,7 +504,7 @@
 
     <footer class="mt-auto border-t border-gray-200 bg-white py-6 px-4 text-center text-sm text-gray-500">
         <p>© {{ date('Y') }}. Tous droits réservés.</p>
-        <p class="mt-1">Synchronisation automatique Shopify activée (toutes les heures)</p>
+        <p class="mt-1">Synchronisation automatique Shopify (5 min) et Jumia (15 min) via le planificateur Laravel</p>
     </footer>
 </main>
 

@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\PosSale;
 use App\Models\PosSaleItem;
 use App\Models\Product;
+use App\Services\MarketplaceStockSyncService;
 use App\Services\OrderToInvoiceConverter;
 use App\Support\OrderSource;
 use Carbon\Carbon;
@@ -16,7 +17,8 @@ class JumiaOrderImporter
     public function __construct(
         protected JumiaApiClient $client,
         protected JumiaStatusMapper $statusMapper,
-        protected OrderToInvoiceConverter $orderToInvoiceConverter
+        protected OrderToInvoiceConverter $orderToInvoiceConverter,
+        protected MarketplaceStockSyncService $stockSync
     ) {}
 
     /**
@@ -25,12 +27,12 @@ class JumiaOrderImporter
     public function import(array $order): PosSale
     {
         return DB::transaction(function () use ($order) {
-            $externalId = (string) ($order['OrderId'] ?? $order['OrderNumber'] ?? '');
+            $externalId = (string) ($order['id'] ?? $order['orderId'] ?? $order['OrderId'] ?? $order['OrderNumber'] ?? '');
             if ($externalId === '') {
                 throw new \InvalidArgumentException('Missing Jumia order id.');
             }
 
-            $orderItems = $this->client->getOrderItems($externalId);
+            $orderItems = $this->resolveOrderItems($order, $externalId);
             if ($orderItems === []) {
                 throw new \InvalidArgumentException('Jumia order has no line items.');
             }
@@ -43,6 +45,8 @@ class JumiaOrderImporter
                 ->where('external_id', $externalId)
                 ->first();
 
+            $previousStockApplied = $this->stockSync->previousAppliedFromSale($existing);
+
             $client = $this->resolveClient($order);
             $lineRows = [];
             $subtotalHt = 0.0;
@@ -54,11 +58,11 @@ class JumiaOrderImporter
                     continue;
                 }
 
-                $qty = max(1, (int) ($item['Quantity'] ?? 1));
-                $sku = trim((string) ($item['ShopSku'] ?? $item['Sku'] ?? ''));
+                $qty = max(1, (int) ($item['quantity'] ?? $item['Quantity'] ?? 1));
+                $sku = trim((string) ($item['product']['sellerSku'] ?? $item['ShopSku'] ?? $item['Sku'] ?? ''));
                 $product = $sku !== '' ? Product::query()->where('ref', $sku)->first() : null;
 
-                $lineTotalTtc = round((float) ($item['PaidPrice'] ?? $item['ItemPrice'] ?? 0) * $qty, 2);
+                $lineTotalTtc = round($this->resolveItemPrice($item) * $qty, 2);
                 $taxRate = $this->defaultTaxRate($product);
                 $base = round($lineTotalTtc / (1 + ($taxRate / 100)), 2);
                 $tax = round($lineTotalTtc - $base, 2);
@@ -67,14 +71,15 @@ class JumiaOrderImporter
                 $subtotalHt += $base;
                 $taxTotal += $tax;
 
-                if (! empty($item['OrderItemId'])) {
-                    $orderItemIds[] = (string) $item['OrderItemId'];
+                $orderItemId = $item['id'] ?? $item['OrderItemId'] ?? null;
+                if (! empty($orderItemId)) {
+                    $orderItemIds[] = (string) $orderItemId;
                 }
 
                 $lineRows[] = [
                     'product' => $product,
                     'ref' => $sku !== '' ? $sku : null,
-                    'designation' => (string) ($item['Name'] ?? $item['ProductName'] ?? 'Article Jumia'),
+                    'designation' => $this->resolveItemName($item),
                     'quantity' => $qty,
                     'unit_price' => $unitPrice,
                     'tax_rate' => $taxRate,
@@ -84,10 +89,10 @@ class JumiaOrderImporter
             }
 
             $total = round($subtotalHt + $taxTotal, 2);
-            $orderNumber = (string) ($order['OrderNumber'] ?? $externalId);
+            $orderNumber = (string) ($order['number'] ?? $order['orderNumber'] ?? $order['OrderNumber'] ?? $externalId);
             $ticketNumber = 'JUM-'.$orderNumber;
-            $soldAt = $this->parseDate($order['CreatedAt'] ?? null) ?? now();
-            $currency = strtoupper((string) ($order['Currency'] ?? 'MAD')).' — Jumia';
+            $soldAt = $this->parseDate($order['createdAt'] ?? $order['CreatedAt'] ?? null) ?? now();
+            $currency = strtoupper($this->resolveCurrency($order)).' — Jumia';
 
             $metadata = [
                 'jumia_status' => $jumiaStatus,
@@ -144,8 +149,28 @@ class JumiaOrderImporter
             $sale->refresh();
             $this->orderToInvoiceConverter->tryAutoGenerate($sale);
 
+            $this->stockSync->syncOrderStock(
+                $sale,
+                $previousStockApplied,
+                $this->stockSync->quantitiesFromLineRows($lineRows),
+                OrderSource::JUMIA
+            );
+
             return $sale;
         });
+    }
+
+    /**
+     * @param  array<string, mixed>  $order
+     * @return array<int, array<string, mixed>>
+     */
+    protected function resolveOrderItems(array $order, string $externalId): array
+    {
+        if (! empty($order['items']) && is_array($order['items'])) {
+            return array_values(array_filter($order['items'], 'is_array'));
+        }
+
+        return $this->client->getOrderItems($externalId);
     }
 
     /**
@@ -154,6 +179,10 @@ class JumiaOrderImporter
      */
     protected function resolveOrderStatus(array $order, array $items): string
     {
+        if (! empty($order['status'])) {
+            return (string) $order['status'];
+        }
+
         if (! empty($order['Statuses']['Status'])) {
             $statuses = $order['Statuses']['Status'];
             if (is_array($statuses) && isset($statuses[0])) {
@@ -167,7 +196,7 @@ class JumiaOrderImporter
             return (string) $order['Status'];
         }
 
-        return (string) ($items[0]['Status'] ?? 'pending');
+        return (string) ($items[0]['status'] ?? $items[0]['Status'] ?? 'pending');
     }
 
     /**
@@ -175,23 +204,19 @@ class JumiaOrderImporter
      */
     protected function resolveClient(array $order): ?Client
     {
-        $firstName = trim((string) ($order['CustomerFirstName'] ?? ''));
-        $lastName = trim((string) ($order['CustomerLastName'] ?? ''));
-        $name = trim($firstName.' '.$lastName);
+        $address = $order['shippingAddress'] ?? $order['AddressShipping'] ?? $order['AddressBilling'] ?? [];
 
-        $address = $order['AddressShipping'] ?? $order['AddressBilling'] ?? [];
-        if (is_array($address)) {
-            $name = $name !== '' ? $name : trim((string) ($address['FirstName'] ?? '').' '.(string) ($address['LastName'] ?? ''));
-            $phone = trim((string) ($address['Phone'] ?? $address['Phone2'] ?? ''));
-            $city = trim((string) ($address['City'] ?? ''));
-            $country = trim((string) ($address['Country'] ?? ''));
-            $street = trim((string) ($address['Address1'] ?? $address['Address'] ?? ''));
-        } else {
-            $phone = '';
-            $city = '';
-            $country = '';
-            $street = '';
+        if (! is_array($address)) {
+            $address = [];
         }
+
+        $firstName = trim((string) ($address['firstName'] ?? $address['FirstName'] ?? $order['CustomerFirstName'] ?? ''));
+        $lastName = trim((string) ($address['lastName'] ?? $address['LastName'] ?? $order['CustomerLastName'] ?? ''));
+        $name = trim($firstName.' '.$lastName);
+        $phone = trim((string) ($address['phone'] ?? $address['Phone'] ?? $address['Phone2'] ?? ''));
+        $city = trim((string) ($address['city'] ?? $address['City'] ?? ''));
+        $country = trim((string) ($address['countryName'] ?? $address['Country'] ?? $order['country']['name'] ?? ''));
+        $street = trim((string) ($address['address'] ?? $address['Address1'] ?? $address['Address'] ?? ''));
 
         if ($phone !== '') {
             $client = Client::query()->where('phone', $phone)->first();
@@ -212,6 +237,55 @@ class JumiaOrderImporter
             'city' => $city !== '' ? $city : null,
             'country' => $country !== '' ? $country : null,
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    protected function resolveItemPrice(array $item): float
+    {
+        foreach ([
+            $item['paidPriceLocal']['value'] ?? null,
+            $item['paidPriceLocal'] ?? null,
+            $item['paidPrice'] ?? null,
+            $item['itemPriceLocal']['value'] ?? null,
+            $item['itemPriceLocal'] ?? null,
+            $item['itemPrice'] ?? null,
+            $item['PaidPrice'] ?? null,
+            $item['ItemPrice'] ?? null,
+        ] as $value) {
+            if (is_numeric($value)) {
+                return (float) $value;
+            }
+        }
+
+        return 0.0;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    protected function resolveItemName(array $item): string
+    {
+        return (string) (
+            $item['product']['name']
+            ?? $item['Name']
+            ?? $item['ProductName']
+            ?? 'Article Jumia'
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $order
+     */
+    protected function resolveCurrency(array $order): string
+    {
+        return (string) (
+            $order['totalAmountLocal']['currency']
+            ?? $order['country']['currencyCode']
+            ?? $order['Currency']
+            ?? 'MAD'
+        );
     }
 
     protected function parseDate(?string $value): ?Carbon

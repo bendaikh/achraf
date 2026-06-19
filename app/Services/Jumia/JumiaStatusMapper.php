@@ -11,7 +11,7 @@ class JumiaStatusMapper
      */
     public function fromJumia(string $jumiaStatus): array
     {
-        $status = strtolower(trim($jumiaStatus));
+        $status = strtolower(trim(str_replace('_', ' ', $jumiaStatus)));
 
         return match ($status) {
             'shipped' => [
@@ -29,10 +29,15 @@ class JumiaStatusMapper
                 'fulfillment_status' => 'unfulfilled',
                 'status' => 'cancelled',
             ],
-            'failed', 'returned', 'returned_to_seller' => [
+            'failed', 'returned', 'returned to seller' => [
                 'payment_status' => 'refunded',
                 'fulfillment_status' => 'unfulfilled',
                 'status' => 'cancelled',
+            ],
+            'pending', 'ready to ship' => [
+                'payment_status' => 'paid',
+                'fulfillment_status' => 'unfulfilled',
+                'status' => 'completed',
             ],
             default => [
                 'payment_status' => 'paid',

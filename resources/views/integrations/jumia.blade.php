@@ -55,35 +55,29 @@
                         </div>
 
                         <div>
-                            <label for="api_base_url" class="block text-sm font-medium text-gray-700 mb-1">URL de l'API <span class="text-red-500">*</span></label>
-                            <input type="url" name="api_base_url" id="api_base_url" required
-                                value="{{ old('api_base_url', $integration?->api_base_url ?? '') }}"
-                                placeholder="https://api.sellercenter.jumia.ma"
+                            <label for="client_id" class="block text-sm font-medium text-gray-700 mb-1">Client ID <span class="text-red-500">*</span></label>
+                            <input type="text" name="client_id" id="client_id" required
+                                value="{{ old('client_id', $integration?->client_id ?? '') }}"
+                                placeholder="cd1df3a2-47c2-4db5-8568-42f07d8317f0"
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#F68B1E] focus:ring-[#F68B1E]">
-                            <p class="mt-1 text-xs text-gray-500">URL fournie par Jumia Vendor Center (sans slash final).</p>
+                            <p class="mt-1 text-xs text-gray-500">Copié depuis Vendor Center → Settings → Applications → Application Details.</p>
                         </div>
 
                         <div>
-                            <label for="user_id" class="block text-sm font-medium text-gray-700 mb-1">User ID (email) <span class="text-red-500">*</span></label>
-                            <input type="email" name="user_id" id="user_id" required
-                                value="{{ old('user_id', $integration?->user_id ?? '') }}"
-                                placeholder="vendeur@example.com"
+                            <label for="refresh_token" class="block text-sm font-medium text-gray-700 mb-1">Refresh Token <span class="text-red-500">*</span></label>
+                            <input type="password" name="refresh_token" id="refresh_token" autocomplete="off"
+                                placeholder="{{ $integration && $integration->refresh_token ? '•••••••• (laisser vide pour conserver)' : 'Collez votre Refresh Token Jumia' }}"
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#F68B1E] focus:ring-[#F68B1E]">
-                            <p class="mt-1 text-xs text-gray-500">Email du compte API créé dans Jumia Vendor Center → Settings → Manage Users.</p>
+                            <p class="mt-1 text-xs text-gray-500">Généré via Self Authorization dans Applications → Generate Token.</p>
                         </div>
 
                         <div>
-                            <label for="api_key" class="block text-sm font-medium text-gray-700 mb-1">Clé API <span class="text-red-500">*</span></label>
-                            <input type="password" name="api_key" id="api_key" autocomplete="off"
-                                placeholder="{{ $integration && $integration->api_key ? '•••••••• (laisser vide pour conserver)' : 'Collez votre clé API Jumia' }}"
+                            <label for="api_base_url" class="block text-sm font-medium text-gray-700 mb-1">URL de l'API</label>
+                            <input type="url" name="api_base_url" id="api_base_url"
+                                value="{{ old('api_base_url', $integration?->api_base_url ?? \App\Models\JumiaIntegration::DEFAULT_API_BASE_URL) }}"
+                                placeholder="https://vendor-api.jumia.com"
                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#F68B1E] focus:ring-[#F68B1E]">
-                        </div>
-
-                        <div>
-                            <label for="api_version" class="block text-sm font-medium text-gray-700 mb-1">Version API</label>
-                            <input type="text" name="api_version" id="api_version"
-                                value="{{ old('api_version', $integration?->api_version ?? '1.0') }}"
-                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#F68B1E] focus:ring-[#F68B1E]">
+                            <p class="mt-1 text-xs text-gray-500">Laissez la valeur par défaut sauf indication contraire de Jumia.</p>
                         </div>
 
                         <div class="flex items-center">
@@ -155,7 +149,7 @@
 
                 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                     <h3 class="text-sm font-semibold text-gray-900 mb-3">Documentation</h3>
-                    <p class="text-sm text-gray-600 mb-3">Consultez la documentation officielle Jumia Vendor API pour obtenir l'URL et les identifiants.</p>
+                    <p class="text-sm text-gray-600 mb-3">Créez une application Self Authorization dans Vendor Center, puis copiez le Client ID et le Refresh Token ici.</p>
                     <a href="https://vendorcenter.jumia.com/api-docs/" target="_blank" rel="noopener"
                         class="text-sm font-medium text-[#F68B1E] hover:underline">
                         vendorcenter.jumia.com/api-docs →

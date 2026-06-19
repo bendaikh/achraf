@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\DocumentTaxBreakdown;
 use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
@@ -72,9 +73,22 @@ class Invoice extends Model
         return (float) $this->payments()->sum('amount');
     }
 
+    public function getComputedTotalAttribute(): float
+    {
+        $items = $this->relationLoaded('items')
+            ? $this->items
+            : $this->items()->get();
+
+        if ($items->isEmpty()) {
+            return (float) $this->total;
+        }
+
+        return DocumentTaxBreakdown::fromDocument($this, $items)['total_ttc'];
+    }
+
     public function getRemainingBalanceAttribute(): float
     {
-        return max(0, (float) $this->total - $this->total_paid);
+        return max(0, $this->computed_total - $this->total_paid);
     }
 
     public function getComputedPaymentStatusAttribute(): string
@@ -83,7 +97,7 @@ class Invoice extends Model
             return 'unpaid';
         }
 
-        if ($this->total_paid >= (float) $this->total) {
+        if ($this->total_paid >= $this->computed_total) {
             return 'paid';
         }
 
@@ -98,7 +112,7 @@ class Invoice extends Model
     public function syncPaymentStatus(): void
     {
         $this->update([
-            'payment_status' => $this->total_paid >= (float) $this->total
+            'payment_status' => $this->total_paid >= $this->computed_total
                 ? self::PAYMENT_PAID
                 : self::PAYMENT_UNPAID,
         ]);

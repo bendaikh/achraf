@@ -12,13 +12,13 @@ class LineItemCalculatorTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_sale_mode_treats_unit_price_as_ttc_when_setting_is_ttc(): void
+    public function test_sale_mode_treats_unit_price_as_ht_when_setting_is_ttc(): void
     {
         Setting::set('shopify_price_type', 'ttc');
 
         $computed = LineItemCalculator::compute([
             'quantity' => 1,
-            'unit_price' => 700,
+            'unit_price' => 583.33,
             'tax_rate' => 20,
             'discount' => 0,
             'discount_type' => 'fixed',
@@ -57,14 +57,14 @@ class LineItemCalculatorTest extends TestCase
         $this->assertEquals(840.0, $computed['line_total']);
     }
 
-    public function test_document_tax_breakdown_matches_sale_ttc_totals(): void
+    public function test_document_tax_breakdown_matches_sale_ht_unit_prices(): void
     {
         Setting::set('shopify_price_type', 'ttc');
 
         $taxes = DocumentTaxBreakdown::fromItems([
             [
                 'quantity' => 1,
-                'unit_price' => 700,
+                'unit_price' => 583.33,
                 'tax_rate' => 20,
                 'discount' => 0,
                 'discount_type' => 'fixed',
@@ -74,5 +74,33 @@ class LineItemCalculatorTest extends TestCase
         $this->assertEquals(583.33, $taxes['subtotal_ht']);
         $this->assertEquals(116.67, $taxes['tax_total']);
         $this->assertEquals(700.0, $taxes['total_ttc']);
+    }
+
+    public function test_for_display_returns_ht_unit_price_from_stored_ht_value(): void
+    {
+        Setting::set('shopify_price_type', 'ttc');
+
+        $display = LineItemCalculator::forDisplay([
+            'quantity' => 1,
+            'unit_price' => 583.33,
+            'tax_rate' => 20,
+            'discount' => 0,
+            'discount_type' => 'fixed',
+        ]);
+
+        $this->assertEquals(583.33, $display['unit_price_ht']);
+        $this->assertEquals(700.0, $display['line_total']);
+    }
+
+    public function test_normalize_stored_unit_price_converts_legacy_ttc_value(): void
+    {
+        $ht = LineItemCalculator::normalizeStoredUnitPriceToHt([
+            'quantity' => 1,
+            'unit_price' => 700,
+            'tax_rate' => 20,
+            'line_total' => 700,
+        ]);
+
+        $this->assertEquals(583.33, $ht);
     }
 }

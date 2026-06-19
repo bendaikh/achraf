@@ -14,7 +14,7 @@ class SalesPaymentController extends Controller
     public function index(Request $request)
     {
         $query = Invoice::query()
-            ->with(['client', 'posSale'])
+            ->with(['client', 'posSale', 'items'])
             ->withSum('payments as payments_sum', 'amount')
             ->latest('invoice_date');
 
@@ -58,11 +58,11 @@ class SalesPaymentController extends Controller
         $this->applyTableDateRange($query, $request, 'invoice_date');
         $this->applyPaymentStatusFilter($query, $request, 'invoice_payments', 'invoice_id', 'invoices');
 
-        $invoices = $query->withSum('payments as payments_sum', 'amount')->get();
+        $invoices = $query->with(['items'])->withSum('payments as payments_sum', 'amount')->get();
 
-        $totalAmount = $invoices->sum(fn (Invoice $invoice) => (float) $invoice->total);
+        $totalAmount = $invoices->sum(fn (Invoice $invoice) => $invoice->computed_total);
         $totalPaid = $invoices->sum(fn (Invoice $invoice) => (float) ($invoice->payments_sum ?? 0));
-        $totalRemaining = $invoices->sum(fn (Invoice $invoice) => max(0, (float) $invoice->total - (float) ($invoice->payments_sum ?? 0)));
+        $totalRemaining = $invoices->sum(fn (Invoice $invoice) => max(0, $invoice->computed_total - (float) ($invoice->payments_sum ?? 0)));
 
         return [
             'total_amount' => $totalAmount,

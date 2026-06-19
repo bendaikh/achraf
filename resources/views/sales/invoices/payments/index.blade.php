@@ -31,7 +31,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <h3 class="text-sm font-medium text-gray-500 mb-2">Montant Total</h3>
-                <p class="text-3xl font-bold text-gray-900">{{ number_format($invoice->total, 2) }} {{ $invoice->currency }}</p>
+                <p class="text-3xl font-bold text-gray-900">{{ number_format($invoice->computed_total, 2) }} {{ $invoice->currency }}</p>
             </div>
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <h3 class="text-sm font-medium text-gray-500 mb-2">Total Encaissé</h3>

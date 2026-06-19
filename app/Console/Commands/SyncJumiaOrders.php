@@ -51,18 +51,20 @@ class SyncJumiaOrders extends Command
                 return self::FAILURE;
             }
 
-            $filters = ['Limit' => '100'];
+            $filters = ['size' => 100];
 
             if ($this->option('all')) {
-                $this->info('Fetching all Jumia orders...');
+                $filters['updatedAfter'] = now()->subMonths(3);
+                $this->info('Fetching all Jumia orders (last 3 months)...');
             } elseif ($this->option('days') !== null) {
-                $filters['UpdatedAfter'] = now()->subDays((int) $this->option('days'))->format('c');
+                $filters['UpdatedAfter'] = now()->subDays((int) $this->option('days'));
                 $this->info('Fetching Jumia orders updated in the last '.$this->option('days').' days...');
             } elseif ($integration->last_sync_at) {
-                $filters['UpdatedAfter'] = $integration->last_sync_at->format('c');
+                $filters['UpdatedAfter'] = $integration->last_sync_at;
                 $this->info('Fetching orders updated since '.$integration->last_sync_at->format('Y-m-d H:i:s'));
             } else {
-                $this->info('First sync: fetching recent Jumia orders...');
+                $filters['UpdatedAfter'] = now()->subDays(30);
+                $this->info('First sync: fetching Jumia orders from the last 30 days...');
             }
 
             $imported = 0;
@@ -78,7 +80,7 @@ class SyncJumiaOrders extends Command
                     try {
                         DB::beginTransaction();
 
-                        $externalId = (string) ($order['OrderId'] ?? $order['OrderNumber'] ?? '');
+                        $externalId = (string) ($order['id'] ?? $order['orderId'] ?? $order['OrderId'] ?? $order['OrderNumber'] ?? '');
                         $exists = DB::table('pos_sales')
                             ->where('source', 'jumia')
                             ->where('external_id', $externalId)

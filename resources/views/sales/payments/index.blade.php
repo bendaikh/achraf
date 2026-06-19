@@ -79,8 +79,9 @@
                         @forelse($invoices as $invoice)
                             @php
                                 $totalPaid = (float) ($invoice->payments_sum ?? 0);
-                                $remaining = max(0, (float) $invoice->total - $totalPaid);
-                                $status = $totalPaid <= 0 ? 'unpaid' : ($totalPaid >= (float) $invoice->total ? 'paid' : 'partial');
+                                $invoiceTotal = $invoice->computed_total;
+                                $remaining = max(0, $invoiceTotal - $totalPaid);
+                                $status = $totalPaid <= 0 ? 'unpaid' : ($totalPaid >= $invoiceTotal ? 'paid' : 'partial');
                             @endphp
                             <tr class="hover:bg-gray-50 transition duration-150">
                                 <td class="px-6 py-4 whitespace-nowrap">
@@ -105,7 +106,7 @@
                                     <div class="text-sm text-gray-900">{{ $invoice->due_date ? $invoice->due_date->format('d/m/Y') : '-' }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-semibold text-gray-900">{{ number_format($invoice->total, 2) }} {{ $invoice->currency }}</div>
+                                    <div class="text-sm font-semibold text-gray-900">{{ number_format($invoiceTotal, 2) }} {{ $invoice->currency }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm font-semibold text-green-600">{{ number_format($totalPaid, 2) }} {{ $invoice->currency }}</div>

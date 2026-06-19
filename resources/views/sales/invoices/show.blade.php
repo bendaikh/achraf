@@ -135,7 +135,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantité</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Prix unitaire</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Prix unit. HT</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">TVA (%)</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Remise</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
@@ -147,10 +147,10 @@
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->ref ?? '-' }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->designation }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $item->quantity }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->unit_price, 2) }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->display_unit_price_ht, 2) }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $item->tax_rate }}%</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->discount, 2) }}</td>
-                                <td class="px-4 py-3 text-sm font-semibold text-gray-900 text-right">{{ number_format($item->line_total, 2) }}</td>
+                                <td class="px-4 py-3 text-sm font-semibold text-gray-900 text-right">{{ number_format($item->display_line_total, 2) }}</td>
                             </tr>
                             @endforeach
                         </tbody>

@@ -6,13 +6,16 @@ use App\Models\Client;
 use App\Models\Product;
 use App\Models\PosSale;
 use App\Models\PosSaleItem;
+use App\Services\MarketplaceStockSyncService;
 use App\Services\OrderToInvoiceConverter;
+use App\Support\OrderSource;
 use Illuminate\Support\Facades\DB;
 
 class ShopifyOrderImporter
 {
     public function __construct(
-        protected OrderToInvoiceConverter $orderToInvoiceConverter
+        protected OrderToInvoiceConverter $orderToInvoiceConverter,
+        protected MarketplaceStockSyncService $stockSync
     ) {}
 
     public function import(array $order): PosSale
@@ -33,6 +36,8 @@ class ShopifyOrderImporter
                 ->where('source', 'shopify')
                 ->where('external_id', $externalId)
                 ->first();
+
+            $previousStockApplied = $this->stockSync->previousAppliedFromSale($existing);
 
             $client = $this->resolveClient($order);
 
@@ -103,6 +108,13 @@ class ShopifyOrderImporter
                         'shopify_synced_at' => now(),
                     ]);
                     PosSaleItem::where('pos_sale_id', $existing->id)->delete();
+
+                    $this->stockSync->syncOrderStock(
+                        $existing,
+                        $previousStockApplied,
+                        [],
+                        OrderSource::SHOPIFY
+                    );
 
                     \Log::info('Shopify order fully refunded - cleared line items', [
                         'order_id' => $externalId,
@@ -214,6 +226,13 @@ class ShopifyOrderImporter
                 $existing->refresh();
                 $this->orderToInvoiceConverter->tryAutoGenerate($existing);
 
+                $this->stockSync->syncOrderStock(
+                    $existing,
+                    $previousStockApplied,
+                    $this->stockSync->quantitiesFromLineRows($lineRows),
+                    OrderSource::SHOPIFY
+                );
+
                 return $existing;
             }
 
@@ -256,6 +275,13 @@ class ShopifyOrderImporter
 
             $sale->refresh();
             $this->orderToInvoiceConverter->tryAutoGenerate($sale);
+
+            $this->stockSync->syncOrderStock(
+                $sale,
+                $previousStockApplied,
+                $this->stockSync->quantitiesFromLineRows($lineRows),
+                OrderSource::SHOPIFY
+            );
 
             return $sale;
         });

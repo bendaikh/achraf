@@ -25,7 +25,7 @@ class InvoiceController extends Controller
 
     public function index(Request $request)
     {
-        $query = Invoice::with(['client', 'posSale'])->latest();
+        $query = Invoice::with(['client', 'posSale', 'items'])->latest();
 
         $this->applyTableSearch($query, $request, ['invoice_number', 'client.name', 'posSale.ticket_number']);
         $this->applyTableDateRange($query, $request, 'invoice_date');
@@ -161,7 +161,7 @@ class InvoiceController extends Controller
             'ref' => $item->ref,
             'designation' => $item->designation,
             'quantity' => $item->quantity,
-            'unit_price' => $item->unit_price,
+            'unit_price' => $item->display_unit_price_ht,
             'tax_rate' => $item->tax_rate,
             'discount' => $item->discount,
             'discount_type' => $item->discount_type ?? 'fixed',
