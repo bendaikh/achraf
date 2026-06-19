@@ -114,7 +114,7 @@ class SupplierInvoiceController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item);
+                $computed = LineItemCalculator::compute($item, 'purchase');
 
                 $invoice->items()->create([
                     'product_id' => $item['product_id'] ?? null,
@@ -220,7 +220,7 @@ class SupplierInvoiceController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item);
+                $computed = LineItemCalculator::compute($item, 'purchase');
 
                 $supplierInvoice->items()->create([
                     'product_id' => $item['product_id'] ?? null,

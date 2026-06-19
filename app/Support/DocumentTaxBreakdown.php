@@ -14,6 +14,7 @@ class DocumentTaxBreakdown
     iterable $items,
     float $adjustment = 0,
     float $documentDiscount = 0,
+    string $priceMode = 'sale',
   ): array {
     $subtotalHt = 0.0;
     $taxTotal = 0.0;
@@ -21,14 +22,21 @@ class DocumentTaxBreakdown
     foreach ($items as $item) {
       $quantity = (float) (is_array($item) ? ($item['quantity'] ?? 0) : $item->quantity);
       $unitPrice = (float) (is_array($item) ? ($item['unit_price'] ?? 0) : $item->unit_price);
-      $discount = (float) (is_array($item) ? ($item['discount'] ?? 0) : ($item->discount ?? 0));
+      $discountInput = (float) (is_array($item) ? ($item['discount'] ?? 0) : ($item->discount ?? 0));
+      $discountType = (is_array($item) ? ($item['discount_type'] ?? 'fixed') : ($item->discount_type ?? 'fixed'));
       $taxRate = (float) (is_array($item) ? ($item['tax_rate'] ?? 0) : ($item->tax_rate ?? 0));
 
-      $lineHt = max(0, ($quantity * $unitPrice) - $discount);
-      $lineTax = $lineHt * ($taxRate / 100);
+      $breakdown = LineItemCalculator::breakdown(
+        quantity: $quantity,
+        unitPrice: $unitPrice,
+        taxRate: $taxRate,
+        discountInput: $discountInput,
+        discountType: $discountType,
+        priceMode: $priceMode,
+      );
 
-      $subtotalHt += $lineHt;
-      $taxTotal += $lineTax;
+      $subtotalHt += $breakdown['line_ht'];
+      $taxTotal += $breakdown['line_tax'];
     }
 
     $totalTtc = $subtotalHt + $taxTotal - $documentDiscount + $adjustment;
@@ -51,6 +59,7 @@ class DocumentTaxBreakdown
       $items,
       (float) ($document->adjustment ?? 0),
       (float) ($document->discount ?? 0),
+      LineItemCalculator::priceModeForDocument($document),
     );
   }
 }

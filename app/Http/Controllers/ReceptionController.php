@@ -81,7 +81,7 @@ class ReceptionController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item);
+                $computed = LineItemCalculator::compute($item, 'purchase');
 
                 $reception->items()->create([
                     'product_id' => $item['product_id'] ?? null,
@@ -164,7 +164,7 @@ class ReceptionController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item);
+                $computed = LineItemCalculator::compute($item, 'purchase');
 
                 $reception->items()->create([
                     'product_id' => $item['product_id'] ?? null,
