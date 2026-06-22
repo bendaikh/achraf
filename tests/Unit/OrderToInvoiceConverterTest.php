@@ -55,4 +55,44 @@ class OrderToInvoiceConverterTest extends TestCase
         $this->assertEquals(700.0, (float) $invoice->total);
         $this->assertEquals(700.0, $invoice->computed_total);
     }
+
+    public function test_convert_order_with_ht_unit_prices_preserves_ttc_total(): void
+    {
+        Setting::set('shopify_price_type', 'ttc');
+
+        $client = Client::create(['name' => 'POS Client']);
+        $order = PosSale::create([
+            'ticket_number' => 'POS-2026/000100',
+            'client_id' => $client->id,
+            'sold_at' => now(),
+            'currency' => 'dh - MAD',
+            'subtotal' => 358.33,
+            'discount' => 0,
+            'tax_total' => 71.67,
+            'total' => 430,
+            'payment_method' => 'cash',
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'fulfillment_status' => 'fulfilled',
+        ]);
+
+        PosSaleItem::create([
+            'pos_sale_id' => $order->id,
+            'designation' => 'Produit POS',
+            'quantity' => 1,
+            'unit_price' => 358.33,
+            'tax_rate' => 20,
+            'discount' => 0,
+            'line_total' => 430,
+        ]);
+
+        $invoice = app(OrderToInvoiceConverter::class)->convert($order);
+
+        $invoice->load('items');
+
+        $this->assertEquals(358.33, (float) $invoice->items->first()->unit_price);
+        $this->assertEquals(430.0, (float) $invoice->items->first()->line_total);
+        $this->assertEquals(430.0, (float) $invoice->total);
+        $this->assertEquals(430.0, $invoice->computed_total);
+    }
 }

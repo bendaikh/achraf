@@ -84,12 +84,10 @@ class LineItemCalculator
 
         $factor = 1 + ($taxRate / 100);
         $perUnitLine = $lineTotal / $quantity;
-        $doubleCountLine = round($unitPrice * $factor * $quantity, 2);
 
-        if (
-            abs($lineTotal - $doubleCountLine) < 0.02
-            || abs($unitPrice - $perUnitLine) < 0.02
-        ) {
+        // Legacy rows stored unit_price as TTC (equal to line_total per unit).
+        // Correct rows store unit_price as HT and line_total as TTC — do not re-normalize those.
+        if (abs($unitPrice - $perUnitLine) < 0.02) {
             return round($unitPrice / $factor, 2);
         }
 

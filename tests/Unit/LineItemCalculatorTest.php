@@ -103,4 +103,16 @@ class LineItemCalculatorTest extends TestCase
 
         $this->assertEquals(583.33, $ht);
     }
+
+    public function test_normalize_stored_unit_price_keeps_correct_ht_value(): void
+    {
+        $ht = LineItemCalculator::normalizeStoredUnitPriceToHt([
+            'quantity' => 1,
+            'unit_price' => 358.33,
+            'tax_rate' => 20,
+            'line_total' => 430,
+        ]);
+
+        $this->assertEquals(358.33, $ht);
+    }
 }
