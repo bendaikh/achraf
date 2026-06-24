@@ -9,7 +9,7 @@ class RecalculateInvoiceTotals extends Command
 {
     protected $signature = 'invoices:recalculate-totals';
 
-    protected $description = 'Recalculate line totals and document totals for existing invoices (TTC/HT fix)';
+    protected $description = 'Recalculate line totals and document totals for existing invoices (TTC/HT fix, including auto-generated from orders)';
 
     public function handle(CommercialDocumentTotalsService $service): int
     {
