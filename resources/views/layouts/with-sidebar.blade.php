@@ -122,5 +122,13 @@
 @else
 <script src="{{ asset('js/table-bulk-selection.js') }}?v=4"></script>
 @endif
+@php
+    $tablePaginationScript = public_path('js/table-pagination.js');
+@endphp
+@if (is_readable($tablePaginationScript))
+<script>{!! file_get_contents($tablePaginationScript) !!}</script>
+@else
+<script src="{{ asset('js/table-pagination.js') }}?v=1"></script>
+@endif
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 @endsection

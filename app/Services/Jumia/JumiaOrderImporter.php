@@ -32,7 +32,7 @@ class JumiaOrderImporter
                 throw new \InvalidArgumentException('Missing Jumia order id.');
             }
 
-            $orderItems = $this->resolveOrderItems($order, $externalId);
+            $orderItems = $this->flattenOrderItems($this->resolveOrderItems($order, $externalId));
             if ($orderItems === []) {
                 throw new \InvalidArgumentException('Jumia order has no line items.');
             }
@@ -47,10 +47,11 @@ class JumiaOrderImporter
 
             $previousStockApplied = $this->stockSync->previousAppliedFromSale($existing);
 
-            $client = $this->resolveClient($order);
+            $client = $this->resolveClient($order, $orderItems);
             $lineRows = [];
             $subtotalHt = 0.0;
             $taxTotal = 0.0;
+            $shippingTotal = 0.0;
             $orderItemIds = [];
 
             foreach ($orderItems as $item) {
@@ -62,14 +63,20 @@ class JumiaOrderImporter
                 $sku = trim((string) ($item['product']['sellerSku'] ?? $item['ShopSku'] ?? $item['Sku'] ?? ''));
                 $product = $sku !== '' ? Product::query()->where('ref', $sku)->first() : null;
 
-                $lineTotalTtc = round($this->resolveItemPrice($item) * $qty, 2);
-                $taxRate = $this->defaultTaxRate($product);
-                $base = round($lineTotalTtc / (1 + ($taxRate / 100)), 2);
+                $unitPriceTtc = $this->resolveItemUnitPriceTtc($item);
+                $lineProductTtc = round($unitPriceTtc * $qty, 2);
+                $lineShippingTtc = round($this->resolveItemShippingAmount($item), 2);
+                $lineTotalTtc = round($lineProductTtc + $lineShippingTtc, 2);
+                $taxRate = $this->resolveItemTaxRate($item, $product);
+                $base = $taxRate > 0
+                    ? round($lineTotalTtc / (1 + ($taxRate / 100)), 2)
+                    : $lineTotalTtc;
                 $tax = round($lineTotalTtc - $base, 2);
-                $unitPrice = $qty > 0 ? round($base / $qty, 2) : 0.0;
+                $unitPriceHt = $qty > 0 ? round(($lineProductTtc / (1 + ($taxRate / 100))) / $qty, 2) : 0.0;
 
                 $subtotalHt += $base;
                 $taxTotal += $tax;
+                $shippingTotal += $lineShippingTtc;
 
                 $orderItemId = $item['id'] ?? $item['OrderItemId'] ?? null;
                 if (! empty($orderItemId)) {
@@ -81,14 +88,15 @@ class JumiaOrderImporter
                     'ref' => $sku !== '' ? $sku : null,
                     'designation' => $this->resolveItemName($item),
                     'quantity' => $qty,
-                    'unit_price' => $unitPrice,
+                    'unit_price' => $unitPriceHt,
                     'tax_rate' => $taxRate,
                     'discount' => 0.0,
                     'line_total' => $lineTotalTtc,
                 ];
             }
 
-            $total = round($subtotalHt + $taxTotal, 2);
+            $computedTotal = round($subtotalHt + $taxTotal, 2);
+            $orderTotal = $this->resolveOrderGrandTotal($order, $computedTotal, $shippingTotal);
             $orderNumber = (string) ($order['number'] ?? $order['orderNumber'] ?? $order['OrderNumber'] ?? $externalId);
             $ticketNumber = 'JUM-'.$orderNumber;
             $soldAt = $this->parseDate($order['createdAt'] ?? $order['CreatedAt'] ?? null) ?? now();
@@ -107,9 +115,9 @@ class JumiaOrderImporter
                 'subtotal' => $subtotalHt,
                 'discount' => 0,
                 'tax_total' => $taxTotal,
-                'total' => $total,
+                'total' => $orderTotal,
                 'payment_method' => PosSale::PAYMENT_CARD,
-                'amount_received' => $mapped['payment_status'] === 'paid' ? $total : null,
+                'amount_received' => $mapped['payment_status'] === 'paid' ? $orderTotal : null,
                 'change_amount' => 0,
                 'status' => $mapped['status'],
                 'payment_status' => $mapped['payment_status'],
@@ -174,6 +182,35 @@ class JumiaOrderImporter
     }
 
     /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    protected function flattenOrderItems(array $items): array
+    {
+        $flat = [];
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            if (isset($item['items']) && is_array($item['items'])) {
+                foreach ($item['items'] as $lineItem) {
+                    if (is_array($lineItem)) {
+                        $flat[] = $lineItem;
+                    }
+                }
+
+                continue;
+            }
+
+            $flat[] = $item;
+        }
+
+        return array_values($flat);
+    }
+
+    /**
      * @param  array<string, mixed>  $order
      * @param  array<int, array<string, mixed>>  $items
      */
@@ -201,10 +238,18 @@ class JumiaOrderImporter
 
     /**
      * @param  array<string, mixed>  $order
+     * @param  array<int, array<string, mixed>>  $items
      */
-    protected function resolveClient(array $order): ?Client
+    protected function resolveClient(array $order, array $items = []): ?Client
     {
         $address = $order['shippingAddress'] ?? $order['AddressShipping'] ?? $order['AddressBilling'] ?? [];
+
+        if (! is_array($address) || $address === []) {
+            $firstItem = $items[0] ?? null;
+            if (is_array($firstItem)) {
+                $address = $firstItem['shippingAddress'] ?? $firstItem['ShippingAddress'] ?? [];
+            }
+        }
 
         if (! is_array($address)) {
             $address = [];
@@ -242,24 +287,121 @@ class JumiaOrderImporter
     /**
      * @param  array<string, mixed>  $item
      */
-    protected function resolveItemPrice(array $item): float
+    protected function resolveItemUnitPriceTtc(array $item): float
     {
         foreach ([
-            $item['paidPriceLocal']['value'] ?? null,
-            $item['paidPriceLocal'] ?? null,
-            $item['paidPrice'] ?? null,
-            $item['itemPriceLocal']['value'] ?? null,
-            $item['itemPriceLocal'] ?? null,
-            $item['itemPrice'] ?? null,
-            $item['PaidPrice'] ?? null,
-            $item['ItemPrice'] ?? null,
-        ] as $value) {
-            if (is_numeric($value)) {
-                return (float) $value;
+            'paidPriceLocal',
+            'itemPriceLocal',
+            'paidPrice',
+            'itemPrice',
+            'PaidPrice',
+            'ItemPrice',
+            'Price',
+            'price',
+        ] as $key) {
+            $value = $this->extractMoneyValue($item[$key] ?? null);
+
+            if ($value !== null) {
+                return $value;
             }
         }
 
         return 0.0;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    protected function resolveItemShippingAmount(array $item): float
+    {
+        foreach ([
+            'shippingAmountLocal',
+            'shippingAmount',
+            'ShippingAmount',
+        ] as $key) {
+            $value = $this->extractMoneyValue($item[$key] ?? null);
+
+            if ($value !== null) {
+                return max(0, $value);
+            }
+        }
+
+        return 0.0;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    protected function resolveItemTaxRate(array $item, ?Product $product): float
+    {
+        $productPrice = $this->resolveItemUnitPriceTtc($item);
+        $taxAmount = $this->extractMoneyValue($item['taxAmount'] ?? $item['TaxAmount'] ?? null);
+
+        if ($productPrice > 0 && $taxAmount !== null && $taxAmount > 0) {
+            $impliedRate = ($taxAmount / max(0.01, $productPrice - $taxAmount)) * 100;
+
+            if ($impliedRate >= 0 && $impliedRate <= 30) {
+                return round($impliedRate, 2);
+            }
+        }
+
+        return $this->defaultTaxRate($product);
+    }
+
+    /**
+     * @param  array<string, mixed>  $order
+     */
+    protected function resolveOrderGrandTotal(array $order, float $computedTotal, float $shippingTotal): float
+    {
+        foreach ([
+            'totalAmountLocal',
+            'grandTotalLocal',
+            'orderTotalLocal',
+            'totalAmount',
+            'grandTotal',
+            'GrandTotal',
+            'Price',
+        ] as $key) {
+            $value = $this->extractMoneyValue($order[$key] ?? null);
+
+            if ($value !== null && $value > 0) {
+                return round($value, 2);
+            }
+        }
+
+        if ($computedTotal > 0) {
+            return round($computedTotal, 2);
+        }
+
+        return round($shippingTotal, 2);
+    }
+
+    protected function extractMoneyValue(mixed $value): ?float
+    {
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        if (! is_array($value)) {
+            return null;
+        }
+
+        foreach (['value', 'amount', 'localValue'] as $key) {
+            if (isset($value[$key]) && is_numeric($value[$key])) {
+                return (float) $value[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @deprecated Use resolveItemUnitPriceTtc()
+     */
+    protected function resolveItemPrice(array $item): float
+    {
+        return $this->resolveItemUnitPriceTtc($item);
     }
 
     /**
@@ -283,6 +425,7 @@ class JumiaOrderImporter
         return (string) (
             $order['totalAmountLocal']['currency']
             ?? $order['country']['currencyCode']
+            ?? $order['items'][0]['country']['currencyCode']
             ?? $order['Currency']
             ?? 'MAD'
         );

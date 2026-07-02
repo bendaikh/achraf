@@ -41,9 +41,3 @@
         @endif
     </div>
 </div>
-
-@once
-    @push('scripts')
-        <script src="{{ asset('js/table-pagination.js') }}"></script>
-    @endpush
-@endonce

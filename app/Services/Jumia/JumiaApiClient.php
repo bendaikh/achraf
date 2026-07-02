@@ -411,23 +411,50 @@ class JumiaApiClient
             return [];
         }
 
+        $entries = [];
+
         if (isset($response['items']) && is_array($response['items'])) {
-            return array_values(array_filter($response['items'], 'is_array'));
+            $entries = array_values(array_filter($response['items'], 'is_array'));
+        } elseif (isset($response['orderItems']) && is_array($response['orderItems'])) {
+            $entries = array_values(array_filter($response['orderItems'], 'is_array'));
+        } elseif ($this->isAssoc($response) && isset($response['id'])) {
+            $entries = [$response];
+        } elseif (array_is_list($response)) {
+            $entries = array_values(array_filter($response, 'is_array'));
         }
 
-        if (isset($response['orderItems']) && is_array($response['orderItems'])) {
-            return array_values(array_filter($response['orderItems'], 'is_array'));
+        return $this->flattenVendorOrderItems($entries);
+    }
+
+    /**
+     * Vendor Center returns order groups that contain a nested `items` array.
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     * @return array<int, array<string, mixed>>
+     */
+    protected function flattenVendorOrderItems(array $entries): array
+    {
+        $flat = [];
+
+        foreach ($entries as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            if (isset($entry['items']) && is_array($entry['items'])) {
+                foreach ($entry['items'] as $lineItem) {
+                    if (is_array($lineItem)) {
+                        $flat[] = $lineItem;
+                    }
+                }
+
+                continue;
+            }
+
+            $flat[] = $entry;
         }
 
-        if ($this->isAssoc($response) && isset($response['id'])) {
-            return [$response];
-        }
-
-        if (array_is_list($response)) {
-            return array_values(array_filter($response, 'is_array'));
-        }
-
-        return [];
+        return array_values($flat);
     }
 
     protected function legacyCall(string $action, array $extraParams = [], ?string $xmlBody = null): ?array
