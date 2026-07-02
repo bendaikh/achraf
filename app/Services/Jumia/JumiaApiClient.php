@@ -189,31 +189,62 @@ class JumiaApiClient
 
     protected function updateVendorProductStock(string $sellerSku, int $stock, ?string $productSid): ?array
     {
-        if (! $productSid) {
-            $catalogProduct = $this->findCatalogProductBySellerSku($sellerSku);
-            $productSid = $catalogProduct['productSid'] ?? $catalogProduct['id'] ?? $catalogProduct['sid'] ?? null;
+        $catalogProduct = $this->findCatalogProductBySellerSku($sellerSku);
+
+        if (! is_array($catalogProduct)) {
+            throw new \RuntimeException('SKU « '.$sellerSku.' » introuvable dans le catalogue Jumia.');
+        }
+
+        $variationId = $this->resolveCatalogVariationId($catalogProduct, $sellerSku);
+
+        if ($variationId === null || $variationId === '') {
+            throw new \RuntimeException('Aucune variation Jumia trouvée pour le SKU « '.$sellerSku.' ».');
         }
 
         $entry = [
+            'id' => $variationId,
             'sellerSku' => $sellerSku,
             'stock' => $stock,
         ];
-
-        if ($productSid) {
-            $entry['id'] = (string) $productSid;
-        }
 
         $response = $this->vendorRequest('POST', '/feeds/products/stock', [], [
             'products' => [$entry],
         ]);
 
-        if (is_string($productSid) && $productSid !== '') {
-            Product::query()
-                ->whereRaw('LOWER(ref) = ?', [strtolower($sellerSku)])
-                ->update(['jumia_product_sid' => $productSid]);
-        }
+        Product::query()
+            ->whereRaw('LOWER(ref) = ?', [strtolower($sellerSku)])
+            ->update(['jumia_product_sid' => $variationId]);
 
         return $response;
+    }
+
+    /**
+     * @param  array<string, mixed>  $catalogProduct
+     */
+    protected function resolveCatalogVariationId(array $catalogProduct, string $sellerSku): ?string
+    {
+        $sellerSku = trim($sellerSku);
+        $variations = $catalogProduct['variations'] ?? [];
+
+        if (is_array($variations)) {
+            foreach ($variations as $variation) {
+                if (! is_array($variation)) {
+                    continue;
+                }
+
+                $variationSku = trim((string) ($variation['sellerSku'] ?? ''));
+
+                if ($variationSku !== '' && strcasecmp($variationSku, $sellerSku) === 0) {
+                    $id = $variation['id'] ?? $variation['productSid'] ?? $variation['sid'] ?? null;
+
+                    return $id !== null ? (string) $id : null;
+                }
+            }
+        }
+
+        $fallbackId = $catalogProduct['productSid'] ?? $catalogProduct['id'] ?? $catalogProduct['sid'] ?? null;
+
+        return $fallbackId !== null ? (string) $fallbackId : null;
     }
 
     protected function updateLegacyProductStock(string $sellerSku, int $stock): ?array
@@ -346,10 +377,12 @@ class JumiaApiClient
                 ->acceptJson();
 
             $response = match (strtoupper($method)) {
-                'POST' => $request->post($url, $body ?? []),
-                'PUT' => $request->put($url, $body ?? []),
-                'PATCH' => $request->patch($url, $body ?? []),
-                'DELETE' => $request->delete($url, $body ?? []),
+                'POST' => $request->asJson()->post($url, $body ?? []),
+                'PUT' => $request->asJson()->put($url, $body ?? []),
+                'PATCH' => $request->asJson()->patch($url, $body ?? []),
+                'DELETE' => $body !== null
+                    ? $request->asJson()->delete($url, $body)
+                    : $request->delete($url, $query),
                 default => $request->get($url, $query),
             };
 

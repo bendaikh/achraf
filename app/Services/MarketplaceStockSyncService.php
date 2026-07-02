@@ -132,7 +132,7 @@ class MarketplaceStockSyncService
 
         $this->persistStockMetadata($sale, $applied, $errors);
 
-        if ($source === OrderSource::SHOPIFY && $productsToPush !== []) {
+        if (in_array($source, [OrderSource::SHOPIFY, OrderSource::JUMIA], true) && $productsToPush !== []) {
             DB::afterCommit(function () use ($productsToPush): void {
                 $this->pushStockToJumia(array_values($productsToPush));
             });
@@ -167,16 +167,23 @@ class MarketplaceStockSyncService
             $stock = max(0, (int) $product->stock_enligne);
 
             try {
-                $client->updateProductStock($sku, $stock, $product->jumia_product_sid);
+                $response = $client->updateProductStock($sku, $stock, $product->jumia_product_sid);
+
+                if (! isset($response['feedId'])) {
+                    throw new \RuntimeException('Réponse Jumia invalide: feedId manquant.');
+                }
+
+                $product->refresh();
                 $product->forceFill(['jumia_stock_synced_at' => now()])->save();
 
-                Log::info('Jumia stock updated', [
+                Log::info('Jumia stock feed submitted', [
                     'product_id' => $product->id,
                     'sku' => $sku,
                     'stock' => $stock,
+                    'feed_id' => $response['feedId'],
                 ]);
             } catch (\Throwable $e) {
-                Log::error('Jumia stock push failed', [
+                Log::warning('Jumia stock push skipped or failed', [
                     'product_id' => $product->id,
                     'sku' => $sku,
                     'stock' => $stock,
