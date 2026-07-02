@@ -19,7 +19,7 @@ class ExpenseController extends Controller
         $this->applyTableDateRange($query, $request, 'expense_date');
         $this->applyTableFilter($query, $request, 'expense_type', 'expense_type');
 
-        $expenses = $query->paginate(15)->withQueryString();
+        $expenses = $this->paginateTable($query, $request);
 
         return view('purchases.expenses.index', compact('expenses'));
     }

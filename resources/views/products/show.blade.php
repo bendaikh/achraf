@@ -145,7 +145,7 @@
 
                                 @if($product->last_purchase_price !== null)
                                     <div>
-                                        <span class="text-sm text-gray-500">Prix dernier achat (DHS)</span>
+                                        <span class="text-sm text-gray-500">Prix dernier achat TTC (DHS)</span>
                                         <p class="mt-1 text-xl font-semibold text-gray-900">{{ number_format($product->last_purchase_price, 2) }} DHS</p>
                                     </div>
                                 @endif

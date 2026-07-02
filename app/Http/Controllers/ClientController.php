@@ -18,7 +18,7 @@ class ClientController extends Controller
             'name', 'email', 'phone', 'code', 'ice', 'ville', 'city',
         ]);
 
-        $clients = $query->paginate(15)->withQueryString();
+        $clients = $this->paginateTable($query, $request);
 
         return view('clients.index', compact('clients'));
     }

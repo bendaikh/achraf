@@ -7,6 +7,21 @@ use Illuminate\Http\Request;
 
 trait FiltersIndexTables
 {
+    /** @var list<int> */
+    public const TABLE_PER_PAGE_OPTIONS = [10, 25, 50, 100];
+
+    protected function resolvePerPage(Request $request, int $default = 15): int
+    {
+        $perPage = (int) $request->input('per_page', $default);
+
+        return in_array($perPage, self::TABLE_PER_PAGE_OPTIONS, true) ? $perPage : $default;
+    }
+
+    protected function paginateTable(Builder $query, Request $request, int $default = 15)
+    {
+        return $query->paginate($this->resolvePerPage($request, $default))->withQueryString();
+    }
+
     protected function applyTableSearch(Builder $query, Request $request, array $columns, string $param = 'search'): Builder
     {
         if (! $request->filled($param)) {

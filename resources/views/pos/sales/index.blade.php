@@ -85,9 +85,7 @@
                         </tbody>
                     </table>
                 </div>
-                @if($sales->hasPages())
-                    <div class="px-6 py-4 border-t border-gray-200">{{ $sales->links() }}</div>
-                @endif
+                <x-table-pagination :paginator="$sales" item-label="ventes" :default-per-page="20" />
             </div>
         </div>
     </main>

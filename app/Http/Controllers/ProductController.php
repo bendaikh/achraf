@@ -34,7 +34,7 @@ class ProductController extends Controller
         $this->applyTableFilter($query, $request, 'status', 'status');
         $this->applyTableDateRange($query, $request, 'created_at', 'date_from', 'date_to');
 
-        $products = $query->withCount('variants')->latest()->paginate(20)->withQueryString();
+        $products = $this->paginateTable($query->withCount('variants')->latest(), $request, 20);
 
         // Get statistics
         $totalProducts = Product::count();

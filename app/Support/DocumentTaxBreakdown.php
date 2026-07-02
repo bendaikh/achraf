@@ -21,7 +21,7 @@ class DocumentTaxBreakdown
 
     foreach ($items as $item) {
       $quantity = (float) (is_array($item) ? ($item['quantity'] ?? 0) : $item->quantity);
-      $unitPrice = (float) (is_array($item) ? ($item['unit_price'] ?? 0) : $item->unit_price);
+      $unitPrice = LineItemCalculator::effectiveUnitPriceForBreakdown($item, $priceMode);
       $discountInput = (float) (is_array($item) ? ($item['discount'] ?? 0) : ($item->discount ?? 0));
       $discountType = (is_array($item) ? ($item['discount_type'] ?? 'fixed') : ($item->discount_type ?? 'fixed'));
       $taxRate = (float) (is_array($item) ? ($item['tax_rate'] ?? 0) : ($item->tax_rate ?? 0));

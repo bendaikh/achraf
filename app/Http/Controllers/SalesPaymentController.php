@@ -22,7 +22,7 @@ class SalesPaymentController extends Controller
         $this->applyTableDateRange($query, $request, 'invoice_date');
         $this->applyPaymentStatusFilter($query, $request, 'invoice_payments', 'invoice_id', 'invoices');
 
-        $invoices = $query->paginate(15)->withQueryString();
+        $invoices = $this->paginateTable($query, $request);
 
         $stats = $this->buildStats($request);
 

@@ -151,7 +151,7 @@
             </div>
 
             <div class="mt-6">
-                {{ $quotes->links() }}
+                <x-table-pagination :paginator="$quotes" :bordered="false" item-label="devis" />
             </div>
         </div>
     </main>

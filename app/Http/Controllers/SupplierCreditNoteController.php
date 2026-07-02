@@ -27,7 +27,7 @@ class SupplierCreditNoteController extends Controller
         $this->applyTableSearch($query, $request, ['credit_note_number', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'credit_note_date');
 
-        $supplierCreditNotes = $query->paginate(15)->withQueryString();
+        $supplierCreditNotes = $this->paginateTable($query, $request);
 
         return view('purchases.supplier-credit-notes.index', compact('supplierCreditNotes'));
     }

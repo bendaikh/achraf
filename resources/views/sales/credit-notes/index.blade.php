@@ -157,7 +157,7 @@
             </div>
 
             <div class="mt-6">
-                {{ $creditNotes->links() }}
+                <x-table-pagination :paginator="$creditNotes" :bordered="false" item-label="avoirs" />
             </div>
         </div>
     </main>

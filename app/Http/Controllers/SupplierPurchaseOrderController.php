@@ -7,6 +7,7 @@ use App\Models\Supplier;
 use App\Models\SupplierPurchaseOrder;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
+use App\Services\ProductPurchasePriceService;
 use App\Support\LineItemCalculator;
 use App\Models\Setting;
 use Illuminate\Http\Request;
@@ -16,6 +17,10 @@ class SupplierPurchaseOrderController extends Controller
 {
     use FiltersIndexTables;
 
+    public function __construct(
+        protected ProductPurchasePriceService $purchasePriceSync,
+    ) {}
+
     public function index(Request $request)
     {
         $query = SupplierPurchaseOrder::with('supplier')->latest();
@@ -23,7 +28,7 @@ class SupplierPurchaseOrderController extends Controller
         $this->applyTableSearch($query, $request, ['order_number', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'order_date');
 
-        $orders = $query->paginate(15)->withQueryString();
+        $orders = $this->paginateTable($query, $request);
 
         return view('purchases.supplier-purchase-orders.index', compact('orders'));
     }
@@ -92,6 +97,8 @@ class SupplierPurchaseOrderController extends Controller
             }
 
             $order->update(['subtotal' => $subtotal, 'total' => $subtotal]);
+
+            $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
 
             DB::commit();
             return redirect()->route('supplier-purchase-orders.index')->with('success', 'BC fournisseur créé avec succès!');
@@ -169,6 +176,8 @@ class SupplierPurchaseOrderController extends Controller
             }
 
             $supplierPurchaseOrder->update(['subtotal' => $subtotal, 'total' => $subtotal]);
+
+            $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
 
             DB::commit();
             return redirect()->route('supplier-purchase-orders.index')->with('success', 'BC fournisseur modifié avec succès!');

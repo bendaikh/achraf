@@ -233,6 +233,10 @@
                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
                 </div>
 
+                @if(request()->filled('per_page'))
+                    <input type="hidden" name="per_page" value="{{ request('per_page') }}">
+                @endif
+
                 <div class="flex items-end gap-2">
                     <button type="submit" class="flex-1 px-4 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] transition font-medium">
                         Filtrer
@@ -481,24 +485,7 @@
             </div>
 
             <!-- Pagination with Size Selector -->
-            <div class="px-6 py-4 border-t border-gray-200">
-                <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div class="flex items-center gap-2">
-                        <label for="perPage" class="text-sm text-gray-600">Afficher</label>
-                        <select id="perPage" onchange="changePerPage(this.value)" class="rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819] text-sm">
-                            <option value="25" {{ request('per_page', 20) == 25 ? 'selected' : '' }}>25</option>
-                            <option value="50" {{ request('per_page', 20) == 50 ? 'selected' : '' }}>50</option>
-                            <option value="100" {{ request('per_page', 20) == 100 ? 'selected' : '' }}>100</option>
-                        </select>
-                        <span class="text-sm text-gray-600">commandes par page</span>
-                    </div>
-                    @if($orders->hasPages())
-                    <div>
-                        {{ $orders->links() }}
-                    </div>
-                    @endif
-                </div>
-            </div>
+            <x-table-pagination :paginator="$orders" item-label="commandes" />
         </div>
     </div>
 
@@ -671,13 +658,6 @@ function convertSelected(type) {
         actionsBtn.disabled = false;
         alert('Erreur lors de la conversion: ' + error.message);
     });
-}
-
-function changePerPage(value) {
-    const url = new URL(window.location.href);
-    url.searchParams.set('per_page', value);
-    url.searchParams.delete('page');
-    window.location.href = url.toString();
 }
 </script>
 @endsection

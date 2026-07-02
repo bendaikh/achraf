@@ -127,9 +127,7 @@
                 </div>
             </div>
 
-            <div class="mt-6">
-                {{ $orders->links() }}
-            </div>
+            <x-table-pagination :paginator="$orders" :bordered="false" item-label="bons de commande" />
         </div>
     </main>
 @endsection

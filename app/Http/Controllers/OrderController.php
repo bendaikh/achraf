@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\JumiaIntegration;
 use App\Models\PosSale;
 use App\Models\ShopifyIntegration;
@@ -19,6 +20,8 @@ use Illuminate\View\View;
 
 class OrderController extends Controller
 {
+    use FiltersIndexTables;
+
     public function __construct(
         protected OrderToInvoiceConverter $orderToInvoiceConverter
     ) {}
@@ -77,10 +80,7 @@ class OrderController extends Controller
             $query->whereDate('sold_at', '<=', $request->input('date_to'));
         }
 
-        // Pagination with configurable per page
-        $perPage = $request->input('per_page', 20);
-        $perPage = in_array($perPage, [25, 50, 100]) ? $perPage : 20;
-        $orders = $query->paginate($perPage)->withQueryString();
+        $orders = $this->paginateTable($query, $request);
 
         $shopifyIntegration = ShopifyIntegration::query()->first();
         $jumiaIntegration = JumiaIntegration::query()->first();

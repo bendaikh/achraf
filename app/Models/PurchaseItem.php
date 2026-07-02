@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\LineItemCalculator;
 use Illuminate\Database\Eloquent\Model;
 
 class PurchaseItem extends Model
@@ -27,5 +28,15 @@ class PurchaseItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function getDisplayUnitPriceTtcAttribute(): float
+    {
+        return LineItemCalculator::forDisplay($this, 'purchase')['unit_price_ttc'];
+    }
+
+    public function getDisplayLineTotalAttribute(): float
+    {
+        return LineItemCalculator::forDisplay($this, 'purchase')['line_total'];
     }
 }

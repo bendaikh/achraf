@@ -131,11 +131,7 @@
                 </table>
             </div>
 
-            @if($suppliers->hasPages())
-                <div class="px-6 py-4 border-t border-gray-200">
-                    {{ $suppliers->links() }}
-                </div>
-            @endif
+            <x-table-pagination :paginator="$suppliers" item-label="fournisseurs" />
         </div>
     </div>
 </main>

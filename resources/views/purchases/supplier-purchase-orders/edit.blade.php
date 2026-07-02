@@ -91,7 +91,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire (TTC)</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe (%)</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
@@ -109,7 +109,7 @@
                                         <input type="number" name="items[{{ $index }}][quantity]" value="{{ $item->quantity }}" required class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
                                     </td>
                                     <td class="px-4 py-3">
-                                        <input type="number" step="0.01" name="items[{{ $index }}][unit_price]" value="{{ $item->unit_price }}" required class="w-24 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
+                                        <input type="number" step="0.01" name="items[{{ $index }}][unit_price]" value="{{ $item->display_unit_price_ttc }}" required class="w-24 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
                                     </td>
                                     <td class="px-4 py-3">
                                         <input type="number" step="0.01" name="items[{{ $index }}][tax_rate]" value="{{ $item->tax_rate }}" required class="w-20 px-2 py-1 border border-gray-300 rounded" onchange="calculateTotal()">
@@ -215,21 +215,23 @@ function removeItem(button) {
 
 function calculateTotal() {
     const rows = document.querySelectorAll('#itemsBody tr');
-    let subtotal = 0;
-    
+    let totalHt = 0;
+    let totalTtc = 0;
+
     rows.forEach(row => {
         const quantity = parseFloat(row.querySelector('[name*="[quantity]"]').value) || 0;
         const unitPrice = parseFloat(row.querySelector('[name*="[unit_price]"]').value) || 0;
         const taxRate = parseFloat(row.querySelector('[name*="[tax_rate]"]').value) || 0;
-        
-        let lineTotal = quantity * unitPrice;
-        lineTotal += lineTotal * (taxRate / 100);
-        
-        subtotal += lineTotal;
+
+        const lineTtc = quantity * unitPrice;
+        const lineHt = taxRate > 0 ? lineTtc / (1 + taxRate / 100) : lineTtc;
+
+        totalHt += lineHt;
+        totalTtc += lineTtc;
     });
-    
-    document.getElementById('subtotal').textContent = subtotal.toFixed(2);
-    document.getElementById('total').textContent = subtotal.toFixed(2);
+
+    document.getElementById('subtotal').textContent = totalHt.toFixed(2);
+    document.getElementById('total').textContent = totalTtc.toFixed(2);
 }
 
 // Calculate total on page load

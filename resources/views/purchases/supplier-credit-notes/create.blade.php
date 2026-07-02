@@ -78,7 +78,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire (TTC)</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe (%)</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remise</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -153,7 +153,7 @@ function addItem() {
         <td class="px-4 py-3">
             <select name="items[${itemIndex}][product_id]" onchange="fillCommercialProductDetails(this, ${itemIndex})" class="product-select w-full px-2 py-1 border border-gray-300 rounded text-sm" id="product_select_${itemIndex}">
                 <option value="">Rechercher un produit...</option>
-                ${products.map(p => `<option value="${p.id}" data-ref="${p.ref || ''}" data-name="${p.name}" data-vat="${p.vat_category || ''}" data-price-ht="${p.cost_price_ht || p.sale_price_ht || 0}" data-price-ttc="${p.sale_price || 0}" data-cost-ht="${p.cost_price_ht || 0}">${p.name} ${p.ref ? '(' + p.ref + ')' : ''}</option>`).join('')}
+                ${products.map(p => `<option value="${p.id}" data-ref="${p.ref || ''}" data-name="${p.name}" data-vat="${p.vat_category || ''}" data-price-ht="${p.cost_price_ht || p.sale_price_ht || 0}" data-price-ttc="${p.sale_price || 0}" data-cost-ht="${p.cost_price_ht || 0}" data-cost-ttc="${p.cost_price_ttc || 0}" data-last-purchase="${p.last_purchase_price || ''}">${p.name} ${p.ref ? '(' + p.ref + ')' : ''}</option>`).join('')}
             </select>
         </td>
         <td class="px-4 py-3">

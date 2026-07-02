@@ -92,7 +92,7 @@
                     </table>
                 </div>
             </div>
-            <div class="mt-6">{{ $expenses->links() }}</div>
+            <x-table-pagination :paginator="$expenses" :bordered="false" item-label="dépenses" />
         </div>
     </main>
 </div>

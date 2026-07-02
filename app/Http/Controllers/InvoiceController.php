@@ -30,7 +30,7 @@ class InvoiceController extends Controller
         $this->applyTableSearch($query, $request, ['invoice_number', 'client.name', 'posSale.ticket_number']);
         $this->applyTableDateRange($query, $request, 'invoice_date');
 
-        $invoices = $query->paginate(15)->withQueryString();
+        $invoices = $this->paginateTable($query, $request);
 
         return view('sales.invoices.index', compact('invoices'));
     }

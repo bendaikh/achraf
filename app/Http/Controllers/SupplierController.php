@@ -18,7 +18,7 @@ class SupplierController extends Controller
             'name', 'email', 'phone', 'code', 'ice', 'ville', 'city',
         ]);
 
-        $suppliers = $query->paginate(15)->withQueryString();
+        $suppliers = $this->paginateTable($query, $request);
 
         return view('suppliers.index', compact('suppliers'));
     }

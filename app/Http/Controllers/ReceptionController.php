@@ -7,6 +7,7 @@ use App\Models\Supplier;
 use App\Models\Reception;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
+use App\Services\ProductPurchasePriceService;
 use App\Services\StockMovementService;
 use App\Support\LineItemCalculator;
 use App\Models\Setting;
@@ -18,7 +19,8 @@ class ReceptionController extends Controller
     use FiltersIndexTables;
 
     public function __construct(
-        protected StockMovementService $stockMovement
+        protected StockMovementService $stockMovement,
+        protected ProductPurchasePriceService $purchasePriceSync,
     ) {}
 
     public function index(Request $request)
@@ -29,7 +31,7 @@ class ReceptionController extends Controller
         $this->applyTableDateRange($query, $request, 'reception_date');
         $this->applyTableFilter($query, $request, 'status', 'status');
 
-        $receptions = $query->paginate(15)->withQueryString();
+        $receptions = $this->paginateTable($query, $request);
 
         return view('purchases.receptions.index', compact('receptions'));
     }
@@ -98,6 +100,8 @@ class ReceptionController extends Controller
             }
 
             $reception->update(['subtotal' => $subtotal, 'total' => $subtotal]);
+
+            $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
 
             $reception->load('items');
             $this->stockMovement->increaseFromItems(
@@ -181,6 +185,8 @@ class ReceptionController extends Controller
             }
 
             $reception->update(['subtotal' => $subtotal, 'total' => $subtotal]);
+
+            $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
 
             DB::commit();
             return redirect()->route('receptions.show', $reception)->with('success', 'Bon de réception mis à jour avec succès!');

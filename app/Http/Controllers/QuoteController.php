@@ -27,7 +27,7 @@ class QuoteController extends Controller
         $this->applyTableDateRange($query, $request, 'quote_date');
         $this->applyTableFilter($query, $request, 'status', 'status');
 
-        $quotes = $query->paginate(15)->withQueryString();
+        $quotes = $this->paginateTable($query, $request);
 
         return view('sales.quotes.index', compact('quotes'));
     }

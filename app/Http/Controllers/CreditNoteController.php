@@ -32,7 +32,7 @@ class CreditNoteController extends Controller
         $this->applyTableSearch($query, $request, ['credit_note_number', 'client.name']);
         $this->applyTableDateRange($query, $request, 'credit_note_date');
 
-        $creditNotes = $query->paginate(15)->withQueryString();
+        $creditNotes = $this->paginateTable($query, $request);
 
         return view('sales.credit-notes.index', compact('creditNotes'));
     }

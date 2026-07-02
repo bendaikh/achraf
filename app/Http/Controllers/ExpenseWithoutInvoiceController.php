@@ -19,7 +19,7 @@ class ExpenseWithoutInvoiceController extends Controller
         $this->applyTableSearch($query, $request, ['designation', 'reference', 'client.name']);
         $this->applyTableDateRange($query, $request, 'expense_date');
 
-        $expenses = $query->paginate(15)->withQueryString();
+        $expenses = $this->paginateTable($query, $request);
 
         return view('purchases.expenses-without-invoice.index', compact('expenses'));
     }

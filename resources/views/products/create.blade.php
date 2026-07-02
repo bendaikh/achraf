@@ -161,7 +161,7 @@
                         </div>
 
                         <div>
-                            <label for="last_purchase_price" class="block text-sm font-medium text-gray-700 mb-1">Prix dernier achat (DHS)</label>
+                            <label for="last_purchase_price" class="block text-sm font-medium text-gray-700 mb-1">Prix dernier achat TTC (DHS)</label>
                             <input 
                                 type="number" 
                                 name="last_purchase_price" 

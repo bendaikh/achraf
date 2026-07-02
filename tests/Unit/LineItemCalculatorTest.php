@@ -42,19 +42,80 @@ class LineItemCalculatorTest extends TestCase
         $this->assertEquals(840.0, $computed['line_total']);
     }
 
-    public function test_purchase_mode_always_treats_unit_price_as_ht(): void
+    public function test_purchase_mode_treats_unit_price_as_ttc(): void
     {
         Setting::set('shopify_price_type', 'ttc');
 
         $computed = LineItemCalculator::compute([
             'quantity' => 1,
-            'unit_price' => 700,
+            'unit_price' => 840,
             'tax_rate' => 20,
             'discount' => 0,
             'discount_type' => 'fixed',
         ], 'purchase');
 
         $this->assertEquals(840.0, $computed['line_total']);
+    }
+
+    public function test_purchase_mode_document_tax_breakdown_uses_ttc_unit_price(): void
+    {
+        $taxes = DocumentTaxBreakdown::fromItems([
+            [
+                'quantity' => 1,
+                'unit_price' => 840,
+                'tax_rate' => 20,
+                'discount' => 0,
+                'discount_type' => 'fixed',
+            ],
+        ], priceMode: 'purchase');
+
+        $this->assertEquals(700.0, $taxes['subtotal_ht']);
+        $this->assertEquals(140.0, $taxes['tax_total']);
+        $this->assertEquals(840.0, $taxes['total_ttc']);
+    }
+
+    public function test_normalize_stored_purchase_unit_price_converts_legacy_ht_value(): void
+    {
+        $ttc = LineItemCalculator::normalizeStoredPurchaseUnitPriceToTtc([
+            'quantity' => 1,
+            'unit_price' => 700,
+            'tax_rate' => 20,
+            'line_total' => 840,
+            'discount' => 0,
+            'discount_type' => 'fixed',
+        ]);
+
+        $this->assertEquals(840.0, $ttc);
+    }
+
+    public function test_normalize_stored_purchase_unit_price_keeps_ttc_value(): void
+    {
+        $ttc = LineItemCalculator::normalizeStoredPurchaseUnitPriceToTtc([
+            'quantity' => 1,
+            'unit_price' => 840,
+            'tax_rate' => 20,
+            'line_total' => 840,
+            'discount' => 0,
+            'discount_type' => 'fixed',
+        ]);
+
+        $this->assertEquals(840.0, $ttc);
+    }
+
+    public function test_for_display_returns_ttc_unit_price_for_purchase_items(): void
+    {
+        $display = LineItemCalculator::forDisplay([
+            'quantity' => 1,
+            'unit_price' => 840,
+            'tax_rate' => 20,
+            'discount' => 0,
+            'discount_type' => 'fixed',
+            'line_total' => 840,
+        ], 'purchase');
+
+        $this->assertEquals(700.0, $display['unit_price_ht']);
+        $this->assertEquals(840.0, $display['unit_price_ttc']);
+        $this->assertEquals(840.0, $display['line_total']);
     }
 
     public function test_document_tax_breakdown_matches_sale_ht_unit_prices(): void

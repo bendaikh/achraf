@@ -19,7 +19,7 @@ class ExpenseWithInvoiceController extends Controller
         $this->applyTableSearch($query, $request, ['designation', 'reference', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'expense_date');
 
-        $expenses = $query->paginate(15)->withQueryString();
+        $expenses = $this->paginateTable($query, $request);
 
         return view('purchases.expenses-with-invoice.index', compact('expenses'));
     }

@@ -156,9 +156,7 @@
             </div>
         </div>
 
-        <div class="mt-6">
-            {{ $invoices->links() }}
-        </div>
+            <x-table-pagination :paginator="$invoices" :bordered="false" item-label="paiements" />
     </div>
 </main>
 @endsection

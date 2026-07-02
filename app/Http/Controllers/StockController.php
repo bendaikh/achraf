@@ -57,7 +57,7 @@ class StockController extends Controller
 
         $this->applyStockFilters($query, $request);
 
-        $products = $query->paginate(20)->withQueryString();
+        $products = $this->paginateTable($query, $request, 20);
 
         $lowStockCount = Product::query()->where(function ($q) {
             $q->where(function ($q2) {
@@ -98,7 +98,7 @@ class StockController extends Controller
 
         $this->applyStockFilters($query, $request, 'stock_enligne');
 
-        $products = $query->paginate(20)->withQueryString();
+        $products = $this->paginateTable($query, $request, 20);
 
         $lowStockCount = $this->lowStockCountQuery('stock_enligne', fn ($q) => $q->where('source', 'shopify'));
 
@@ -143,7 +143,7 @@ class StockController extends Controller
 
         $this->applyStockFilters($query, $request, 'stock_magasin');
 
-        $products = $query->paginate(20)->withQueryString();
+        $products = $this->paginateTable($query, $request, 20);
 
         $lowStockCount = $this->lowStockCountQuery('stock_magasin', fn ($q) => $q->where(function ($sub) {
             $sub->whereNull('source')->orWhere('source', '!=', 'shopify');

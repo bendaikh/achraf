@@ -27,7 +27,7 @@ class PurchaseOrderController extends Controller
         $this->applyTableDateRange($query, $request, 'order_date');
         $this->applyTableFilter($query, $request, 'status', 'status');
 
-        $purchaseOrders = $query->paginate(15)->withQueryString();
+        $purchaseOrders = $this->paginateTable($query, $request);
 
         return view('sales.purchase-orders.index', compact('purchaseOrders'));
     }

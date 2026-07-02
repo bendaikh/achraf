@@ -44,6 +44,35 @@ class LineItemCalculator
         string $discountType = 'fixed',
         string $priceMode = 'sale',
     ): array {
+        if ($priceMode === 'purchase') {
+            return self::breakdownPurchaseTtc(
+                $quantity,
+                $unitPrice,
+                $taxRate,
+                $discountInput,
+                $discountType,
+            );
+        }
+
+        return self::breakdownHt(
+            $quantity,
+            $unitPrice,
+            $taxRate,
+            $discountInput,
+            $discountType,
+        );
+    }
+
+    /**
+     * @return array{line_ht: float, line_tax: float, line_total: float, discount_amount: float}
+     */
+    private static function breakdownHt(
+        float $quantity,
+        float $unitPrice,
+        float $taxRate,
+        float $discountInput,
+        string $discountType = 'fixed',
+    ): array {
         $discountType = $discountType === 'percent' ? 'percent' : 'fixed';
 
         $lineBase = $quantity * $unitPrice;
@@ -63,9 +92,95 @@ class LineItemCalculator
         ];
     }
 
+    /**
+     * @return array{line_ht: float, line_tax: float, line_total: float, discount_amount: float}
+     */
+    private static function breakdownPurchaseTtc(
+        float $quantity,
+        float $unitPrice,
+        float $taxRate,
+        float $discountInput,
+        string $discountType = 'fixed',
+    ): array {
+        $discountType = $discountType === 'percent' ? 'percent' : 'fixed';
+
+        $lineBase = $quantity * $unitPrice;
+        $discountAmount = $discountType === 'percent'
+            ? $lineBase * ($discountInput / 100)
+            : $discountInput;
+
+        $lineTotal = max(0, $lineBase - $discountAmount);
+        $factor = 1 + ($taxRate / 100);
+        $lineHt = $taxRate > 0 ? $lineTotal / $factor : $lineTotal;
+        $lineTax = $lineTotal - $lineHt;
+
+        return [
+            'line_ht' => $lineHt,
+            'line_tax' => $lineTax,
+            'line_total' => $lineTotal,
+            'discount_amount' => $discountAmount,
+        ];
+    }
+
     public static function pricesAreTtcForMode(string $priceMode): bool
     {
-        return $priceMode === 'sale' && Setting::getShopifyPriceType() === 'ttc';
+        if ($priceMode === 'purchase') {
+            return true;
+        }
+
+        return Setting::getShopifyPriceType() === 'ttc';
+    }
+
+    /**
+     * Convert legacy purchase line items that stored unit_price as HT into TTC.
+     */
+    public static function normalizeStoredPurchaseUnitPriceToTtc(object|array $item): float
+    {
+        $quantity = (float) (is_array($item) ? ($item['quantity'] ?? 0) : $item->quantity);
+        $unitPrice = (float) (is_array($item) ? ($item['unit_price'] ?? 0) : $item->unit_price);
+        $taxRate = (float) (is_array($item) ? ($item['tax_rate'] ?? 0) : ($item->tax_rate ?? 0));
+        $lineTotal = (float) (is_array($item) ? ($item['line_total'] ?? 0) : ($item->line_total ?? 0));
+        $discountInput = (float) (is_array($item) ? ($item['discount'] ?? 0) : ($item->discount ?? 0));
+        $discountType = (is_array($item) ? ($item['discount_type'] ?? 'fixed') : ($item->discount_type ?? 'fixed'));
+
+        if ($quantity <= 0 || $taxRate <= 0) {
+            return $unitPrice;
+        }
+
+        $htBreakdown = self::breakdownHt(
+            $quantity,
+            $unitPrice,
+            $taxRate,
+            $discountInput,
+            $discountType === 'percent' ? 'percent' : 'fixed',
+        );
+        $ttcBreakdown = self::breakdownPurchaseTtc(
+            $quantity,
+            $unitPrice,
+            $taxRate,
+            $discountInput,
+            $discountType === 'percent' ? 'percent' : 'fixed',
+        );
+
+        $matchesHt = abs($htBreakdown['line_total'] - $lineTotal) < 0.02;
+        $matchesTtc = abs($ttcBreakdown['line_total'] - $lineTotal) < 0.02;
+
+        if ($matchesHt && ! $matchesTtc) {
+            return round($unitPrice * (1 + ($taxRate / 100)), 2);
+        }
+
+        return $unitPrice;
+    }
+
+    public static function effectiveUnitPriceForBreakdown(object|array $item, string $priceMode): float
+    {
+        $unitPrice = (float) (is_array($item) ? ($item['unit_price'] ?? 0) : $item->unit_price);
+
+        if ($priceMode === 'purchase' && (is_array($item) ? isset($item['line_total']) : isset($item->line_total))) {
+            return self::normalizeStoredPurchaseUnitPriceToTtc($item);
+        }
+
+        return $unitPrice;
     }
 
     /**
@@ -107,16 +222,17 @@ class LineItemCalculator
 
     /**
      * @param  object|array<string, mixed>  $item
-     * @return array{unit_price_ht: float, line_total: float}
+     * @return array{unit_price_ht: float, unit_price_ttc: float, line_total: float}
      */
     public static function forDisplay(object|array $item, string $priceMode = 'sale'): array
     {
         $quantity = (float) (is_array($item) ? ($item['quantity'] ?? 0) : $item->quantity);
         $discountType = (is_array($item) ? ($item['discount_type'] ?? 'fixed') : ($item->discount_type ?? 'fixed'));
+        $unitPrice = self::effectiveUnitPriceForBreakdown($item, $priceMode);
 
         $breakdown = self::breakdown(
             quantity: $quantity,
-            unitPrice: (float) (is_array($item) ? ($item['unit_price'] ?? 0) : $item->unit_price),
+            unitPrice: $unitPrice,
             taxRate: (float) (is_array($item) ? ($item['tax_rate'] ?? 0) : ($item->tax_rate ?? 0)),
             discountInput: (float) (is_array($item) ? ($item['discount'] ?? 0) : ($item->discount ?? 0)),
             discountType: $discountType === 'percent' ? 'percent' : 'fixed',
@@ -125,6 +241,7 @@ class LineItemCalculator
 
         return [
             'unit_price_ht' => $quantity > 0 ? round($breakdown['line_ht'] / $quantity, 2) : 0.0,
+            'unit_price_ttc' => $quantity > 0 ? round($breakdown['line_total'] / $quantity, 2) : 0.0,
             'line_total' => round($breakdown['line_total'], 2),
         ];
     }

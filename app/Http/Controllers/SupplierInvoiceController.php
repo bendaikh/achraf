@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\Product;
+use App\Services\ProductPurchasePriceService;
 use App\Services\StockMovementService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
@@ -21,7 +22,8 @@ class SupplierInvoiceController extends Controller
     use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function __construct(
-        protected StockMovementService $stockMovement
+        protected StockMovementService $stockMovement,
+        protected ProductPurchasePriceService $purchasePriceSync,
     ) {}
 
     public function index(Request $request)
@@ -31,7 +33,7 @@ class SupplierInvoiceController extends Controller
         $this->applyTableSearch($query, $request, ['invoice_number', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'invoice_date');
 
-        $invoices = $query->paginate(15)->withQueryString();
+        $invoices = $this->paginateTable($query, $request);
 
         return view('purchases.supplier-invoices.index', compact('invoices'));
     }
@@ -138,6 +140,7 @@ class SupplierInvoiceController extends Controller
             ]);
 
             $invoice->load('items');
+            $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
             $this->stockMovement->increaseFromItems(
                 $invoice->items,
                 $validated['stock_location']
@@ -242,6 +245,8 @@ class SupplierInvoiceController extends Controller
                 'subtotal' => $subtotal,
                 'total' => $subtotal + ($request->adjustment ?? 0),
             ]);
+
+            $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
 
             DB::commit();
             return redirect()->route('supplier-invoices.index')->with('success', 'Facture fournisseur modifiée avec succès!');

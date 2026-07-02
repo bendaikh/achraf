@@ -15,18 +15,37 @@
         return match ? parseFloat(match[1].replace(',', '.')) : 20;
     }
 
+    function purchaseUnitPriceTtc(product, taxRate) {
+        var lastPurchase = parseFloat(product.last_purchase_price || 0) || 0;
+        if (lastPurchase > 0) {
+            return lastPurchase;
+        }
+
+        var priceTtc = parseFloat(product.cost_price_ttc || 0) || 0;
+        if (priceTtc > 0) {
+            return priceTtc;
+        }
+
+        var priceHt = parseFloat(product.cost_price_ht || product.sale_price_ht || 0) || 0;
+        if (priceHt > 0) {
+            return priceHt * (1 + taxRate / 100);
+        }
+
+        priceTtc = parseFloat(product.sale_price || 0) || 0;
+        if (priceTtc > 0) {
+            return priceTtc;
+        }
+
+        return 0;
+    }
+
     window.getCommercialUnitPrice = function (product, taxRate) {
         var cfg = config();
         var priceHt = parseFloat(product.sale_price_ht || product.cost_price_ht || 0) || 0;
         var priceTtc = parseFloat(product.sale_price || 0) || 0;
 
         if (cfg.priceMode === 'purchase') {
-            priceHt = parseFloat(product.cost_price_ht || product.sale_price_ht || 0) || 0;
-            if (priceHt === 0 && priceTtc > 0) {
-                priceHt = priceTtc / (1 + taxRate / 100);
-            }
-
-            return priceHt;
+            return purchaseUnitPriceTtc(product, taxRate);
         }
 
         if (priceHt > 0) {
@@ -56,6 +75,8 @@
             sale_price_ht: selectedOption.getAttribute('data-price-ht'),
             sale_price: selectedOption.getAttribute('data-price-ttc'),
             cost_price_ht: selectedOption.getAttribute('data-cost-ht'),
+            cost_price_ttc: selectedOption.getAttribute('data-cost-ttc'),
+            last_purchase_price: selectedOption.getAttribute('data-last-purchase'),
         };
 
         var unitPrice = window.getCommercialUnitPrice(product, taxRate);
@@ -94,6 +115,34 @@
             '</div>';
     };
 
+    function lineBreakdown(quantity, unitPrice, taxRate, discountInput, discountType, priceMode) {
+        var lineBase = quantity * unitPrice;
+        var discountAmount = discountType === 'percent'
+            ? lineBase * (discountInput / 100)
+            : discountInput;
+
+        if (priceMode === 'purchase') {
+            var lineTtc = Math.max(0, lineBase - discountAmount);
+            var lineHt = taxRate > 0 ? lineTtc / (1 + taxRate / 100) : lineTtc;
+            var lineTax = lineTtc - lineHt;
+
+            return {
+                lineHt: lineHt,
+                lineTax: lineTax,
+                discountAmount: discountAmount,
+            };
+        }
+
+        var lineHt = Math.max(0, lineBase - discountAmount);
+        var lineTax = lineHt * (taxRate / 100);
+
+        return {
+            lineHt: lineHt,
+            lineTax: lineTax,
+            discountAmount: discountAmount,
+        };
+    }
+
     window.calculateCommercialTotal = function () {
         var rows = document.querySelectorAll('#itemsBody tr');
         var totalHT = 0;
@@ -113,17 +162,18 @@
             var discountInput = parseFloat(discountEl && discountEl.value) || 0;
             var discountType = (discountTypeEl && discountTypeEl.value) || 'fixed';
 
-            var lineBase = quantity * unitPrice;
-            var discountAmount = discountType === 'percent'
-                ? lineBase * (discountInput / 100)
-                : discountInput;
+            var breakdown = lineBreakdown(
+                quantity,
+                unitPrice,
+                taxRate,
+                discountInput,
+                discountType,
+                cfg.priceMode
+            );
 
-            var lineHT = Math.max(0, lineBase - discountAmount);
-            var lineTax = lineHT * (taxRate / 100);
-
-            totalHT += lineHT;
-            totalDiscount += discountAmount;
-            totalTax += lineTax;
+            totalHT += breakdown.lineHt;
+            totalDiscount += breakdown.discountAmount;
+            totalTax += breakdown.lineTax;
         });
 
         var totalTTC = totalHT + totalTax;

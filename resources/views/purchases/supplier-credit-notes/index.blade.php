@@ -122,9 +122,7 @@
                 </div>
             </div>
 
-            <div class="mt-6">
-                {{ $supplierCreditNotes->links() }}
-            </div>
+            <x-table-pagination :paginator="$supplierCreditNotes" :bordered="false" item-label="avoirs" />
         </div>
     </main>
 @endsection
