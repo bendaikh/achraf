@@ -78,6 +78,19 @@ class TableExportController extends Controller
             return response()->json(['message' => 'Export ZIP PDF non disponible pour ce type.'], 422);
         }
 
-        return $this->pdfZipService->exportZip($validated['type'], $validated['ids']);
+        $export = TableExport::create([
+            'user_id' => $request->user()?->id,
+            'type' => $validated['type'] . '-zip',
+            'ids' => array_map('intval', $validated['ids']),
+            'status' => 'pending',
+            'progress' => 0,
+            'total_rows' => count($validated['ids']),
+        ]);
+
+        return response()->json([
+            'message' => 'Votre export ZIP est en cours de génération en arrière-plan.',
+            'export_id' => $export->id,
+            'status_url' => route('table.export.status', $export),
+        ], 202);
     }
 }

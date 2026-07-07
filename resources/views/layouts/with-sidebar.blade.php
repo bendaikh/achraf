@@ -117,14 +117,7 @@
     window.tableBulkExportUrl = @json(route('table.export'));
     window.tableBulkZipExportUrl = @json(route('table.export.zip'));
 </script>
-@php
-    $tableBulkSelectionScript = public_path('js/table-bulk-selection.js');
-@endphp
-@if (is_readable($tableBulkSelectionScript))
-<script>{!! file_get_contents($tableBulkSelectionScript) !!}</script>
-@else
-<script src="{{ asset('js/table-bulk-selection.js') }}?v=5"></script>
-@endif
+<script src="{{ asset('js/table-bulk-selection.js') }}?v={{ filemtime(public_path('js/table-bulk-selection.js')) ?: time() }}"></script>
 @php
     $tablePaginationScript = public_path('js/table-pagination.js');
 @endphp

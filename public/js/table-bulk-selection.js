@@ -308,37 +308,41 @@
             return;
         }
 
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = window.tableBulkZipExportUrl || '/export/table-zip';
-        form.style.display = 'none';
-
-        var csrf = document.querySelector('meta[name="csrf-token"]');
-        if (csrf) {
-            var tokenInput = document.createElement('input');
-            tokenInput.type = 'hidden';
-            tokenInput.name = '_token';
-            tokenInput.value = csrf.getAttribute('content');
-            form.appendChild(tokenInput);
-        }
-
-        var typeInput = document.createElement('input');
-        typeInput.type = 'hidden';
-        typeInput.name = 'type';
-        typeInput.value = exportType;
-        form.appendChild(typeInput);
-
-        ids.forEach(function (id) {
-            var idInput = document.createElement('input');
-            idInput.type = 'hidden';
-            idInput.name = 'ids[]';
-            idInput.value = id;
-            form.appendChild(idInput);
-        });
-
-        document.body.appendChild(form);
-        form.submit();
-        document.body.removeChild(form);
+        fetch(window.tableBulkZipExportUrl || '/export/table-zip', {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                type: exportType,
+                ids: ids
+            })
+        })
+            .then(function (response) {
+                return response.json().then(function (data) {
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Impossible de démarrer l\'export ZIP.');
+                    }
+                    return data;
+                });
+            })
+            .then(function (data) {
+                rememberPendingExport(data.export_id, exportType + '-zip', data.status_url);
+                var toast = ensureExportToast(data.export_id);
+                updateExportToast(
+                    toast,
+                    data.message || 'Votre export ZIP est généré en arrière-plan.',
+                    5
+                );
+                pollExportStatus(data.export_id, exportType + '-zip', data.status_url);
+            })
+            .catch(function (error) {
+                alert(error.message || 'Impossible de démarrer l\'export ZIP.');
+            });
     };
 
     function handleCheckboxChange(target) {

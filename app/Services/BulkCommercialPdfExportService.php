@@ -10,6 +10,7 @@ use App\Models\Quote;
 use App\Models\SupplierInvoice;
 use App\Support\CommercialDocumentView;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use ZipArchive;
@@ -71,6 +72,55 @@ class BulkCommercialPdfExportService
         }, $zipFilename, [
             'Content-Type' => 'application/zip',
         ]);
+    }
+
+    public function exportZipToStorage(string $type, array $ids, ?callable $progress = null): array
+    {
+        if (! $this->supportsZip($type)) {
+            throw new \RuntimeException('Export ZIP PDF non disponible pour ce type.');
+        }
+
+        $records = $this->loadRecords($type, $ids);
+
+        if ($records->isEmpty()) {
+            throw new \RuntimeException('Aucun document trouvé.');
+        }
+
+        $zipFilename = $type.'-pdf-'.now()->format('Y-m-d-His').'.zip';
+        $path = 'exports/'.$zipFilename;
+
+        Storage::disk('public')->makeDirectory('exports');
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'pdfzip');
+        $zip = new ZipArchive;
+
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('Impossible de créer le fichier ZIP.');
+        }
+
+        $total = $records->count();
+        $processed = 0;
+
+        foreach ($records as $record) {
+            $pdfContent = $this->renderPdfContent($type, $record);
+            $filename = $this->pdfFilename($type, $record);
+            $zip->addFromString($filename, $pdfContent);
+
+            $processed++;
+            if ($progress) {
+                $progress((int) floor(($processed / $total) * 90));
+            }
+        }
+
+        $zip->close();
+
+        Storage::disk('public')->put($path, file_get_contents($zipPath));
+        @unlink($zipPath);
+
+        return [
+            'filename' => $zipFilename,
+            'path' => $path,
+        ];
     }
 
     protected function loadRecords(string $type, array $ids)
