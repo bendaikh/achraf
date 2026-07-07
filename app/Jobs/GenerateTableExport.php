@@ -15,6 +15,8 @@ class GenerateTableExport implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public string $connection = 'database';
+
     public int $timeout = 600;
 
     /**

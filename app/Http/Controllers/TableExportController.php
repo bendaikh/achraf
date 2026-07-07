@@ -28,10 +28,6 @@ class TableExportController extends Controller
             return response()->json(['message' => 'Type d\'export invalide.'], 422);
         }
 
-        if (! $request->expectsJson()) {
-            return $this->exportService->export($validated['type'], $validated['ids']);
-        }
-
         $export = TableExport::create([
             'user_id' => $request->user()?->id,
             'type' => $validated['type'],
@@ -40,10 +36,12 @@ class TableExportController extends Controller
             'total_rows' => count($validated['ids']),
         ]);
 
-        GenerateTableExport::dispatch($export->id, $validated['type'], array_map('intval', $validated['ids']));
+        GenerateTableExport::dispatch($export->id, $validated['type'], array_map('intval', $validated['ids']))
+            ->onConnection('database')
+            ->afterResponse();
 
         return response()->json([
-            'message' => 'Export en cours de préparation.',
+            'message' => 'Votre export est en cours de génération en arrière-plan.',
             'export_id' => $export->id,
             'status_url' => route('table.export.status', $export),
         ], 202);

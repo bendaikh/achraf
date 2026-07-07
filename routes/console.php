@@ -13,3 +13,7 @@ Schedule::command('shopify:sync-orders')->everyFiveMinutes();
 Schedule::command('shopify:sync-products')->everyFiveMinutes();
 Schedule::command('jumia:sync-orders')->everyFifteenMinutes();
 
+Schedule::command('queue:work database --stop-when-empty --max-time=55 --tries=3')
+    ->everyMinute()
+    ->withoutOverlapping();
+

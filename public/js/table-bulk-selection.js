@@ -1,6 +1,8 @@
 (function () {
     'use strict';
 
+    var PENDING_EXPORTS_KEY = 'tableExportsPending';
+
     function getBar(exportType) {
         return document.getElementById('bulkActionsBar-' + exportType);
     }
@@ -86,8 +88,41 @@
         return csrf ? csrf.getAttribute('content') : '';
     }
 
-    function ensureExportToast(exportType) {
-        var id = 'tableExportToast-' + exportType;
+    function readPendingExports() {
+        try {
+            return JSON.parse(localStorage.getItem(PENDING_EXPORTS_KEY) || '[]');
+        } catch (error) {
+            return [];
+        }
+    }
+
+    function writePendingExports(exports) {
+        localStorage.setItem(PENDING_EXPORTS_KEY, JSON.stringify(exports));
+    }
+
+    function rememberPendingExport(exportId, exportType, statusUrl) {
+        var pending = readPendingExports().filter(function (item) {
+            return String(item.exportId) !== String(exportId);
+        });
+
+        pending.push({
+            exportId: exportId,
+            exportType: exportType,
+            statusUrl: statusUrl,
+            startedAt: Date.now()
+        });
+
+        writePendingExports(pending);
+    }
+
+    function forgetPendingExport(exportId) {
+        writePendingExports(readPendingExports().filter(function (item) {
+            return String(item.exportId) !== String(exportId);
+        }));
+    }
+
+    function ensureExportToast(exportId) {
+        var id = 'tableExportToast-' + exportId;
         var existing = document.getElementById(id);
         if (existing) {
             return existing;
@@ -95,12 +130,12 @@
 
         var toast = document.createElement('div');
         toast.id = id;
-        toast.className = 'table-export-toast bg-white border border-blue-200 rounded-xl shadow-lg p-4';
+        toast.className = 'table-export-toast bg-white border border-blue-200 rounded-xl shadow-lg p-4 mb-3';
         toast.innerHTML = [
             '<div class="flex items-start justify-between gap-3">',
             '  <div>',
-            '    <p class="text-sm font-semibold text-gray-900">Préparation de l’export</p>',
-            '    <p class="text-xs text-gray-500 mt-1" data-export-message>Votre fichier est généré en arrière-plan.</p>',
+            '    <p class="text-sm font-semibold text-gray-900">Export en cours</p>',
+            '    <p class="text-xs text-gray-500 mt-1" data-export-message>Votre export est généré en arrière-plan.</p>',
             '  </div>',
             '  <button type="button" class="text-gray-400 hover:text-gray-600" data-export-close aria-label="Fermer">×</button>',
             '</div>',
@@ -116,8 +151,22 @@
             toast.remove();
         });
 
-        document.body.appendChild(toast);
+        var container = ensureExportToastContainer();
+        container.appendChild(toast);
         return toast;
+    }
+
+    function ensureExportToastContainer() {
+        var container = document.getElementById('tableExportToastContainer');
+        if (container) {
+            return container;
+        }
+
+        container = document.createElement('div');
+        container.id = 'tableExportToastContainer';
+        container.className = 'fixed right-4 bottom-4 z-[60] flex flex-col items-end gap-3';
+        document.body.appendChild(container);
+        return container;
     }
 
     function updateExportToast(toast, message, progress) {
@@ -131,13 +180,25 @@
         }
     }
 
-    function pollExportStatus(exportType, statusUrl) {
-        var toast = ensureExportToast(exportType);
+    function triggerBackgroundDownload(url, filename) {
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = filename || '';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function pollExportStatus(exportId, exportType, statusUrl) {
+        var toast = ensureExportToast(exportId);
 
         fetch(statusUrl, {
             headers: {
-                Accept: 'application/json'
-            }
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
         })
             .then(function (response) {
                 if (!response.ok) {
@@ -146,15 +207,9 @@
                 return response.json();
             })
             .then(function (data) {
-                updateExportToast(
-                    toast,
-                    data.status === 'completed'
-                        ? 'Export prêt. Vous pouvez le télécharger.'
-                        : 'Export en cours... ' + (data.progress || 0) + '%',
-                    data.progress || 0
-                );
-
                 if (data.status === 'completed' && data.download_url) {
+                    updateExportToast(toast, 'Export prêt. Téléchargement disponible.', 100);
+
                     var wrap = toast.querySelector('[data-export-download-wrap]');
                     var link = toast.querySelector('[data-export-download]');
                     if (wrap && link) {
@@ -162,22 +217,37 @@
                         link.href = data.download_url;
                         link.setAttribute('download', data.filename || '');
                     }
-                    window.location.href = data.download_url;
+
+                    forgetPendingExport(exportId);
+                    triggerBackgroundDownload(data.download_url, data.filename || '');
                     return;
                 }
 
                 if (data.status === 'failed') {
                     updateExportToast(toast, data.error_message || 'Erreur lors de la génération de l’export.', 100);
+                    forgetPendingExport(exportId);
                     return;
                 }
 
+                updateExportToast(
+                    toast,
+                    'Votre export est généré en arrière-plan... ' + (data.progress || 0) + '%',
+                    data.progress || 0
+                );
+
                 window.setTimeout(function () {
-                    pollExportStatus(exportType, statusUrl);
+                    pollExportStatus(exportId, exportType, statusUrl);
                 }, 2000);
             })
             .catch(function (error) {
                 updateExportToast(toast, error.message || 'Erreur lors de la génération de l’export.', 100);
             });
+    }
+
+    function resumePendingExports() {
+        readPendingExports().forEach(function (item) {
+            pollExportStatus(item.exportId, item.exportType, item.statusUrl);
+        });
     }
 
     window.exportSelectedToExcel = function (exportType) {
@@ -187,16 +257,15 @@
             return;
         }
 
-        var toast = ensureExportToast(exportType);
-        updateExportToast(toast, 'Export demandé. Préparation du fichier...', 1);
-
         fetch(window.tableBulkExportUrl || '/export/table', {
             method: 'POST',
             headers: {
                 Accept: 'application/json',
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': getCsrfToken()
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest'
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 type: exportType,
                 ids: ids
@@ -211,11 +280,17 @@
                 });
             })
             .then(function (data) {
-                updateExportToast(toast, data.message || 'Export en cours de préparation.', 5);
-                pollExportStatus(exportType, data.status_url);
+                rememberPendingExport(data.export_id, exportType, data.status_url);
+                var toast = ensureExportToast(data.export_id);
+                updateExportToast(
+                    toast,
+                    data.message || 'Votre export est généré en arrière-plan.',
+                    5
+                );
+                pollExportStatus(data.export_id, exportType, data.status_url);
             })
             .catch(function (error) {
-                updateExportToast(toast, error.message || 'Impossible de démarrer l’export.', 100);
+                alert(error.message || 'Impossible de démarrer l’export.');
             });
     };
 
@@ -309,6 +384,8 @@
                 event.stopPropagation();
             }
         }, true);
+
+        resumePendingExports();
     }
 
     if (document.readyState === 'loading') {

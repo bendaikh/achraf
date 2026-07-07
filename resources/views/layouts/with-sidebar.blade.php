@@ -103,11 +103,7 @@
         background-color: #fffbeb !important;
     }
     .table-export-toast {
-        position: fixed;
-        right: 1rem;
-        bottom: 1rem;
         width: min(24rem, calc(100vw - 2rem));
-        z-index: 60;
     }
     .party-select-field .select2-container {
         width: 100% !important;
@@ -127,7 +123,7 @@
 @if (is_readable($tableBulkSelectionScript))
 <script>{!! file_get_contents($tableBulkSelectionScript) !!}</script>
 @else
-<script src="{{ asset('js/table-bulk-selection.js') }}?v=4"></script>
+<script src="{{ asset('js/table-bulk-selection.js') }}?v=5"></script>
 @endif
 @php
     $tablePaginationScript = public_path('js/table-pagination.js');
