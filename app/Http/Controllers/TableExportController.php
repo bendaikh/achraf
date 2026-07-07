@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\GenerateTableExport;
 use App\Models\TableExport;
 use App\Services\BulkCommercialPdfExportService;
 use App\Services\TableExportService;
@@ -31,14 +30,11 @@ class TableExportController extends Controller
         $export = TableExport::create([
             'user_id' => $request->user()?->id,
             'type' => $validated['type'],
+            'ids' => array_map('intval', $validated['ids']),
             'status' => 'pending',
             'progress' => 0,
             'total_rows' => count($validated['ids']),
         ]);
-
-        GenerateTableExport::dispatch($export->id, $validated['type'], array_map('intval', $validated['ids']))
-            ->onConnection('database')
-            ->afterResponse();
 
         return response()->json([
             'message' => 'Votre export est en cours de génération en arrière-plan.',

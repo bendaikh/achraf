@@ -9,6 +9,7 @@ class TableExport extends Model
     protected $fillable = [
         'user_id',
         'type',
+        'ids',
         'status',
         'progress',
         'total_rows',
@@ -19,6 +20,7 @@ class TableExport extends Model
     ];
 
     protected $casts = [
+        'ids' => 'array',
         'completed_at' => 'datetime',
     ];
 

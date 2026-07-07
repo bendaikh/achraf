@@ -31,23 +31,12 @@ class GenerateTableExport implements ShouldQueue
     public function handle(TableExportService $exportService): void
     {
         $export = TableExport::findOrFail($this->exportId);
-        $export->update([
-            'status' => 'processing',
-            'progress' => 5,
-            'total_rows' => count($this->ids),
-        ]);
 
-        $file = $exportService->exportToStorage($this->type, $this->ids, function (int $progress) use ($export) {
-            $export->update(['progress' => max(5, min(95, $progress))]);
-        });
+        if ($export->ids === null) {
+            $export->update(['ids' => $this->ids]);
+        }
 
-        $export->update([
-            'status' => 'completed',
-            'progress' => 100,
-            'filename' => $file['filename'],
-            'path' => $file['path'],
-            'completed_at' => now(),
-        ]);
+        $exportService->processExport($export);
     }
 
     public function failed(Throwable $exception): void

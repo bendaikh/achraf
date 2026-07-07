@@ -239,6 +239,37 @@ class TableExportService
         ];
     }
 
+    public function processExport(\App\Models\TableExport $export): void
+    {
+        $ids = $export->ids ?? [];
+
+        if ($ids === []) {
+            throw new \RuntimeException('Aucun élément à exporter.');
+        }
+
+        if (! in_array($export->type, $this->types(), true)) {
+            throw new \RuntimeException('Type d\'export invalide.');
+        }
+
+        $export->update([
+            'status' => 'processing',
+            'progress' => 5,
+            'total_rows' => count($ids),
+        ]);
+
+        $file = $this->exportToStorage($export->type, $ids, function (int $progress) use ($export) {
+            $export->update(['progress' => max(5, min(95, $progress))]);
+        });
+
+        $export->update([
+            'status' => 'completed',
+            'progress' => 100,
+            'filename' => $file['filename'],
+            'path' => $file['path'],
+            'completed_at' => now(),
+        ]);
+    }
+
     protected function buildSpreadsheet(string $type, array $ids, ?callable $progress = null): Spreadsheet
     {
         $registry = $this->registry();
