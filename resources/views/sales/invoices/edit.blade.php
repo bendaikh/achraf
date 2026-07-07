@@ -214,7 +214,7 @@ function addItemWithData(data) {
             </button>
         </td>
     `;
-    tbody.appendChild(row);
+    tbody.insertBefore(row, tbody.firstChild);
 
     if (typeof $ !== 'undefined' && $.fn.select2) {
         $('#product_select_' + itemIndex).select2({

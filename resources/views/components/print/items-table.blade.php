@@ -1,10 +1,17 @@
 @props(['items', 'showDescription' => true])
 
+@php
+    $showSourceReference = $items->contains(fn ($item) => !empty($item->source_document_reference));
+@endphp
+
 <table class="items-table">
     <thead>
         <tr>
-            <th style="width: 9%;">Réf</th>
-            <th style="width: {{ $showDescription ? '28%' : '38%' }};">Désignation</th>
+            <th style="width: {{ $showSourceReference ? '8%' : '9%' }};">Réf</th>
+            @if($showSourceReference)
+                <th style="width: 12%;">Origine BR/BC</th>
+            @endif
+            <th style="width: {{ $showDescription ? ($showSourceReference ? '22%' : '28%') : ($showSourceReference ? '32%' : '38%') }};">Désignation</th>
             @if($showDescription)
                 <th style="width: 18%;">Description</th>
             @endif
@@ -19,6 +26,9 @@
         @foreach($items as $item)
             <tr>
                 <td>{{ $item->ref ?? '-' }}</td>
+                @if($showSourceReference)
+                    <td>{{ $item->source_document_reference ?? '-' }}</td>
+                @endif
                 <td>{{ $item->designation }}</td>
                 @if($showDescription)
                     <td>{{ $item->description ?? '-' }}</td>

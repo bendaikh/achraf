@@ -127,6 +127,7 @@ Route::middleware('auth')->group(function () {
         Route::resource('expenses-with-invoice', ExpenseWithInvoiceController::class)->parameters(['expenses-with-invoice' => 'expenseWithInvoice']);
         Route::resource('expenses-without-invoice', ExpenseWithoutInvoiceController::class)->parameters(['expenses-without-invoice' => 'expenseWithoutInvoice']);
         Route::resource('supplier-purchase-orders', SupplierPurchaseOrderController::class);
+        Route::post('receptions/bulk-convert', [ReceptionController::class, 'bulkConvert'])->name('receptions.bulk-convert');
         Route::resource('receptions', ReceptionController::class);
         Route::get('supplier-invoices/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'supplier-invoices')->name('supplier-invoices.import.template');
         Route::post('supplier-invoices/import', [DocumentImportController::class, 'import'])->defaults('type', 'supplier-invoices')->name('supplier-invoices.import');
@@ -168,5 +169,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
 
     Route::post('/export/table', [TableExportController::class, 'export'])->name('table.export');
+    Route::get('/export/table/{export}/status', [TableExportController::class, 'status'])->name('table.export.status');
+    Route::get('/export/table/{export}/download', [TableExportController::class, 'download'])->name('table.export.download');
     Route::post('/export/table-zip', [TableExportController::class, 'exportZip'])->name('table.export.zip');
 });

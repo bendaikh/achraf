@@ -27,6 +27,12 @@
                 Exporter ZIP (PDF)
             </button>
             @endif
+            @if($exportType === 'receptions')
+            <button type="button" onclick="openReceptionConvertModal()"
+                class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium">
+                Convertir
+            </button>
+            @endif
             <button type="button" onclick="clearTableSelection('{{ $exportType }}')"
                 class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium">
                 Annuler

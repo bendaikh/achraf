@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -208,6 +209,38 @@ class TableExportService
 
     public function export(string $type, array $ids): StreamedResponse
     {
+        $spreadsheet = $this->buildSpreadsheet($type, $ids);
+        $filename = $this->filename($type);
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+            $spreadsheet->disconnectWorksheets();
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    public function exportToStorage(string $type, array $ids, ?callable $progress = null): array
+    {
+        $spreadsheet = $this->buildSpreadsheet($type, $ids, $progress);
+        $filename = $this->filename($type);
+        $path = 'exports/'.$filename;
+
+        Storage::disk('public')->makeDirectory('exports');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save(Storage::disk('public')->path($path));
+        $spreadsheet->disconnectWorksheets();
+
+        return [
+            'filename' => $filename,
+            'path' => $path,
+        ];
+    }
+
+    protected function buildSpreadsheet(string $type, array $ids, ?callable $progress = null): Spreadsheet
+    {
         $registry = $this->registry();
 
         if (! isset($registry[$type])) {
@@ -225,6 +258,7 @@ class TableExportService
 
         $rows = $query->get();
         $columns = $config['columns'];
+        $totalRows = max(1, $rows->count());
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -242,17 +276,18 @@ class TableExportService
                 $sheet->setCellValue([$col, $rowNum], $this->resolveValue($row, $field));
                 $col++;
             }
+            if ($progress && ($rowNum % 10 === 0 || $rowNum - 1 === $rows->count())) {
+                $progress((int) floor((($rowNum - 1) / $totalRows) * 90));
+            }
             $rowNum++;
         }
 
-        $filename = $type . '-export-' . now()->format('Y-m-d-His') . '.xlsx';
+        return $spreadsheet;
+    }
 
-        return response()->streamDownload(function () use ($spreadsheet) {
-            $writer = new Xlsx($spreadsheet);
-            $writer->save('php://output');
-        }, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ]);
+    protected function filename(string $type): string
+    {
+        return $type . '-export-' . now()->format('Y-m-d-His') . '.xlsx';
     }
 
     protected function resolveValue(Model $model, string $field): mixed

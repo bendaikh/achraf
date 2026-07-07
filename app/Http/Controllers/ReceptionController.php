@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Supplier;
 use App\Models\Reception;
 use App\Models\Product;
+use App\Models\SupplierInvoice;
 use App\Services\DocumentNumberService;
 use App\Services\ProductPurchasePriceService;
 use App\Services\StockMovementService;
@@ -200,5 +201,119 @@ class ReceptionController extends Controller
     {
         $reception->delete();
         return redirect()->route('receptions.index')->with('success', 'Bon de réception supprimé!');
+    }
+
+    public function bulkConvert(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:receptions,id',
+            'mode' => 'required|in:separate,combined',
+        ]);
+
+        $receptions = Reception::with('items')
+            ->whereIn('id', $validated['ids'])
+            ->orderBy('reception_date')
+            ->get();
+
+        if ($validated['mode'] === 'combined' && $receptions->pluck('supplier_id')->unique()->count() > 1) {
+            return response()->json([
+                'message' => 'Les bons sélectionnés doivent appartenir au même fournisseur pour créer une seule facture.',
+            ], 422);
+        }
+
+        $createdInvoices = DB::transaction(function () use ($receptions, $validated) {
+            if ($validated['mode'] === 'combined') {
+                return collect([$this->createSupplierInvoiceFromReceptions($receptions)]);
+            }
+
+            return $receptions->map(fn (Reception $reception) => $this->createSupplierInvoiceFromReceptions(collect([$reception])));
+        });
+
+        return response()->json([
+            'message' => $createdInvoices->count().' facture(s) fournisseur créée(s) avec succès.',
+            'redirect_url' => route('supplier-invoices.index'),
+            'invoice_ids' => $createdInvoices->pluck('id')->values(),
+        ]);
+    }
+
+    protected function createSupplierInvoiceFromReceptions($receptions): SupplierInvoice
+    {
+        /** @var Reception $first */
+        $first = $receptions->first();
+        $originLabels = $receptions
+            ->map(fn (Reception $reception) => $this->receptionOriginLabel($reception))
+            ->values();
+        $referenceInvoice = $receptions
+            ->pluck('reception_number')
+            ->implode(', ');
+
+        $invoice = SupplierInvoice::create([
+            'invoice_number' => $this->nextSupplierInvoiceNumber(),
+            'supplier_id' => $first->supplier_id,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => null,
+            'reference_invoice' => $referenceInvoice,
+            'currency' => $first->currency,
+            'stock_location' => $first->stock_location,
+            'model' => $first->model,
+            'remarks' => 'Générée depuis Bon(s) de Réception: '.$originLabels->implode(', '),
+            'conditions' => null,
+            'subtotal' => 0,
+            'discount' => 0,
+            'adjustment' => 0,
+            'total' => 0,
+        ]);
+
+        $subtotal = 0;
+
+        foreach ($receptions as $reception) {
+            foreach ($reception->items as $item) {
+                $invoice->items()->create([
+                    'product_id' => $item->product_id,
+                    'ref' => $item->ref,
+                    'designation' => $item->designation,
+                    'description' => $item->description,
+                    'source_document_reference' => $this->receptionOriginLabel($reception),
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'tax_rate' => $item->tax_rate,
+                    'discount' => $item->discount,
+                    'discount_type' => $item->discount_type,
+                    'line_total' => $item->line_total,
+                ]);
+
+                $subtotal += (float) $item->line_total;
+            }
+        }
+
+        $invoice->update([
+            'subtotal' => $subtotal,
+            'total' => $subtotal,
+        ]);
+
+        return $invoice;
+    }
+
+    protected function receptionOriginLabel(Reception $reception): string
+    {
+        if ($reception->reference) {
+            return $reception->reception_number.' / '.$reception->reference;
+        }
+
+        return $reception->reception_number;
+    }
+
+    protected function nextSupplierInvoiceNumber(): string
+    {
+        $year = date('Y');
+        $next = SupplierInvoice::whereYear('created_at', $year)->count() + 1;
+
+        do {
+            $number = 'FSI-'.$year.'/'.str_pad($next, 6, '0', STR_PAD_LEFT);
+            $next++;
+        } while (SupplierInvoice::where('invoice_number', $number)->exists());
+
+        return $number;
     }
 }

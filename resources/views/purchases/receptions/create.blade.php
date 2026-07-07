@@ -204,7 +204,7 @@ function addItem() {
             </button>
         </td>
     `;
-    tbody.appendChild(row);
+    tbody.insertBefore(row, tbody.firstChild);
     
     // Initialize Select2 on the newly added dropdown (if jQuery is loaded)
     if (typeof $ !== 'undefined' && $.fn.select2) {

@@ -130,5 +130,83 @@
 
             <x-table-pagination :paginator="$receptions" :bordered="false" item-label="réceptions" />
         </div>
+
+        <div id="receptionConvertModal" class="hidden fixed inset-0 z-50">
+            <div class="absolute inset-0 bg-gray-900/50" onclick="closeReceptionConvertModal()"></div>
+            <div class="relative mx-auto mt-24 w-full max-w-lg bg-white rounded-xl shadow-xl border border-gray-200 p-6">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Convertir en facture fournisseur</h3>
+                        <p class="text-sm text-gray-500 mt-1">Choisissez comment traiter les bons de réception sélectionnés.</p>
+                    </div>
+                    <button type="button" onclick="closeReceptionConvertModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                </div>
+
+                <div id="receptionConvertError" class="hidden mt-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3"></div>
+
+                <div class="mt-6 space-y-3">
+                    <button type="button" onclick="convertSelectedReceptions('separate')" class="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition">
+                        <span class="block font-medium text-gray-900">Convertir chaque Bon de Réception en une facture distincte</span>
+                        <span class="block text-sm text-gray-500 mt-1">Une facture fournisseur sera créée pour chaque BR sélectionné.</span>
+                    </button>
+                    <button type="button" onclick="convertSelectedReceptions('combined')" class="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition">
+                        <span class="block font-medium text-gray-900">Convertir tous les Bons de Réception sélectionnés en une seule facture</span>
+                        <span class="block text-sm text-gray-500 mt-1">Les lignes seront fusionnées dans une seule facture, avec la référence BR/BC sur chaque ligne.</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </main>
+
+@push('scripts')
+<script>
+function openReceptionConvertModal() {
+    const ids = window.getSelectedTableIds ? window.getSelectedTableIds('receptions') : [];
+    if (ids.length === 0) {
+        alert('Veuillez sélectionner au moins un bon de réception.');
+        return;
+    }
+
+    document.getElementById('receptionConvertError').classList.add('hidden');
+    document.getElementById('receptionConvertModal').classList.remove('hidden');
+}
+
+function closeReceptionConvertModal() {
+    document.getElementById('receptionConvertModal').classList.add('hidden');
+}
+
+function showReceptionConvertError(message) {
+    const error = document.getElementById('receptionConvertError');
+    error.textContent = message;
+    error.classList.remove('hidden');
+}
+
+function convertSelectedReceptions(mode) {
+    const ids = window.getSelectedTableIds ? window.getSelectedTableIds('receptions') : [];
+    const csrf = document.querySelector('meta[name="csrf-token"]');
+
+    fetch(@json(route('receptions.bulk-convert')), {
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrf ? csrf.getAttribute('content') : ''
+        },
+        body: JSON.stringify({ ids, mode })
+    })
+        .then(response => response.json().then(data => {
+            if (!response.ok) {
+                throw new Error(data.message || 'Erreur lors de la conversion.');
+            }
+            return data;
+        }))
+        .then(data => {
+            window.location.href = data.redirect_url || @json(route('supplier-invoices.index'));
+        })
+        .catch(error => {
+            showReceptionConvertError(error.message || 'Erreur lors de la conversion.');
+        });
+}
+</script>
+@endpush
 @endsection

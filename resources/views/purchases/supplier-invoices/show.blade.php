@@ -90,6 +90,7 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Origine BR/BC</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire (TTC)</th>
@@ -102,6 +103,7 @@
                         @foreach($supplierInvoice->items as $item)
                         <tr>
                             <td class="px-4 py-3 text-sm text-gray-900">{{ $item->ref ?? '-' }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ $item->source_document_reference ?? '-' }}</td>
                             <td class="px-4 py-3">
                                 <div class="text-sm font-medium text-gray-900">{{ $item->designation }}</div>
                                 @if($item->description)

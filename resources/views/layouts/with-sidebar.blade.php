@@ -102,6 +102,13 @@
     tr.table-row-selected td {
         background-color: #fffbeb !important;
     }
+    .table-export-toast {
+        position: fixed;
+        right: 1rem;
+        bottom: 1rem;
+        width: min(24rem, calc(100vw - 2rem));
+        z-index: 60;
+    }
     .party-select-field .select2-container {
         width: 100% !important;
         max-width: 100%;

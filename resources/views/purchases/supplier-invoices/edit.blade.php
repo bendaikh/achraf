@@ -189,6 +189,8 @@ function addItemWithData(data) {
         </td>
         <td class="px-4 py-3">
             <input type="text" name="items[${itemIndex}][designation]" value="${data.designation || ''}" required class="w-full px-2 py-1 border border-gray-300 rounded text-sm" id="designation_${itemIndex}">
+            <input type="hidden" name="items[${itemIndex}][source_document_reference]" value="${data.source_document_reference || ''}">
+            ${data.source_document_reference ? `<div class="text-xs text-gray-500 mt-1">Origine: ${data.source_document_reference}</div>` : ''}
         </td>
         <td class="px-4 py-3">
             <input type="number" name="items[${itemIndex}][quantity]" value="${data.quantity || 1}" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
@@ -208,7 +210,7 @@ function addItemWithData(data) {
             </button>
         </td>
     `;
-    tbody.appendChild(row);
+    tbody.insertBefore(row, tbody.firstChild);
     
     if (typeof $ !== 'undefined' && $.fn.select2) {
         $('#product_select_' + itemIndex).select2({
@@ -265,7 +267,7 @@ function addItemOld() {
             </button>
         </td>
     `;
-    tbody.appendChild(row);
+    tbody.insertBefore(row, tbody.firstChild);
     
     // Initialize Select2 on the newly added dropdown (if jQuery is loaded)
     if (typeof $ !== 'undefined' && $.fn.select2) {
@@ -304,7 +306,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 unit_price: {{ $item->display_unit_price_ttc }},
                 tax_rate: {{ $item->tax_rate }},
                 discount: {{ $item->discount }},
-                discount_type: @json($item->discount_type ?? 'fixed')
+                discount_type: @json($item->discount_type ?? 'fixed'),
+                source_document_reference: @json($item->source_document_reference)
             });
         @endforeach
     @else

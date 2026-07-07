@@ -9,7 +9,8 @@ class PurchaseItem extends Model
 {
     protected $fillable = [
         'purchaseable_type', 'purchaseable_id', 'product_id', 'ref', 'designation',
-        'description', 'quantity', 'unit_price', 'tax_rate', 'discount', 'discount_type', 'line_total',
+        'description', 'source_document_reference', 'quantity', 'unit_price', 'tax_rate',
+        'discount', 'discount_type', 'line_total',
     ];
 
     protected $casts = [
