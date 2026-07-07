@@ -26,7 +26,7 @@ class ReceptionController extends Controller
 
     public function index(Request $request)
     {
-        $query = Reception::with('supplier')->latest();
+        $query = Reception::with(['supplier', 'convertedSupplierInvoice'])->latest();
 
         $this->applyTableSearch($query, $request, ['reception_number', 'reference', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'reception_date');
@@ -59,6 +59,8 @@ class ReceptionController extends Controller
             'stock_location' => 'required|string',
             'model' => 'nullable|string',
             'items' => 'required|array',
+            'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.ref' => 'nullable|string',
             'items.*.designation' => 'required|string',
             'items.*.quantity' => 'required|numeric|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
@@ -144,6 +146,8 @@ class ReceptionController extends Controller
             'stock_location' => 'required|string',
             'model' => 'nullable|string',
             'items' => 'required|array',
+            'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.ref' => 'nullable|string',
             'items.*.designation' => 'required|string',
             'items.*.quantity' => 'required|numeric|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
@@ -215,6 +219,13 @@ class ReceptionController extends Controller
             ->whereIn('id', $validated['ids'])
             ->orderBy('reception_date')
             ->get();
+
+        $alreadyConverted = $receptions->filter(fn (Reception $reception) => $reception->isConverted());
+        if ($alreadyConverted->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Un ou plusieurs bons de réception sélectionnés ont déjà été convertis en facture fournisseur.',
+            ], 422);
+        }
 
         if ($validated['mode'] === 'combined' && $receptions->pluck('supplier_id')->unique()->count() > 1) {
             return response()->json([
@@ -291,6 +302,16 @@ class ReceptionController extends Controller
             'subtotal' => $subtotal,
             'total' => $subtotal,
         ]);
+
+        $invoice->load('items');
+        $this->purchasePriceSync->syncLastPurchasePrices($invoice->items);
+
+        foreach ($receptions as $reception) {
+            $reception->update([
+                'converted_supplier_invoice_id' => $invoice->id,
+                'converted_at' => now(),
+            ]);
+        }
 
         return $invoice;
     }

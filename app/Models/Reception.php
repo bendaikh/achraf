@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class Reception extends Model
 {
     protected $fillable = [
-        'reception_number', 'supplier_id', 'reference', 'reception_date', 'delivery_date',
+        'reception_number', 'supplier_id', 'converted_supplier_invoice_id', 'converted_at',
+        'reference', 'reception_date', 'delivery_date',
         'currency', 'status', 'stock_location', 'model', 'remarks',
         'subtotal', 'discount', 'adjustment', 'total', 'document_file_path',
     ];
@@ -15,6 +16,7 @@ class Reception extends Model
     protected $casts = [
         'reception_date' => 'date',
         'delivery_date' => 'date',
+        'converted_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
         'adjustment' => 'decimal:2',
@@ -24,6 +26,16 @@ class Reception extends Model
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function convertedSupplierInvoice()
+    {
+        return $this->belongsTo(SupplierInvoice::class, 'converted_supplier_invoice_id');
+    }
+
+    public function isConverted(): bool
+    {
+        return $this->converted_supplier_invoice_id !== null;
     }
 
     public function items()

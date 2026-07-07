@@ -284,6 +284,13 @@ class SupplierInvoiceController extends Controller
 
     public function downloadPdf(SupplierInvoice $supplierInvoice)
     {
+        if ($supplierInvoice->invoice_file_path && Storage::disk('public')->exists($supplierInvoice->invoice_file_path)) {
+            $path = Storage::disk('public')->path($supplierInvoice->invoice_file_path);
+            $filename = $supplierInvoice->invoice_number.'.'.pathinfo($path, PATHINFO_EXTENSION);
+
+            return response()->download($path, $filename);
+        }
+
         $supplierInvoice->load('supplier', 'items');
         $printData = $this->printViewData($supplierInvoice, $supplierInvoice->items);
 
