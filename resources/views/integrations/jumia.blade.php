@@ -110,6 +110,13 @@
                                         Synchroniser les commandes
                                     </button>
                                 </form>
+
+                                <form action="{{ route('integrations.jumia.sync-stock') }}" method="POST">
+                                    @csrf
+                                    <button type="submit" class="inline-flex items-center px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition">
+                                        Synchroniser les stocks
+                                    </button>
+                                </form>
                             @endif
                         </div>
                     @endif

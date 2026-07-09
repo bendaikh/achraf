@@ -162,6 +162,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/integrations/jumia', [JumiaIntegrationController::class, 'update'])->name('integrations.jumia.update');
     Route::post('/integrations/jumia/test', [JumiaIntegrationController::class, 'test'])->name('integrations.jumia.test');
     Route::post('/integrations/jumia/sync', [JumiaIntegrationController::class, 'sync'])->name('integrations.jumia.sync');
+    Route::post('/integrations/jumia/sync-stock', [JumiaIntegrationController::class, 'syncStock'])->name('integrations.jumia.sync-stock');
     Route::delete('/integrations/jumia', [JumiaIntegrationController::class, 'destroy'])->name('integrations.jumia.destroy');
 
     // Settings

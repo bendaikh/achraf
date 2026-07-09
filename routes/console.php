@@ -12,6 +12,7 @@ Artisan::command('inspire', function () {
 Schedule::command('shopify:sync-orders')->everyFiveMinutes();
 Schedule::command('shopify:sync-products')->everyFiveMinutes();
 Schedule::command('jumia:sync-orders')->everyFifteenMinutes();
+Schedule::command('jumia:sync-stock')->everyFifteenMinutes();
 
 Schedule::command('exports:process --max=2')
     ->everyMinute()

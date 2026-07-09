@@ -147,6 +147,35 @@ class JumiaIntegrationController extends Controller
         }
     }
 
+    public function syncStock(): RedirectResponse
+    {
+        $integration = JumiaIntegration::query()->first();
+
+        if (! $integration || ! $integration->enabled) {
+            return redirect()
+                ->route('integrations.jumia.edit')
+                ->with('error', 'Jumia integration is not enabled.');
+        }
+
+        if (! $integration->isConfigured()) {
+            return redirect()
+                ->route('integrations.jumia.edit')
+                ->with('error', 'Jumia API credentials are not configured.');
+        }
+
+        try {
+            Artisan::call('jumia:sync-stock');
+
+            return redirect()
+                ->route('integrations.jumia.edit')
+                ->with('success', 'Jumia stock sync completed. '.trim(Artisan::output()));
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('integrations.jumia.edit')
+                ->with('error', 'Stock sync failed: '.$e->getMessage());
+        }
+    }
+
     public function destroy(): RedirectResponse
     {
         JumiaIntegration::query()->first()?->delete();

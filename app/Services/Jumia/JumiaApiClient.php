@@ -163,6 +163,69 @@ class JumiaApiClient
     }
 
     /**
+     * Read the current stock quantity for a seller SKU on Jumia.
+     *
+     * @return array{stock: int, variation_id: ?string}|null Null when the product is not found.
+     */
+    public function getStockForSellerSku(string $sellerSku): ?array
+    {
+        $sellerSku = trim($sellerSku);
+        if ($sellerSku === '') {
+            return null;
+        }
+
+        if ($this->integration->usesVendorCenter()) {
+            $catalogProduct = $this->findCatalogProductBySellerSku($sellerSku);
+
+            if (! is_array($catalogProduct)) {
+                return null;
+            }
+
+            $stock = $this->extractStockFromCatalogProduct($catalogProduct, $sellerSku);
+
+            return [
+                'stock' => $stock ?? 0,
+                'variation_id' => $this->resolveCatalogVariationId($catalogProduct, $sellerSku),
+            ];
+        }
+
+        return $this->getLegacyProductStock($sellerSku);
+    }
+
+    /**
+     * Push stock updates for multiple products in a single feed request.
+     *
+     * @param  array<int, array{sellerSku: string, stock: int, variationId?: ?string}>  $products
+     * @return array<string, mixed>|null
+     */
+    public function updateProductStockBatch(array $products): ?array
+    {
+        if ($products === []) {
+            return null;
+        }
+
+        if ($this->integration->usesVendorCenter()) {
+            return $this->updateVendorProductStockBatch($products);
+        }
+
+        $lastResponse = null;
+
+        foreach ($products as $product) {
+            $sellerSku = trim((string) ($product['sellerSku'] ?? ''));
+            if ($sellerSku === '') {
+                continue;
+            }
+
+            $lastResponse = $this->updateLegacyProductStock(
+                $sellerSku,
+                max(0, (int) ($product['stock'] ?? 0))
+            );
+        }
+
+        return $lastResponse;
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function findCatalogProductBySellerSku(string $sellerSku): ?array
@@ -195,20 +258,18 @@ class JumiaApiClient
             throw new \RuntimeException('SKU « '.$sellerSku.' » introuvable dans le catalogue Jumia.');
         }
 
-        $variationId = $this->resolveCatalogVariationId($catalogProduct, $sellerSku);
+        $variationId = $productSid ?: $this->resolveCatalogVariationId($catalogProduct, $sellerSku);
 
         if ($variationId === null || $variationId === '') {
             throw new \RuntimeException('Aucune variation Jumia trouvée pour le SKU « '.$sellerSku.' ».');
         }
 
-        $entry = [
-            'id' => $variationId,
-            'sellerSku' => $sellerSku,
-            'stock' => $stock,
-        ];
-
-        $response = $this->vendorRequest('POST', '/feeds/products/stock', [], [
-            'products' => [$entry],
+        $response = $this->updateVendorProductStockBatch([
+            [
+                'sellerSku' => $sellerSku,
+                'stock' => $stock,
+                'variationId' => $variationId,
+            ],
         ]);
 
         Product::query()
@@ -216,6 +277,120 @@ class JumiaApiClient
             ->update(['jumia_product_sid' => $variationId]);
 
         return $response;
+    }
+
+    /**
+     * @param  array<int, array{sellerSku: string, stock: int, variationId?: ?string}>  $products
+     */
+    protected function updateVendorProductStockBatch(array $products): ?array
+    {
+        $entries = [];
+
+        foreach ($products as $product) {
+            $sellerSku = trim((string) ($product['sellerSku'] ?? ''));
+            if ($sellerSku === '') {
+                continue;
+            }
+
+            $stock = max(0, (int) ($product['stock'] ?? 0));
+            $variationId = trim((string) ($product['variationId'] ?? ''));
+
+            if ($variationId === '') {
+                $catalogProduct = $this->findCatalogProductBySellerSku($sellerSku);
+
+                if (! is_array($catalogProduct)) {
+                    throw new \RuntimeException('SKU « '.$sellerSku.' » introuvable dans le catalogue Jumia.');
+                }
+
+                $variationId = (string) ($this->resolveCatalogVariationId($catalogProduct, $sellerSku) ?? '');
+
+                if ($variationId === '') {
+                    throw new \RuntimeException('Aucune variation Jumia trouvée pour le SKU « '.$sellerSku.' ».');
+                }
+            }
+
+            $entries[] = [
+                'id' => $variationId,
+                'sellerSku' => $sellerSku,
+                'stock' => $stock,
+            ];
+        }
+
+        if ($entries === []) {
+            return null;
+        }
+
+        return $this->vendorRequest('POST', '/feeds/products/stock', [], [
+            'products' => $entries,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $catalogProduct
+     */
+    protected function extractStockFromCatalogProduct(array $catalogProduct, string $sellerSku): ?int
+    {
+        $sellerSku = trim($sellerSku);
+        $variations = $catalogProduct['variations'] ?? [];
+
+        if (is_array($variations)) {
+            foreach ($variations as $variation) {
+                if (! is_array($variation)) {
+                    continue;
+                }
+
+                $variationSku = trim((string) ($variation['sellerSku'] ?? ''));
+
+                if ($variationSku !== '' && strcasecmp($variationSku, $sellerSku) === 0) {
+                    return $this->normalizeStockValue($variation);
+                }
+            }
+        }
+
+        return $this->normalizeStockValue($catalogProduct);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function normalizeStockValue(array $data): ?int
+    {
+        foreach (['stock', 'quantity', 'availableQuantity', 'available', 'sellableStock', 'Quantity', 'Available'] as $field) {
+            if (array_key_exists($field, $data) && $data[$field] !== null && $data[$field] !== '') {
+                return max(0, (int) $data[$field]);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{stock: int, variation_id: ?string}|null
+     */
+    protected function getLegacyProductStock(string $sellerSku): ?array
+    {
+        $response = $this->legacyCall('GetProducts', [
+            'Search' => $sellerSku,
+            'Limit' => '25',
+            'Offset' => '0',
+        ]);
+
+        $products = $this->extractList($response, 'Products', 'Product');
+
+        foreach ($products as $product) {
+            $sku = trim((string) ($product['SellerSku'] ?? ''));
+
+            if ($sku !== '' && strcasecmp($sku, $sellerSku) === 0) {
+                $stock = $this->normalizeStockValue($product);
+
+                return [
+                    'stock' => $stock ?? 0,
+                    'variation_id' => null,
+                ];
+            }
+        }
+
+        return null;
     }
 
     /**
