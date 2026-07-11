@@ -8,8 +8,8 @@ use App\Models\PosSale;
 use App\Models\ShopifyIntegration;
 use App\Support\OrderSource;
 use App\Models\Quote;
+use App\Models\DeliveryNote;
 use App\Models\Invoice;
-use App\Models\PurchaseOrder;
 use App\Models\InvoiceItem;
 use App\Services\DocumentNumberService;
 use App\Services\OrderToInvoiceConverter;
@@ -180,7 +180,7 @@ class OrderController extends Controller
             $document = match ($type) {
                 'devis' => $this->createQuote($order),
                 'facture' => $this->orderToInvoiceConverter->convert($order),
-                'bon_livraison' => $this->createPurchaseOrder($order),
+                'bon_livraison' => $this->createDeliveryNote($order),
             };
 
             return [
@@ -227,19 +227,20 @@ class OrderController extends Controller
     }
 
     /**
-     * Create a Purchase Order (Bon de livraison) from an order
+     * Create a Delivery Note (Bon de livraison) from an order
      */
-    private function createPurchaseOrder(PosSale $order): PurchaseOrder
+    private function createDeliveryNote(PosSale $order): DeliveryNote
     {
-        $reference = DocumentNumberService::generate('bon_livraison');
+        $deliveryNumber = DocumentNumberService::generate('bon_livraison');
 
-        $purchaseOrder = PurchaseOrder::create([
-            'reference' => $reference,
+        $deliveryNote = DeliveryNote::create([
+            'delivery_number' => $deliveryNumber,
             'client_id' => $order->client_id,
-            'order_date' => now(),
-            'expiry_date' => now()->addDays(30),
+            'delivery_date' => now(),
+            'shipping_date' => now(),
             'currency' => $order->currency ?? 'MAD',
             'status' => 'En cours',
+            'stock_location' => 'DEPOT',
             'subtotal' => $order->subtotal,
             'discount' => $order->discount,
             'adjustment' => 0,
@@ -247,9 +248,9 @@ class OrderController extends Controller
             'remarks' => 'Converti depuis la commande ' . $order->ticket_number,
         ]);
 
-        $this->copyOrderItems($order, $purchaseOrder);
+        $this->copyOrderItems($order, $deliveryNote);
 
-        return $purchaseOrder;
+        return $deliveryNote;
     }
 
     /**
@@ -282,7 +283,7 @@ class OrderController extends Controller
         return match ($type) {
             'devis' => $document->quote_number,
             'facture' => $document->invoice_number,
-            'bon_livraison' => $document->reference,
+            'bon_livraison' => $document->delivery_number,
         };
     }
 }

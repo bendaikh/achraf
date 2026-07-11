@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\CreditNote;
+use App\Models\DeliveryNote;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quote;
 use App\Models\Reception;
 use App\Models\SupplierCreditNote;
+use App\Models\SupplierDeliveryNote;
 use App\Models\SupplierInvoice;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -63,6 +65,18 @@ class DocumentFileController extends Controller
                 'field' => 'document_file_path',
                 'folder' => 'documents/receptions',
                 'redirect_route' => 'receptions.index',
+            ],
+            'delivery-notes' => [
+                'model' => DeliveryNote::class,
+                'field' => 'document_file_path',
+                'folder' => 'documents/delivery-notes',
+                'redirect_route' => 'delivery-notes.index',
+            ],
+            'supplier-delivery-notes' => [
+                'model' => SupplierDeliveryNote::class,
+                'field' => 'document_file_path',
+                'folder' => 'documents/supplier-delivery-notes',
+                'redirect_route' => 'supplier-delivery-notes.index',
             ],
             'expenses-with-invoice' => [
                 'model' => Expense::class,

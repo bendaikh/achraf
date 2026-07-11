@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\CreditNote;
+use App\Models\DeliveryNote;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quote;
@@ -34,6 +35,7 @@ class BulkCommercialPdfExportService
             'quotes',
             'purchase-orders',
             'credit-notes',
+            'delivery-notes',
             'supplier-invoices',
         ];
     }
@@ -130,6 +132,7 @@ class BulkCommercialPdfExportService
             'quotes' => Quote::with('client', 'items')->whereIn('id', $ids)->get(),
             'purchase-orders' => PurchaseOrder::with('client', 'items')->whereIn('id', $ids)->get(),
             'credit-notes' => CreditNote::with('client', 'invoice', 'items')->whereIn('id', $ids)->get(),
+            'delivery-notes' => DeliveryNote::with('client', 'items')->whereIn('id', $ids)->get(),
             'supplier-invoices' => SupplierInvoice::with('supplier', 'items')->whereIn('id', $ids)->get(),
             default => collect(),
         };
@@ -160,6 +163,11 @@ class BulkCommercialPdfExportService
                 $printData,
                 ['generatedBy' => auth()->user()?->name]
             ),
+            'delivery-notes' => array_merge(
+                CommercialDocumentView::forDeliveryNote($record, $printData['taxes']),
+                $printData,
+                ['generatedBy' => auth()->user()?->name]
+            ),
             'supplier-invoices' => array_merge(
                 CommercialDocumentView::forSupplierInvoice($record, $printData['taxes']),
                 $printData,
@@ -181,6 +189,7 @@ class BulkCommercialPdfExportService
             'quotes' => $record->quote_number,
             'purchase-orders' => $record->reference,
             'credit-notes' => $record->credit_note_number,
+            'delivery-notes' => $record->delivery_number,
             'supplier-invoices' => $record->invoice_number,
             default => (string) $record->id,
         };
@@ -190,6 +199,7 @@ class BulkCommercialPdfExportService
             'quotes' => 'devis',
             'purchase-orders' => 'bc',
             'credit-notes' => 'avoir',
+            'delivery-notes' => 'bl',
             'supplier-invoices' => 'facture-fournisseur',
             default => 'document',
         };

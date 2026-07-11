@@ -3,11 +3,13 @@
 namespace App\Support;
 
 use App\Models\CreditNote;
+use App\Models\DeliveryNote;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quote;
 use App\Models\Reception;
 use App\Models\Supplier;
+use App\Models\SupplierDeliveryNote;
 use App\Models\SupplierInvoice;
 use App\Models\Client;
 use App\Support\LineItemCalculator;
@@ -127,6 +129,68 @@ class CommercialDocumentView
             currency: $creditNote->currency,
             remarks: trim(collect([$creditNote->remarks, $creditNote->conditions])->filter()->implode("\n\n")) ?: null,
             priceMode: LineItemCalculator::priceModeForDocument($creditNote),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function forDeliveryNote(DeliveryNote $deliveryNote, array $taxes): array
+    {
+        $deliveryNote->loadMissing('client', 'items');
+
+        return self::base(
+            title: 'BON DE LIVRAISON',
+            number: $deliveryNote->delivery_number,
+            dates: array_filter([
+                ['label' => 'DATE', 'value' => $deliveryNote->delivery_date->format('d/m/Y')],
+                $deliveryNote->shipping_date ? ['label' => 'DATE EXPÉDITION', 'value' => $deliveryNote->shipping_date->format('d/m/Y')] : null,
+            ]),
+            partyTab: 'Informations client',
+            partyName: $deliveryNote->client->name,
+            partyLines: array_merge(self::clientLines($deliveryNote->client), [
+                ['label' => 'DEVISE', 'value' => $deliveryNote->currency ?? 'MAD'],
+                ['label' => 'STOCK', 'value' => $deliveryNote->stock_location],
+            ]),
+            partyLegal: self::clientLegal($deliveryNote->client),
+            items: $deliveryNote->items,
+            taxes: $taxes,
+            currency: $deliveryNote->currency ?? 'dh - MAD',
+            remarks: trim(collect([$deliveryNote->remarks, $deliveryNote->conditions])->filter()->implode("\n\n")) ?: null,
+            priceMode: LineItemCalculator::priceModeForDocument($deliveryNote),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function forSupplierDeliveryNote(SupplierDeliveryNote $deliveryNote, array $taxes): array
+    {
+        $deliveryNote->loadMissing('supplier', 'items');
+
+        $lines = self::supplierLines($deliveryNote->supplier);
+        $lines[] = ['label' => 'DEVISE', 'value' => $deliveryNote->currency];
+        $lines[] = ['label' => 'STOCK', 'value' => $deliveryNote->stock_location];
+        if ($deliveryNote->reference) {
+            $lines[] = ['label' => 'RÉFÉRENCE', 'value' => $deliveryNote->reference];
+        }
+
+        return self::base(
+            title: 'BON DE LIVRAISON FOURNISSEUR',
+            number: $deliveryNote->delivery_number,
+            dates: array_filter([
+                ['label' => 'DATE LIVRAISON', 'value' => $deliveryNote->delivery_date->format('d/m/Y')],
+                $deliveryNote->expected_reception_date ? ['label' => 'RÉCEPTION PRÉVUE', 'value' => $deliveryNote->expected_reception_date->format('d/m/Y')] : null,
+            ]),
+            partyTab: 'Informations fournisseur',
+            partyName: $deliveryNote->supplier->name,
+            partyLines: $lines,
+            partyLegal: self::supplierLegal($deliveryNote->supplier),
+            items: $deliveryNote->items,
+            taxes: $taxes,
+            currency: $deliveryNote->currency,
+            remarks: $deliveryNote->remarks,
+            priceMode: LineItemCalculator::priceModeForDocument($deliveryNote),
         );
     }
 

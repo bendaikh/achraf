@@ -643,7 +643,7 @@ function convertSelected(type) {
                 const redirectUrls = {
                     'devis': '{{ route('quotes.index') }}',
                     'facture': '{{ route('invoices.index') }}',
-                    'bon_livraison': '{{ route('purchase-orders.index') }}'
+                    'bon_livraison': '{{ route('delivery-notes.index') }}'
                 };
                 if (confirm('Voulez-vous voir les documents créés ?')) {
                     window.location.href = redirectUrls[type];

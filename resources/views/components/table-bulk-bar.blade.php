@@ -1,7 +1,7 @@
 @props(['exportType', 'itemLabel' => 'élément(s)', 'zipExport' => false])
 
 @php
-    $zipTypes = ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'supplier-invoices', 'supplier-purchase-orders', 'supplier-credit-notes', 'receptions', 'expenses-with-invoice'];
+    $zipTypes = ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'delivery-notes', 'supplier-invoices', 'supplier-purchase-orders', 'supplier-credit-notes', 'supplier-delivery-notes', 'receptions', 'expenses-with-invoice'];
     $showZip = $zipExport || in_array($exportType, $zipTypes, true);
 @endphp
 
@@ -18,7 +18,7 @@
                 </svg>
                 Exporter vers Excel
             </button>
-            @if($showZip && in_array($exportType, ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'supplier-invoices'], true))
+            @if($showZip && in_array($exportType, ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'delivery-notes', 'supplier-invoices'], true))
             <button type="button" onclick="exportSelectedToZip('{{ $exportType }}')"
                 class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

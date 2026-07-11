@@ -171,6 +171,26 @@ class TableExportService
                     'reception_date' => 'Date',
                 ],
             ],
+            'delivery-notes' => [
+                'model' => \App\Models\DeliveryNote::class,
+                'query' => fn (Builder $q) => $q->with('client'),
+                'columns' => [
+                    'delivery_number' => 'Numéro',
+                    'client.name' => 'Client',
+                    'delivery_date' => 'Date',
+                    'total' => 'Total',
+                ],
+            ],
+            'supplier-delivery-notes' => [
+                'model' => \App\Models\SupplierDeliveryNote::class,
+                'query' => fn (Builder $q) => $q->with('supplier'),
+                'columns' => [
+                    'delivery_number' => 'Numéro',
+                    'supplier.name' => 'Fournisseur',
+                    'delivery_date' => 'Date',
+                    'total' => 'Total',
+                ],
+            ],
             'pos-sales' => [
                 'model' => \App\Models\PosSale::class,
                 'query' => fn (Builder $q) => $q->with('client'),

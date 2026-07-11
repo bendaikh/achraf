@@ -10,7 +10,7 @@ class DocumentNumberService
     /**
      * Generate document number based on settings
      *
-     * @param string $type Document type: facture, devis, avoir, bc_client, bc_fournisseur, bon_livraison, bon_reception
+     * @param string $type Document type: facture, devis, avoir, bc_client, bc_fournisseur, bon_livraison, bon_livraison_fournisseur, bon_reception
      * @param string|null $modelClass The model class (e.g., Invoice::class)
      * @return string Generated document number
      */
@@ -89,6 +89,7 @@ class DocumentNumberService
             'bc_client' => 'BC-{YEAR}/{NUMBER}',
             'bc_fournisseur' => 'BCF-{YEAR}/{NUMBER}',
             'bon_livraison' => 'BL-{YEAR}/{NUMBER}',
+            'bon_livraison_fournisseur' => 'BLF-{YEAR}/{NUMBER}',
             'bon_reception' => 'BR-{YEAR}/{NUMBER}',
             default => '{NUMBER}',
         };

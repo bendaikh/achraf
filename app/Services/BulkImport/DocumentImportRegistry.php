@@ -3,10 +3,12 @@
 namespace App\Services\BulkImport;
 
 use App\Models\CreditNote;
+use App\Models\DeliveryNote;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quote;
 use App\Models\Reception;
+use App\Models\SupplierDeliveryNote;
 use App\Models\SupplierInvoice;
 
 class DocumentImportRegistry
@@ -18,6 +20,8 @@ class DocumentImportRegistry
         'credit-notes',
         'supplier-invoices',
         'receptions',
+        'delivery-notes',
+        'supplier-delivery-notes',
     ];
 
     public static function get(string $type): array
@@ -262,6 +266,88 @@ class DocumentImportRegistry
                     'fournisseur' => 'Fournisseur Exemple',
                     'date_reception' => '2026-01-15',
                     'date_livraison' => '2026-01-20',
+                    'reference' => 'REF-FOURNISSEUR-001',
+                    'devise' => 'MAD',
+                    'emplacement_stock' => 'DEPOT',
+                    'statut' => 'brouillon',
+                    'ref' => 'REF-001',
+                    'designation' => 'Produit exemple',
+                    'quantite' => 3,
+                    'prix_unitaire' => 100,
+                    'taux_tva' => 20,
+                    'remise' => 0,
+                ],
+            ],
+            'delivery-notes' => [
+                'label' => 'Bons de livraison',
+                'model' => DeliveryNote::class,
+                'item_relation' => 'items',
+                'party_type' => 'client',
+                'number_field' => 'delivery_number',
+                'number_type' => 'bon_livraison',
+                'redirect_route' => 'delivery-notes.index',
+                'template_filename' => 'modele_import_bons_livraison.xlsx',
+                'columns' => self::mergeColumns(
+                    ['reference_import', 'client'],
+                    [
+                        'date_livraison' => ['required' => true, 'field' => 'delivery_date'],
+                        'date_expedition' => ['field' => 'shipping_date'],
+                        'devise' => ['field' => 'currency', 'default' => 'MAD'],
+                        'emplacement_stock' => ['field' => 'stock_location', 'default' => 'DEPOT'],
+                        'statut' => ['field' => 'status', 'default' => 'brouillon'],
+                        'modele' => ['field' => 'model'],
+                        'matricule' => ['field' => 'matricule'],
+                        'remarques' => ['field' => 'remarks'],
+                        'conditions' => ['field' => 'conditions'],
+                        'ajustement' => ['field' => 'adjustment', 'default' => 0],
+                    ],
+                    self::itemColumns()
+                ),
+                'example' => [
+                    'reference_import' => 'BL-001',
+                    'client' => 'Client Exemple',
+                    'date_livraison' => '2026-01-15',
+                    'date_expedition' => '2026-01-14',
+                    'devise' => 'MAD',
+                    'emplacement_stock' => 'DEPOT',
+                    'statut' => 'brouillon',
+                    'ref' => 'REF-001',
+                    'designation' => 'Produit exemple',
+                    'quantite' => 2,
+                    'prix_unitaire' => 100,
+                    'taux_tva' => 20,
+                    'remise' => 0,
+                ],
+            ],
+            'supplier-delivery-notes' => [
+                'label' => 'Bons de livraison fournisseur',
+                'model' => SupplierDeliveryNote::class,
+                'item_relation' => 'items',
+                'party_type' => 'supplier',
+                'number_field' => 'delivery_number',
+                'number_type' => 'bon_livraison_fournisseur',
+                'redirect_route' => 'supplier-delivery-notes.index',
+                'template_filename' => 'modele_import_bons_livraison_fournisseur.xlsx',
+                'columns' => self::mergeColumns(
+                    ['reference_import', 'fournisseur'],
+                    [
+                        'date_livraison' => ['required' => true, 'field' => 'delivery_date'],
+                        'date_reception_prevue' => ['field' => 'expected_reception_date'],
+                        'reference' => ['field' => 'reference'],
+                        'devise' => ['field' => 'currency', 'default' => 'MAD'],
+                        'emplacement_stock' => ['field' => 'stock_location', 'default' => 'DEPOT'],
+                        'statut' => ['field' => 'status', 'default' => 'brouillon'],
+                        'modele' => ['field' => 'model'],
+                        'remarques' => ['field' => 'remarks'],
+                        'ajustement' => ['field' => 'adjustment', 'default' => 0],
+                    ],
+                    self::itemColumns()
+                ),
+                'example' => [
+                    'reference_import' => 'BLF-001',
+                    'fournisseur' => 'Fournisseur Exemple',
+                    'date_livraison' => '2026-01-15',
+                    'date_reception_prevue' => '2026-01-20',
                     'reference' => 'REF-FOURNISSEUR-001',
                     'devise' => 'MAD',
                     'emplacement_stock' => 'DEPOT',
