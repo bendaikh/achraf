@@ -128,7 +128,11 @@ Route::middleware('auth')->group(function () {
         Route::resource('expenses-without-invoice', ExpenseWithoutInvoiceController::class)->parameters(['expenses-without-invoice' => 'expenseWithoutInvoice']);
         Route::resource('supplier-purchase-orders', SupplierPurchaseOrderController::class);
         Route::post('receptions/bulk-convert', [ReceptionController::class, 'bulkConvert'])->name('receptions.bulk-convert');
+        Route::get('receptions/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'receptions')->name('receptions.import.template');
+        Route::post('receptions/import', [DocumentImportController::class, 'import'])->defaults('type', 'receptions')->name('receptions.import');
         Route::resource('receptions', ReceptionController::class);
+        Route::get('receptions/{reception}/print', [ReceptionController::class, 'print'])->name('receptions.print');
+        Route::get('receptions/{reception}/pdf', [ReceptionController::class, 'downloadPdf'])->name('receptions.pdf');
         Route::get('supplier-invoices/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'supplier-invoices')->name('supplier-invoices.import.template');
         Route::post('supplier-invoices/import', [DocumentImportController::class, 'import'])->defaults('type', 'supplier-invoices')->name('supplier-invoices.import');
         Route::get('supplier-invoices/by-supplier/{supplier}', [SupplierInvoiceController::class, 'bySupplier'])->name('supplier-invoices.by-supplier');

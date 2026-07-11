@@ -6,6 +6,7 @@ use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quote;
+use App\Models\Reception;
 use App\Models\SupplierInvoice;
 
 class DocumentImportRegistry
@@ -16,6 +17,7 @@ class DocumentImportRegistry
         'invoices',
         'credit-notes',
         'supplier-invoices',
+        'receptions',
     ];
 
     public static function get(string $type): array
@@ -227,6 +229,47 @@ class DocumentImportRegistry
                     'designation' => 'Produit exemple',
                     'quantite' => 5,
                     'prix_unitaire' => 80,
+                    'taux_tva' => 20,
+                    'remise' => 0,
+                ],
+            ],
+            'receptions' => [
+                'label' => 'Bons de réception',
+                'model' => Reception::class,
+                'item_relation' => 'items',
+                'party_type' => 'supplier',
+                'number_field' => 'reception_number',
+                'number_type' => 'bon_reception',
+                'redirect_route' => 'receptions.index',
+                'template_filename' => 'modele_import_bons_reception.xlsx',
+                'columns' => self::mergeColumns(
+                    ['reference_import', 'fournisseur'],
+                    [
+                        'date_reception' => ['required' => true, 'field' => 'reception_date'],
+                        'date_livraison' => ['field' => 'delivery_date'],
+                        'reference' => ['field' => 'reference'],
+                        'devise' => ['field' => 'currency', 'default' => 'MAD'],
+                        'emplacement_stock' => ['field' => 'stock_location', 'default' => 'DEPOT'],
+                        'statut' => ['field' => 'status', 'default' => 'brouillon'],
+                        'modele' => ['field' => 'model'],
+                        'remarques' => ['field' => 'remarks'],
+                        'ajustement' => ['field' => 'adjustment', 'default' => 0],
+                    ],
+                    self::itemColumns()
+                ),
+                'example' => [
+                    'reference_import' => 'BR-001',
+                    'fournisseur' => 'Fournisseur Exemple',
+                    'date_reception' => '2026-01-15',
+                    'date_livraison' => '2026-01-20',
+                    'reference' => 'REF-FOURNISSEUR-001',
+                    'devise' => 'MAD',
+                    'emplacement_stock' => 'DEPOT',
+                    'statut' => 'brouillon',
+                    'ref' => 'REF-001',
+                    'designation' => 'Produit exemple',
+                    'quantite' => 3,
+                    'prix_unitaire' => 100,
                     'taux_tva' => 20,
                     'remise' => 0,
                 ],

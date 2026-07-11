@@ -6,6 +6,7 @@ use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quote;
+use App\Models\Reception;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\Client;
@@ -126,6 +127,39 @@ class CommercialDocumentView
             currency: $creditNote->currency,
             remarks: trim(collect([$creditNote->remarks, $creditNote->conditions])->filter()->implode("\n\n")) ?: null,
             priceMode: LineItemCalculator::priceModeForDocument($creditNote),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function forReception(Reception $reception, array $taxes): array
+    {
+        $reception->loadMissing('supplier', 'items');
+
+        $lines = self::supplierLines($reception->supplier);
+        $lines[] = ['label' => 'DEVISE', 'value' => $reception->currency];
+        $lines[] = ['label' => 'STOCK', 'value' => $reception->stock_location];
+        if ($reception->reference) {
+            $lines[] = ['label' => 'RÉFÉRENCE', 'value' => $reception->reference];
+        }
+
+        return self::base(
+            title: 'BON DE RÉCEPTION',
+            number: $reception->reception_number,
+            dates: array_filter([
+                ['label' => 'DATE RÉCEPTION', 'value' => $reception->reception_date->format('d/m/Y')],
+                $reception->delivery_date ? ['label' => 'DATE LIVRAISON', 'value' => $reception->delivery_date->format('d/m/Y')] : null,
+            ]),
+            partyTab: 'Informations fournisseur',
+            partyName: $reception->supplier->name,
+            partyLines: $lines,
+            partyLegal: self::supplierLegal($reception->supplier),
+            items: $reception->items,
+            taxes: $taxes,
+            currency: $reception->currency,
+            remarks: $reception->remarks,
+            priceMode: LineItemCalculator::priceModeForDocument($reception),
         );
     }
 

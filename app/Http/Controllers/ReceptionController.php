@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
+use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Supplier;
 use App\Models\Reception;
 use App\Models\Product;
@@ -10,14 +12,16 @@ use App\Models\SupplierInvoice;
 use App\Services\DocumentNumberService;
 use App\Services\ProductPurchasePriceService;
 use App\Services\StockMovementService;
+use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class ReceptionController extends Controller
 {
-    use FiltersIndexTables;
+    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function __construct(
         protected StockMovementService $stockMovement,
@@ -58,6 +62,7 @@ class ReceptionController extends Controller
             'status' => 'required|string',
             'stock_location' => 'required|string',
             'model' => 'nullable|string',
+            'remarks' => 'nullable|string',
             'items' => 'required|array',
             'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.ref' => 'nullable|string',
@@ -81,6 +86,7 @@ class ReceptionController extends Controller
                 'status' => $validated['status'],
                 'stock_location' => $validated['stock_location'],
                 'model' => $validated['model'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
                 'total' => 0,
             ]);
 
@@ -131,7 +137,9 @@ class ReceptionController extends Controller
         $suppliers = Supplier::all();
         $products = Product::all();
         $reception->load('items');
-        return view('purchases.receptions.edit', compact('reception', 'suppliers', 'products'));
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+
+        return view('purchases.receptions.edit', compact('reception', 'suppliers', 'products', 'pricesAreTtc'));
     }
 
     public function update(Request $request, Reception $reception)
@@ -145,6 +153,7 @@ class ReceptionController extends Controller
             'status' => 'required|string',
             'stock_location' => 'required|string',
             'model' => 'nullable|string',
+            'remarks' => 'nullable|string',
             'items' => 'required|array',
             'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.ref' => 'nullable|string',
@@ -167,6 +176,7 @@ class ReceptionController extends Controller
                 'status' => $validated['status'],
                 'stock_location' => $validated['stock_location'],
                 'model' => $validated['model'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
             ]);
 
             $reception->items()->delete();
@@ -203,8 +213,57 @@ class ReceptionController extends Controller
 
     public function destroy(Reception $reception)
     {
+        if ($reception->document_file_path) {
+            Storage::disk('public')->delete($reception->document_file_path);
+        }
+
         $reception->delete();
         return redirect()->route('receptions.index')->with('success', 'Bon de réception supprimé!');
+    }
+
+    public function print(Reception $reception)
+    {
+        if ($reception->document_file_path && Storage::disk('public')->exists($reception->document_file_path)) {
+            $path = Storage::disk('public')->path($reception->document_file_path);
+            $filename = $reception->reception_number.'.'.pathinfo($path, PATHINFO_EXTENSION);
+
+            return response()->file($path, [
+                'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            ]);
+        }
+
+        $reception->load('supplier', 'items');
+        $printData = $this->printViewData($reception, $reception->items);
+
+        return view('purchases.receptions.print', array_merge(
+            CommercialDocumentView::forReception($reception, $printData['taxes']),
+            $printData,
+            compact('reception'),
+            ['generatedBy' => auth()->user()?->name]
+        ));
+    }
+
+    public function downloadPdf(Reception $reception)
+    {
+        if ($reception->document_file_path && Storage::disk('public')->exists($reception->document_file_path)) {
+            $path = Storage::disk('public')->path($reception->document_file_path);
+            $filename = $reception->reception_number.'.'.pathinfo($path, PATHINFO_EXTENSION);
+
+            return response()->download($path, $filename);
+        }
+
+        $reception->load('supplier', 'items');
+        $printData = $this->printViewData($reception, $reception->items);
+
+        return $this->downloadCommercialPdf(
+            array_merge(
+                CommercialDocumentView::forReception($reception, $printData['taxes']),
+                $printData,
+                ['generatedBy' => auth()->user()?->name]
+            ),
+            'bon-reception',
+            $reception->reception_number
+        );
     }
 
     public function bulkConvert(Request $request)
