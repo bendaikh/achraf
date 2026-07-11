@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\LoadsExpenseFormOptions;
 use App\Models\Client;
 use App\Models\Expense;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ExpenseWithoutInvoiceController extends Controller
 {
@@ -95,6 +96,10 @@ class ExpenseWithoutInvoiceController extends Controller
 
     public function destroy(Expense $expenseWithoutInvoice)
     {
+        if ($expenseWithoutInvoice->invoice_file_path) {
+            Storage::disk('public')->delete($expenseWithoutInvoice->invoice_file_path);
+        }
+
         $expenseWithoutInvoice->delete();
 
         return redirect()->route('expenses-without-invoice.index')->with('success', 'Dépense sans facture supprimée avec succès!');

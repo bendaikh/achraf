@@ -84,6 +84,12 @@ class DocumentFileController extends Controller
                 'folder' => 'expenses/invoices',
                 'redirect_route' => 'expenses-with-invoice.index',
             ],
+            'expenses-without-invoice' => [
+                'model' => Expense::class,
+                'field' => 'invoice_file_path',
+                'folder' => 'expenses/without-invoice',
+                'redirect_route' => 'expenses-without-invoice.index',
+            ],
         ];
     }
 
