@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\LoadsExpenseFormOptions;
-use App\Models\Client;
 use App\Models\Expense;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -27,12 +26,7 @@ class ExpenseWithoutInvoiceController extends Controller
 
     public function create()
     {
-        $clients = Client::orderBy('name')->get();
-
-        return view('purchases.expenses-without-invoice.create', array_merge(
-            compact('clients'),
-            $this->expenseFormOptions()
-        ));
+        return view('purchases.expenses-without-invoice.create', $this->expenseFormOptions());
     }
 
     public function store(Request $request)
@@ -66,10 +60,10 @@ class ExpenseWithoutInvoiceController extends Controller
 
     public function edit(Expense $expenseWithoutInvoice)
     {
-        $clients = Client::orderBy('name')->get();
+        $expenseWithoutInvoice->load('client');
 
         return view('purchases.expenses-without-invoice.edit', array_merge(
-            ['expense' => $expenseWithoutInvoice, 'clients' => $clients],
+            ['expense' => $expenseWithoutInvoice],
             $this->expenseFormOptions()
         ));
     }

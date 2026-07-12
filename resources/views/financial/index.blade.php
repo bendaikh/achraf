@@ -203,18 +203,6 @@
                 </div>
             </div>
         </div>
-
-        <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Accès rapides</h3>
-            <div class="flex flex-wrap gap-3">
-                <a href="{{ route('sales.payments.index') }}" class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 text-sm font-medium transition">Gestion Paiement (Ventes)</a>
-                <a href="{{ route('purchases.payments.index') }}" class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 text-sm font-medium transition">Gestion Paiement (Achats)</a>
-                <a href="{{ route('invoices.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition">Factures clients</a>
-                <a href="{{ route('supplier-invoices.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition">Factures fournisseurs</a>
-                <a href="{{ route('expenses-with-invoice.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition">Dépenses avec facture</a>
-                <a href="{{ route('expenses-without-invoice.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition">Dépenses sans facture</a>
-            </div>
-        </div>
     </div>
 </main>
 @endsection
