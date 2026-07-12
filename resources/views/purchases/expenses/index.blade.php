@@ -54,7 +54,9 @@
                             @forelse($expenses as $expense)
                                 <tr class="hover:bg-gray-50">
                                     <x-table-checkbox-cell export-type="expenses" :id="$expense->id" />
-                                    <td class="px-6 py-4">{{ $expense->designation }}</td>
+                                    <td class="px-6 py-4">
+                                        <x-table-show-link :href="route('expenses.show', $expense)" :label="$expense->designation" />
+                                    </td>
                                     <td class="px-6 py-4">{{ $expense->expense_date->format('d/m/Y') }}</td>
                                     <td class="px-6 py-4 font-semibold">{{ number_format($expense->amount, 2) }} {{ $expense->currency }}</td>
                                     <td class="px-6 py-4">{{ $expense->expense_category ?? '-' }}</td>

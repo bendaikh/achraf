@@ -65,7 +65,7 @@
                                 <tr class="hover:bg-gray-50 transition duration-150">
                                     <x-table-checkbox-cell export-type="supplier-purchase-orders" :id="$order->id" />
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-900">{{ $order->order_number }}</div>
+                                        <x-table-show-link :href="route('supplier-purchase-orders.show', $order)" :label="$order->order_number" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-900">{{ $order->supplier->name }}</div>

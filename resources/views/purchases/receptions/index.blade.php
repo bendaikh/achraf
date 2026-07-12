@@ -89,7 +89,7 @@
                                 <tr class="hover:bg-gray-50 transition duration-150">
                                     <x-table-checkbox-cell export-type="receptions" :id="$invoice->id" />
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-900">{{ $invoice->reception_number }}</div>
+                                        <x-table-show-link :href="route('receptions.show', $invoice)" :label="$invoice->reception_number" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-900">{{ $invoice->supplier->name ?? 'N/A' }}</div>

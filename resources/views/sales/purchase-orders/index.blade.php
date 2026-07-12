@@ -83,7 +83,7 @@
                                 <tr class="hover:bg-gray-50 transition duration-150">
                                     <x-table-checkbox-cell export-type="purchase-orders" :id="$invoice->id" />
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-900">{{ $invoice->reference }}</div>
+                                        <x-table-show-link :href="route('purchase-orders.show', $invoice)" :label="$invoice->reference" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-900">{{ $invoice->client->name }}</div>

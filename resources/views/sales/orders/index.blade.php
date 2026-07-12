@@ -325,7 +325,7 @@
                         <tr class="hover:bg-gray-50">
                             <x-table-checkbox-cell export-type="orders" :id="$order->id" />
                             <td class="px-6 py-4 whitespace-nowrap column-numero">
-                                <div class="text-sm font-medium text-gray-900">{{ $order->ticket_number }}</div>
+                                <x-table-show-link :href="route('orders.show', $order)" :label="$order->ticket_number" />
                                 @if($order->external_id)
                                 <div class="text-xs text-gray-500">ID: {{ $order->external_id }}</div>
                                 @endif

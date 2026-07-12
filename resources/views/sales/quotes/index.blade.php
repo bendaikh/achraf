@@ -83,7 +83,7 @@
                                 <tr class="hover:bg-gray-50 transition duration-150">
                                     <x-table-checkbox-cell export-type="quotes" :id="$invoice->id" />
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-900">{{ $invoice->quote_number }}</div>
+                                        <x-table-show-link :href="route('quotes.show', $invoice)" :label="$invoice->quote_number" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-900">{{ $invoice->client->name }}</div>

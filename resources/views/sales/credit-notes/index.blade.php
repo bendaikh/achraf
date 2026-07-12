@@ -80,13 +80,17 @@
                                 <tr class="hover:bg-gray-50 transition duration-150">
                                     <x-table-checkbox-cell export-type="credit-notes" :id="$creditNote->id" />
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-900">{{ $creditNote->credit_note_number }}</div>
+                                        <x-table-show-link :href="route('credit-notes.show', $creditNote)" :label="$creditNote->credit_note_number" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-900">{{ $creditNote->client->name }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900">{{ $creditNote->invoice ? $creditNote->invoice->invoice_number : '-' }}</div>
+                                        @if($creditNote->invoice)
+                                            <x-table-show-link :href="route('invoices.show', $creditNote->invoice)" :label="$creditNote->invoice->invoice_number" />
+                                        @else
+                                            <div class="text-sm text-gray-900">-</div>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-900">{{ $creditNote->credit_note_date->format('d/m/Y') }}</div>
