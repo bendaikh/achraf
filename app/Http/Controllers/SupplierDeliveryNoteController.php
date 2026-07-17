@@ -8,7 +8,9 @@ use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\SupplierDeliveryNote;
+use App\Models\SupplierInvoice;
 use App\Services\DocumentNumberService;
+use App\Services\ProductPurchasePriceService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use App\Models\Setting;
@@ -20,9 +22,13 @@ class SupplierDeliveryNoteController extends Controller
 {
     use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
+    public function __construct(
+        protected ProductPurchasePriceService $purchasePriceSync,
+    ) {}
+
     public function index(Request $request)
     {
-        $query = SupplierDeliveryNote::with('supplier')->latest();
+        $query = SupplierDeliveryNote::with(['supplier', 'convertedSupplierInvoice'])->latest();
 
         $this->applyTableSearch($query, $request, ['delivery_number', 'reference', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'delivery_date');
@@ -241,5 +247,138 @@ class SupplierDeliveryNoteController extends Controller
         }
 
         return $subtotal;
+    }
+
+    public function bulkConvert(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:supplier_delivery_notes,id',
+            'mode' => 'required|in:separate,combined',
+        ]);
+
+        $deliveryNotes = SupplierDeliveryNote::with('items')
+            ->whereIn('id', $validated['ids'])
+            ->orderBy('delivery_date')
+            ->get();
+
+        $alreadyConverted = $deliveryNotes->filter(fn (SupplierDeliveryNote $note) => $note->isConverted());
+        if ($alreadyConverted->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Un ou plusieurs bons de livraison sélectionnés ont déjà été convertis en facture fournisseur.',
+            ], 422);
+        }
+
+        if ($validated['mode'] === 'combined' && $deliveryNotes->pluck('supplier_id')->unique()->count() > 1) {
+            return response()->json([
+                'message' => 'Les bons sélectionnés doivent appartenir au même fournisseur pour créer une seule facture.',
+            ], 422);
+        }
+
+        $createdInvoices = DB::transaction(function () use ($deliveryNotes, $validated) {
+            if ($validated['mode'] === 'combined') {
+                return collect([$this->createSupplierInvoiceFromDeliveryNotes($deliveryNotes)]);
+            }
+
+            return $deliveryNotes->map(
+                fn (SupplierDeliveryNote $note) => $this->createSupplierInvoiceFromDeliveryNotes(collect([$note]))
+            );
+        });
+
+        return response()->json([
+            'message' => $createdInvoices->count().' facture(s) fournisseur créée(s) avec succès.',
+            'redirect_url' => route('supplier-invoices.index'),
+            'invoice_ids' => $createdInvoices->pluck('id')->values(),
+        ]);
+    }
+
+    protected function createSupplierInvoiceFromDeliveryNotes($deliveryNotes): SupplierInvoice
+    {
+        /** @var SupplierDeliveryNote $first */
+        $first = $deliveryNotes->first();
+        $originLabels = $deliveryNotes
+            ->map(fn (SupplierDeliveryNote $note) => $this->deliveryNoteOriginLabel($note))
+            ->values();
+        $referenceInvoice = $deliveryNotes
+            ->pluck('delivery_number')
+            ->implode(', ');
+
+        $invoice = SupplierInvoice::create([
+            'invoice_number' => $this->nextSupplierInvoiceNumber(),
+            'supplier_id' => $first->supplier_id,
+            'invoice_date' => now()->toDateString(),
+            'due_date' => null,
+            'reference_invoice' => $referenceInvoice,
+            'currency' => $first->currency,
+            'stock_location' => $first->stock_location,
+            'model' => $first->model,
+            'remarks' => 'Générée depuis Bon(s) de Livraison: '.$originLabels->implode(', '),
+            'conditions' => null,
+            'subtotal' => 0,
+            'discount' => 0,
+            'adjustment' => 0,
+            'total' => 0,
+        ]);
+
+        $subtotal = 0;
+
+        foreach ($deliveryNotes as $note) {
+            foreach ($note->items as $item) {
+                $invoice->items()->create([
+                    'product_id' => $item->product_id,
+                    'ref' => $item->ref,
+                    'designation' => $item->designation,
+                    'description' => $item->description,
+                    'source_document_reference' => $this->deliveryNoteOriginLabel($note),
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'tax_rate' => $item->tax_rate,
+                    'discount' => $item->discount,
+                    'discount_type' => $item->discount_type,
+                    'line_total' => $item->line_total,
+                ]);
+
+                $subtotal += (float) $item->line_total;
+            }
+        }
+
+        $invoice->update([
+            'subtotal' => $subtotal,
+            'total' => $subtotal,
+        ]);
+
+        $invoice->load('items');
+        $this->purchasePriceSync->syncLastPurchasePrices($invoice->items);
+
+        foreach ($deliveryNotes as $note) {
+            $note->update([
+                'converted_supplier_invoice_id' => $invoice->id,
+                'converted_at' => now(),
+            ]);
+        }
+
+        return $invoice;
+    }
+
+    protected function deliveryNoteOriginLabel(SupplierDeliveryNote $note): string
+    {
+        if ($note->reference) {
+            return $note->delivery_number.' / '.$note->reference;
+        }
+
+        return $note->delivery_number;
+    }
+
+    protected function nextSupplierInvoiceNumber(): string
+    {
+        $year = date('Y');
+        $next = SupplierInvoice::whereYear('created_at', $year)->count() + 1;
+
+        do {
+            $number = 'FSI-'.$year.'/'.str_pad($next, 6, '0', STR_PAD_LEFT);
+            $next++;
+        } while (SupplierInvoice::where('invoice_number', $number)->exists());
+
+        return $number;
     }
 }

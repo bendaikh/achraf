@@ -138,6 +138,7 @@ Route::middleware('auth')->group(function () {
         Route::post('supplier-delivery-notes/import', [DocumentImportController::class, 'import'])->defaults('type', 'supplier-delivery-notes')->name('supplier-delivery-notes.import');
         Route::get('supplier-delivery-notes/{supplierDeliveryNote}/print', [SupplierDeliveryNoteController::class, 'print'])->name('supplier-delivery-notes.print');
         Route::get('supplier-delivery-notes/{supplierDeliveryNote}/pdf', [SupplierDeliveryNoteController::class, 'downloadPdf'])->name('supplier-delivery-notes.pdf');
+        Route::post('supplier-delivery-notes/bulk-convert', [SupplierDeliveryNoteController::class, 'bulkConvert'])->name('supplier-delivery-notes.bulk-convert');
         Route::resource('supplier-delivery-notes', SupplierDeliveryNoteController::class);
         Route::post('receptions/bulk-convert', [ReceptionController::class, 'bulkConvert'])->name('receptions.bulk-convert');
         Route::get('receptions/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'receptions')->name('receptions.import.template');

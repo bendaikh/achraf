@@ -60,6 +60,7 @@
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date de livraison</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Réception prévue</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conversion</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document importé</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -83,6 +84,9 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-900">{{ $deliveryNote->status }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <x-reception-conversion-status :converted="$deliveryNote->isConverted()" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($deliveryNote->total, 2) }}</div>
@@ -123,7 +127,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="px-6 py-12 text-center">
+                                    <td colspan="10" class="px-6 py-12 text-center">
                                         <div class="flex flex-col items-center">
                                             <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -143,5 +147,83 @@
 
             <x-table-pagination :paginator="$supplierDeliveryNotes" :bordered="false" item-label="bons de livraison" />
         </div>
+
+        <div id="supplierDeliveryNoteConvertModal" class="hidden fixed inset-0 z-50">
+            <div class="absolute inset-0 bg-gray-900/50" onclick="closeSupplierDeliveryNoteConvertModal()"></div>
+            <div class="relative mx-auto mt-24 w-full max-w-lg bg-white rounded-xl shadow-xl border border-gray-200 p-6">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Convertir en facture fournisseur</h3>
+                        <p class="text-sm text-gray-500 mt-1">Choisissez comment traiter les bons de livraison sélectionnés.</p>
+                    </div>
+                    <button type="button" onclick="closeSupplierDeliveryNoteConvertModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                </div>
+
+                <div id="supplierDeliveryNoteConvertError" class="hidden mt-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3"></div>
+
+                <div class="mt-6 space-y-3">
+                    <button type="button" onclick="convertSelectedSupplierDeliveryNotes('separate')" class="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition">
+                        <span class="block font-medium text-gray-900">Convertir chaque Bon de Livraison en une facture distincte</span>
+                        <span class="block text-sm text-gray-500 mt-1">Une facture fournisseur sera créée pour chaque BL sélectionné.</span>
+                    </button>
+                    <button type="button" onclick="convertSelectedSupplierDeliveryNotes('combined')" class="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition">
+                        <span class="block font-medium text-gray-900">Convertir tous les Bons de Livraison sélectionnés en une seule facture</span>
+                        <span class="block text-sm text-gray-500 mt-1">Les lignes seront fusionnées dans une seule facture, avec la référence BL sur chaque ligne.</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </main>
+
+@push('scripts')
+<script>
+function openSupplierDeliveryNoteConvertModal() {
+    const ids = window.getSelectedTableIds ? window.getSelectedTableIds('supplier-delivery-notes') : [];
+    if (ids.length === 0) {
+        alert('Veuillez sélectionner au moins un bon de livraison.');
+        return;
+    }
+
+    document.getElementById('supplierDeliveryNoteConvertError').classList.add('hidden');
+    document.getElementById('supplierDeliveryNoteConvertModal').classList.remove('hidden');
+}
+
+function closeSupplierDeliveryNoteConvertModal() {
+    document.getElementById('supplierDeliveryNoteConvertModal').classList.add('hidden');
+}
+
+function showSupplierDeliveryNoteConvertError(message) {
+    const error = document.getElementById('supplierDeliveryNoteConvertError');
+    error.textContent = message;
+    error.classList.remove('hidden');
+}
+
+function convertSelectedSupplierDeliveryNotes(mode) {
+    const ids = window.getSelectedTableIds ? window.getSelectedTableIds('supplier-delivery-notes') : [];
+    const csrf = document.querySelector('meta[name="csrf-token"]');
+
+    fetch(@json(route('supplier-delivery-notes.bulk-convert')), {
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrf ? csrf.getAttribute('content') : ''
+        },
+        body: JSON.stringify({ ids, mode })
+    })
+        .then(response => response.json().then(data => {
+            if (!response.ok) {
+                throw new Error(data.message || 'Erreur lors de la conversion.');
+            }
+            return data;
+        }))
+        .then(data => {
+            window.location.href = data.redirect_url || @json(route('supplier-invoices.index'));
+        })
+        .catch(error => {
+            showSupplierDeliveryNoteConvertError(error.message || 'Erreur lors de la conversion.');
+        });
+}
+</script>
+@endpush
 @endsection

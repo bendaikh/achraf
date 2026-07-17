@@ -149,7 +149,7 @@ class CrmImportService
       } else {
         $data['code'] = $this->generateCode(Supplier::class, 'FRN');
         if (empty($data['email'])) {
-          $data['email'] = $this->uniquePlaceholderEmail(Supplier::class, $name);
+          $data['email'] = null;
         }
       }
 
