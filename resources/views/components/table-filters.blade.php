@@ -61,6 +61,14 @@
             <input type="hidden" name="per_page" value="{{ request('per_page') }}">
         @endif
 
+        @if(request()->filled('sort'))
+            <input type="hidden" name="sort" value="{{ request('sort') }}">
+        @endif
+
+        @if(request()->filled('direction'))
+            <input type="hidden" name="direction" value="{{ request('direction') }}">
+        @endif
+
         <div class="flex items-end gap-2">
             <button type="submit" class="flex-1 px-4 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] transition font-medium">
                 Filtrer

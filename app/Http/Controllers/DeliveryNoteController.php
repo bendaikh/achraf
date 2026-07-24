@@ -22,11 +22,15 @@ class DeliveryNoteController extends Controller
 
     public function index(Request $request)
     {
-        $query = DeliveryNote::with('client')->latest();
+        $query = DeliveryNote::with('client');
 
         $this->applyTableSearch($query, $request, ['delivery_number', 'reference', 'client.name']);
         $this->applyTableDateRange($query, $request, 'delivery_date');
         $this->applyTableFilter($query, $request, 'status', 'status');
+        $this->applyTableSort($query, $request, [
+            'delivery_date' => 'delivery_date',
+            'shipping_date' => 'shipping_date',
+        ], 'delivery_date', 'desc');
 
         $deliveryNotes = $this->paginateTable($query, $request);
 

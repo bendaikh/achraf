@@ -28,11 +28,15 @@ class SupplierDeliveryNoteController extends Controller
 
     public function index(Request $request)
     {
-        $query = SupplierDeliveryNote::with(['supplier', 'convertedSupplierInvoice'])->latest();
+        $query = SupplierDeliveryNote::with(['supplier', 'convertedSupplierInvoice']);
 
         $this->applyTableSearch($query, $request, ['delivery_number', 'reference', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'delivery_date');
         $this->applyTableFilter($query, $request, 'status', 'status');
+        $this->applyTableSort($query, $request, [
+            'delivery_date' => 'delivery_date',
+            'expected_reception_date' => 'expected_reception_date',
+        ], 'delivery_date', 'desc');
 
         $supplierDeliveryNotes = $this->paginateTable($query, $request);
 

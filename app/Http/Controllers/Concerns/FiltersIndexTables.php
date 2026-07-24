@@ -72,4 +72,64 @@ trait FiltersIndexTables
 
         return $query;
     }
+
+    /**
+     * Apply a whitelist-based column sort from the request.
+     *
+     * @param  array<string, string>  $allowed  Map of public sort keys to database columns
+     */
+    protected function applyTableSort(
+        Builder $query,
+        Request $request,
+        array $allowed,
+        string $defaultSort,
+        string $defaultDirection = 'desc',
+        string $sortParam = 'sort',
+        string $directionParam = 'direction',
+    ): Builder {
+        [, $direction, $column] = $this->resolveTableSort(
+            $request,
+            $allowed,
+            $defaultSort,
+            $defaultDirection,
+            $sortParam,
+            $directionParam,
+        );
+
+        $query->reorder()->orderBy($column, $direction);
+
+        $keyName = $query->getModel()->getQualifiedKeyName();
+        if ($column !== $keyName && $column !== $query->getModel()->getKeyName()) {
+            $query->orderBy($keyName, $direction);
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param  array<string, string>  $allowed
+     * @return array{0: string, 1: string, 2: string}  Sort key, direction, database column
+     */
+    protected function resolveTableSort(
+        Request $request,
+        array $allowed,
+        string $defaultSort,
+        string $defaultDirection = 'desc',
+        string $sortParam = 'sort',
+        string $directionParam = 'direction',
+    ): array {
+        $sort = (string) $request->input($sortParam, $defaultSort);
+        if (! array_key_exists($sort, $allowed)) {
+            $sort = array_key_exists($defaultSort, $allowed)
+                ? $defaultSort
+                : array_key_first($allowed);
+        }
+
+        $direction = strtolower((string) $request->input($directionParam, $defaultDirection));
+        if (! in_array($direction, ['asc', 'desc'], true)) {
+            $direction = in_array($defaultDirection, ['asc', 'desc'], true) ? $defaultDirection : 'desc';
+        }
+
+        return [$sort, $direction, $allowed[$sort]];
+    }
 }

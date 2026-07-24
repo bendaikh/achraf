@@ -28,10 +28,14 @@ class SupplierInvoiceController extends Controller
 
     public function index(Request $request)
     {
-        $query = SupplierInvoice::with('supplier')->latest();
+        $query = SupplierInvoice::with('supplier');
 
         $this->applyTableSearch($query, $request, ['invoice_number', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'invoice_date');
+        $this->applyTableSort($query, $request, [
+            'invoice_date' => 'invoice_date',
+            'due_date' => 'due_date',
+        ], 'invoice_date', 'desc');
 
         $invoices = $this->paginateTable($query, $request);
 

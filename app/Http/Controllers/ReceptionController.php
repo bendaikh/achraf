@@ -30,11 +30,15 @@ class ReceptionController extends Controller
 
     public function index(Request $request)
     {
-        $query = Reception::with(['supplier', 'convertedSupplierInvoice'])->latest();
+        $query = Reception::with(['supplier', 'convertedSupplierInvoice']);
 
         $this->applyTableSearch($query, $request, ['reception_number', 'reference', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'reception_date');
         $this->applyTableFilter($query, $request, 'status', 'status');
+        $this->applyTableSort($query, $request, [
+            'reception_date' => 'reception_date',
+            'delivery_date' => 'delivery_date',
+        ], 'reception_date', 'desc');
 
         $receptions = $this->paginateTable($query, $request);
 

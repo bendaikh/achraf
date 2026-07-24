@@ -57,8 +57,17 @@
                                 <x-table-checkbox-header export-type="supplier-delivery-notes" />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numéro</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fournisseur</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date de livraison</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Réception prévue</th>
+                                <x-table-sort-header
+                                    column="delivery_date"
+                                    label="Date de livraison"
+                                    :default="true"
+                                    default-direction="desc"
+                                />
+                                <x-table-sort-header
+                                    column="expected_reception_date"
+                                    label="Réception prévue"
+                                    default-direction="desc"
+                                />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conversion</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>

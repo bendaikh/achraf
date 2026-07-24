@@ -57,8 +57,17 @@
                                 <x-table-checkbox-header export-type="delivery-notes" />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numéro</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date de livraison</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date d'expédition</th>
+                                <x-table-sort-header
+                                    column="delivery_date"
+                                    label="Date de livraison"
+                                    :default="true"
+                                    default-direction="desc"
+                                />
+                                <x-table-sort-header
+                                    column="shipping_date"
+                                    label="Date d'expédition"
+                                    default-direction="desc"
+                                />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document importé</th>
