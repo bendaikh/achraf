@@ -44,28 +44,7 @@ class QuoteController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'client_id' => 'required|exists:clients,id',
-            'quote_date' => 'required|date',
-            'expiry_date' => 'nullable|date',
-            'currency' => 'required|string',
-            'stock_location' => 'required|string',
-            'status' => 'required|string',
-            'model' => 'nullable|string',
-            'matricule' => 'nullable|string',
-            'remarks' => 'nullable|string',
-            'conditions' => 'nullable|string',
-            'items' => 'required|array',
-            'items.*.product_id' => 'nullable|exists:products,id',
-            'items.*.ref' => 'nullable|string',
-            'items.*.designation' => 'required|string',
-            'items.*.description' => 'nullable|string',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit_price' => 'required|numeric|min:0',
-            'items.*.tax_rate' => 'required|numeric|min:0',
-            'items.*.discount' => 'nullable|numeric|min:0',
-            'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ]);
+        $validated = $this->validateQuote($request);
 
         DB::beginTransaction();
         try {
@@ -87,25 +66,7 @@ class QuoteController extends Controller
                 'total' => 0,
             ]);
 
-            $subtotal = 0;
-            foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item);
-
-                $quote->items()->create([
-                    'product_id' => $item['product_id'] ?? null,
-                    'ref' => $item['ref'] ?? null,
-                    'designation' => $item['designation'],
-                    'description' => $item['description'] ?? null,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'tax_rate' => $item['tax_rate'],
-                    'discount' => $computed['discount'],
-                    'discount_type' => $computed['discount_type'],
-                    'line_total' => $computed['line_total'],
-                ]);
-
-                $subtotal += $computed['line_total'];
-            }
+            $subtotal = $this->syncItems($quote, $validated['items']);
 
             $quote->update([
                 'subtotal' => $subtotal,
@@ -124,6 +85,62 @@ class QuoteController extends Controller
     {
         $quote->load('client', 'items');
         return view('sales.quotes.show', compact('quote'));
+    }
+
+    public function edit(Quote $quote)
+    {
+        $quote->load('client', 'items');
+        $products = Product::all();
+        $existingItems = $quote->items->map(fn ($item) => [
+            'product_id' => $item->product_id,
+            'ref' => $item->ref,
+            'designation' => $item->designation,
+            'quantity' => $item->quantity,
+            'unit_price' => $item->unit_price,
+            'tax_rate' => $item->tax_rate,
+            'discount' => $item->discount,
+            'discount_type' => $item->discount_type ?? 'fixed',
+        ])->values();
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+
+        return view('sales.quotes.edit', compact('quote', 'products', 'existingItems', 'pricesAreTtc'));
+    }
+
+    public function update(Request $request, Quote $quote)
+    {
+        $validated = $this->validateQuote($request);
+
+        DB::beginTransaction();
+        try {
+            $quote->update([
+                'client_id' => $validated['client_id'],
+                'quote_date' => $validated['quote_date'],
+                'expiry_date' => $validated['expiry_date'] ?? null,
+                'currency' => $validated['currency'],
+                'stock_location' => $validated['stock_location'],
+                'status' => $validated['status'],
+                'model' => $validated['model'] ?? null,
+                'matricule' => $validated['matricule'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
+                'conditions' => $validated['conditions'] ?? null,
+            ]);
+
+            $quote->items()->delete();
+            $subtotal = $this->syncItems($quote, $validated['items']);
+
+            $quote->update([
+                'subtotal' => $subtotal,
+                'total' => $subtotal + ($request->adjustment ?? 0),
+            ]);
+
+            DB::commit();
+
+            return redirect()->route('quotes.show', $quote)->with('success', 'Devis mis à jour avec succès!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return back()->withInput()->with('error', 'Erreur lors de la mise à jour du devis: '.$e->getMessage());
+        }
     }
 
     public function print(Quote $quote)
@@ -159,5 +176,57 @@ class QuoteController extends Controller
     {
         $quote->delete();
         return redirect()->route('quotes.index')->with('success', 'Devis supprimé avec succès!');
+    }
+
+    protected function validateQuote(Request $request): array
+    {
+        return $request->validate([
+            'client_id' => 'required|exists:clients,id',
+            'quote_date' => 'required|date',
+            'expiry_date' => 'nullable|date',
+            'currency' => 'required|string',
+            'stock_location' => 'required|string',
+            'status' => 'required|string',
+            'model' => 'nullable|string',
+            'matricule' => 'nullable|string',
+            'remarks' => 'nullable|string',
+            'conditions' => 'nullable|string',
+            'items' => 'required|array',
+            'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.ref' => 'nullable|string',
+            'items.*.designation' => 'required|string',
+            'items.*.description' => 'nullable|string',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.tax_rate' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
+        ]);
+    }
+
+    protected function syncItems(Quote $quote, array $items): float
+    {
+        $subtotal = 0;
+
+        foreach ($items as $item) {
+            $computed = LineItemCalculator::compute($item);
+
+            $quote->items()->create([
+                'product_id' => $item['product_id'] ?? null,
+                'ref' => $item['ref'] ?? null,
+                'designation' => $item['designation'],
+                'description' => $item['description'] ?? null,
+                'quantity' => $item['quantity'],
+                'unit_price' => $item['unit_price'],
+                'tax_rate' => $item['tax_rate'],
+                'discount' => $computed['discount'],
+                'discount_type' => $computed['discount_type'],
+                'line_total' => $computed['line_total'],
+            ]);
+
+            $subtotal += $computed['line_total'];
+        }
+
+        return $subtotal;
     }
 }
