@@ -133,8 +133,9 @@ class MarketplaceStockSyncService
         $this->persistStockMetadata($sale, $applied, $errors);
 
         if (in_array($source, [OrderSource::SHOPIFY, OrderSource::JUMIA], true) && $productsToPush !== []) {
-            DB::afterCommit(function () use ($productsToPush): void {
-                $this->pushStockToJumia(array_values($productsToPush));
+            $allowDiscovery = $source === OrderSource::JUMIA;
+            DB::afterCommit(function () use ($productsToPush, $allowDiscovery): void {
+                $this->pushStockToJumia(array_values($productsToPush), $allowDiscovery);
             });
         }
 
@@ -144,7 +145,7 @@ class MarketplaceStockSyncService
     /**
      * @param  array<int, Product>  $products
      */
-    public function pushStockToJumia(array $products): void
+    public function pushStockToJumia(array $products, bool $allowDiscovery = false): void
     {
         $integration = JumiaIntegration::query()
             ->where('enabled', true)
@@ -164,10 +165,17 @@ class MarketplaceStockSyncService
                 continue;
             }
 
+            $sid = trim((string) ($product->jumia_product_sid ?? ''));
+
+            // Avoid catalog lookups (and 429s) for Shopify-only SKUs that are not on Jumia.
+            if ($sid === '' && ! $allowDiscovery) {
+                continue;
+            }
+
             $stock = max(0, (int) $product->stock_enligne);
 
             try {
-                $response = $client->updateProductStock($sku, $stock, $product->jumia_product_sid);
+                $response = $client->updateProductStock($sku, $stock, $sid !== '' ? $sid : null);
 
                 if (! isset($response['feedId'])) {
                     throw new \RuntimeException('Réponse Jumia invalide: feedId manquant.');
@@ -191,6 +199,14 @@ class MarketplaceStockSyncService
                 ]);
             }
         }
+    }
+
+    /**
+     * Push current app stock for a single product to Jumia when it is linked.
+     */
+    public function pushProductStockToJumia(Product $product): void
+    {
+        $this->pushStockToJumia([$product], allowDiscovery: false);
     }
 
     /**

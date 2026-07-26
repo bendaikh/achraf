@@ -8,11 +8,28 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Automatic Shopify synchronization every 5 minutes for near real-time updates
-Schedule::command('shopify:sync-orders')->everyFiveMinutes();
-Schedule::command('shopify:sync-products')->everyFiveMinutes();
-Schedule::command('jumia:sync-orders')->everyFifteenMinutes();
-Schedule::command('jumia:sync-stock')->everyFifteenMinutes();
+// Automatic marketplace synchronization (Hostinger cron must call: php artisan schedule:run)
+Schedule::command('shopify:sync-orders')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground();
+
+Schedule::command('shopify:sync-products')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground();
+
+Schedule::command('jumia:sync-orders')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/jumia-sync.log'));
+
+Schedule::command('jumia:sync-stock')
+    ->everyTenMinutes()
+    ->withoutOverlapping(20)
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/jumia-stock-sync.log'));
 
 Schedule::command('exports:process --max=2')
     ->everyMinute()

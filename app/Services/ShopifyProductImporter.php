@@ -75,8 +75,6 @@ class ShopifyProductImporter
                 'sale_price' => $salePrice,
                 'sale_price_ht' => $salePriceHT,
                 'cost_price_ht' => $compareAtPrice > 0 ? $compareAtPrice : null,
-                'stock_quantity' => $inventoryQuantity,
-                'stock_enligne' => max(0, $inventoryQuantity),
                 'barcode' => $barcode ?: null,
                 'product_category' => $productType ?: null,
                 'tag' => $tags ?: null,
@@ -87,6 +85,14 @@ class ShopifyProductImporter
                 'shopify_status' => $shopifyStatus,
                 'shopify_synced_at' => now(),
             ];
+
+            // Keep app stock as source of truth for Jumia-linked products so Shopify
+            // product sync does not restore quantities after Jumia/POS sales.
+            $isJumiaLinked = $existing && filled($existing->jumia_product_sid);
+            if (! $isJumiaLinked) {
+                $data['stock_quantity'] = $inventoryQuantity;
+                $data['stock_enligne'] = max(0, $inventoryQuantity);
+            }
 
             // Download and store image if available
             if ($imageUrl) {

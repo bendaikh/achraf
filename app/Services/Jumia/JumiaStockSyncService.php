@@ -15,7 +15,10 @@ class JumiaStockSyncService
     ) {}
 
     /**
-     * Synchronize local stock quantities to Jumia for all eligible products.
+     * Synchronize local stock quantities to Jumia for eligible products.
+     *
+     * App `stock_enligne` is the source of truth. Products already linked via
+     * `jumia_product_sid` are pushed directly (no catalog GET) to avoid rate limits.
      *
      * @param  array{
      *     sku?: string|null,
@@ -23,20 +26,40 @@ class JumiaStockSyncService
      *     delay_ms?: int,
      *     dry_run?: bool,
      *     max_retries?: int,
+     *     linked_only?: bool,
+     *     discover?: bool,
      * }  $options
      */
     public function sync(array $options = []): JumiaStockSyncResult
     {
-        $batchSize = max(1, (int) ($options['batch_size'] ?? 20));
-        $delayMs = max(0, (int) ($options['delay_ms'] ?? 500));
+        $batchSize = max(1, (int) ($options['batch_size'] ?? 50));
+        $delayMs = max(0, (int) ($options['delay_ms'] ?? 300));
         $dryRun = (bool) ($options['dry_run'] ?? false);
-        $maxRetries = max(1, (int) ($options['max_retries'] ?? 3));
+        $maxRetries = max(1, (int) ($options['max_retries'] ?? 5));
+        $sku = isset($options['sku']) ? trim((string) $options['sku']) : '';
+        $linkedOnly = array_key_exists('linked_only', $options)
+            ? (bool) $options['linked_only']
+            : ($sku === '');
+        $discover = array_key_exists('discover', $options)
+            ? (bool) $options['discover']
+            : ($sku === '');
 
         $result = new JumiaStockSyncResult;
-        $products = $this->loadProducts($options['sku'] ?? null);
+
+        if ($discover && $sku === '') {
+            $linked = $this->discoverAndLinkCatalog($maxRetries);
+            Log::info('Jumia stock sync catalog discovery', [
+                'linked_or_refreshed' => $linked,
+            ]);
+        }
+
+        $products = $this->loadProducts($sku !== '' ? $sku : null, $linkedOnly);
 
         if ($products->isEmpty()) {
-            Log::info('Jumia stock sync: no products to process.');
+            Log::info('Jumia stock sync: no products to process.', [
+                'linked_only' => $linkedOnly,
+                'sku' => $sku !== '' ? $sku : null,
+            ]);
 
             return $result;
         }
@@ -45,6 +68,7 @@ class JumiaStockSyncService
             'product_count' => $products->count(),
             'batch_size' => $batchSize,
             'dry_run' => $dryRun,
+            'linked_only' => $linkedOnly,
         ]);
 
         $chunks = $products->chunk($batchSize);
@@ -69,6 +93,45 @@ class JumiaStockSyncService
         return $result;
     }
 
+    /**
+     * Page the Jumia catalog once and attach variation ids to matching local products.
+     */
+    public function discoverAndLinkCatalog(int $maxRetries = 5): int
+    {
+        $map = $this->withRetry(
+            fn () => $this->client->getCatalogSellerSkuMap(50),
+            $maxRetries
+        );
+
+        if ($map === []) {
+            return 0;
+        }
+
+        $linked = 0;
+        $products = Product::query()
+            ->whereNotNull('ref')
+            ->where('ref', '!=', '')
+            ->get(['id', 'ref', 'jumia_product_sid']);
+
+        foreach ($products as $product) {
+            $skuKey = strtolower(trim((string) $product->ref));
+            $variationId = $map[$skuKey] ?? null;
+
+            if (! $variationId) {
+                continue;
+            }
+
+            if ((string) $product->jumia_product_sid === $variationId) {
+                continue;
+            }
+
+            $product->forceFill(['jumia_product_sid' => $variationId])->save();
+            $linked++;
+        }
+
+        return $linked;
+    }
+
     public static function makeFromIntegration(JumiaIntegration $integration): self
     {
         return new self(new JumiaApiClient($integration), $integration);
@@ -77,7 +140,7 @@ class JumiaStockSyncService
     /**
      * @return Collection<int, Product>
      */
-    protected function loadProducts(?string $sku): Collection
+    protected function loadProducts(?string $sku, bool $linkedOnly): Collection
     {
         $query = Product::query()
             ->whereNotNull('ref')
@@ -86,6 +149,9 @@ class JumiaStockSyncService
 
         if ($sku !== null && trim($sku) !== '') {
             $query->whereRaw('LOWER(ref) = ?', [strtolower(trim($sku))]);
+        } elseif ($linkedOnly) {
+            $query->whereNotNull('jumia_product_sid')
+                ->where('jumia_product_sid', '!=', '');
         }
 
         return $query->get();
@@ -100,15 +166,43 @@ class JumiaStockSyncService
         bool $dryRun,
         int $maxRetries
     ): void {
-        /** @var array<int, array{product: Product, local_stock: int, jumia_stock: int, variation_id: ?string}> $toUpdate */
+        /** @var array<int, array{product: Product, local_stock: int, jumia_stock: ?int, variation_id: ?string}> $toUpdate */
         $toUpdate = [];
 
         foreach ($batch as $product) {
             $sku = trim((string) $product->ref);
             $localStock = max(0, (int) $product->stock_enligne);
             $productName = (string) $product->name;
+            $knownSid = trim((string) ($product->jumia_product_sid ?? ''));
 
             try {
+                // Known Jumia products: push app stock directly (source of truth).
+                if ($knownSid !== '') {
+                    if ($dryRun) {
+                        $entry = new JumiaStockSyncLogEntry(
+                            sku: $sku,
+                            productName: $productName,
+                            localStock: $localStock,
+                            jumiaStock: null,
+                            status: JumiaStockSyncLogEntry::STATUS_UPDATED,
+                            message: 'Dry run — linked product would be pushed.',
+                        );
+                        $result->addEntry($entry);
+                        $this->logEntry($entry);
+
+                        continue;
+                    }
+
+                    $toUpdate[] = [
+                        'product' => $product,
+                        'local_stock' => $localStock,
+                        'jumia_stock' => null,
+                        'variation_id' => $knownSid,
+                    ];
+
+                    continue;
+                }
+
                 $jumiaData = $this->withRetry(
                     fn () => $this->client->getStockForSellerSku($sku),
                     $maxRetries
@@ -128,10 +222,45 @@ class JumiaStockSyncService
                     continue;
                 }
 
-                $jumiaStock = (int) $jumiaData['stock'];
-                $variationId = $jumiaData['variation_id'] ?? $product->jumia_product_sid;
+                $jumiaStock = $jumiaData['stock'];
+                $variationId = $jumiaData['variation_id'] ?? null;
+
+                if ($variationId) {
+                    $product->forceFill(['jumia_product_sid' => (string) $variationId])->save();
+                }
+
+                // Catalog may not expose stock — push app quantity as source of truth.
+                if ($jumiaStock === null) {
+                    if ($dryRun) {
+                        $entry = new JumiaStockSyncLogEntry(
+                            sku: $sku,
+                            productName: $productName,
+                            localStock: $localStock,
+                            jumiaStock: null,
+                            status: JumiaStockSyncLogEntry::STATUS_UPDATED,
+                            message: 'Dry run — Jumia stock unknown, would push local stock.',
+                        );
+                        $result->addEntry($entry);
+                        $this->logEntry($entry);
+
+                        continue;
+                    }
+
+                    $toUpdate[] = [
+                        'product' => $product,
+                        'local_stock' => $localStock,
+                        'jumia_stock' => null,
+                        'variation_id' => $variationId !== null ? (string) $variationId : null,
+                    ];
+
+                    continue;
+                }
+
+                $jumiaStock = (int) $jumiaStock;
 
                 if ($jumiaStock === $localStock) {
+                    $product->forceFill(['jumia_stock_synced_at' => now()])->save();
+
                     $entry = new JumiaStockSyncLogEntry(
                         sku: $sku,
                         productName: $productName,
@@ -188,7 +317,7 @@ class JumiaStockSyncService
     }
 
     /**
-     * @param  array<int, array{product: Product, local_stock: int, jumia_stock: int, variation_id: ?string}>  $toUpdate
+     * @param  array<int, array{product: Product, local_stock: int, jumia_stock: ?int, variation_id: ?string}>  $toUpdate
      */
     protected function pushBatchUpdates(array $toUpdate, JumiaStockSyncResult $result, int $maxRetries): void
     {
@@ -293,7 +422,8 @@ class JumiaStockSyncService
                     throw $e;
                 }
 
-                usleep(250_000 * $attempt);
+                // Exponential backoff — Jumia 429s need seconds, not milliseconds.
+                usleep((int) (1_000_000 * (2 ** ($attempt - 1))));
             }
         }
 

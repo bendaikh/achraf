@@ -165,7 +165,8 @@ class JumiaApiClient
     /**
      * Read the current stock quantity for a seller SKU on Jumia.
      *
-     * @return array{stock: int, variation_id: ?string}|null Null when the product is not found.
+     * @return array{stock: int|null, variation_id: ?string}|null Null when the product is not found.
+     *         `stock` may be null when the Vendor catalog does not expose inventory fields.
      */
     public function getStockForSellerSku(string $sellerSku): ?array
     {
@@ -183,8 +184,9 @@ class JumiaApiClient
 
             $stock = $this->extractStockFromCatalogProduct($catalogProduct, $sellerSku);
 
+            // Vendor catalog often omits stock fields; null means "unknown", not zero.
             return [
-                'stock' => $stock ?? 0,
+                'stock' => $stock,
                 'variation_id' => $this->resolveCatalogVariationId($catalogProduct, $sellerSku),
             ];
         }
@@ -250,17 +252,100 @@ class JumiaApiClient
         return is_array($product) ? $product : null;
     }
 
-    protected function updateVendorProductStock(string $sellerSku, int $stock, ?string $productSid): ?array
+    /**
+     * Page through the full Jumia vendor catalog.
+     *
+     * @return \Generator<int, array<string, mixed>>
+     */
+    public function getAllCatalogProducts(int $pageSize = 50): \Generator
     {
-        $catalogProduct = $this->findCatalogProductBySellerSku($sellerSku);
-
-        if (! is_array($catalogProduct)) {
-            throw new \RuntimeException('SKU « '.$sellerSku.' » introuvable dans le catalogue Jumia.');
+        if (! $this->integration->usesVendorCenter()) {
+            return;
         }
 
-        $variationId = $productSid ?: $this->resolveCatalogVariationId($catalogProduct, $sellerSku);
+        $token = null;
+        $pageSize = max(1, min(100, $pageSize));
 
-        if ($variationId === null || $variationId === '') {
+        do {
+            $query = ['size' => $pageSize];
+            if ($token) {
+                $query['token'] = $token;
+            }
+
+            $response = $this->vendorRequest('GET', '/catalog/products', $query);
+            $products = $response['products'] ?? $response['content'] ?? [];
+
+            if (is_array($products) && $products !== []) {
+                yield array_values(array_filter($products, 'is_array'));
+            }
+
+            $isLastPage = (bool) ($response['isLastPage'] ?? true);
+            $token = isset($response['nextToken']) ? (string) $response['nextToken'] : null;
+
+            if ($isLastPage || $token === null || $token === '') {
+                break;
+            }
+        } while (true);
+    }
+
+    /**
+     * Build a lowercase sellerSku => variationId map from the full Jumia catalog.
+     *
+     * @return array<string, string>
+     */
+    public function getCatalogSellerSkuMap(int $pageSize = 50): array
+    {
+        $map = [];
+
+        foreach ($this->getAllCatalogProducts($pageSize) as $products) {
+            foreach ($products as $catalogProduct) {
+                $variations = $catalogProduct['variations'] ?? [];
+
+                if (is_array($variations) && $variations !== []) {
+                    foreach ($variations as $variation) {
+                        if (! is_array($variation)) {
+                            continue;
+                        }
+
+                        $sellerSku = trim((string) ($variation['sellerSku'] ?? ''));
+                        $variationId = $variation['id'] ?? $variation['productSid'] ?? $variation['sid'] ?? null;
+
+                        if ($sellerSku !== '' && $variationId !== null && $variationId !== '') {
+                            $map[strtolower($sellerSku)] = (string) $variationId;
+                        }
+                    }
+
+                    continue;
+                }
+
+                $sellerSku = trim((string) ($catalogProduct['sellerSku'] ?? $catalogProduct['parentSku'] ?? ''));
+                $variationId = $this->resolveCatalogVariationId($catalogProduct, $sellerSku);
+
+                if ($sellerSku !== '' && $variationId) {
+                    $map[strtolower($sellerSku)] = $variationId;
+                }
+            }
+        }
+
+        return $map;
+    }
+
+    protected function updateVendorProductStock(string $sellerSku, int $stock, ?string $productSid): ?array
+    {
+        $variationId = $productSid !== null ? trim($productSid) : '';
+
+        // Prefer the cached variation id to avoid a catalog GET (and 429 rate limits).
+        if ($variationId === '') {
+            $catalogProduct = $this->findCatalogProductBySellerSku($sellerSku);
+
+            if (! is_array($catalogProduct)) {
+                throw new \RuntimeException('SKU « '.$sellerSku.' » introuvable dans le catalogue Jumia.');
+            }
+
+            $variationId = (string) ($this->resolveCatalogVariationId($catalogProduct, $sellerSku) ?? '');
+        }
+
+        if ($variationId === '') {
             throw new \RuntimeException('Aucune variation Jumia trouvée pour le SKU « '.$sellerSku.' ».');
         }
 

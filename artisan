@@ -6,6 +6,46 @@ use Symfony\Component\Console\Input\ArgvInput;
 
 define('LARAVEL_START', microtime(true));
 
+/*
+|--------------------------------------------------------------------------
+| Hostinger cron argv cleanup
+|--------------------------------------------------------------------------
+|
+| Hostinger sometimes runs cron commands without a shell, so redirects like
+| `>> /dev/null 2>&1` are passed as literal argv and break Artisan
+| (`No arguments expected for "schedule:run" command, got ">>"`).
+| Strip those tokens so scheduled sync (Jumia/Shopify) can run.
+|
+*/
+if (PHP_SAPI === 'cli' && isset($_SERVER['argv']) && is_array($_SERVER['argv'])) {
+    $cleanedArgv = [];
+
+    foreach ($_SERVER['argv'] as $index => $argument) {
+        if ($index === 0) {
+            $cleanedArgv[] = $argument;
+            continue;
+        }
+
+        if (
+            $argument === '>>'
+            || $argument === '>'
+            || $argument === '2>&1'
+            || $argument === '2>'
+            || $argument === '&>'
+            || $argument === '&'
+            || $argument === '/dev/null'
+            || str_starts_with($argument, '>')
+        ) {
+            break;
+        }
+
+        $cleanedArgv[] = $argument;
+    }
+
+    $_SERVER['argv'] = $cleanedArgv;
+    $GLOBALS['argv'] = $cleanedArgv;
+}
+
 // Register the Composer autoloader...
 require __DIR__.'/vendor/autoload.php';
 

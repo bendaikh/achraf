@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Product;
 use App\Models\Setting;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class StockMovementService
@@ -132,6 +133,7 @@ class StockMovementService
         $product->{$field} = $current - $quantity;
         $this->syncAggregateStock($product, $field);
         $product->save();
+        $this->pushEnligneStockToJumia($product, $field);
     }
 
     public function increase(Product $product, int $quantity, string $channel): void
@@ -140,6 +142,24 @@ class StockMovementService
         $product->{$field} = (int) ($product->{$field} ?? 0) + $quantity;
         $this->syncAggregateStock($product, $field);
         $product->save();
+        $this->pushEnligneStockToJumia($product, $field);
+    }
+
+    protected function pushEnligneStockToJumia(Product $product, string $field): void
+    {
+        if ($field !== 'stock_enligne') {
+            return;
+        }
+
+        try {
+            app(MarketplaceStockSyncService::class)->pushProductStockToJumia($product->fresh() ?? $product);
+        } catch (\Throwable $e) {
+            Log::warning('Jumia stock push after local stock change failed', [
+                'product_id' => $product->id,
+                'sku' => $product->ref,
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 
     protected function stockFieldForProduct(Product $product, string $channel): string

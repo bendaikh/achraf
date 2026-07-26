@@ -4,11 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Product;
+use App\Services\MarketplaceStockSyncService;
 use Illuminate\Http\Request;
 
 class StockController extends Controller
 {
     use FiltersIndexTables;
+
+    public function __construct(
+        protected MarketplaceStockSyncService $marketplaceStockSync
+    ) {}
 
     private function applyStockFilters($query, Request $request, string $stockField = 'stock_quantity'): void
     {
@@ -127,6 +132,9 @@ class StockController extends Controller
             'stock_enligne' => $validated['stock_enligne'],
             'stock_quantity' => $validated['stock_enligne'],
         ]);
+
+        $product->refresh();
+        $this->marketplaceStockSync->pushProductStockToJumia($product);
 
         return redirect()->route('stock.enligne.index')
             ->with('success', 'Stock enligne mis à jour pour « '.$product->name.' ».');

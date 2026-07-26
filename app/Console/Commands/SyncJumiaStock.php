@@ -12,10 +12,11 @@ class SyncJumiaStock extends Command
 {
     protected $signature = 'jumia:sync-stock
                             {--sku= : Sync a single product by SKU (ref)}
-                            {--batch-size=20 : Number of products to process per batch}
-                            {--delay=500 : Delay in milliseconds between batches}
-                            {--dry-run : Compare stocks without sending updates to Jumia}
-                            {--retries=3 : Maximum retry attempts for failed API calls}';
+                            {--all : Also discover/sync products not yet linked (slower, more API calls)}
+                            {--batch-size=50 : Number of products to process per batch}
+                            {--delay=300 : Delay in milliseconds between batches}
+                            {--dry-run : Compare/plan updates without sending them to Jumia}
+                            {--retries=5 : Maximum retry attempts for failed API calls}';
 
     protected $description = 'Synchronize product stock quantities from the application to Jumia';
 
@@ -58,8 +59,14 @@ class SyncJumiaStock extends Command
         }
 
         $dryRun = (bool) $this->option('dry-run');
+        $linkedOnly = ! (bool) $this->option('all') && $this->option('sku') === null;
 
         $this->info('Starting Jumia stock synchronization...');
+        if ($linkedOnly) {
+            $this->line('Mode: linked Jumia products only (fast push by Seller SKU / variation id).');
+        } elseif ($this->option('all')) {
+            $this->warn('Mode: full catalog discovery — may take longer and hit API rate limits.');
+        }
         if ($dryRun) {
             $this->warn('Dry run mode — no updates will be sent to Jumia.');
         }
@@ -73,23 +80,32 @@ class SyncJumiaStock extends Command
                 'delay_ms' => (int) $this->option('delay'),
                 'dry_run' => $dryRun,
                 'max_retries' => (int) $this->option('retries'),
+                'linked_only' => $linkedOnly,
+                'discover' => $this->option('sku') === null,
             ]);
 
             if ($result->entries !== []) {
                 $this->newLine();
+                $rows = array_map(static function (JumiaStockSyncLogEntry $entry): array {
+                    return [
+                        $entry->sku,
+                        mb_strimwidth($entry->productName, 0, 40, '…'),
+                        $entry->localStock,
+                        $entry->jumiaStock ?? '—',
+                        $entry->status,
+                        $entry->message ?? '',
+                    ];
+                }, $result->entries);
+
+                // Keep console output readable on large linked syncs.
                 $this->table(
                     ['SKU', 'Product', 'Local Stock', 'Jumia Stock', 'Status', 'Message'],
-                    array_map(static function (JumiaStockSyncLogEntry $entry): array {
-                        return [
-                            $entry->sku,
-                            mb_strimwidth($entry->productName, 0, 40, '…'),
-                            $entry->localStock,
-                            $entry->jumiaStock ?? '—',
-                            $entry->status,
-                            $entry->message ?? '',
-                        ];
-                    }, $result->entries)
+                    array_slice($rows, 0, 50)
                 );
+
+                if (count($rows) > 50) {
+                    $this->line('… '.(count($rows) - 50).' more row(s) omitted from table.');
+                }
             } else {
                 $this->warn('No products matched the sync criteria.');
             }
