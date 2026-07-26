@@ -5,6 +5,26 @@
 
     RewriteEngine On
 
+    # Security: block sensitive files and common attack paths
+    RewriteRule (^|/)\.env - [F,L]
+    RewriteRule (^|/)\.env\..* - [F,L]
+    RewriteRule (^|/)artisan$ - [F,L]
+    RewriteRule (^|/)composer\.(json|lock)$ - [F,L]
+    RewriteRule (^|/)package(-lock)?\.json$ - [F,L]
+    RewriteRule (^|/)phpunit\.xml$ - [F,L]
+    RewriteRule (^|/)schedule-runner\.php$ - [F,L]
+    RewriteRule (^|/)setup\.php$ - [F,L]
+    RewriteRule (^|/)verify-image-sync\.php$ - [F,L]
+    RewriteRule ^storage/.*\.php$ - [F,L]
+    RewriteRule ^bootstrap/ - [F,L]
+    RewriteRule ^vendor/ - [F,L]
+    RewriteRule ^app/ - [F,L]
+    RewriteRule ^config/ - [F,L]
+    RewriteRule ^database/ - [F,L]
+    RewriteRule ^routes/ - [F,L]
+    RewriteRule ^tests/ - [F,L]
+    RewriteRule ^resources/ - [F,L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
@@ -19,3 +39,15 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+<FilesMatch "(^\.env|^\.env\.|composer\.(json|lock)|package(-lock)?\.json|phpunit\.xml|^artisan$)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+Options -Indexes
