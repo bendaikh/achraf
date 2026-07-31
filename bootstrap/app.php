@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'api/webhooks/shopify/*',
         ]);
+        $middleware->web(append: [
+            \App\Http\Middleware\ConvertSoftNavigationResponse::class,
+        ]);
         $middleware->alias([
             'superadmin' => \App\Http\Middleware\SuperAdminMiddleware::class,
         ]);

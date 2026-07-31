@@ -210,70 +210,120 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const brandGold = '#fdb819';
+(function () {
+    function canvasReady(canvas) {
+        return !!(canvas
+            && canvas.isConnected
+            && typeof canvas.getContext === 'function'
+            && canvas.getContext('2d'));
+    }
 
-    new Chart(document.getElementById('revenueExpensesChart'), {
-        type: 'bar',
-        data: {
-            labels: @json($chart['labels']),
-            datasets: [
-                {
-                    label: 'Revenus',
-                    data: @json($chart['revenue']),
-                    backgroundColor: brandGold,
-                    borderRadius: 4,
-                },
-                {
-                    label: 'Dépenses',
-                    data: @json($chart['expenses']),
-                    backgroundColor: '#ef4444',
-                    borderRadius: 4,
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom' } },
-            scales: {
-                y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' DH' } }
-            }
+    function destroyIfExists(canvas) {
+        if (!window.Chart || !canvas || typeof window.Chart.getChart !== 'function') {
+            return;
         }
-    });
+        const existing = window.Chart.getChart(canvas);
+        if (existing) {
+            try {
+                existing.destroy();
+            } catch (e) {}
+        }
+    }
 
-    new Chart(document.getElementById('cashFlowChart'), {
-        type: 'line',
-        data: {
-            labels: @json($chart['labels']),
-            datasets: [
-                {
-                    label: 'Entrées',
-                    data: @json($chart['cashIn']),
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    fill: true,
-                    tension: 0.3,
-                },
-                {
-                    label: 'Sorties',
-                    data: @json($chart['cashOut']),
-                    borderColor: '#ef4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    fill: true,
-                    tension: 0.3,
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom' } },
-            scales: {
-                y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' DH' } }
-            }
+    function initFinancialCharts() {
+        if (!window.Chart) {
+            return;
         }
-    });
-});
+
+        const brandGold = '#fdb819';
+        const revenueCanvas = document.getElementById('revenueExpensesChart');
+        const cashFlowCanvas = document.getElementById('cashFlowChart');
+
+        if (!canvasReady(revenueCanvas) || !canvasReady(cashFlowCanvas)) {
+            return;
+        }
+
+        destroyIfExists(revenueCanvas);
+        destroyIfExists(cashFlowCanvas);
+
+        try {
+            new Chart(revenueCanvas, {
+                type: 'bar',
+                data: {
+                    labels: @json($chart['labels']),
+                    datasets: [
+                        {
+                            label: 'Revenus',
+                            data: @json($chart['revenue']),
+                            backgroundColor: brandGold,
+                            borderRadius: 4,
+                        },
+                        {
+                            label: 'Dépenses',
+                            data: @json($chart['expenses']),
+                            backgroundColor: '#ef4444',
+                            borderRadius: 4,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' DH' } }
+                    }
+                }
+            });
+        } catch (e) {
+            console.warn('[Financial] revenue chart failed', e);
+        }
+
+        try {
+            new Chart(cashFlowCanvas, {
+                type: 'line',
+                data: {
+                    labels: @json($chart['labels']),
+                    datasets: [
+                        {
+                            label: 'Entrées',
+                            data: @json($chart['cashIn']),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                        },
+                        {
+                            label: 'Sorties',
+                            data: @json($chart['cashOut']),
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' DH' } }
+                    }
+                }
+            });
+        } catch (e) {
+            console.warn('[Financial] cash flow chart failed', e);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initFinancialCharts);
+    } else {
+        initFinancialCharts();
+    }
+})();
 </script>
 @endpush

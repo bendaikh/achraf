@@ -1,5 +1,6 @@
-@extends('layouts.app')
+@extends(\App\Support\SoftNavigation::wants(request()) ? 'layouts.soft-nav-frame' : 'layouts.app')
 
+@if (! \App\Support\SoftNavigation::wants(request()))
 @section('content')
 <script>
     (function () {
@@ -47,6 +48,48 @@
         background: #d1d5db;
         border-radius: 9999px;
     }
+    .soft-nav-loading {
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 8rem;
+        background: rgba(249, 250, 251, 0.72);
+        backdrop-filter: blur(1px);
+    }
+    .soft-nav-loading[hidden] {
+        display: none !important;
+    }
+    .soft-nav-loading__card {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.875rem 1.25rem;
+        border-radius: 0.75rem;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+        color: #374151;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    .soft-nav-loading__spinner {
+        width: 1.25rem;
+        height: 1.25rem;
+        color: #0a5d8a;
+        animation: soft-nav-spin 0.75s linear infinite;
+    }
+    .soft-nav-loading__track {
+        opacity: 0.25;
+    }
+    .soft-nav-loading__arc {
+        opacity: 0.9;
+    }
+    @keyframes soft-nav-spin {
+        to { transform: rotate(360deg); }
+    }
 </style>
 @php
     $navigationModules = \App\Support\Navigation::modules(Auth::user());
@@ -81,7 +124,7 @@
         @include('layouts.sidebar')
     </aside>
 
-    <div class="app-shell-main flex-1 flex flex-col w-full min-w-0">
+    <div class="app-shell-main flex-1 flex flex-col w-full min-w-0 relative">
         @hasSection('hide_shell_header')
         @else
         <div class="sticky top-0 z-20 bg-white shadow-sm">
@@ -106,36 +149,65 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
                     </svg>
                 </button>
-                <span class="font-semibold text-gray-900 truncate">@yield('sidebar_page_title', 'hsabati')</span>
+                <span id="app-page-title" class="font-semibold text-gray-900 truncate">@yield('sidebar_page_title', 'hsabati')</span>
             </header>
 
-            @if ($moduleTabs !== [])
-                <nav class="module-tabs-scroll overflow-x-auto border-b border-gray-200 bg-white" aria-label="Menus de {{ $activeNavigationModule['label'] }}">
-                    <div class="flex min-w-max items-center gap-1 px-4">
-                        @foreach ($moduleTabs as $tab)
-                            @php
-                                $tabActive = \App\Support\Navigation::isActive($tab, request());
-                            @endphp
-                            <a
-                                href="{{ route($tab['route']) }}"
-                                class="relative inline-flex min-h-12 items-center px-3 py-3 text-sm font-medium whitespace-nowrap transition-colors {{ $tabActive ? 'text-[#0a5d8a]' : 'text-gray-500 hover:text-gray-900' }}"
-                                @if($tabActive) aria-current="page" @endif
-                            >
-                                {{ $tab['label'] }}
-                                @if($tabActive)
-                                    <span class="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#fdb819]"></span>
-                                @endif
-                            </a>
-                        @endforeach
-                    </div>
-                </nav>
-            @endif
+            <div id="app-module-tabs" @if ($moduleTabs === []) hidden @endif>
+                @if ($moduleTabs !== [])
+                    <nav class="module-tabs-scroll overflow-x-auto border-b border-gray-200 bg-white" aria-label="Menus de {{ $activeNavigationModule['label'] ?? '' }}">
+                        <div class="flex min-w-max items-center gap-1 px-4">
+                            @foreach ($moduleTabs as $tab)
+                                @php
+                                    $tabActive = \App\Support\Navigation::isActive($tab, request());
+                                @endphp
+                                <a
+                                    href="{{ route($tab['route']) }}"
+                                    data-soft-nav
+                                    class="relative inline-flex min-h-12 items-center px-3 py-3 text-sm font-medium whitespace-nowrap transition-colors {{ $tabActive ? 'text-[#0a5d8a]' : 'text-gray-500 hover:text-gray-900' }}"
+                                    @if($tabActive) aria-current="page" @endif
+                                >
+                                    {{ $tab['label'] }}
+                                    @if($tabActive)
+                                        <span class="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#fdb819]"></span>
+                                    @endif
+                                </a>
+                            @endforeach
+                        </div>
+                    </nav>
+                @endif
+            </div>
         </div>
         @endif
-        @yield('main')
+        <div id="app-page-root">
+            @yield('main')
+            @stack('scripts')
+        </div>
+        <div
+            id="soft-nav-loading"
+            class="soft-nav-loading"
+            hidden
+            aria-live="polite"
+            aria-busy="true"
+        >
+            <div class="soft-nav-loading__card">
+                <svg class="soft-nav-loading__spinner" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle class="soft-nav-loading__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="soft-nav-loading__arc" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+                <span class="soft-nav-loading__label">Chargement…</span>
+            </div>
+        </div>
     </div>
 </div>
-@stack('scripts')
+@php
+    $softNavScript = public_path('js/soft-nav.js');
+    $softNavVersion = is_readable($softNavScript) ? filemtime($softNavScript) : time();
+@endphp
+@if (is_readable($softNavScript))
+<script>/* soft-nav v={{ $softNavVersion }} */{!! file_get_contents($softNavScript) !!}</script>
+@else
+<script src="{{ asset('js/soft-nav.js') }}?v={{ $softNavVersion }}"></script>
+@endif
 <style>
     tr.table-row-selected {
         background-color: #fffbeb !important;
@@ -177,3 +249,4 @@
 @endif
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 @endsection
+@endif

@@ -27,11 +27,16 @@
                 class="group relative flex items-center rounded-xl transition-all duration-150 {{ $moduleActive ? 'bg-[#fdb819] text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-950' }}"
                 :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'space-x-3 px-4 py-3'"
                 title="{{ $module['label'] }}"
+                data-nav-module="{{ $module['key'] ?? $module['route'] }}"
+                @if(($module['soft_nav'] ?? true) !== false) data-soft-nav @endif
                 @if($moduleActive) aria-current="page" @endif
             >
-                @if($moduleActive)
-                    <span class="absolute -left-3 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-[#0a5d8a]" x-show="!sidebarCollapsed || sidebarOpen"></span>
-                @endif
+                <span
+                    data-nav-active-marker
+                    class="absolute -left-3 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-[#0a5d8a]"
+                    x-show="!sidebarCollapsed || sidebarOpen"
+                    @if(!$moduleActive) style="display: none;" @endif
+                ></span>
                 <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     @foreach ($module['icon'] as $path)
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $path }}"></path>

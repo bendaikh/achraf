@@ -60,6 +60,7 @@ Route::post('/api/webhooks/shopify/products/delete', [ShopifyWebhookController::
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
     Route::get('/financial', [FinancialManagementController::class, 'index'])->name('financial.index');
     Route::post('/document-files/{type}/{id}', [DocumentFileController::class, 'store'])->name('document-files.store');
     
