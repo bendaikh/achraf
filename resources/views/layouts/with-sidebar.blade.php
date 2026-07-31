@@ -35,7 +35,24 @@
     html.pos-full-view-active .app-shell-main {
         margin-left: 0 !important;
     }
+    .module-tabs-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: #d1d5db transparent;
+        -webkit-overflow-scrolling: touch;
+    }
+    .module-tabs-scroll::-webkit-scrollbar {
+        height: 4px;
+    }
+    .module-tabs-scroll::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 9999px;
+    }
 </style>
+@php
+    $navigationModules = \App\Support\Navigation::modules(Auth::user());
+    $activeNavigationModule = \App\Support\Navigation::activeModule($navigationModules, request());
+    $moduleTabs = $activeNavigationModule['children'] ?? [];
+@endphp
 <div
     class="min-h-screen bg-gray-50 flex relative"
     x-data="{
@@ -67,29 +84,53 @@
     <div class="app-shell-main flex-1 flex flex-col w-full min-w-0">
         @hasSection('hide_shell_header')
         @else
-        <header class="sticky top-0 z-20 flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
-            <button
-                type="button"
-                @click="sidebarOpen = true"
-                class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 -ml-1 touch-manipulation lg:hidden"
-                aria-label="Ouvrir le menu"
-            >
-                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-            </button>
-            <button
-                type="button"
-                @click="toggleCollapsed()"
-                class="hidden lg:flex p-2 rounded-lg text-gray-600 hover:bg-gray-100 -ml-1 touch-manipulation"
-                aria-label="Réduire le menu"
-            >
-                <svg class="h-6 w-6" :class="sidebarCollapsed ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                </svg>
-            </button>
-            <span class="font-semibold text-gray-900 truncate">@yield('sidebar_page_title', 'hsabati')</span>
-        </header>
+        <div class="sticky top-0 z-20 bg-white shadow-sm">
+            <header class="flex items-center gap-3 px-4 py-3 border-b {{ $moduleTabs !== [] ? 'border-gray-100' : 'border-gray-200' }}">
+                <button
+                    type="button"
+                    @click="sidebarOpen = true"
+                    class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 -ml-1 touch-manipulation lg:hidden"
+                    aria-label="Ouvrir le menu"
+                >
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+                <button
+                    type="button"
+                    @click="toggleCollapsed()"
+                    class="hidden lg:flex p-2 rounded-lg text-gray-600 hover:bg-gray-100 -ml-1 touch-manipulation"
+                    aria-label="Réduire le menu"
+                >
+                    <svg class="h-6 w-6" :class="sidebarCollapsed ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                    </svg>
+                </button>
+                <span class="font-semibold text-gray-900 truncate">@yield('sidebar_page_title', 'hsabati')</span>
+            </header>
+
+            @if ($moduleTabs !== [])
+                <nav class="module-tabs-scroll overflow-x-auto border-b border-gray-200 bg-white" aria-label="Menus de {{ $activeNavigationModule['label'] }}">
+                    <div class="flex min-w-max items-center gap-1 px-4">
+                        @foreach ($moduleTabs as $tab)
+                            @php
+                                $tabActive = \App\Support\Navigation::isActive($tab, request());
+                            @endphp
+                            <a
+                                href="{{ route($tab['route']) }}"
+                                class="relative inline-flex min-h-12 items-center px-3 py-3 text-sm font-medium whitespace-nowrap transition-colors {{ $tabActive ? 'text-[#0a5d8a]' : 'text-gray-500 hover:text-gray-900' }}"
+                                @if($tabActive) aria-current="page" @endif
+                            >
+                                {{ $tab['label'] }}
+                                @if($tabActive)
+                                    <span class="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#fdb819]"></span>
+                                @endif
+                            </a>
+                        @endforeach
+                    </div>
+                </nav>
+            @endif
+        </div>
         @endif
         @yield('main')
     </div>

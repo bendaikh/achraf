@@ -2,7 +2,6 @@
 
 @section('title', 'Point de vente')
 @section('sidebar_page_title', 'Point de vente')
-@section('hide_shell_header')
 
 @section('main')
 <div

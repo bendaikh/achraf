@@ -1,7 +1,11 @@
+@php
+    $navigationModules = \App\Support\Navigation::modules(Auth::user());
+@endphp
+
 <div class="flex flex-col h-full">
     <div class="p-4 border-b border-gray-200 flex-shrink-0">
         <div class="flex items-center" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'space-x-3'">
-            <div class="h-10 w-10 bg-[#fdb819] rounded-lg flex items-center justify-center flex-shrink-0">
+            <div class="h-10 w-10 bg-[#fdb819] rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
                 <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                 </svg>
@@ -13,276 +17,63 @@
         </div>
     </div>
 
-    <nav class="flex-1 overflow-y-auto p-4 space-y-2" :class="sidebarCollapsed && !sidebarOpen ? 'px-2' : 'p-4'">
-    <a href="{{ route('dashboard') }}" class="flex items-center rounded-lg {{ request()->routeIs('dashboard') ? 'bg-[#fdb819] text-white' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'space-x-3 px-4 py-3'" title="Tableau de bord">
-        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
-        </svg>
-        <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Tableau de bord</span>
-    </a>
-
-    <a href="{{ route('financial.index') }}" class="flex items-center rounded-lg {{ request()->routeIs('financial.*') ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'space-x-3 px-4 py-3'" title="Gestion Financière">
-        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-        </svg>
-        <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Gestion Financière</span>
-    </a>
-
-    <div x-data="{ open: {{ request()->is('purchases/*') ? 'true' : 'false' }} }" class="space-y-1">
-        <button @click="open = !open" class="w-full flex items-center rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'justify-between px-4 py-3'" title="Gestion achats">
-            <div class="flex items-center" :class="sidebarCollapsed && !sidebarOpen ? '' : 'space-x-3'">
-                <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+    <nav class="flex-1 overflow-y-auto py-4 space-y-1" :class="sidebarCollapsed && !sidebarOpen ? 'px-2' : 'px-3'">
+        @foreach ($navigationModules as $module)
+            @php
+                $moduleActive = \App\Support\Navigation::isActive($module, request());
+            @endphp
+            <a
+                href="{{ route($module['route']) }}"
+                class="group relative flex items-center rounded-xl transition-all duration-150 {{ $moduleActive ? 'bg-[#fdb819] text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-950' }}"
+                :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'space-x-3 px-4 py-3'"
+                title="{{ $module['label'] }}"
+                @if($moduleActive) aria-current="page" @endif
+            >
+                @if($moduleActive)
+                    <span class="absolute -left-3 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-[#0a5d8a]" x-show="!sidebarCollapsed || sidebarOpen"></span>
+                @endif
+                <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    @foreach ($module['icon'] as $path)
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $path }}"></path>
+                    @endforeach
                 </svg>
-                <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Gestion achats</span>
-            </div>
-            <svg x-show="!sidebarCollapsed || sidebarOpen" :class="{'rotate-180': open}" class="h-4 w-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </button>
-        <div x-show="open && (!sidebarCollapsed || sidebarOpen)" x-transition class="ml-4 space-y-1 border-l-2 border-gray-200 pl-4">
-            <a href="{{ route('expenses-with-invoice.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('expenses-with-invoice.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <span>Dépense avec facture</span>
+                <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>
+                    {{ $module['label'] }}
+                </span>
+                @if(!empty($module['children']))
+                    <svg
+                        class="ml-auto h-4 w-4 flex-shrink-0 {{ $moduleActive ? 'text-white/80' : 'text-gray-400 group-hover:text-gray-600' }}"
+                        x-show="!sidebarCollapsed || sidebarOpen"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                @endif
             </a>
-            <a href="{{ route('expenses-without-invoice.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('expenses-without-invoice.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                </svg>
-                <span>Dépense sans facture</span>
-            </a>
-            <a href="{{ route('supplier-purchase-orders.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('supplier-purchase-orders.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <span>BC Fournisseur</span>
-            </a>
-            <a href="{{ route('supplier-delivery-notes.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('supplier-delivery-notes.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
-                </svg>
-                <span>Bon de livraison</span>
-            </a>
-            <a href="{{ route('receptions.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('receptions.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                </svg>
-                <span>Bon de réception</span>
-            </a>
-            <a href="{{ route('supplier-invoices.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('supplier-invoices.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <span>Factures fournisseur</span>
-            </a>
-            <a href="{{ route('supplier-credit-notes.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('supplier-credit-notes.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"></path>
-                </svg>
-                <span>Avoirs fournisseur</span>
-            </a>
-            <a href="{{ route('purchases.payments.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('purchases.payments.*') || request()->routeIs('supplier-invoices.payments.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                </svg>
-                <span>Gestion Paiement</span>
-            </a>
-        </div>
-    </div>
-
-    <div x-data="{ open: {{ request()->routeIs('pos.*') ? 'true' : 'false' }} }" class="space-y-1">
-        <button @click="open = !open" type="button" class="w-full flex items-center rounded-lg {{ request()->routeIs('pos.*') ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'justify-between px-4 py-3'" title="Point de vente">
-            <div class="flex items-center" :class="sidebarCollapsed && !sidebarOpen ? '' : 'space-x-3'">
-                <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                </svg>
-                <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Point de vente</span>
-            </div>
-            <svg x-show="!sidebarCollapsed || sidebarOpen" :class="{'rotate-180': open}" class="h-4 w-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </button>
-        <div x-show="open && (!sidebarCollapsed || sidebarOpen)" x-transition class="ml-4 space-y-1 border-l-2 border-emerald-200 pl-4">
-            <a href="{{ route('pos.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('pos.index') ? 'text-emerald-700 bg-emerald-50' : 'text-gray-600 hover:text-emerald-700 hover:bg-emerald-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/></svg>
-                <span>Caisse</span>
-            </a>
-            <a href="{{ route('pos.sales.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('pos.sales.*') ? 'text-emerald-700 bg-emerald-50' : 'text-gray-600 hover:text-emerald-700 hover:bg-emerald-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                <span>Historique & paiements</span>
-            </a>
-        </div>
-    </div>
-
-    <div x-data="{ open: {{ request()->is('crm/*') ? 'true' : 'false' }} }" class="space-y-1">
-        <button @click="open = !open" class="w-full flex items-center rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'justify-between px-4 py-3'" title="CRM">
-            <div class="flex items-center" :class="sidebarCollapsed && !sidebarOpen ? '' : 'space-x-3'">
-                <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                </svg>
-                <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>CRM</span>
-            </div>
-            <svg x-show="!sidebarCollapsed || sidebarOpen" :class="{'rotate-180': open}" class="h-4 w-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </button>
-        <div x-show="open && (!sidebarCollapsed || sidebarOpen)" x-transition class="ml-4 space-y-1 border-l-2 border-gray-200 pl-4">
-            <a href="{{ route('clients.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('clients.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                </svg>
-                <span>Clients</span>
-            </a>
-            <a href="{{ route('suppliers.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('suppliers.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                </svg>
-                <span>Fournisseurs</span>
-            </a>
-        </div>
-    </div>
-
-    <a href="{{ route('products.index') }}" class="flex items-center rounded-lg {{ request()->routeIs('products.*') ? 'bg-[#fdb819] text-white' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'space-x-3 px-4 py-3'" title="Gestion produits">
-        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-        </svg>
-        <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Gestion produits</span>
-    </a>
-
-    <div x-data="{ open: {{ request()->is('stock/*') ? 'true' : 'false' }} }" class="space-y-1">
-        <button @click="open = !open" class="w-full flex items-center rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'justify-between px-4 py-3'" title="Gestion stock">
-            <div class="flex items-center" :class="sidebarCollapsed && !sidebarOpen ? '' : 'space-x-3'">
-                <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>
-                </svg>
-                <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Gestion stock</span>
-            </div>
-            <svg x-show="!sidebarCollapsed || sidebarOpen" :class="{'rotate-180': open}" class="h-4 w-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </button>
-        <div x-show="open && (!sidebarCollapsed || sidebarOpen)" x-transition class="ml-4 space-y-1 border-l-2 border-gray-200 pl-4">
-            <a href="{{ route('stock.enligne.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('stock.enligne.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
-                </svg>
-                <span>Stock Enligne</span>
-            </a>
-            <a href="{{ route('stock.magasin.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('stock.magasin.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                </svg>
-                <span>Stock Magasin</span>
-            </a>
-        </div>
-    </div>
-
-    <div x-data="{ open: {{ request()->is('sales/*') ? 'true' : 'false' }} }" class="space-y-1">
-        <button @click="open = !open" class="w-full flex items-center rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'justify-between px-4 py-3'" title="Gestion ventes">
-            <div class="flex items-center" :class="sidebarCollapsed && !sidebarOpen ? '' : 'space-x-3'">
-                <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Gestion ventes</span>
-            </div>
-            <svg x-show="!sidebarCollapsed || sidebarOpen" :class="{'rotate-180': open}" class="h-4 w-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </button>
-        <div x-show="open && (!sidebarCollapsed || sidebarOpen)" x-transition class="ml-4 space-y-1 border-l-2 border-gray-200 pl-4">
-            <a href="{{ route('orders.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('orders.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
-                </svg>
-                <span>Commandes</span>
-            </a>
-            <a href="{{ route('quotes.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('quotes.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <span>Devis</span>
-            </a>
-            <a href="{{ route('purchase-orders.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('purchase-orders.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <span>BC</span>
-            </a>
-            <a href="{{ route('delivery-notes.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('delivery-notes.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
-                </svg>
-                <span>Bon de livraison</span>
-            </a>
-            <a href="{{ route('invoices.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('invoices.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <span>Factures</span>
-            </a>
-            <a href="{{ route('credit-notes.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('credit-notes.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"></path>
-                </svg>
-                <span>Avoirs</span>
-            </a>
-            <a href="{{ route('sales.payments.index') }}" class="flex items-center space-x-2 px-3 py-2 rounded text-sm {{ request()->routeIs('sales.payments.*') || request()->routeIs('invoices.payments.*') ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50' }} transition duration-150">
-                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                </svg>
-                <span>Gestion Paiement</span>
-            </a>
-        </div>
-    </div>
-
-    <div class="pt-2 mt-2 border-t border-gray-200">
-        <p class="px-4 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Intégrations</p>
-        <a href="{{ route('integrations.shopify.edit') }}" class="flex items-center rounded-lg {{ request()->routeIs('integrations.shopify.*') ? 'bg-[#96BF48]/15 text-[#5a7a2e] ring-1 ring-[#96BF48]/40' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'space-x-3 px-4 py-3'" title="Shopify Integration">
-            <svg class="h-5 w-5 shrink-0 text-[#96BF48]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
-            </svg>
-            <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Shopify Integration</span>
-        </a>
-        <a href="{{ route('integrations.jumia.edit') }}" class="flex items-center rounded-lg {{ request()->routeIs('integrations.jumia.*') ? 'bg-[#F68B1E]/15 text-[#b35f0f] ring-1 ring-[#F68B1E]/40' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'space-x-3 px-4 py-3'" title="Jumia Integration">
-            <svg class="h-5 w-5 shrink-0 text-[#F68B1E]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
-            </svg>
-            <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Jumia Integration</span>
-        </a>
-    </div>
-
-    <div class="pt-2 mt-2 border-t border-gray-200">
-        <p class="px-4 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Configuration</p>
-        <a href="{{ route('settings.index') }}" class="flex items-center rounded-lg {{ request()->routeIs('settings.*') ? 'bg-[#fdb819] text-white' : 'text-gray-700 hover:bg-gray-100' }} transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-3 py-3' : 'space-x-3 px-4 py-3'" title="Paramètres">
-            <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-            </svg>
-            <span class="font-medium whitespace-nowrap" x-show="!sidebarCollapsed || sidebarOpen" x-transition>Paramètres</span>
-        </a>
-    </div>
+        @endforeach
     </nav>
 
     <div class="flex-shrink-0 border-t border-gray-200 bg-white" :class="sidebarCollapsed && !sidebarOpen ? 'p-2' : 'p-4'">
-    <div class="flex items-center mb-3" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'space-x-3'">
-        <div class="h-10 w-10 bg-[#fdb819] rounded-full flex items-center justify-center flex-shrink-0">
-            <span class="text-white font-semibold text-sm">{{ substr(Auth::user()->name, 0, 2) }}</span>
+        <div class="flex items-center mb-3" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center' : 'space-x-3'">
+            <div class="h-10 w-10 bg-[#fdb819] rounded-full flex items-center justify-center flex-shrink-0">
+                <span class="text-white font-semibold text-sm">{{ substr(Auth::user()->name, 0, 2) }}</span>
+            </div>
+            <div class="flex-1 min-w-0" x-show="!sidebarCollapsed || sidebarOpen" x-transition>
+                <p class="text-sm font-medium text-gray-900 truncate">{{ Auth::user()->name }}</p>
+                <p class="text-xs text-gray-500 truncate">{{ Auth::user()->email }}</p>
+            </div>
         </div>
-        <div class="flex-1 min-w-0" x-show="!sidebarCollapsed || sidebarOpen" x-transition>
-            <p class="text-sm font-medium text-gray-900 truncate">{{ Auth::user()->name }}</p>
-            <p class="text-xs text-gray-500 truncate">{{ Auth::user()->email }}</p>
-        </div>
+        <form action="{{ route('logout') }}" method="POST">
+            @csrf
+            <button type="submit" class="w-full flex items-center border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-2 py-2' : 'justify-center space-x-2 px-4 py-2'" title="Déconnexion">
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                </svg>
+                <span x-show="!sidebarCollapsed || sidebarOpen" x-transition>Déconnexion</span>
+            </button>
+        </form>
     </div>
-    <form action="{{ route('logout') }}" method="POST">
-        @csrf
-        <button type="submit" class="w-full flex items-center border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-150" :class="sidebarCollapsed && !sidebarOpen ? 'justify-center px-2 py-2' : 'justify-center space-x-2 px-4 py-2'" title="Déconnexion">
-            <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            <span x-show="!sidebarCollapsed || sidebarOpen" x-transition>Déconnexion</span>
-        </button>
-    </form>
-</div>
 </div>
