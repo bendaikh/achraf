@@ -46,6 +46,7 @@ class SupplierPurchaseOrderController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'order_number' => 'required|string|unique:supplier_purchase_orders,order_number',
             'supplier_id' => 'required|exists:suppliers,id',
             'order_date' => 'required|date',
             'due_date' => 'nullable|date',
@@ -68,7 +69,7 @@ class SupplierPurchaseOrderController extends Controller
         DB::beginTransaction();
         try {
             $order = SupplierPurchaseOrder::create([
-                'order_number' => DocumentNumberService::generate('bc_fournisseur'),
+                'order_number' => $validated['order_number'],
                 'supplier_id' => $validated['supplier_id'],
                 'order_date' => $validated['order_date'],
                 'due_date' => $validated['due_date'] ?? null,
@@ -127,6 +128,7 @@ class SupplierPurchaseOrderController extends Controller
     public function update(Request $request, SupplierPurchaseOrder $supplierPurchaseOrder)
     {
         $validated = $request->validate([
+            'order_number' => 'required|string|unique:supplier_purchase_orders,order_number,' . $supplierPurchaseOrder->id,
             'supplier_id' => 'required|exists:suppliers,id',
             'order_date' => 'required|date',
             'due_date' => 'nullable|date',
@@ -149,6 +151,7 @@ class SupplierPurchaseOrderController extends Controller
         DB::beginTransaction();
         try {
             $supplierPurchaseOrder->update([
+                'order_number' => $validated['order_number'],
                 'supplier_id' => $validated['supplier_id'],
                 'order_date' => $validated['order_date'],
                 'due_date' => $validated['due_date'] ?? null,

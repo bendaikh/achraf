@@ -5,92 +5,45 @@
 @section('sidebar_page_title', 'Paramètres')
 
 @section('main')
+@php
+    $settingsTabs = [
+        ['key' => 'facture', 'label' => 'Facture'],
+        ['key' => 'devis', 'label' => 'Devis'],
+        ['key' => 'avoir', 'label' => 'Avoir'],
+        ['key' => 'bc_fournisseur', 'label' => 'Bon de Commande Fournisseur'],
+        ['key' => 'bc_client', 'label' => 'Bon de Commande Client'],
+        ['key' => 'bon_livraison', 'label' => 'Bon de Livraison'],
+        ['key' => 'bon_reception', 'label' => 'Bon de Réception'],
+        ['key' => 'categorie_tva', 'label' => 'Catégorie TVA'],
+        ['key' => 'type_produit', 'label' => 'Type produit'],
+        ['key' => 'produit', 'label' => 'Produit'],
+        ['key' => 'depenses', 'label' => 'Dépenses'],
+        ['key' => 'mon_entreprise', 'label' => 'Mon Entreprise'],
+    ];
+@endphp
 <main class="flex-1 overflow-y-auto bg-gray-100" x-data="{ activeTab: '{{ request('tab', 'facture') }}' }">
-    <div class="flex h-full">
-        <!-- Settings Sidebar -->
-        <div class="w-64 bg-white border-r border-gray-200 flex-shrink-0">
-            <div class="p-4 border-b border-gray-200">
-                <h2 class="text-lg font-semibold text-gray-900">Paramètres</h2>
-                <p class="text-sm text-gray-500">Configuration générale</p>
-            </div>
-            <nav class="p-2 space-y-1">
-                <button @click="activeTab = 'facture'" :class="activeTab === 'facture' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
-                    <span class="font-medium">Facture</span>
+    <nav class="module-tabs-scroll overflow-x-auto border-b border-gray-200 bg-white" aria-label="Configuration Paramètres">
+        <div class="flex min-w-max items-center gap-1 px-4">
+            @foreach ($settingsTabs as $tab)
+                <button
+                    type="button"
+                    @click="activeTab = '{{ $tab['key'] }}'"
+                    :class="activeTab === '{{ $tab['key'] }}' ? 'text-[#0a5d8a]' : 'text-gray-500 hover:text-gray-900'"
+                    :aria-current="activeTab === '{{ $tab['key'] }}' ? 'page' : false"
+                    class="relative inline-flex min-h-12 items-center px-3 py-3 text-sm font-medium whitespace-nowrap transition-colors"
+                >
+                    {{ $tab['label'] }}
+                    <span
+                        x-show="activeTab === '{{ $tab['key'] }}'"
+                        x-cloak
+                        class="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#fdb819]"
+                    ></span>
                 </button>
-                <button @click="activeTab = 'devis'" :class="activeTab === 'devis' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
-                    <span class="font-medium">Devis</span>
-                </button>
-                <button @click="activeTab = 'avoir'" :class="activeTab === 'avoir' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"></path>
-                    </svg>
-                    <span class="font-medium">Avoir</span>
-                </button>
-                <button @click="activeTab = 'bc_fournisseur'" :class="activeTab === 'bc_fournisseur' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
-                    </svg>
-                    <span class="font-medium">Bon de Commande Fournisseur</span>
-                </button>
-                <button @click="activeTab = 'bc_client'" :class="activeTab === 'bc_client' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                    </svg>
-                    <span class="font-medium">Bon de Commande Client</span>
-                </button>
-                <button @click="activeTab = 'bon_livraison'" :class="activeTab === 'bon_livraison' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path>
-                    </svg>
-                    <span class="font-medium">Bon de Livraison</span>
-                </button>
-                <button @click="activeTab = 'bon_reception'" :class="activeTab === 'bon_reception' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
-                    </svg>
-                    <span class="font-medium">Bon de Réception</span>
-                </button>
-                <button @click="activeTab = 'categorie_tva'" :class="activeTab === 'categorie_tva' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                    </svg>
-                    <span class="font-medium">Catégorie TVA</span>
-                </button>
-                <button @click="activeTab = 'type_produit'" :class="activeTab === 'type_produit' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
-                    </svg>
-                    <span class="font-medium">Type produit</span>
-                </button>
-                <button @click="activeTab = 'produit'" :class="activeTab === 'produit' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                    </svg>
-                    <span class="font-medium">Produit</span>
-                </button>
-                <button @click="activeTab = 'depenses'" :class="activeTab === 'depenses' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                    </svg>
-                    <span class="font-medium">Dépenses</span>
-                </button>
-                <button @click="activeTab = 'mon_entreprise'" :class="activeTab === 'mon_entreprise' ? 'bg-[#0a5d8a] text-white' : 'text-gray-700 hover:bg-gray-100'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition duration-150 text-left">
-                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                    </svg>
-                    <span class="font-medium">Mon Entreprise</span>
-                </button>
-            </nav>
+            @endforeach
         </div>
+    </nav>
 
-        <!-- Settings Content -->
-        <div class="flex-1 p-8 overflow-y-auto">
+    <div class="p-8">
             @if (session('success'))
                 <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
                     {{ session('success') }}
@@ -725,7 +678,6 @@
 
             @include('settings.partials.depenses')
             @include('settings.partials.mon-entreprise')
-        </div>
     </div>
 </main>
 @endsection

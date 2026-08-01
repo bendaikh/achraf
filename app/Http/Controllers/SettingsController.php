@@ -96,8 +96,8 @@ class SettingsController extends Controller
         foreach ($this->companyFields as $field) {
             $settings[$field] = Setting::get($field, '');
         }
-        $settings['company_logo'] = Setting::get('company_logo');
-        $settings['company_cachet'] = Setting::get('company_cachet');
+        $settings['company_logo'] = $this->resolvePublicSetting('company_logo', 'Logo entreprise');
+        $settings['company_cachet'] = $this->resolvePublicSetting('company_cachet', 'Cachet entreprise');
 
         $settings['expense_categories'] = implode("\n", Setting::getList('expense_categories'));
         $settings['expense_accounts'] = implode("\n", Setting::getList('expense_accounts'));
@@ -239,5 +239,21 @@ class SettingsController extends Controller
         $raw = $request->input($key, '');
         $items = preg_split('/\r\n|\r|\n/', (string) $raw) ?: [];
         Setting::setList($key, $items, $description);
+    }
+
+    protected function resolvePublicSetting(string $key, string $description): ?string
+    {
+        $path = Setting::get($key);
+        if (! $path) {
+            return null;
+        }
+
+        if (Storage::disk('public')->exists($path)) {
+            return $path;
+        }
+
+        Setting::set($key, null, $description);
+
+        return null;
     }
 }

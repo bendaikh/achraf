@@ -60,7 +60,7 @@ class SupplierDeliveryNoteController extends Controller
         DB::beginTransaction();
         try {
             $deliveryNote = SupplierDeliveryNote::create([
-                'delivery_number' => DocumentNumberService::generate('bon_livraison_fournisseur'),
+                'delivery_number' => $validated['delivery_number'],
                 'supplier_id' => $validated['supplier_id'],
                 'delivery_date' => $validated['delivery_date'],
                 'expected_reception_date' => $validated['expected_reception_date'] ?? null,
@@ -118,11 +118,12 @@ class SupplierDeliveryNoteController extends Controller
 
     public function update(Request $request, SupplierDeliveryNote $supplierDeliveryNote)
     {
-        $validated = $this->validateSupplierDeliveryNote($request);
+        $validated = $this->validateSupplierDeliveryNote($request, $supplierDeliveryNote);
 
         DB::beginTransaction();
         try {
             $supplierDeliveryNote->update([
+                'delivery_number' => $validated['delivery_number'],
                 'supplier_id' => $validated['supplier_id'],
                 'delivery_date' => $validated['delivery_date'],
                 'expected_reception_date' => $validated['expected_reception_date'] ?? null,
@@ -204,9 +205,15 @@ class SupplierDeliveryNoteController extends Controller
         );
     }
 
-    protected function validateSupplierDeliveryNote(Request $request): array
+    protected function validateSupplierDeliveryNote(Request $request, ?SupplierDeliveryNote $supplierDeliveryNote = null): array
     {
+        $uniqueRule = 'unique:supplier_delivery_notes,delivery_number';
+        if ($supplierDeliveryNote) {
+            $uniqueRule .= ','.$supplierDeliveryNote->id;
+        }
+
         return $request->validate([
+            'delivery_number' => 'required|string|'.$uniqueRule,
             'supplier_id' => 'required|exists:suppliers,id',
             'delivery_date' => 'required|date',
             'expected_reception_date' => 'nullable|date',

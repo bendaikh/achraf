@@ -45,6 +45,7 @@ class SupplierCreditNoteController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'credit_note_number' => 'required|string|unique:supplier_credit_notes,credit_note_number',
             'supplier_id' => 'required|exists:suppliers,id',
             'credit_note_date' => 'required|date',
             'invoice' => 'nullable|string',
@@ -65,7 +66,7 @@ class SupplierCreditNoteController extends Controller
         DB::beginTransaction();
         try {
             $creditNote = SupplierCreditNote::create([
-                'credit_note_number' => 'AVOIR-FOUR N°' . str_pad(SupplierCreditNote::count() + 1, 6, '0', STR_PAD_LEFT),
+                'credit_note_number' => $validated['credit_note_number'],
                 'supplier_id' => $validated['supplier_id'],
                 'credit_note_date' => $validated['credit_note_date'],
                 'invoice' => $validated['invoice'] ?? null,

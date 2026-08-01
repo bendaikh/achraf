@@ -51,8 +51,8 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de bon de livraison</label>
-                            <input type="text" value="{{ $supplierDeliveryNote->delivery_number }}" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de bon de livraison *</label>
+                            <input type="text" name="delivery_number" value="{{ old('delivery_number', $supplierDeliveryNote->delivery_number) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Saisir le numéro de bon de livraison">
                         </div>
 
                         <div>

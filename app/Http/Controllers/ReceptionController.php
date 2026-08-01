@@ -58,6 +58,7 @@ class ReceptionController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'reception_number' => 'required|string|unique:receptions,reception_number',
             'supplier_id' => 'required|exists:suppliers,id',
             'reception_date' => 'required|date',
             'delivery_date' => 'nullable|date',
@@ -81,7 +82,7 @@ class ReceptionController extends Controller
         DB::beginTransaction();
         try {
             $reception = Reception::create([
-                'reception_number' => DocumentNumberService::generate('bon_reception'),
+                'reception_number' => $validated['reception_number'],
                 'supplier_id' => $validated['supplier_id'],
                 'reception_date' => $validated['reception_date'],
                 'delivery_date' => $validated['delivery_date'] ?? null,
@@ -149,6 +150,7 @@ class ReceptionController extends Controller
     public function update(Request $request, Reception $reception)
     {
         $validated = $request->validate([
+            'reception_number' => 'required|string|unique:receptions,reception_number,' . $reception->id,
             'supplier_id' => 'required|exists:suppliers,id',
             'reception_date' => 'required|date',
             'delivery_date' => 'nullable|date',
@@ -172,6 +174,7 @@ class ReceptionController extends Controller
         DB::beginTransaction();
         try {
             $reception->update([
+                'reception_number' => $validated['reception_number'],
                 'supplier_id' => $validated['supplier_id'],
                 'reception_date' => $validated['reception_date'],
                 'delivery_date' => $validated['delivery_date'] ?? null,
