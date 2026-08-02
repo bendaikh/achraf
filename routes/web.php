@@ -62,6 +62,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
     Route::get('/financial', [FinancialManagementController::class, 'index'])->name('financial.index');
+    Route::get('/financial/export', [FinancialManagementController::class, 'export'])->name('financial.export');
     Route::post('/document-files/{type}/{id}', [DocumentFileController::class, 'store'])->name('document-files.store');
     
     Route::resource('products', ProductController::class);
