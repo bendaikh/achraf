@@ -17,5 +17,9 @@
     $dashboardPageVersion = is_readable($dashboardPageScript) ? filemtime($dashboardPageScript) : time();
 @endphp
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+@if (is_readable($dashboardPageScript))
+<script>/* dashboard-page v={{ $dashboardPageVersion }} */{!! file_get_contents($dashboardPageScript) !!}</script>
+@else
 <script src="{{ asset('js/dashboard-page.js') }}?v={{ $dashboardPageVersion }}"></script>
+@endif
 @endpush

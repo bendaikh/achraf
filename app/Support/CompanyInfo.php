@@ -45,7 +45,7 @@ class CompanyInfo
   {
     $path = Setting::get('company_logo');
     if ($path && Storage::disk('public')->exists($path)) {
-      return asset('storage/'.$path);
+      return PublicStorage::url($path);
     }
 
     return null;
@@ -123,7 +123,7 @@ class CompanyInfo
       $realPath = realpath($absolutePath) ?: $absolutePath;
       $src = str_replace('\\', '/', $realPath);
     } else {
-      $src = asset('storage/'.$storedPath);
+      $src = PublicStorage::url($storedPath);
     }
 
     return [
@@ -245,7 +245,7 @@ class CompanyInfo
   protected static function publicAssetUrl(?string $path): ?string
   {
     if ($path && Storage::disk('public')->exists($path)) {
-      return Storage::disk('public')->url($path);
+      return PublicStorage::url($path);
     }
 
     return null;

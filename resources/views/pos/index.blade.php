@@ -381,7 +381,7 @@
 }
 </style>
 <script>
-function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc, defaultClientId) {
+window.posRegister = function posRegister(catalogMagasin, catalogEnligne, pricesAreTtc, defaultClientId) {
     return {
         catalogMagasin: catalogMagasin,
         catalogEnligne: catalogEnligne,

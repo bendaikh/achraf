@@ -2,8 +2,6 @@
 
 namespace App\Support;
 
-use DOMDocument;
-use DOMElement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,6 +12,9 @@ use Illuminate\Support\Facades\Auth;
  * Controllers may return SoftNavigation::response() directly (Dashboard),
  * or render a normal with-sidebar view — ConvertSoftNavigationResponse
  * extracts #app-page-root into JSON. Client: public/js/soft-nav.js.
+ *
+ * Extraction is regex/balanced-tag based (not DOMDocument) so Alpine.js
+ * attributes like @click / @keydown are preserved.
  */
 class SoftNavigation
 {
@@ -72,56 +73,121 @@ class SoftNavigation
             return null;
         }
 
-        $previous = libxml_use_internal_errors(true);
-        $dom = new DOMDocument();
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8">'.$html,
-            LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NONET
+        $rootHtml = self::extractInnerById($html, 'app-page-root');
+        if ($rootHtml === null) {
+            return null;
+        }
+
+        $pageTitle = self::extractInnerById($html, 'app-page-title');
+        $pageTitle = trim(html_entity_decode(strip_tags((string) $pageTitle), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+
+        $tabsHidden = (bool) preg_match(
+            '/<[^>]*\bid=["\']app-module-tabs["\'][^>]*\bhidden\b/i',
+            $html
         );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        if (! $loaded) {
-            return null;
-        }
-
-        $root = $dom->getElementById('app-page-root');
-        if (! $root instanceof DOMElement) {
-            return null;
-        }
-
-        $pageTitleEl = $dom->getElementById('app-page-title');
-        $tabsEl = $dom->getElementById('app-module-tabs');
-
-        $title = '';
-        $titles = $dom->getElementsByTagName('title');
-        if ($titles->length > 0) {
-            $title = trim($titles->item(0)?->textContent ?? '');
-        }
-
         $tabsHtml = '';
-        if ($tabsEl instanceof DOMElement && ! $tabsEl->hasAttribute('hidden')) {
-            $tabsHtml = trim(self::innerHtml($tabsEl));
+        if (! $tabsHidden) {
+            $tabsHtml = trim((string) self::extractInnerById($html, 'app-module-tabs'));
+        }
+
+        $title = 'LAV\'FAST';
+        if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $titleMatch)) {
+            $extracted = trim(html_entity_decode(strip_tags($titleMatch[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if ($extracted !== '') {
+                $title = $extracted;
+            }
         }
 
         return [
-            'title' => $title !== '' ? $title : 'LAV\'FAST',
-            'page_title' => trim($pageTitleEl?->textContent ?? '') ?: 'hsabati',
+            'title' => $title,
+            'page_title' => $pageTitle !== '' ? $pageTitle : 'hsabati',
             'url' => $request->fullUrlWithoutQuery(['soft_nav']),
-            'html' => self::innerHtml($root),
+            'html' => $rootHtml,
             'module' => self::moduleKey($request),
             'tabs_html' => $tabsHtml,
             'assets' => [],
         ];
     }
 
-    private static function innerHtml(DOMElement $element): string
+    /**
+     * Return inner HTML of the first element with the given id, preserving raw attributes.
+     */
+    private static function extractInnerById(string $html, string $id): ?string
     {
-        $html = '';
-        foreach ($element->childNodes as $child) {
-            $html .= $element->ownerDocument?->saveHTML($child) ?? '';
+        if (! preg_match(
+            '/<([a-z][a-z0-9]*)\b[^>]*\bid=(["\'])'.preg_quote($id, '/').'\2[^>]*>/i',
+            $html,
+            $match,
+            PREG_OFFSET_CAPTURE
+        )) {
+            return null;
         }
 
-        return $html;
+        $tag = $match[1][0];
+        $openEnd = $match[0][1] + strlen($match[0][0]);
+        $close = self::findMatchingCloseTag($html, $tag, $openEnd);
+
+        if ($close === null) {
+            return null;
+        }
+
+        return substr($html, $openEnd, $close - $openEnd);
+    }
+
+    private static function findMatchingCloseTag(string $html, string $tag, int $from): ?int
+    {
+        $tagLower = strtolower($tag);
+        $openNeedle = '<'.$tagLower;
+        $closeNeedle = '</'.$tagLower.'>';
+        $length = strlen($html);
+        $pos = $from;
+        $depth = 1;
+
+        while ($depth > 0 && $pos < $length) {
+            $nextOpen = self::findNextOpenTag($html, $openNeedle, $pos);
+            $nextClose = stripos($html, $closeNeedle, $pos);
+
+            if ($nextClose === false) {
+                return null;
+            }
+
+            if ($nextOpen !== false && $nextOpen < $nextClose) {
+                $depth++;
+                $pos = $nextOpen + strlen($openNeedle);
+
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return $nextClose;
+            }
+            $pos = $nextClose + strlen($closeNeedle);
+        }
+
+        return null;
+    }
+
+    private static function findNextOpenTag(string $html, string $openNeedle, int $from): int|false
+    {
+        $pos = $from;
+        $length = strlen($html);
+        $needleLen = strlen($openNeedle);
+
+        while ($pos < $length) {
+            $found = stripos($html, $openNeedle, $pos);
+            if ($found === false) {
+                return false;
+            }
+
+            $after = $html[$found + $needleLen] ?? '';
+            if ($after === '>' || ctype_space($after) || $after === '/') {
+                return $found;
+            }
+
+            $pos = $found + $needleLen;
+        }
+
+        return false;
     }
 }

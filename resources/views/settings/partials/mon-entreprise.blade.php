@@ -12,7 +12,7 @@
                 <div class="mt-6 flex flex-col sm:flex-row sm:items-start gap-6">
                     <div class="flex-shrink-0">
                         @if(!empty($settings['company_logo']))
-                            <img src="{{ asset('storage/' . $settings['company_logo']) }}" alt="Logo" class="h-24 w-24 rounded-full object-cover border border-gray-200">
+                            <img src="{{ \App\Support\PublicStorage::url($settings['company_logo']) }}" alt="Logo" class="h-24 w-24 rounded-full object-cover border border-gray-200">
                         @else
                             <div class="h-24 w-24 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 text-xs text-center px-2">
                                 Aucun logo
@@ -44,7 +44,7 @@
                 <div class="mt-6 flex flex-col sm:flex-row sm:items-start gap-6">
                     <div class="flex-shrink-0">
                         @if(!empty($settings['company_cachet']))
-                            <img src="{{ asset('storage/' . $settings['company_cachet']) }}" alt="Cachet" class="h-24 w-auto max-w-[140px] object-contain border border-gray-200 rounded-lg p-1 bg-white">
+                            <img src="{{ \App\Support\PublicStorage::url($settings['company_cachet']) }}" alt="Cachet" class="h-24 w-auto max-w-[140px] object-contain border border-gray-200 rounded-lg p-1 bg-white">
                         @else
                             <div class="h-24 w-32 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 text-xs text-center px-2">
                                 Aucun cachet

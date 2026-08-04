@@ -235,7 +235,7 @@ function calculateTotal() {
 }
 
 // Calculate total on page load
-document.addEventListener('DOMContentLoaded', function() {
+SoftNav.whenReady(function() {
     calculateTotal();
 });
 </script>

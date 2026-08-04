@@ -84,23 +84,11 @@ class Product extends Model
     }
 
     /**
-     * Get the full URL for the product image
-     * Works in both local development and production (shared hosting)
+     * Get the full URL for the product image.
      */
     public function getImageUrlAttribute(): ?string
     {
-        if (!$this->image) {
-            return null;
-        }
-
-        // For shared hosting where symlinks don't work via HTTP
-        // Set STORAGE_DIRECT_PATH=true in your .env file
-        if (config('app.storage_direct_path', false)) {
-            return asset('storage/app/public/' . $this->image);
-        }
-        
-        // Standard Laravel storage path (works with symlink)
-        return asset('storage/' . $this->image);
+        return \App\Support\PublicStorage::url($this->image);
     }
 
     public function invoiceItems()

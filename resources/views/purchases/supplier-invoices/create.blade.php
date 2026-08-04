@@ -216,7 +216,7 @@ function addItem() {
         $('#product_select_' + itemIndex).select2({
             placeholder: 'Rechercher un produit...',
             allowClear: true,
-            width: '100%',
+            width: '15rem',
             language: {
                 noResults: function() {
                     return "Aucun produit trouvé";
@@ -237,7 +237,7 @@ function removeItem(button) {
     calculateCommercialTotal();
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+SoftNav.whenReady(function() {
     addItem();
     
     document.getElementById('invoiceForm').addEventListener('submit', function(e) {

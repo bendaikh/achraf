@@ -15,7 +15,6 @@
     RewriteRule (^|/)schedule-runner\.php$ - [F,L]
     RewriteRule (^|/)setup\.php$ - [F,L]
     RewriteRule (^|/)verify-image-sync\.php$ - [F,L]
-    RewriteRule ^storage/.*\.php$ - [F,L]
     RewriteRule ^bootstrap/ - [F,L]
     RewriteRule ^vendor/ - [F,L]
     RewriteRule ^app/ - [F,L]
@@ -25,9 +24,18 @@
     RewriteRule ^tests/ - [F,L]
     RewriteRule ^resources/ - [F,L]
 
+    # Block PHP under storage, then map public media URLs to Laravel's public/storage symlink.
+    # Docroot is public_html (not public/), so /storage/* must not read the real storage/ tree.
+    RewriteRule ^storage/.*\.php$ - [F,L]
+    RewriteRule ^storage/app/public/(.*)$ public/storage/$1 [L]
+    RewriteRule ^storage/(.*)$ public/storage/$1 [L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Document root is public_html (not public/). Map asset URLs to Laravel's public/ folder.
+    RewriteRule ^js/(.*)$ public/js/$1 [L]
 
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d

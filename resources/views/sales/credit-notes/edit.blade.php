@@ -180,7 +180,7 @@ function addItemWithData(data) {
     `;
     tbody.insertBefore(row, tbody.firstChild);
     if (typeof $ !== 'undefined' && $.fn.select2) {
-        $('#product_select_' + itemIndex).select2({ placeholder: 'Rechercher un produit...', allowClear: true, width: '100%' });
+        $('#product_select_' + itemIndex).select2({ placeholder: 'Rechercher un produit...', allowClear: true, width: '15rem' });
     }
     itemIndex++;
     calculateCommercialTotal();
@@ -189,7 +189,7 @@ function addItemWithData(data) {
 function addItem() { addItemWithData({}); }
 function removeItem(button) { button.closest('tr').remove(); calculateCommercialTotal(); }
 
-document.addEventListener('DOMContentLoaded', function() {
+SoftNav.whenReady(function() {
     if (existingItems.length > 0) {
         existingItems.forEach(item => addItemWithData(item));
     } else {

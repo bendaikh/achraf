@@ -534,7 +534,9 @@
         }
     }
 
-    if (document.readyState === 'loading') {
+    if (window.SoftNav && typeof SoftNav.whenReady === 'function') {
+        SoftNav.whenReady(initFinancialCharts);
+    } else if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initFinancialCharts);
     } else {
         initFinancialCharts();

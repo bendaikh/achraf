@@ -60,7 +60,9 @@ class ExpenseWithInvoiceController extends Controller
     {
         $expenseWithInvoice->load('supplier');
 
-        return view('purchases.expenses-with-invoice.show', compact('expenseWithInvoice'));
+        return view('purchases.expenses-with-invoice.show', [
+            'expense' => $expenseWithInvoice,
+        ]);
     }
 
     public function edit(Expense $expenseWithInvoice)

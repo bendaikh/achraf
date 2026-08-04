@@ -178,6 +178,15 @@
             </div>
         </div>
         @endif
+        @php
+            $softNavScript = public_path('js/soft-nav.js');
+            $softNavVersion = is_readable($softNavScript) ? filemtime($softNavScript) : time();
+        @endphp
+        @if (is_readable($softNavScript))
+        <script>/* soft-nav v={{ $softNavVersion }} */{!! file_get_contents($softNavScript) !!}</script>
+        @else
+        <script src="{{ asset('js/soft-nav.js') }}?v={{ $softNavVersion }}"></script>
+        @endif
         <div id="app-page-root">
             @yield('main')
             @stack('scripts')
@@ -199,15 +208,6 @@
         </div>
     </div>
 </div>
-@php
-    $softNavScript = public_path('js/soft-nav.js');
-    $softNavVersion = is_readable($softNavScript) ? filemtime($softNavScript) : time();
-@endphp
-@if (is_readable($softNavScript))
-<script>/* soft-nav v={{ $softNavVersion }} */{!! file_get_contents($softNavScript) !!}</script>
-@else
-<script src="{{ asset('js/soft-nav.js') }}?v={{ $softNavVersion }}"></script>
-@endif
 <style>
     tr.table-row-selected {
         background-color: #fffbeb !important;

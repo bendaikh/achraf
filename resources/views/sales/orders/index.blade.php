@@ -496,7 +496,7 @@
 </main>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+SoftNav.whenReady(function() {
     const columnToggleBtn = document.getElementById('columnToggleBtn');
     const columnToggleMenu = document.getElementById('columnToggleMenu');
     const columnToggles = document.querySelectorAll('.column-toggle');

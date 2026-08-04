@@ -220,7 +220,7 @@ function addItemWithData(data) {
         $('#product_select_' + itemIndex).select2({
             placeholder: 'Rechercher un produit...',
             allowClear: true,
-            width: '100%',
+            width: '15rem',
             language: {
                 noResults: function() { return "Aucun produit trouvé"; },
                 searching: function() { return "Recherche..."; }
@@ -241,7 +241,7 @@ function removeItem(button) {
     calculateCommercialTotal();
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+SoftNav.whenReady(function() {
     if (existingItems.length > 0) {
         existingItems.forEach(function(item) {
             addItemWithData(item);

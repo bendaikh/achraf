@@ -76,14 +76,22 @@ class SoftNavigationSectionsTest extends TestCase
         $this->assertStringContainsString('dashboardPage', (string) $response->json('html'));
     }
 
-    public function test_normal_html_navigation_still_works(): void
+    public function test_pos_soft_nav_preserves_alpine_event_attributes_and_scripts(): void
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->get(route('clients.index'));
+        $response = $this->actingAs($user)->get(route('pos.index'), [
+            SoftNavigation::HEADER => '1',
+            'Accept' => 'application/json',
+        ]);
 
         $response->assertOk();
-        $this->assertStringContainsString('app-page-root', $response->getContent());
-        $this->assertStringContainsString('app-shell-aside', $response->getContent());
+
+        $html = (string) $response->json('html');
+
+        $this->assertStringContainsString('@click', $html);
+        $this->assertStringContainsString('x-data="posRegister', $html);
+        $this->assertStringContainsString('window.posRegister', $html);
+        $this->assertStringNotContainsString('x-transition false', $html);
     }
 }

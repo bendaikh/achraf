@@ -7,6 +7,41 @@
     const loadedAssets = new Set();
     const IGNORE_PATH = /\/(print|pdf|export|download)(\/|$)/i;
     const IGNORE_TEMPLATE = /\/import\/template/i;
+    // True while injected page scripts run (before HTML is mounted into #app-page-root).
+    let mounting = false;
+    let mountReadyQueue = [];
+
+    /**
+     * Run after the current page DOM is available.
+     * Soft-nav executes scripts before mount, so DOMContentLoaded never fires again —
+     * queue callbacks and flush them right after #app-page-root is filled.
+     */
+    function whenReady(fn) {
+        if (typeof fn !== 'function') {
+            return;
+        }
+        if (mounting) {
+            mountReadyQueue.push(fn);
+            return;
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', fn);
+            return;
+        }
+        fn();
+    }
+
+    function flushMountReadyQueue() {
+        const queued = mountReadyQueue;
+        mountReadyQueue = [];
+        queued.forEach(function (fn) {
+            try {
+                fn();
+            } catch (error) {
+                console.error('[SoftNav] whenReady callback failed', error);
+            }
+        });
+    }
 
     function pageRoot() {
         return document.getElementById('app-page-root');
@@ -29,7 +64,22 @@
     }
 
     function loadAsset(asset) {
-        if (!asset || !asset.src) {
+        if (!asset || (asset.type !== 'script' && asset.type !== 'style')) {
+            return Promise.resolve();
+        }
+
+        // Inline scripts must run for each page (they define page-local Alpine helpers).
+        if (asset.type === 'script' && asset.content && !asset.src) {
+            return new Promise(function (resolve) {
+                const script = document.createElement('script');
+                script.textContent = asset.content;
+                document.head.appendChild(script);
+                script.remove();
+                resolve();
+            });
+        }
+
+        if (!asset.src) {
             return Promise.resolve();
         }
 
@@ -209,6 +259,12 @@
         return scripts.reduce(function (chain, oldScript) {
             return chain.then(function () {
                 return new Promise(function (resolve) {
+                    const type = (oldScript.getAttribute('type') || '').toLowerCase();
+                    if (type && type !== 'text/javascript' && type !== 'application/javascript') {
+                        resolve();
+                        return;
+                    }
+
                     const script = document.createElement('script');
                     Array.prototype.forEach.call(oldScript.attributes || [], function (attr) {
                         script.setAttribute(attr.name, attr.value);
@@ -217,17 +273,21 @@
                     if (oldScript.src) {
                         script.async = false;
                         script.onload = function () {
+                            oldScript.remove();
                             resolve();
                         };
                         script.onerror = function () {
+                            oldScript.remove();
                             resolve();
                         };
-                        oldScript.replaceWith(script);
+                        document.head.appendChild(script);
                         return;
                     }
 
-                    script.textContent = oldScript.textContent;
-                    oldScript.replaceWith(script);
+                    script.textContent = oldScript.textContent || '';
+                    document.head.appendChild(script);
+                    script.remove();
+                    oldScript.remove();
                     resolve();
                 });
             });
@@ -237,10 +297,24 @@
     async function mountHtml(root, html) {
         destroyCurrentPage(root);
         document.documentElement.classList.remove('pos-full-view-active');
-        root.innerHTML = html;
-        await initInjectedScripts(root);
-        if (window.Alpine && typeof window.Alpine.initTree === 'function') {
-            window.Alpine.initTree(root);
+
+        // Parse off-document first so Alpine's MutationObserver does not evaluate
+        // x-data (e.g. posRegister) before page scripts have defined those helpers.
+        const holder = document.createElement('div');
+        holder.innerHTML = html;
+        mounting = true;
+        mountReadyQueue = [];
+        try {
+            await initInjectedScripts(holder);
+
+            root.replaceChildren.apply(root, Array.prototype.slice.call(holder.childNodes));
+
+            if (window.Alpine && typeof window.Alpine.initTree === 'function') {
+                window.Alpine.initTree(root);
+            }
+        } finally {
+            mounting = false;
+            flushMountReadyQueue();
         }
     }
 
@@ -353,5 +427,6 @@
         logMetric,
         HEADER,
         shouldSoftNav,
+        whenReady,
     };
 })();

@@ -55,7 +55,9 @@ class ExpenseWithoutInvoiceController extends Controller
     {
         $expenseWithoutInvoice->load('client');
 
-        return view('purchases.expenses-without-invoice.show', compact('expenseWithoutInvoice'));
+        return view('purchases.expenses-without-invoice.show', [
+            'expense' => $expenseWithoutInvoice,
+        ]);
     }
 
     public function edit(Expense $expenseWithoutInvoice)
