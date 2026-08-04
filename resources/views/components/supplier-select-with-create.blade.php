@@ -1,11 +1,27 @@
-@props(['suppliers' => [], 'selectedId' => null, 'required' => true])
+@props([
+    'suppliers' => [],
+    'selectedId' => null,
+    'required' => true,
+    'selectId' => 'supplier_id',
+    'name' => 'supplier_id',
+])
 
-<div class="party-select-field w-full min-w-0" x-data="{ showSupplierModal: false, supplierError: '' }">
+<div
+    class="party-select-field w-full min-w-0"
+    data-quick-store-url="{{ route('suppliers.quick-store') }}"
+    data-select-id="{{ $selectId }}"
+    x-data="{
+        showSupplierModal: false,
+        supplierError: '',
+        quickStoreUrl: $el.dataset.quickStoreUrl,
+        selectId: $el.dataset.selectId
+    }"
+>
     <div class="flex items-center gap-2 w-full min-w-0">
         <div class="party-select-wrap min-w-0 flex-1">
             <select
-                name="supplier_id"
-                id="supplier_id"
+                @if($name !== null && $name !== '') name="{{ $name }}" @endif
+                id="{{ $selectId }}"
                 @if($required) required @endif
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
@@ -47,13 +63,13 @@
                     @submit.prevent="
                         supplierError = '';
                         const fd = new FormData($event.target);
-                        fetch(@js(route('suppliers.quick-store')), {
+                        fetch(quickStoreUrl, {
                             method: 'POST',
                             headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' },
                             body: fd
                         }).then(r => r.json().then(d => ({ ok: r.ok, d }))).then(({ ok, d }) => {
                             if (!ok) { supplierError = d.message || (d.errors ? Object.values(d.errors).flat().join(' ') : 'Erreur lors de la création'); return; }
-                            const sel = document.getElementById('supplier_id');
+                            const sel = document.getElementById(selectId);
                             const opt = new Option(d.text, d.id, true, true);
                             sel.add(opt);
                             sel.value = d.id;

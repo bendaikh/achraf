@@ -29,14 +29,9 @@
                 
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div>
+                        <div class="min-w-0">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Fournisseur *</label>
-                            <select name="supplier_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="">Sélectionner un fournisseur</option>
-                                @foreach($suppliers as $supplier)
-                                    <option value="{{ $supplier->id }}" {{ $supplierPurchaseOrder->supplier_id == $supplier->id ? 'selected' : '' }}>{{ $supplier->name }}</option>
-                                @endforeach
-                            </select>
+                            <x-supplier-select-with-create :suppliers="$suppliers" :selected-id="$supplierPurchaseOrder->supplier_id" />
                         </div>
 
                         <div>

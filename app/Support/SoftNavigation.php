@@ -2,8 +2,6 @@
 
 namespace App\Support;
 
-use DOMDocument;
-use DOMElement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,6 +16,14 @@ use Illuminate\Support\Facades\Auth;
 class SoftNavigation
 {
     public const HEADER = 'X-Soft-Navigation';
+
+    public const PAGE_START = '<!--soft-nav:page:start-->';
+
+    public const PAGE_END = '<!--soft-nav:page:end-->';
+
+    public const TABS_START = '<!--soft-nav:tabs:start-->';
+
+    public const TABS_END = '<!--soft-nav:tabs:end-->';
 
     public static function wants(Request $request): bool
     {
@@ -64,64 +70,68 @@ class SoftNavigation
     /**
      * Extract soft-nav payload from a full with-sidebar HTML document.
      *
+     * Uses comment markers (not DOMDocument) so inline scripts and Alpine
+     * attributes that contain HTML-like strings stay intact.
+     *
      * @return array<string, mixed>|null
      */
     public static function extractFromHtml(string $html, Request $request): ?array
     {
-        if (! str_contains($html, 'app-page-root')) {
+        if (! str_contains($html, self::PAGE_START) || ! str_contains($html, 'app-page-root')) {
             return null;
         }
 
-        $previous = libxml_use_internal_errors(true);
-        $dom = new DOMDocument();
-        $loaded = $dom->loadHTML(
-            '<?xml encoding="UTF-8">'.$html,
-            LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NONET
-        );
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        if (! $loaded) {
+        $pageHtml = self::between($html, self::PAGE_START, self::PAGE_END);
+        if ($pageHtml === null) {
             return null;
-        }
-
-        $root = $dom->getElementById('app-page-root');
-        if (! $root instanceof DOMElement) {
-            return null;
-        }
-
-        $pageTitleEl = $dom->getElementById('app-page-title');
-        $tabsEl = $dom->getElementById('app-module-tabs');
-
-        $title = '';
-        $titles = $dom->getElementsByTagName('title');
-        if ($titles->length > 0) {
-            $title = trim($titles->item(0)?->textContent ?? '');
         }
 
         $tabsHtml = '';
-        if ($tabsEl instanceof DOMElement && ! $tabsEl->hasAttribute('hidden')) {
-            $tabsHtml = trim(self::innerHtml($tabsEl));
+        $tabsOpen = self::matchFirst('/<div[^>]*\bid=(["\'])app-module-tabs\1[^>]*>/i', $html);
+        if ($tabsOpen !== null && ! preg_match('/\bhidden\b/i', $tabsOpen)) {
+            $tabsHtml = trim((string) self::between($html, self::TABS_START, self::TABS_END));
         }
+
+        $title = trim((string) self::matchFirst('/<title[^>]*>(.*?)<\/title>/is', $html, 1));
+        $pageTitle = trim(html_entity_decode(
+            strip_tags((string) self::matchFirst('/<[^>]*\bid=(["\'])app-page-title\1[^>]*>(.*?)<\//is', $html, 2)),
+            ENT_QUOTES | ENT_HTML5,
+            'UTF-8'
+        ));
 
         return [
             'title' => $title !== '' ? $title : 'LAV\'FAST',
-            'page_title' => trim($pageTitleEl?->textContent ?? '') ?: 'hsabati',
+            'page_title' => $pageTitle !== '' ? $pageTitle : 'hsabati',
             'url' => $request->fullUrlWithoutQuery(['soft_nav']),
-            'html' => self::innerHtml($root),
+            'html' => $pageHtml,
             'module' => self::moduleKey($request),
             'tabs_html' => $tabsHtml,
             'assets' => [],
         ];
     }
 
-    private static function innerHtml(DOMElement $element): string
+    private static function between(string $html, string $start, string $end): ?string
     {
-        $html = '';
-        foreach ($element->childNodes as $child) {
-            $html .= $element->ownerDocument?->saveHTML($child) ?? '';
+        $startPos = strpos($html, $start);
+        if ($startPos === false) {
+            return null;
         }
 
-        return $html;
+        $contentPos = $startPos + strlen($start);
+        $endPos = strpos($html, $end, $contentPos);
+        if ($endPos === false) {
+            return null;
+        }
+
+        return substr($html, $contentPos, $endPos - $contentPos);
+    }
+
+    private static function matchFirst(string $pattern, string $html, int $group = 0): ?string
+    {
+        if (! preg_match($pattern, $html, $matches)) {
+            return null;
+        }
+
+        return $matches[$group] ?? null;
     }
 }

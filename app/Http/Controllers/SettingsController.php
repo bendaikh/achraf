@@ -25,18 +25,71 @@ class SettingsController extends Controller
         'company_rc', 'company_if', 'company_cnss', 'company_email',
     ];
 
+    /** @var array<string, string> settings_type / tab key => route name */
+    protected array $sectionRoutes = [
+        'facture' => 'settings.numerotation',
+        'devis' => 'settings.numerotation',
+        'avoir' => 'settings.numerotation',
+        'bc_fournisseur' => 'settings.numerotation',
+        'bc_client' => 'settings.numerotation',
+        'bon_livraison' => 'settings.numerotation',
+        'bon_reception' => 'settings.numerotation',
+        'produit' => 'settings.catalogue',
+        'produit_types' => 'settings.catalogue',
+        'type_produit' => 'settings.catalogue',
+        'product_type_categories' => 'settings.catalogue',
+        'categorie_tva' => 'settings.fiscalite',
+        'vat_categories' => 'settings.fiscalite',
+        'depenses' => 'settings.depenses',
+        'mon_entreprise' => 'settings.entreprise',
+    ];
+
     public function index()
     {
-        $settings = $this->getAllSettings();
-        $previews = $this->getPreviewNumbers();
+        return redirect()->route('settings.entreprise');
+    }
 
-        return view('settings.index', compact('settings', 'previews'));
+    public function entreprise()
+    {
+        return view('settings.entreprise', [
+            'settings' => $this->getAllSettings(),
+        ]);
+    }
+
+    public function numerotation()
+    {
+        return view('settings.numerotation', [
+            'settings' => $this->getAllSettings(),
+            'previews' => $this->getPreviewNumbers(),
+            'documentSections' => $this->documentSections(),
+        ]);
+    }
+
+    public function catalogue()
+    {
+        return view('settings.catalogue', [
+            'settings' => $this->getAllSettings(),
+        ]);
+    }
+
+    public function fiscalite()
+    {
+        return view('settings.fiscalite', [
+            'settings' => $this->getAllSettings(),
+        ]);
+    }
+
+    public function depenses()
+    {
+        return view('settings.depenses', [
+            'settings' => $this->getAllSettings(),
+        ]);
     }
 
     public function update(Request $request)
     {
         $settingsType = $request->input('settings_type');
-        $tab = $settingsType;
+        $redirectKey = $settingsType;
 
         if ($settingsType && in_array($settingsType, $this->documentTypes, true)) {
             $this->saveDocumentSettings($request, $settingsType);
@@ -52,17 +105,17 @@ class SettingsController extends Controller
 
         if ($settingsType === 'produit_types') {
             $this->saveListFromTextarea($request, 'product_element_types', 'Types d\'élément produit');
-            $tab = 'produit';
+            $redirectKey = 'produit_types';
         }
 
         if ($settingsType === 'vat_categories') {
             $this->saveListFromTextarea($request, 'vat_categories', 'Catégories TVA');
-            $tab = 'categorie_tva';
+            $redirectKey = 'vat_categories';
         }
 
         if ($settingsType === 'product_type_categories') {
             $this->saveListFromTextarea($request, 'product_type_categories', 'Catégories de type produit');
-            $tab = 'type_produit';
+            $redirectKey = 'product_type_categories';
         }
 
         if ($request->has('shopify_price_type')) {
@@ -71,10 +124,114 @@ class SettingsController extends Controller
                 $request->input('shopify_price_type'),
                 'Détermine si les prix des produits Shopify sont TTC ou HT'
             );
-            $tab = $tab ?: 'produit';
+            $redirectKey = $redirectKey ?: 'produit';
         }
 
-        return redirect()->route('settings.index', ['tab' => $tab])->with('success', 'Paramètres mis à jour avec succès.');
+        $route = $this->sectionRoutes[$redirectKey] ?? 'settings.entreprise';
+        $params = [];
+
+        if ($route === 'settings.numerotation' && in_array($settingsType, [
+            'facture', 'devis', 'avoir', 'bc_fournisseur', 'bc_client', 'bon_livraison', 'bon_reception',
+        ], true)) {
+            $params['open'] = $settingsType;
+        }
+
+        return redirect()->route($route, $params)->with('success', 'Paramètres mis à jour avec succès.');
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function documentSections(): array
+    {
+        $svgDoc = '<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>';
+        $svgQuote = '<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>';
+        $svgCredit = '<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14l-4-4m0 0l4-4m-4 4h14"/></svg>';
+        $svgCart = '<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>';
+        $svgTruck = '<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M8 17a2 2 0 11-4 0 2 2 0 014 0zm12 0a2 2 0 11-4 0 2 2 0 014 0zM5 17H3v-4m0 0V5a1 1 0 011-1h9l4 5v4m-4 0H5m10 0h2l3 3v3h-3"/></svg>';
+        $svgInbox = '<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>';
+
+        return [
+            [
+                'key' => 'facture',
+                'label' => 'Facture',
+                'icon' => $svgDoc,
+                'preview_fallback' => 'FA-2026/000001',
+                'next_label' => 'Prochain numéro de facture',
+                'format_label' => 'Format de numérotation de facture',
+                'year_label' => 'Année de facturation (YYYY/000001)',
+                'reset_label' => 'Réinitialiser numérotation de facture',
+                'remarks_label' => 'Remarques client par défaut',
+                'extra' => 'auto_invoice',
+            ],
+            [
+                'key' => 'devis',
+                'label' => 'Devis',
+                'icon' => $svgQuote,
+                'preview_fallback' => 'DV-2026/000001',
+                'next_label' => 'Prochain numéro de devis',
+                'format_label' => 'Format de numérotation de devis',
+                'year_label' => 'Année de devis (YYYY/000001)',
+                'reset_label' => 'Réinitialiser numérotation de devis',
+                'remarks_label' => 'Remarques client par défaut',
+                'extra' => 'validity',
+            ],
+            [
+                'key' => 'avoir',
+                'label' => 'Avoir',
+                'icon' => $svgCredit,
+                'preview_fallback' => 'AV-2026/000001',
+                'next_label' => 'Prochain numéro d\'avoir',
+                'format_label' => 'Format de numérotation d\'avoir',
+                'year_label' => 'Année d\'avoir (YYYY/000001)',
+                'reset_label' => 'Réinitialiser numérotation d\'avoir',
+                'remarks_label' => 'Remarques client par défaut',
+            ],
+            [
+                'key' => 'bc_fournisseur',
+                'label' => 'Bon de Commande Fournisseur',
+                'icon' => $svgCart,
+                'preview_fallback' => 'BCF-2026/000001',
+                'next_label' => 'Prochain numéro de BC fournisseur',
+                'format_label' => 'Format de numérotation de BC fournisseur',
+                'year_label' => 'Année (YYYY/000001)',
+                'reset_label' => 'Réinitialiser numérotation',
+                'remarks_label' => 'Remarques fournisseur par défaut',
+            ],
+            [
+                'key' => 'bc_client',
+                'label' => 'Bon de Commande Client',
+                'icon' => $svgCart,
+                'preview_fallback' => 'BC-2026/000001',
+                'next_label' => 'Prochain numéro de BC client',
+                'format_label' => 'Format de numérotation de BC client',
+                'year_label' => 'Année (YYYY/000001)',
+                'reset_label' => 'Réinitialiser numérotation',
+                'remarks_label' => 'Remarques client par défaut',
+            ],
+            [
+                'key' => 'bon_livraison',
+                'label' => 'Bon de Livraison',
+                'icon' => $svgTruck,
+                'preview_fallback' => 'BL-2026/000001',
+                'next_label' => 'Prochain numéro de bon de livraison',
+                'format_label' => 'Format de numérotation de bon de livraison',
+                'year_label' => 'Année (YYYY/000001)',
+                'reset_label' => 'Réinitialiser numérotation',
+                'remarks_label' => 'Remarques client par défaut',
+            ],
+            [
+                'key' => 'bon_reception',
+                'label' => 'Bon de Réception',
+                'icon' => $svgInbox,
+                'preview_fallback' => 'BR-2026/000001',
+                'next_label' => 'Prochain numéro de bon de réception',
+                'format_label' => 'Format de numérotation de bon de réception',
+                'year_label' => 'Année (YYYY/000001)',
+                'reset_label' => 'Réinitialiser numérotation',
+                'remarks_label' => 'Remarques fournisseur par défaut',
+            ],
+        ];
     }
 
     protected function getAllSettings(): array

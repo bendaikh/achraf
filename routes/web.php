@@ -62,6 +62,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
     Route::get('/financial', [FinancialManagementController::class, 'index'])->name('financial.index');
+    Route::get('/financial/tva', [FinancialManagementController::class, 'tva'])->name('financial.tva');
+    Route::get('/financial/tresorerie', [FinancialManagementController::class, 'tresorerie'])->name('financial.tresorerie');
+    Route::get('/financial/achats-depenses', [FinancialManagementController::class, 'achatsDepenses'])->name('financial.achats-depenses');
+    Route::get('/financial/creances-dettes', [FinancialManagementController::class, 'creancesDettes'])->name('financial.creances-dettes');
+    Route::get('/financial/declarations', [FinancialManagementController::class, 'declarations'])->name('financial.declarations');
     Route::get('/financial/export', [FinancialManagementController::class, 'export'])->name('financial.export');
     Route::post('/document-files/{type}/{id}', [DocumentFileController::class, 'store'])->name('document-files.store');
     
@@ -186,6 +191,11 @@ Route::middleware('auth')->group(function () {
 
     // Settings
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::get('/settings/entreprise', [SettingsController::class, 'entreprise'])->name('settings.entreprise');
+    Route::get('/settings/numerotation', [SettingsController::class, 'numerotation'])->name('settings.numerotation');
+    Route::get('/settings/catalogue', [SettingsController::class, 'catalogue'])->name('settings.catalogue');
+    Route::get('/settings/fiscalite', [SettingsController::class, 'fiscalite'])->name('settings.fiscalite');
+    Route::get('/settings/depenses', [SettingsController::class, 'depenses'])->name('settings.depenses');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
 
     Route::post('/export/table', [TableExportController::class, 'export'])->name('table.export');

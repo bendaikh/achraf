@@ -23,13 +23,41 @@
         <div class="px-4 sm:px-6 lg:px-8 py-4 flex flex-col gap-4">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                    <h2 class="text-xl sm:text-2xl font-bold text-gray-900">Gestion Financière</h2>
-                    <p class="text-sm text-gray-600 mt-1">Données réelles : ventes, achats, paiements, dépenses, TVA et trésorerie</p>
+                    <h2 class="text-xl sm:text-2xl font-bold text-gray-900">Gestion financière</h2>
+                    <p class="text-sm text-gray-600 mt-1">Vue centralisée des revenus, dépenses, paiements, TVA et trésorerie.</p>
                 </div>
-                <a href="{{ route('financial.export', request()->only(['date_from', 'date_to'])) }}"
-                   class="inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 whitespace-nowrap">
-                    Exporter CSV
-                </a>
+                <div class="flex flex-wrap items-center gap-2">
+                    <button type="button"
+                            onclick="document.getElementById('finance-overview-help')?.classList.toggle('hidden')"
+                            class="inline-flex items-center justify-center px-4 py-2 border border-[#c9a227] rounded-lg text-sm font-medium text-[#8a6d1b] bg-white hover:bg-amber-50 whitespace-nowrap">
+                        Voir les explications
+                    </button>
+                    <form method="GET" action="{{ route('financial.index') }}" class="inline-flex">
+                        <input type="hidden" name="operation_type" value="{{ $operationType }}">
+                        <input type="hidden" name="payment_status" value="{{ $paymentStatus }}">
+                        <input type="hidden" name="q" value="{{ $search }}">
+                        <select name="month" onchange="this.form.submit()"
+                                class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-800">
+                            @foreach($monthOptions as $opt)
+                                <option value="{{ $opt['value'] }}" @selected($selectedMonth === $opt['value'])>{{ $opt['label'] }}</option>
+                            @endforeach
+                        </select>
+                    </form>
+                    <div class="relative" x-data="{ open: false }">
+                        <button type="button" @click="open = !open"
+                                class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium text-white bg-[#0a5d8a] hover:bg-[#084a6e] whitespace-nowrap">
+                            + Nouvelle opération
+                        </button>
+                        <div x-show="open" @click.outside="open = false" x-cloak
+                             class="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-lg z-20 py-1">
+                            <a href="{{ route('invoices.create') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Facture client</a>
+                            <a href="{{ route('supplier-invoices.create') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Facture fournisseur</a>
+                            <a href="{{ route('expenses-with-invoice.create') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Dépense avec facture</a>
+                            <a href="{{ route('expenses-without-invoice.create') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Dépense sans facture</a>
+                            <a href="{{ route('sales.payments.index') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Paiement client</a>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <form method="GET" action="{{ route('financial.index') }}" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end">
@@ -75,6 +103,33 @@
     </header>
 
     <div class="p-4 sm:p-6 lg:p-8 space-y-8">
+        <div id="finance-overview-help" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            La vue d'ensemble agrège vos données réelles : chiffre d'affaires, achats, dépenses, TVA, trésorerie, créances et dettes. Utilisez les onglets pour entrer dans chaque module.
+        </div>
+
+        @if(isset($health))
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <p class="text-xs text-gray-500 mb-1">Source des données</p>
+                <p class="text-sm font-semibold text-gray-900">Ventes, achats, POS, paiements et dépenses</p>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <p class="text-xs text-gray-500 mb-1">État de la période</p>
+                <p class="text-sm font-semibold text-emerald-600">{{ $health['status_label'] }}</p>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <p class="text-xs text-gray-500 mb-1">Anomalies détectées</p>
+                <p class="text-sm font-semibold {{ $health['anomalies_count'] > 0 ? 'text-orange-600' : 'text-gray-900' }}">
+                    {{ $health['anomalies_count'] > 0 ? $health['anomalies_count'].' élément'.($health['anomalies_count'] > 1 ? 's' : '') : 'Aucun' }}
+                </p>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <p class="text-xs text-gray-500 mb-1">Dernière mise à jour</p>
+                <p class="text-sm font-semibold text-gray-900">{{ $health['last_updated_label'] }}</p>
+            </div>
+        </div>
+        @endif
+
         {{-- KPIs activité --}}
         <section>
             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Activité de la période</h3>

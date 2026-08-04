@@ -41,14 +41,13 @@
     </div>
 
     @if($showSupplier)
-    <div>
+    <div class="min-w-0">
         <label class="block text-sm font-medium text-gray-700 mb-2">Fournisseur</label>
-        <select name="supplier_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
-            <option value="">Sélectionner</option>
-            @foreach($suppliers as $supplier)
-                <option value="{{ $supplier->id }}" @selected(old('supplier_id', $expense?->supplier_id) == $supplier->id)>{{ $supplier->name }}</option>
-            @endforeach
-        </select>
+        <x-supplier-select-with-create
+            :suppliers="$suppliers"
+            :selected-id="old('supplier_id', $expense?->supplier_id)"
+            :required="false"
+        />
     </div>
     @endif
 
