@@ -26,7 +26,7 @@ class SoftNavigationSectionsTest extends TestCase
             'orders.index',
             'quotes.index',
             'invoices.index',
-            'settings.index',
+            'settings.entreprise',
             'expenses-with-invoice.index',
             'pos.sales.index',
         ];
@@ -93,5 +93,29 @@ class SoftNavigationSectionsTest extends TestCase
         $this->assertStringContainsString('x-data="posRegister', $html);
         $this->assertStringContainsString('window.posRegister', $html);
         $this->assertStringNotContainsString('x-transition false', $html);
+    }
+
+    public function test_soft_nav_preserves_inline_script_html_strings(): void
+    {
+        $html = <<<'HTML'
+<!DOCTYPE html>
+<html><head><title>Demo</title></head><body>
+<span id="app-page-title">Page</span>
+<div id="app-module-tabs" hidden><!--soft-nav:tabs:start--><!--soft-nav:tabs:end--></div>
+<div id="app-page-root">
+<!--soft-nav:page:start-->
+<script>
+const row = '</option></select></div>';
+</script>
+<!--soft-nav:page:end-->
+</div>
+</body></html>
+HTML;
+
+        $payload = SoftNavigation::extractFromHtml($html, request()->create('/demo', 'GET'));
+
+        $this->assertNotNull($payload);
+        $this->assertStringContainsString("const row = '</option></select></div>';", $payload['html']);
+        $this->assertStringNotContainsString('SOFTNAV_SCRIPT_', $payload['html']);
     }
 }

@@ -13,6 +13,7 @@
 @endphp
 <span id="app-page-title">@yield('sidebar_page_title', 'hsabati')</span>
 <div id="app-module-tabs" @if ($moduleTabs === []) hidden @endif>
+    <!--soft-nav:tabs:start-->
     @if ($moduleTabs !== [])
         <nav class="module-tabs-scroll overflow-x-auto border-b border-gray-200 bg-white" aria-label="Menus de {{ $activeNavigationModule['label'] ?? '' }}">
             <div class="flex min-w-max items-center gap-1 px-4">
@@ -35,10 +36,13 @@
             </div>
         </nav>
     @endif
+    <!--soft-nav:tabs:end-->
 </div>
 <div id="app-page-root">
+    <!--soft-nav:page:start-->
     @yield('main')
     @stack('scripts')
+    <!--soft-nav:page:end-->
 </div>
 </body>
 </html>

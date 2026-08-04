@@ -1,11 +1,28 @@
-@props(['selectedId' => null, 'selectedLabel' => null, 'required' => true])
+@props([
+    'selectedId' => null,
+    'selectedLabel' => null,
+    'required' => true,
+    'selectId' => 'client_id',
+    'name' => 'client_id',
+])
 
-<div class="party-select-field w-full min-w-0" x-data="{ showClientModal: false, clientError: '', clientType: 'entreprise' }">
+<div
+    class="party-select-field w-full min-w-0"
+    data-quick-store-url="{{ route('clients.quick-store') }}"
+    data-select-id="{{ $selectId }}"
+    x-data="{
+        showClientModal: false,
+        clientError: '',
+        clientType: 'entreprise',
+        quickStoreUrl: $el.dataset.quickStoreUrl,
+        selectId: $el.dataset.selectId
+    }"
+>
     <div class="flex items-center gap-2 w-full min-w-0">
         <div class="party-select-wrap min-w-0 flex-1">
             <select
-                name="client_id"
-                id="client_id"
+                @if($name !== null && $name !== '') name="{{ $name }}" @endif
+                id="{{ $selectId }}"
                 @if($required) required @endif
                 class="w-full"
             >
@@ -47,13 +64,13 @@
                     @submit.prevent="
                         clientError = '';
                         const fd = new FormData($event.target);
-                        fetch(@js(route('clients.quick-store')), {
+                        fetch(quickStoreUrl, {
                             method: 'POST',
                             headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' },
                             body: fd
                         }).then(r => r.json().then(d => ({ ok: r.ok, d }))).then(({ ok, d }) => {
                             if (!ok) { clientError = d.message || (d.errors ? Object.values(d.errors).flat().join(' ') : 'Erreur lors de la création'); return; }
-                            const sel = document.getElementById('client_id');
+                            const sel = document.getElementById(selectId);
                             const opt = new Option(d.text, d.id, true, true);
                             $(sel).append(opt).trigger('change');
                             showClientModal = false;

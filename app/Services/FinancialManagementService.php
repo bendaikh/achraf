@@ -135,6 +135,8 @@ class FinancialManagementService
      *     collected: float,
      *     deductible: float,
      *     net: float,
+     *     base_ht: float,
+     *     rates: list<float>,
      *     collected_invoices: float,
      *     collected_pos: float,
      *     collected_credit_notes: float,
@@ -150,20 +152,25 @@ class FinancialManagementService
             ->whereBetween('invoice_date', [$dateFrom, $dateTo])
             ->get();
 
-        $collectedInvoices = $this->sumDocumentTax($invoices);
+        $invoiceTotals = $this->sumDocumentTotals($invoices);
+        $collectedInvoices = $invoiceTotals['tax_total'];
 
-        $collectedPos = (float) PosSale::query()
+        $posSales = PosSale::query()
             ->where('status', PosSale::STATUS_COMPLETED)
             ->whereBetween('sold_at', [$dateFrom, $dateTo])
             ->whereDoesntHave('invoice')
-            ->sum('tax_total');
+            ->get(['tax_total', 'subtotal']);
+
+        $collectedPos = (float) $posSales->sum('tax_total');
+        $posHt = (float) $posSales->sum('subtotal');
 
         $creditNotes = CreditNote::query()
             ->with('items')
             ->whereBetween('credit_note_date', [$dateFrom, $dateTo])
             ->get();
 
-        $collectedCreditNotes = $this->sumDocumentTax($creditNotes);
+        $creditTotals = $this->sumDocumentTotals($creditNotes);
+        $collectedCreditNotes = $creditTotals['tax_total'];
         $collected = $collectedInvoices + $collectedPos - $collectedCreditNotes;
 
         $supplierInvoices = SupplierInvoice::query()
@@ -171,32 +178,144 @@ class FinancialManagementService
             ->whereBetween('invoice_date', [$dateFrom, $dateTo])
             ->get();
 
-        $deductiblePurchases = $this->sumDocumentTax($supplierInvoices);
+        $purchaseTotals = $this->sumDocumentTotals($supplierInvoices);
+        $deductiblePurchases = $purchaseTotals['tax_total'];
 
         $supplierCreditNotes = SupplierCreditNote::query()
             ->with('items')
             ->whereBetween('credit_note_date', [$dateFrom, $dateTo])
             ->get();
 
-        $deductibleCreditNotes = $this->sumDocumentTax($supplierCreditNotes);
+        $supplierCreditTotals = $this->sumDocumentTotals($supplierCreditNotes);
+        $deductibleCreditNotes = $supplierCreditTotals['tax_total'];
 
-        $deductibleExpenses = (float) Expense::query()
+        $expenses = Expense::query()
             ->whereBetween('expense_date', [$dateFrom, $dateTo])
-            ->get()
-            ->sum(fn (Expense $expense) => $this->expenseDeductibleVat($expense));
+            ->get();
 
+        $deductibleExpenses = (float) $expenses->sum(fn (Expense $expense) => $this->expenseDeductibleVat($expense));
         $deductible = $deductiblePurchases + $deductibleExpenses - $deductibleCreditNotes;
+
+        $baseHt = $invoiceTotals['subtotal_ht'] + $posHt - $creditTotals['subtotal_ht']
+            + $purchaseTotals['subtotal_ht'] - $supplierCreditTotals['subtotal_ht'];
+
+        $rates = $this->collectTaxRates(
+            $invoices->concat($creditNotes)->concat($supplierInvoices)->concat($supplierCreditNotes)
+        );
 
         return [
             'collected' => round($collected, 2),
             'deductible' => round($deductible, 2),
             'net' => round($collected - $deductible, 2),
+            'base_ht' => round($baseHt, 2),
+            'rates' => $rates,
             'collected_invoices' => round($collectedInvoices, 2),
             'collected_pos' => round($collectedPos, 2),
             'collected_credit_notes' => round($collectedCreditNotes, 2),
             'deductible_purchases' => round($deductiblePurchases, 2),
             'deductible_expenses' => round($deductibleExpenses, 2),
             'deductible_credit_notes' => round($deductibleCreditNotes, 2),
+        ];
+    }
+
+    /**
+     * Santé de la période : état, anomalies détectées, dernière activité.
+     *
+     * @return array{
+     *     status: string,
+     *     status_label: string,
+     *     anomalies_count: int,
+     *     anomalies: list<string>,
+     *     last_updated_at: ?Carbon,
+     *     last_updated_label: string
+     * }
+     */
+    public function getPeriodHealth(Carbon $dateFrom, Carbon $dateTo): array
+    {
+        $anomalies = [];
+
+        $overdueClients = Invoice::query()
+            ->withSum('payments as payments_sum', 'amount')
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', Carbon::today())
+            ->get()
+            ->filter(function (Invoice $invoice) {
+                $paid = (float) ($invoice->payments_sum ?? 0);
+
+                return $paid + 0.00001 < (float) $invoice->total;
+            })
+            ->count();
+
+        if ($overdueClients > 0) {
+            $anomalies[] = $overdueClients.' créance(s) client(s) en retard';
+        }
+
+        $overdueSuppliers = SupplierInvoice::query()
+            ->withSum('payments as payments_sum', 'amount')
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', Carbon::today())
+            ->get()
+            ->filter(function (SupplierInvoice $invoice) {
+                $paid = (float) ($invoice->payments_sum ?? 0);
+
+                return $paid + 0.00001 < (float) $invoice->total;
+            })
+            ->count();
+
+        if ($overdueSuppliers > 0) {
+            $anomalies[] = $overdueSuppliers.' dette(s) fournisseur(s) en retard';
+        }
+
+        $partialClients = Invoice::query()
+            ->withSum('payments as payments_sum', 'amount')
+            ->whereBetween('invoice_date', [$dateFrom, $dateTo])
+            ->get()
+            ->filter(function (Invoice $invoice) {
+                $paid = (float) ($invoice->payments_sum ?? 0);
+                $total = (float) $invoice->total;
+
+                return $paid > 0 && $paid + 0.00001 < $total;
+            })
+            ->count();
+
+        if ($partialClients > 0) {
+            $anomalies[] = $partialClients.' facture(s) client(s) partiellement payée(s)';
+        }
+
+        $expensesWithoutRef = Expense::query()
+            ->whereBetween('expense_date', [$dateFrom, $dateTo])
+            ->where(function ($q) {
+                $q->whereNull('reference')->orWhere('reference', '');
+            })
+            ->where(function ($q) {
+                $q->whereNull('designation')->orWhere('designation', '');
+            })
+            ->count();
+
+        if ($expensesWithoutRef > 0) {
+            $anomalies[] = $expensesWithoutRef.' dépense(s) sans justificatif / libellé';
+        }
+
+        $lastDates = collect([
+            Invoice::query()->whereBetween('invoice_date', [$dateFrom, $dateTo])->max('updated_at'),
+            SupplierInvoice::query()->whereBetween('invoice_date', [$dateFrom, $dateTo])->max('updated_at'),
+            Expense::query()->whereBetween('expense_date', [$dateFrom, $dateTo])->max('updated_at'),
+            InvoicePayment::query()->whereBetween('payment_date', [$dateFrom, $dateTo])->max('updated_at'),
+            SupplierInvoicePayment::query()->whereBetween('payment_date', [$dateFrom, $dateTo])->max('updated_at'),
+            PosSale::query()->whereBetween('sold_at', [$dateFrom, $dateTo])->max('updated_at'),
+        ])->filter()->map(fn ($d) => Carbon::parse($d));
+
+        $lastUpdated = $lastDates->sortDesc()->first();
+        $anomaliesCount = count($anomalies);
+        $status = $anomaliesCount > 0 ? 'a_controler' : 'ok';
+
+        return [
+            'status' => $status,
+            'status_label' => $status === 'ok' ? 'Contrôlée' : 'À contrôler',
+            'anomalies_count' => $anomaliesCount,
+            'anomalies' => $anomalies,
+            'last_updated_at' => $lastUpdated,
+            'last_updated_label' => $this->formatRelativeUpdate($lastUpdated),
         ];
     }
 
@@ -743,10 +862,12 @@ class FinancialManagementService
 
     /**
      * @param  Collection<int, object>|iterable<object>  $documents
+     * @return array{tax_total: float, subtotal_ht: float}
      */
-    private function sumDocumentTax(iterable $documents): float
+    private function sumDocumentTotals(iterable $documents): array
     {
-        $total = 0.0;
+        $taxTotal = 0.0;
+        $subtotalHt = 0.0;
 
         foreach ($documents as $document) {
             $items = $document->relationLoaded('items')
@@ -757,10 +878,67 @@ class FinancialManagementService
                 continue;
             }
 
-            $total += DocumentTaxBreakdown::fromDocument($document, $items)['tax_total'];
+            $breakdown = DocumentTaxBreakdown::fromDocument($document, $items);
+            $taxTotal += $breakdown['tax_total'];
+            $subtotalHt += $breakdown['subtotal_ht'];
         }
 
-        return round($total, 2);
+        return [
+            'tax_total' => round($taxTotal, 2),
+            'subtotal_ht' => round($subtotalHt, 2),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, object>|iterable<object>  $documents
+     * @return list<float>
+     */
+    private function collectTaxRates(iterable $documents): array
+    {
+        $rates = [];
+
+        foreach ($documents as $document) {
+            $items = $document->relationLoaded('items')
+                ? $document->items
+                : $document->items()->get();
+
+            foreach ($items as $item) {
+                $rate = round((float) ($item->tax_rate ?? 0), 2);
+                if ($rate > 0) {
+                    $rates[$rate] = $rate;
+                }
+            }
+        }
+
+        $list = array_values($rates);
+        sort($list);
+
+        return $list;
+    }
+
+    private function formatRelativeUpdate(?Carbon $date): string
+    {
+        if (! $date) {
+            return 'Aucune activité';
+        }
+
+        if ($date->isToday()) {
+            return 'Aujourd\'hui '.$date->format('H:i');
+        }
+
+        if ($date->isYesterday()) {
+            return 'Hier '.$date->format('H:i');
+        }
+
+        return $date->translatedFormat('d M Y H:i');
+    }
+
+    /**
+     * @param  Collection<int, object>|iterable<object>  $documents
+     */
+    private function sumDocumentTax(iterable $documents): float
+    {
+        return $this->sumDocumentTotals($documents)['tax_total'];
     }
 
     public function expenseDeductibleVat(Expense $expense): float

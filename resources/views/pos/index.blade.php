@@ -203,9 +203,13 @@
                 <input type="hidden" name="stock_type" :value="stockType">
                 <div class="p-4 border-b border-white/10">
                     <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Client (optionnel)</label>
-                    <select id="pos_client_id" x-ref="clientSelect" class="w-full rounded-lg bg-slate-800 border border-white/10 text-white text-sm py-2.5 px-3 focus:ring-2 focus:ring-[#fdb819] outline-none">
-                        <option value="{{ $comptoirClient->id }}" selected>{{ $comptoirClient->name }}</option>
-                    </select>
+                    <x-client-select-with-create
+                        select-id="pos_client_id"
+                        name=""
+                        :required="false"
+                        :selected-id="$comptoirClient->id"
+                        :selected-label="$comptoirClient->name"
+                    />
                 </div>
 
                 <div class="flex-1 overflow-y-auto p-4 space-y-2 min-h-[200px]">

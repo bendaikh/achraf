@@ -13,12 +13,20 @@ use Illuminate\Support\Facades\Auth;
  * or render a normal with-sidebar view — ConvertSoftNavigationResponse
  * extracts #app-page-root into JSON. Client: public/js/soft-nav.js.
  *
- * Extraction is regex/balanced-tag based (not DOMDocument) so Alpine.js
- * attributes like @click / @keydown are preserved.
+ * Extraction uses comment markers (not DOMDocument) so inline scripts and
+ * Alpine attributes that contain HTML-like strings stay intact.
  */
 class SoftNavigation
 {
     public const HEADER = 'X-Soft-Navigation';
+
+    public const PAGE_START = '<!--soft-nav:page:start-->';
+
+    public const PAGE_END = '<!--soft-nav:page:end-->';
+
+    public const TABS_START = '<!--soft-nav:tabs:start-->';
+
+    public const TABS_END = '<!--soft-nav:tabs:end-->';
 
     public static function wants(Request $request): bool
     {
@@ -65,129 +73,68 @@ class SoftNavigation
     /**
      * Extract soft-nav payload from a full with-sidebar HTML document.
      *
+     * Uses comment markers (not DOMDocument) so inline scripts and Alpine
+     * attributes that contain HTML-like strings stay intact.
+     *
      * @return array<string, mixed>|null
      */
     public static function extractFromHtml(string $html, Request $request): ?array
     {
-        if (! str_contains($html, 'app-page-root')) {
+        if (! str_contains($html, self::PAGE_START) || ! str_contains($html, 'app-page-root')) {
             return null;
         }
 
-        $rootHtml = self::extractInnerById($html, 'app-page-root');
-        if ($rootHtml === null) {
+        $pageHtml = self::between($html, self::PAGE_START, self::PAGE_END);
+        if ($pageHtml === null) {
             return null;
         }
 
-        $pageTitle = self::extractInnerById($html, 'app-page-title');
-        $pageTitle = trim(html_entity_decode(strip_tags((string) $pageTitle), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-
-        $tabsHidden = (bool) preg_match(
-            '/<[^>]*\bid=["\']app-module-tabs["\'][^>]*\bhidden\b/i',
-            $html
-        );
         $tabsHtml = '';
-        if (! $tabsHidden) {
-            $tabsHtml = trim((string) self::extractInnerById($html, 'app-module-tabs'));
+        $tabsOpen = self::matchFirst('/<div[^>]*\bid=(["\'])app-module-tabs\1[^>]*>/i', $html);
+        if ($tabsOpen !== null && ! preg_match('/\bhidden\b/i', $tabsOpen)) {
+            $tabsHtml = trim((string) self::between($html, self::TABS_START, self::TABS_END));
         }
 
-        $title = 'LAV\'FAST';
-        if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $titleMatch)) {
-            $extracted = trim(html_entity_decode(strip_tags($titleMatch[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-            if ($extracted !== '') {
-                $title = $extracted;
-            }
-        }
+        $title = trim((string) self::matchFirst('/<title[^>]*>(.*?)<\/title>/is', $html, 1));
+        $pageTitle = trim(html_entity_decode(
+            strip_tags((string) self::matchFirst('/<[^>]*\bid=(["\'])app-page-title\1[^>]*>(.*?)<\//is', $html, 2)),
+            ENT_QUOTES | ENT_HTML5,
+            'UTF-8'
+        ));
 
         return [
-            'title' => $title,
+            'title' => $title !== '' ? $title : 'LAV\'FAST',
             'page_title' => $pageTitle !== '' ? $pageTitle : 'hsabati',
             'url' => $request->fullUrlWithoutQuery(['soft_nav']),
-            'html' => $rootHtml,
+            'html' => $pageHtml,
             'module' => self::moduleKey($request),
             'tabs_html' => $tabsHtml,
             'assets' => [],
         ];
     }
 
-    /**
-     * Return inner HTML of the first element with the given id, preserving raw attributes.
-     */
-    private static function extractInnerById(string $html, string $id): ?string
+    private static function between(string $html, string $start, string $end): ?string
     {
-        if (! preg_match(
-            '/<([a-z][a-z0-9]*)\b[^>]*\bid=(["\'])'.preg_quote($id, '/').'\2[^>]*>/i',
-            $html,
-            $match,
-            PREG_OFFSET_CAPTURE
-        )) {
+        $startPos = strpos($html, $start);
+        if ($startPos === false) {
             return null;
         }
 
-        $tag = $match[1][0];
-        $openEnd = $match[0][1] + strlen($match[0][0]);
-        $close = self::findMatchingCloseTag($html, $tag, $openEnd);
-
-        if ($close === null) {
+        $contentPos = $startPos + strlen($start);
+        $endPos = strpos($html, $end, $contentPos);
+        if ($endPos === false) {
             return null;
         }
 
-        return substr($html, $openEnd, $close - $openEnd);
+        return substr($html, $contentPos, $endPos - $contentPos);
     }
 
-    private static function findMatchingCloseTag(string $html, string $tag, int $from): ?int
+    private static function matchFirst(string $pattern, string $html, int $group = 0): ?string
     {
-        $tagLower = strtolower($tag);
-        $openNeedle = '<'.$tagLower;
-        $closeNeedle = '</'.$tagLower.'>';
-        $length = strlen($html);
-        $pos = $from;
-        $depth = 1;
-
-        while ($depth > 0 && $pos < $length) {
-            $nextOpen = self::findNextOpenTag($html, $openNeedle, $pos);
-            $nextClose = stripos($html, $closeNeedle, $pos);
-
-            if ($nextClose === false) {
-                return null;
-            }
-
-            if ($nextOpen !== false && $nextOpen < $nextClose) {
-                $depth++;
-                $pos = $nextOpen + strlen($openNeedle);
-
-                continue;
-            }
-
-            $depth--;
-            if ($depth === 0) {
-                return $nextClose;
-            }
-            $pos = $nextClose + strlen($closeNeedle);
+        if (! preg_match($pattern, $html, $matches)) {
+            return null;
         }
 
-        return null;
-    }
-
-    private static function findNextOpenTag(string $html, string $openNeedle, int $from): int|false
-    {
-        $pos = $from;
-        $length = strlen($html);
-        $needleLen = strlen($openNeedle);
-
-        while ($pos < $length) {
-            $found = stripos($html, $openNeedle, $pos);
-            if ($found === false) {
-                return false;
-            }
-
-            $after = $html[$found + $needleLen] ?? '';
-            if ($after === '>' || ctype_space($after) || $after === '/') {
-                return $found;
-            }
-
-            $pos = $found + $needleLen;
-        }
-
-        return false;
+        return $matches[$group] ?? null;
     }
 }
