@@ -14,6 +14,10 @@
     $taxes = $doc['taxes'] ?? [];
     $emptyRows = max(0, $minRows - $items->count());
     $showSourceReference = $items->contains(fn ($item) => !empty($item->source_document_reference));
+    $sourceDocumentDates = $doc['source_document_dates'] ?? [];
+    $itemGroups = $showSourceReference
+        ? $items->groupBy(fn ($item) => $item->source_document_reference ?: '—')
+        : collect(['__flat__' => $items]);
     $generatedBy = $generatedBy ?? auth()->user()?->name ?? '—';
     $logoSrc = $logoSrc ?? ($company['logo_url'] ?? null);
     $cachet = $cachet ?? \App\Support\CompanyInfo::cachetForPrint($forPdf ?? false);
@@ -121,11 +125,8 @@
     <table class="facture-items" cellpadding="0" cellspacing="0">
         <thead>
             <tr>
-                <th width="{{ $showSourceReference ? '13%' : '20%' }}">Réf</th>
-                @if($showSourceReference)
-                    <th width="15%">Origine BR/BC</th>
-                @endif
-                <th width="{{ $showSourceReference ? '24%' : '32%' }}">Désignation</th>
+                <th width="20%">Réf</th>
+                <th width="32%">Désignation</th>
                 <th class="text-right" width="7%">Qté</th>
                 <th class="text-right" width="13%">Prix unit. HT</th>
                 <th class="text-center" width="8%">TVA</th>
@@ -134,24 +135,42 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($items as $item)
-                @php($line = \App\Support\LineItemCalculator::forDisplay($item, $priceMode))
-                <tr>
-                    <td>{{ $item->ref ?? '-' }}</td>
-                    @if($showSourceReference)
-                        <td>{{ $item->source_document_reference ?? '-' }}</td>
-                    @endif
-                    <td>{{ $item->designation }}</td>
-                    <td class="text-right">{{ $item->quantity }}</td>
-                    <td class="text-right">{{ number_format($line['unit_price_ht'], 2) }}</td>
-                    <td class="text-center">{{ number_format($item->tax_rate, 2) }}%</td>
-                    <td class="text-right">{{ number_format($item->discount ?? 0, 2) }}</td>
-                    <td class="text-right"><strong>{{ number_format($line['line_total'], 2) }}</strong></td>
-                </tr>
+            @foreach($itemGroups as $originLabel => $groupItems)
+                @if($showSourceReference)
+                    @php($originDate = $sourceDocumentDates[$originLabel] ?? null)
+                    <tr class="facture-origin-group">
+                        <td colspan="7">
+                            <table class="facture-origin-header" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td class="facture-origin-left">
+                                        <strong>Origine :</strong> {{ $originLabel }}
+                                    </td>
+                                    @if($originDate)
+                                        <td class="facture-origin-right">
+                                            <strong>Du :</strong> {{ $originDate }}
+                                        </td>
+                                    @endif
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                @endif
+                @foreach($groupItems as $item)
+                    @php($line = \App\Support\LineItemCalculator::forDisplay($item, $priceMode))
+                    <tr>
+                        <td>{{ $item->ref ?? '-' }}</td>
+                        <td>{{ $item->designation }}</td>
+                        <td class="text-right">{{ $item->quantity }}</td>
+                        <td class="text-right">{{ number_format($line['unit_price_ht'], 2) }}</td>
+                        <td class="text-center">{{ number_format($item->tax_rate, 2) }}%</td>
+                        <td class="text-right">{{ number_format($item->discount ?? 0, 2) }}</td>
+                        <td class="text-right"><strong>{{ number_format($line['line_total'], 2) }}</strong></td>
+                    </tr>
+                @endforeach
             @endforeach
             @for($i = 0; $i < $emptyRows; $i++)
                 <tr class="empty-row">
-                    <td>&nbsp;</td>@if($showSourceReference)<td></td>@endif<td></td><td></td><td></td><td></td><td></td><td></td>
+                    <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>
                 </tr>
             @endfor
         </tbody>

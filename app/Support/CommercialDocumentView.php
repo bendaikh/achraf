@@ -241,7 +241,7 @@ class CommercialDocumentView
             $lines[] = ['label' => 'CONTACT', 'value' => $invoice->commercial_contact];
         }
 
-        return self::base(
+        $payload = self::base(
             title: 'FACTURE FOURNISSEUR',
             number: $invoice->invoice_number,
             dates: array_filter([
@@ -258,6 +258,42 @@ class CommercialDocumentView
             remarks: trim(collect([$invoice->remarks, $invoice->conditions])->filter()->implode("\n\n")) ?: null,
             priceMode: LineItemCalculator::priceModeForDocument($invoice),
         );
+
+        $payload['doc']['source_document_dates'] = self::supplierInvoiceSourceDates($invoice);
+
+        return $payload;
+    }
+
+    /**
+     * Map origin labels (BR/BL) to formatted dates for PDF group headers.
+     *
+     * @return array<string, string>
+     */
+    protected static function supplierInvoiceSourceDates(SupplierInvoice $invoice): array
+    {
+        $dates = [];
+
+        foreach (Reception::where('converted_supplier_invoice_id', $invoice->id)->get() as $reception) {
+            $label = $reception->reference
+                ? $reception->reception_number.' / '.$reception->reference
+                : $reception->reception_number;
+
+            if ($reception->reception_date) {
+                $dates[$label] = $reception->reception_date->format('d/m/Y');
+            }
+        }
+
+        foreach (SupplierDeliveryNote::where('converted_supplier_invoice_id', $invoice->id)->get() as $note) {
+            $label = $note->reference
+                ? $note->delivery_number.' / '.$note->reference
+                : $note->delivery_number;
+
+            if ($note->delivery_date) {
+                $dates[$label] = $note->delivery_date->format('d/m/Y');
+            }
+        }
+
+        return $dates;
     }
 
     /**

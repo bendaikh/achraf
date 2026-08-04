@@ -52,6 +52,18 @@
     .facture-items th.text-center, .facture-items td.text-center { text-align: center; }
     .facture-items td { padding: 7px 5px; font-size: 10px; border: 1px solid #e5e7eb; vertical-align: top; }
     .facture-items tbody tr.empty-row td { height: 24px; }
+    .facture-items tr.facture-origin-group td {
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        padding: 6px 8px;
+        font-size: 10px;
+        font-weight: 600;
+        color: #111;
+    }
+    .facture-origin-header { width: 100%; border-collapse: collapse; }
+    .facture-origin-header td { border: none !important; padding: 0 !important; background: transparent !important; font-size: 10px; }
+    .facture-origin-left { text-align: left; }
+    .facture-origin-right { text-align: right; white-space: nowrap; width: 120px; }
     .facture-bottom-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
     .facture-bottom-table td { vertical-align: top; }
     .facture-notes-box { border: 2px solid #111; border-radius: 6px; padding: 10px 12px; min-height: 90px; }
