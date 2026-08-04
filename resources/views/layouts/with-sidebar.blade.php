@@ -21,6 +21,9 @@
     }
     .app-shell-aside {
         transform: translateX(-100%);
+        transition: transform 220ms ease, width 220ms ease, box-shadow 220ms ease;
+        box-shadow: 8px 0 28px -16px rgba(5, 58, 82, 0.55);
+        border-right: 0;
     }
     @media (min-width: 1024px) {
         .app-shell-aside {
@@ -29,6 +32,7 @@
     }
     .app-shell-aside.is-open {
         transform: translateX(0);
+        box-shadow: 16px 0 40px -12px rgba(5, 58, 82, 0.45);
     }
     html.pos-full-view-active .app-shell-aside {
         display: none !important;
@@ -117,7 +121,7 @@
     ></div>
 
     <aside
-        class="app-shell-aside fixed inset-y-0 left-0 z-40 bg-white shadow-lg border-r border-gray-100 flex flex-col"
+        class="app-shell-aside fixed inset-y-0 left-0 z-40 flex flex-col overflow-hidden"
         :class="{ 'is-open': sidebarOpen }"
         @click="if ($event.target.closest('a[href]')) sidebarOpen = false"
     >

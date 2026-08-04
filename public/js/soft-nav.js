@@ -192,10 +192,9 @@
         links.forEach(function (link) {
             const active = (moduleKey && link.getAttribute('data-nav-module') === moduleKey)
                 || (url && link.href && link.href.split('?')[0] === String(url).split('?')[0]);
-            link.classList.toggle('bg-[#fdb819]', active);
-            link.classList.toggle('text-white', active);
-            link.classList.toggle('shadow-sm', active);
-            link.classList.toggle('text-gray-700', !active);
+            link.classList.toggle('is-active', active);
+            // Legacy class cleanup in case an older shell is still mounted.
+            link.classList.remove('bg-[#fdb819]', 'text-white', 'shadow-sm', 'text-gray-700');
             if (active) {
                 link.setAttribute('aria-current', 'page');
             } else {
