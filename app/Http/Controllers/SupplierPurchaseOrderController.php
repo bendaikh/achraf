@@ -104,6 +104,9 @@ class SupplierPurchaseOrderController extends Controller
             $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
 
             DB::commit();
+
+            DocumentNumberService::advanceAfterUse('bc_fournisseur', $validated['order_number']);
+
             return redirect()->route('supplier-purchase-orders.index')->with('success', 'BC fournisseur créé avec succès!');
         } catch (\Exception $e) {
             DB::rollBack();

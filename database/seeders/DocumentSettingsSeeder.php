@@ -43,6 +43,11 @@ class DocumentSettingsSeeder extends Seeder
                 'code_length' => 6,
                 'reset_period' => 'yearly',
             ],
+            'bon_livraison_fournisseur' => [
+                'format' => 'BLF-{YEAR}/{NUMBER}',
+                'code_length' => 6,
+                'reset_period' => 'yearly',
+            ],
             'bon_reception' => [
                 'format' => 'BR-{YEAR}/{NUMBER}',
                 'code_length' => 6,
@@ -56,7 +61,7 @@ class DocumentSettingsSeeder extends Seeder
         ];
 
         foreach ($documentTypes as $type => $config) {
-            Setting::updateOrCreate(
+            Setting::firstOrCreate(
                 ['key' => "{$type}_next_number"],
                 ['value' => '1', 'description' => "Prochain numéro de {$type}"]
             );
@@ -76,12 +81,12 @@ class DocumentSettingsSeeder extends Seeder
                 ['value' => $config['reset_period'], 'description' => "Période de réinitialisation {$type}"]
             );
 
-            Setting::updateOrCreate(
+            Setting::firstOrCreate(
                 ['key' => "{$type}_year"],
                 ['value' => date('Y'), 'description' => "Année de {$type}"]
             );
 
-            Setting::updateOrCreate(
+            Setting::firstOrCreate(
                 ['key' => "{$type}_apply_to_old"],
                 ['value' => '0', 'description' => "Appliquer aux anciens documents {$type}"]
             );

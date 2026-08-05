@@ -81,6 +81,8 @@ class SupplierDeliveryNoteController extends Controller
 
             DB::commit();
 
+            DocumentNumberService::advanceAfterUse('bon_livraison_fournisseur', $validated['delivery_number']);
+
             return redirect()->route('supplier-delivery-notes.index')->with('success', 'Bon de livraison créé avec succès!');
         } catch (\Exception $e) {
             DB::rollBack();

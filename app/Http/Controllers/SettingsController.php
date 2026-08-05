@@ -11,7 +11,7 @@ class SettingsController extends Controller
 {
     protected $documentTypes = [
         'facture', 'devis', 'avoir', 'bc_fournisseur', 'bc_client',
-        'bon_livraison', 'bon_reception', 'produit',
+        'bon_livraison', 'bon_livraison_fournisseur', 'bon_reception', 'produit',
     ];
 
     protected $settingFields = [
@@ -33,6 +33,7 @@ class SettingsController extends Controller
         'bc_fournisseur' => 'settings.numerotation',
         'bc_client' => 'settings.numerotation',
         'bon_livraison' => 'settings.numerotation',
+        'bon_livraison_fournisseur' => 'settings.numerotation',
         'bon_reception' => 'settings.numerotation',
         'produit' => 'settings.catalogue',
         'produit_types' => 'settings.catalogue',
@@ -131,7 +132,7 @@ class SettingsController extends Controller
         $params = [];
 
         if ($route === 'settings.numerotation' && in_array($settingsType, [
-            'facture', 'devis', 'avoir', 'bc_fournisseur', 'bc_client', 'bon_livraison', 'bon_reception',
+            'facture', 'devis', 'avoir', 'bc_fournisseur', 'bc_client', 'bon_livraison', 'bon_livraison_fournisseur', 'bon_reception',
         ], true)) {
             $params['open'] = $settingsType;
         }
@@ -211,7 +212,7 @@ class SettingsController extends Controller
             ],
             [
                 'key' => 'bon_livraison',
-                'label' => 'Bon de Livraison',
+                'label' => 'Bon de Livraison Client',
                 'icon' => $svgTruck,
                 'preview_fallback' => 'BL-2026/000001',
                 'next_label' => 'Prochain numéro de bon de livraison',
@@ -219,6 +220,17 @@ class SettingsController extends Controller
                 'year_label' => 'Année (YYYY/000001)',
                 'reset_label' => 'Réinitialiser numérotation',
                 'remarks_label' => 'Remarques client par défaut',
+            ],
+            [
+                'key' => 'bon_livraison_fournisseur',
+                'label' => 'Bon de Livraison Fournisseur',
+                'icon' => $svgTruck,
+                'preview_fallback' => 'BLF-2026/000001',
+                'next_label' => 'Prochain numéro de BL fournisseur',
+                'format_label' => 'Format de numérotation de BL fournisseur',
+                'year_label' => 'Année (YYYY/000001)',
+                'reset_label' => 'Réinitialiser numérotation',
+                'remarks_label' => 'Remarques fournisseur par défaut',
             ],
             [
                 'key' => 'bon_reception',

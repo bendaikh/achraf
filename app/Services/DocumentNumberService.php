@@ -113,4 +113,27 @@ class DocumentNumberService
             $format
         );
     }
+
+    /**
+     * Advance the sequence after a document number is used (auto or manual).
+     * If the used number matches the current preview, or its numeric sequence
+     * is ahead of the counter, bump next_number accordingly.
+     */
+    public static function advanceAfterUse(string $type, string $usedNumber): void
+    {
+        $preview = self::preview($type);
+        $currentNext = (int) Setting::get("{$type}_next_number", 1);
+
+        if ($usedNumber === $preview) {
+            Setting::set("{$type}_next_number", $currentNext + 1);
+            return;
+        }
+
+        if (preg_match('/(\d+)\s*$/', $usedNumber, $matches)) {
+            $usedSequence = (int) $matches[1];
+            if ($usedSequence >= $currentNext) {
+                Setting::set("{$type}_next_number", $usedSequence + 1);
+            }
+        }
+    }
 }

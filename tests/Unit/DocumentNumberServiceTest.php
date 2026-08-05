@@ -94,7 +94,7 @@ class DocumentNumberServiceTest extends TestCase
 
     public function test_all_document_types_have_unique_formats()
     {
-        $types = ['facture', 'devis', 'avoir', 'bc_client', 'bc_fournisseur', 'bon_livraison', 'bon_reception'];
+        $types = ['facture', 'devis', 'avoir', 'bc_client', 'bc_fournisseur', 'bon_livraison', 'bon_livraison_fournisseur', 'bon_reception'];
         
         $numbers = [];
         foreach ($types as $type) {
@@ -113,6 +113,31 @@ class DocumentNumberServiceTest extends TestCase
         $this->assertStringStartsWith('BC-', $numbers['bc_client']);
         $this->assertStringStartsWith('BCF-', $numbers['bc_fournisseur']);
         $this->assertStringStartsWith('BL-', $numbers['bon_livraison']);
+        $this->assertStringStartsWith('BLF-', $numbers['bon_livraison_fournisseur']);
         $this->assertStringStartsWith('BR-', $numbers['bon_reception']);
+    }
+
+    public function test_advance_after_use_increments_when_preview_is_kept()
+    {
+        Setting::set('bon_reception_next_number', '15', 'Test');
+        Setting::set('bon_reception_format', 'BR-{YEAR}/{NUMBER}', 'Test');
+        Setting::set('bon_reception_year', '2026', 'Test');
+        Setting::set('bon_reception_code_length', '6', 'Test');
+
+        DocumentNumberService::advanceAfterUse('bon_reception', 'BR-2026/000015');
+
+        $this->assertEquals('16', Setting::get('bon_reception_next_number'));
+    }
+
+    public function test_advance_after_use_jumps_ahead_for_manual_number()
+    {
+        Setting::set('bon_livraison_fournisseur_next_number', '2', 'Test');
+        Setting::set('bon_livraison_fournisseur_format', 'BLF-{YEAR}/{NUMBER}', 'Test');
+        Setting::set('bon_livraison_fournisseur_year', '2026', 'Test');
+        Setting::set('bon_livraison_fournisseur_code_length', '6', 'Test');
+
+        DocumentNumberService::advanceAfterUse('bon_livraison_fournisseur', 'BLF-2026/000010');
+
+        $this->assertEquals('11', Setting::get('bon_livraison_fournisseur_next_number'));
     }
 }

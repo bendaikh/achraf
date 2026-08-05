@@ -124,6 +124,9 @@ class ReceptionController extends Controller
             );
 
             DB::commit();
+
+            DocumentNumberService::advanceAfterUse('bon_reception', $validated['reception_number']);
+
             return redirect()->route('receptions.index')->with('success', 'Bon de réception créé avec succès!');
         } catch (\Exception $e) {
             DB::rollBack();
