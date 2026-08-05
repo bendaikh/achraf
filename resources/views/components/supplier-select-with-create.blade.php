@@ -1,10 +1,24 @@
 @props([
     'suppliers' => [],
     'selectedId' => null,
+    'selectedLabel' => null,
     'required' => true,
     'selectId' => 'supplier_id',
     'name' => 'supplier_id',
 ])
+
+@php
+    if (!$selectedLabel && $selectedId) {
+        $matched = collect($suppliers)->first(function ($supplier) use ($selectedId) {
+            return (string) (is_object($supplier) ? $supplier->id : ($supplier['id'] ?? '')) === (string) $selectedId;
+        });
+        if ($matched) {
+            $selectedLabel = is_object($matched)
+                ? (method_exists($matched, 'selectLabel') ? $matched->selectLabel() : $matched->name)
+                : ($matched['name'] ?? null);
+        }
+    }
+@endphp
 
 <div
     class="party-select-field w-full min-w-0"
@@ -23,12 +37,12 @@
                 @if($name !== null && $name !== '') name="{{ $name }}" @endif
                 id="{{ $selectId }}"
                 @if($required) required @endif
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                class="w-full"
             >
                 <option value="">Sélectionner un fournisseur</option>
-                @foreach($suppliers as $supplier)
-                    <option value="{{ $supplier->id }}" @selected($selectedId == $supplier->id)>{{ $supplier->name }}</option>
-                @endforeach
+                @if($selectedId && $selectedLabel)
+                    <option value="{{ $selectedId }}" selected>{{ $selectedLabel }}</option>
+                @endif
             </select>
         </div>
         <button
@@ -71,9 +85,13 @@
                             if (!ok) { supplierError = d.message || (d.errors ? Object.values(d.errors).flat().join(' ') : 'Erreur lors de la création'); return; }
                             const sel = document.getElementById(selectId);
                             const opt = new Option(d.text, d.id, true, true);
-                            sel.add(opt);
-                            sel.value = d.id;
-                            sel.dispatchEvent(new Event('change'));
+                            if (window.jQuery) {
+                                $(sel).append(opt).trigger('change');
+                            } else {
+                                sel.add(opt);
+                                sel.value = d.id;
+                                sel.dispatchEvent(new Event('change'));
+                            }
                             showSupplierModal = false;
                             $event.target.reset();
                         }).catch(() => supplierError = 'Erreur réseau');
@@ -91,3 +109,21 @@
         </div>
     </template>
 </div>
+
+<script>
+(function () {
+    var selectId = @json($selectId);
+    function init() {
+        if (typeof window.initSupplierSelect2 !== 'function') return;
+        if (!document.getElementById(selectId)) return;
+        window.initSupplierSelect2('#' + selectId);
+    }
+    if (window.SoftNav && typeof SoftNav.whenReady === 'function') {
+        SoftNav.whenReady(init);
+    } else if (window.jQuery) {
+        $(init);
+    } else {
+        document.addEventListener('DOMContentLoaded', init);
+    }
+})();
+</script>

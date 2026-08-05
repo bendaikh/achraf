@@ -210,9 +210,11 @@ function removeItem(button) {
 }
 
 SoftNav.whenReady(function() {
-    const supplierSelect = document.getElementById('supplier_id');
-    if (supplierSelect) {
-        supplierSelect.addEventListener('change', function() {
+    if (typeof window.initSupplierSelect2 === 'function') {
+        window.initSupplierSelect2('#supplier_id');
+    }
+    if (window.jQuery) {
+        $('#supplier_id').on('change', function() {
             const select = document.getElementById('supplier_invoice_select');
             select.innerHTML = '<option value="">AUCUNE SELECTION</option>';
             if (!this.value) return;

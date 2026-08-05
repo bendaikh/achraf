@@ -64,17 +64,24 @@
     <!-- Select2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
-        window.initClientSelect2 = function (selector, options) {
+        window.initPartySelect2 = function (selector, options) {
             options = options || {};
+            var $el = $(selector);
+            if (!$el.length) {
+                return $el;
+            }
+            if ($el.hasClass('select2-hidden-accessible')) {
+                try { $el.select2('destroy'); } catch (e) {}
+            }
             var config = {
-                placeholder: options.placeholder || 'Rechercher un client...',
+                placeholder: options.placeholder || 'Rechercher...',
                 allowClear: options.allowClear !== false,
                 width: options.width || '100%',
-                minimumInputLength: options.minimumInputLength ?? 1,
+                minimumInputLength: options.minimumInputLength ?? 0,
                 ajax: {
-                    url: options.url || @json(route('clients.search')),
+                    url: options.url,
                     dataType: 'json',
-                    delay: 300,
+                    delay: 250,
                     data: function (params) {
                         return {
                             q: params.term || '',
@@ -84,26 +91,40 @@
                     processResults: function (data) {
                         return {
                             results: data.results,
-                            pagination: { more: data.pagination.more }
+                            pagination: { more: data.pagination && data.pagination.more }
                         };
                     }
                 },
                 language: {
-                    noResults: function () { return 'Aucun client trouvé'; },
+                    noResults: function () { return options.noResults || 'Aucun résultat'; },
                     searching: function () { return 'Recherche...'; },
-                    inputTooShort: function () { return 'Tapez au moins 1 caractère'; }
+                    inputTooShort: function () { return 'Tapez pour rechercher'; }
                 }
             };
 
-            if (options.allowClear === false) {
-                config.allowClear = false;
-            }
-
-            var $el = $(selector).select2(config);
+            $el.select2(config);
             if ($el.closest('.party-select-wrap').length) {
                 $el.next('.select2-container').css('width', '100%');
             }
             return $el;
+        };
+
+        window.initClientSelect2 = function (selector, options) {
+            options = options || {};
+            return window.initPartySelect2(selector, Object.assign({
+                placeholder: 'Rechercher un client...',
+                url: @json(route('clients.search')),
+                noResults: 'Aucun client trouvé'
+            }, options));
+        };
+
+        window.initSupplierSelect2 = function (selector, options) {
+            options = options || {};
+            return window.initPartySelect2(selector, Object.assign({
+                placeholder: 'Rechercher un fournisseur...',
+                url: @json(route('suppliers.search')),
+                noResults: 'Aucun fournisseur trouvé'
+            }, options));
         };
     </script>
 </head>

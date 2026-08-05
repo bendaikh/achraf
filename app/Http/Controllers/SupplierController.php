@@ -45,7 +45,38 @@ class SupplierController extends Controller
 
         return response()->json([
             'id' => $supplier->id,
-            'text' => $supplier->name,
+            'text' => $supplier->selectLabel(),
+        ]);
+    }
+
+    public function search(Request $request)
+    {
+        $term = trim((string) $request->input('q', ''));
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = 20;
+
+        $query = Supplier::query()->orderBy('name');
+
+        if ($term !== '') {
+            $query->where(function ($builder) use ($term) {
+                $builder->where('name', 'like', "%{$term}%")
+                    ->orWhere('email', 'like', "%{$term}%")
+                    ->orWhere('phone', 'like', "%{$term}%")
+                    ->orWhere('code', 'like', "%{$term}%")
+                    ->orWhere('ice', 'like', "%{$term}%");
+            });
+        }
+
+        $paginator = $query->paginate($perPage, ['id', 'name', 'email'], 'page', $page);
+
+        return response()->json([
+            'results' => $paginator->getCollection()->map(fn (Supplier $supplier) => [
+                'id' => $supplier->id,
+                'text' => $supplier->selectLabel(),
+            ])->values(),
+            'pagination' => [
+                'more' => $paginator->hasMorePages(),
+            ],
         ]);
     }
 

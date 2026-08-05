@@ -94,6 +94,7 @@ Route::middleware('auth')->group(function () {
         Route::get('clients/search', [ClientController::class, 'search'])->name('clients.search');
         Route::post('clients/quick-store', [ClientController::class, 'quickStore'])->name('clients.quick-store');
         Route::resource('clients', ClientController::class);
+        Route::get('suppliers/search', [SupplierController::class, 'search'])->name('suppliers.search');
         Route::post('suppliers/quick-store', [SupplierController::class, 'quickStore'])->name('suppliers.quick-store');
         Route::resource('suppliers', SupplierController::class);
     });

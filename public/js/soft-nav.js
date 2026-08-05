@@ -43,6 +43,29 @@
         });
     }
 
+    /**
+     * Soft-nav runs page scripts before HTML is in #app-page-root.
+     * jQuery $(fn) / $(document).ready(fn) would fire immediately (document already
+     * ready) and miss elements — route them through whenReady instead.
+     */
+    function patchJQueryReady() {
+        if (!window.jQuery || window.jQuery.__softNavReadyPatched) {
+            return;
+        }
+        var $ = window.jQuery;
+        $.__softNavReadyPatched = true;
+        var originalFnReady = $.fn.ready;
+        $.fn.ready = function (fn) {
+            if (typeof fn === 'function') {
+                whenReady(fn);
+                return this;
+            }
+            return originalFnReady.apply(this, arguments);
+        };
+    }
+
+    patchJQueryReady();
+
     function pageRoot() {
         return document.getElementById('app-page-root');
     }

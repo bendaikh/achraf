@@ -11,6 +11,11 @@ class Supplier extends Model
         'code', 'postal_code', 'region', 'ice', 'fiscal_identifier', 'latitude', 'longitude', 'ville',
     ];
 
+    public function selectLabel(): string
+    {
+        return $this->name . ($this->email ? ' (' . $this->email . ')' : '');
+    }
+
     public function purchaseOrders()
     {
         return $this->hasMany(SupplierPurchaseOrder::class);

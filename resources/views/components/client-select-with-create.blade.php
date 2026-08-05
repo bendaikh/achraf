@@ -91,3 +91,21 @@
         </div>
     </template>
 </div>
+
+<script>
+(function () {
+    var selectId = @json($selectId);
+    function init() {
+        if (typeof window.initClientSelect2 !== 'function') return;
+        if (!document.getElementById(selectId)) return;
+        window.initClientSelect2('#' + selectId);
+    }
+    if (window.SoftNav && typeof SoftNav.whenReady === 'function') {
+        SoftNav.whenReady(init);
+    } else if (window.jQuery) {
+        $(init);
+    } else {
+        document.addEventListener('DOMContentLoaded', init);
+    }
+})();
+</script>
