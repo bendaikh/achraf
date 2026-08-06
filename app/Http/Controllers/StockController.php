@@ -39,7 +39,7 @@ class StockController extends Controller
 
     private function lowStockCountQuery(string $stockField, ?\Closure $scope = null): int
     {
-        $query = Product::query();
+        $query = Product::query()->tracksStock();
         if ($scope) {
             $scope($query);
         }
@@ -58,13 +58,13 @@ class StockController extends Controller
 
     public function index(Request $request)
     {
-        $query = Product::query()->orderBy('name');
+        $query = Product::query()->tracksStock()->orderBy('name');
 
         $this->applyStockFilters($query, $request);
 
         $products = $this->paginateTable($query, $request, 20);
 
-        $lowStockCount = Product::query()->where(function ($q) {
+        $lowStockCount = Product::query()->tracksStock()->where(function ($q) {
             $q->where(function ($q2) {
                 $q2->whereNotNull('minimum_alert_stock')
                     ->whereColumn('stock_quantity', '<=', 'minimum_alert_stock');
@@ -80,11 +80,19 @@ class StockController extends Controller
 
     public function edit(Product $product)
     {
+        if (! $product->tracksStock()) {
+            abort(404);
+        }
+
         return view('stock.edit', compact('product'));
     }
 
     public function update(Request $request, Product $product)
     {
+        if (! $product->tracksStock()) {
+            abort(404);
+        }
+
         $validated = $request->validate([
             'stock_quantity' => 'required|integer|min:0',
         ]);
@@ -98,6 +106,7 @@ class StockController extends Controller
     public function indexEnligne(Request $request)
     {
         $query = Product::query()
+            ->tracksStock()
             ->where('source', 'shopify')
             ->orderBy('name');
 
@@ -112,7 +121,7 @@ class StockController extends Controller
 
     public function editEnligne(Product $product)
     {
-        if ($product->source !== 'shopify') {
+        if ($product->source !== 'shopify' || ! $product->tracksStock()) {
             abort(404);
         }
         return view('stock.enligne.edit', compact('product'));
@@ -120,7 +129,7 @@ class StockController extends Controller
 
     public function updateEnligne(Request $request, Product $product)
     {
-        if ($product->source !== 'shopify') {
+        if ($product->source !== 'shopify' || ! $product->tracksStock()) {
             abort(404);
         }
 
@@ -143,6 +152,7 @@ class StockController extends Controller
     public function indexMagasin(Request $request)
     {
         $query = Product::query()
+            ->tracksStock()
             ->where(function ($q) {
                 $q->whereNull('source')
                     ->orWhere('source', '!=', 'shopify');
@@ -162,7 +172,7 @@ class StockController extends Controller
 
     public function editMagasin(Product $product)
     {
-        if ($product->source === 'shopify') {
+        if ($product->source === 'shopify' || ! $product->tracksStock()) {
             abort(404);
         }
         return view('stock.magasin.edit', compact('product'));
@@ -170,7 +180,7 @@ class StockController extends Controller
 
     public function updateMagasin(Request $request, Product $product)
     {
-        if ($product->source === 'shopify') {
+        if ($product->source === 'shopify' || ! $product->tracksStock()) {
             abort(404);
         }
 

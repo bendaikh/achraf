@@ -97,7 +97,7 @@
                         }).catch(() => supplierError = 'Erreur réseau');
                     "
                 >
-                    <x-supplier-form-fields id-prefix="quick_supplier_" />
+                    <x-supplier-form-fields id-prefix="quick_supplier_" :compact="true" />
 
                     <p x-show="supplierError" x-text="supplierError" class="text-sm text-red-600 mt-4"></p>
                     <div class="flex justify-end gap-3 pt-6 mt-6 border-t border-gray-200">

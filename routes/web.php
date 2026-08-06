@@ -35,6 +35,7 @@ use App\Http\Controllers\CrmImportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryNoteController;
 use App\Http\Controllers\FinancialManagementController;
+use App\Http\Controllers\FinancialMovementController;
 use App\Http\Controllers\DocumentFileController;
 use Illuminate\Support\Facades\Route;
 
@@ -63,11 +64,32 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
     Route::get('/financial', [FinancialManagementController::class, 'index'])->name('financial.index');
     Route::get('/financial/tva', [FinancialManagementController::class, 'tva'])->name('financial.tva');
+    Route::post('/financial/tva/control', [FinancialManagementController::class, 'tvaControl'])->name('financial.tva.control');
+    Route::get('/financial/tva/prepare', [FinancialManagementController::class, 'tvaPrepare'])->name('financial.tva.prepare');
+    Route::post('/financial/tva/pieces', [FinancialMovementController::class, 'storePiece'])->name('financial.tva.pieces.store');
     Route::get('/financial/tresorerie', [FinancialManagementController::class, 'tresorerie'])->name('financial.tresorerie');
+    Route::post('/financial/tresorerie/close-day', [FinancialMovementController::class, 'closeDay'])->name('financial.tresorerie.close-day');
     Route::get('/financial/achats-depenses', [FinancialManagementController::class, 'achatsDepenses'])->name('financial.achats-depenses');
     Route::get('/financial/creances-dettes', [FinancialManagementController::class, 'creancesDettes'])->name('financial.creances-dettes');
+    Route::post('/financial/creances-dettes/relancer', [FinancialManagementController::class, 'relancer'])->name('financial.creances-dettes.relancer');
     Route::get('/financial/declarations', [FinancialManagementController::class, 'declarations'])->name('financial.declarations');
+    Route::post('/financial/declarations/control', [FinancialManagementController::class, 'declarationsControl'])->name('financial.declarations.control');
+    Route::post('/financial/declarations/validate', [FinancialManagementController::class, 'declarationsValidate'])->name('financial.declarations.validate');
+    Route::post('/financial/declarations/close', [FinancialManagementController::class, 'declarationsClose'])->name('financial.declarations.close');
+    Route::post('/financial/declarations/reopen', [FinancialManagementController::class, 'declarationsReopen'])->name('financial.declarations.reopen');
     Route::get('/financial/export', [FinancialManagementController::class, 'export'])->name('financial.export');
+
+    Route::get('/financial/mouvements', [FinancialMovementController::class, 'index'])->name('financial.mouvements.index');
+    Route::get('/financial/mouvements/create', [FinancialMovementController::class, 'create'])->name('financial.mouvements.create');
+    Route::post('/financial/mouvements', [FinancialMovementController::class, 'store'])->name('financial.mouvements.store');
+    Route::get('/financial/mouvements/reconcile', [FinancialMovementController::class, 'reconcile'])->name('financial.mouvements.reconcile');
+    Route::post('/financial/mouvements/sync', [FinancialMovementController::class, 'sync'])->name('financial.mouvements.sync');
+    Route::post('/financial/mouvements/point-bulk', [FinancialMovementController::class, 'pointBulk'])->name('financial.mouvements.point-bulk');
+    Route::get('/financial/mouvements/export', [FinancialMovementController::class, 'export'])->name('financial.mouvements.export');
+    Route::get('/financial/mouvements/{mouvement}/edit', [FinancialMovementController::class, 'edit'])->name('financial.mouvements.edit');
+    Route::put('/financial/mouvements/{mouvement}', [FinancialMovementController::class, 'update'])->name('financial.mouvements.update');
+    Route::delete('/financial/mouvements/{mouvement}', [FinancialMovementController::class, 'destroy'])->name('financial.mouvements.destroy');
+    Route::post('/financial/mouvements/{mouvement}/point', [FinancialMovementController::class, 'point'])->name('financial.mouvements.point');
     Route::post('/document-files/{type}/{id}', [DocumentFileController::class, 'store'])->name('document-files.store');
     
     Route::resource('products', ProductController::class);
@@ -93,6 +115,7 @@ Route::middleware('auth')->group(function () {
         Route::post('suppliers/import', [CrmImportController::class, 'importSuppliers'])->name('suppliers.import');
         Route::get('clients/search', [ClientController::class, 'search'])->name('clients.search');
         Route::post('clients/quick-store', [ClientController::class, 'quickStore'])->name('clients.quick-store');
+        Route::delete('clients/{client}/documents/{document}', [ClientController::class, 'destroyDocument'])->name('clients.documents.destroy');
         Route::resource('clients', ClientController::class);
         Route::get('suppliers/search', [SupplierController::class, 'search'])->name('suppliers.search');
         Route::post('suppliers/quick-store', [SupplierController::class, 'quickStore'])->name('suppliers.quick-store');

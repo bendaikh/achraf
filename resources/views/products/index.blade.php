@@ -193,8 +193,21 @@
                                         </td>
                                         <td class="px-6 py-4">
                                             <div class="text-sm font-medium text-gray-900">{{ $product->name }}</div>
+                                            <div class="mt-1">
+                                                @php
+                                                    $kindColors = [
+                                                        'stocked' => 'bg-blue-100 text-blue-800',
+                                                        'non_stocked' => 'bg-amber-100 text-amber-800',
+                                                        'service' => 'bg-violet-100 text-violet-800',
+                                                    ];
+                                                    $kind = $product->item_kind ?? 'stocked';
+                                                @endphp
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $kindColors[$kind] ?? 'bg-gray-100 text-gray-800' }}">
+                                                    {{ $product->item_kind_label }}
+                                                </span>
+                                            </div>
                                             @if($product->product_category)
-                                                <div class="text-xs text-gray-500">{{ $product->product_category }}</div>
+                                                <div class="text-xs text-gray-500 mt-1">{{ $product->product_category }}</div>
                                             @endif
                                             @if($product->variants_count > 0)
                                                 <div class="mt-1">
@@ -208,7 +221,9 @@
                                             <span class="text-sm text-gray-900">{{ number_format($product->sale_price ?? 0, 2) }} DHS</span>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            @if($product->isOutOfStock())
+                                            @if(! $product->tracksStock())
+                                                <span class="text-sm text-gray-400">—</span>
+                                            @elseif($product->isOutOfStock())
                                                 <span class="text-sm font-semibold text-red-600">{{ $product->stock_quantity }}</span>
                                             @elseif($product->isStockLow())
                                                 <span class="text-sm font-semibold text-orange-600">{{ $product->stock_quantity }}</span>

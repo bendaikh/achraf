@@ -4,262 +4,55 @@
 
 @section('sidebar_page_title', 'Modifier client')
 
+@php
+    $defaultType = old('client_type', $client->client_type ?? 'entreprise');
+@endphp
+
 @section('main')
-<main class="flex-1 w-full min-w-0 overflow-y-auto min-h-screen">
-    <div class="p-4 sm:p-6 lg:p-8">
+<main class="flex-1 w-full min-w-0 overflow-y-auto min-h-screen bg-gray-50/80">
+    <div class="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
         <div class="mb-6">
-            <div class="flex items-center space-x-2 text-sm text-gray-500 mb-2">
-                <a href="{{ route('clients.index') }}" class="hover:text-blue-600">Clients</a>
+            <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+                <a href="{{ route('clients.index') }}" class="hover:text-[#c9920f]">Clients</a>
                 <span>/</span>
-                <span class="text-gray-900">Modifier un client</span>
+                <a href="{{ route('clients.show', $client) }}" class="hover:text-[#c9920f]">{{ $client->name }}</a>
+                <span>/</span>
+                <span class="text-gray-900">Modifier</span>
             </div>
-            <h1 class="text-3xl font-bold text-gray-900">Modifier un client</h1>
+            <div class="flex items-center gap-3">
+                <a href="{{ route('clients.show', $client) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                </a>
+                <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Modifier — {{ $client->name }}</h1>
+            </div>
         </div>
 
         @if($errors->any())
-            <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded">
-                <div class="flex">
-                    <svg class="h-5 w-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <div>
-                        <p class="text-red-700 font-medium">Il y a des erreurs dans le formulaire:</p>
-                        <ul class="list-disc list-inside text-red-600 mt-2">
-                            @foreach($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </div>
+            <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                <p class="text-red-700 font-medium text-sm">Corrigez les erreurs suivantes :</p>
+                <ul class="list-disc list-inside text-red-600 mt-2 text-sm">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
             </div>
         @endif
 
-        <form action="{{ route('clients.update', $client) }}" method="POST" class="bg-white rounded-lg shadow">
+        <form action="{{ route('clients.update', $client) }}" method="POST" enctype="multipart/form-data"
+              class="space-y-5"
+              x-data="{ clientType: '{{ $defaultType }}' }">
             @csrf
             @method('PUT')
 
-            <div class="p-6 border-b border-gray-200">
-                <h2 class="text-lg font-semibold text-gray-900 mb-4">Informations Générales</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
-                            Entreprise <span class="text-red-500">*</span>
-                        </label>
-                        <input 
-                            type="text" 
-                            name="name" 
-                            id="name" 
-                            value="{{ old('name', $client->name) }}" 
-                            required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('name') border-red-500 @enderror"
-                        >
-                        @error('name')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
+            <x-client-form-fields :client="$client" />
 
-                    <div>
-                        <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">
-                            Téléphone
-                        </label>
-                        <input 
-                            type="text" 
-                            name="phone" 
-                            id="phone" 
-                            value="{{ old('phone', $client->phone) }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('phone') border-red-500 @enderror"
-                        >
-                        @error('phone')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
-                            Email <span class="text-red-500">*</span>
-                        </label>
-                        <input 
-                            type="email" 
-                            name="email" 
-                            id="email" 
-                            value="{{ old('email', $client->email) }}" 
-                            required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('email') border-red-500 @enderror"
-                        >
-                        @error('email')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="address" class="block text-sm font-medium text-gray-700 mb-1">
-                            Adresse
-                        </label>
-                        <input 
-                            type="text" 
-                            name="address" 
-                            id="address" 
-                            value="{{ old('address', $client->address) }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('address') border-red-500 @enderror"
-                        >
-                        @error('address')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="code" class="block text-sm font-medium text-gray-700 mb-1">
-                            Code client
-                        </label>
-                        <input 
-                            type="text" 
-                            name="code" 
-                            id="code" 
-                            value="{{ old('code', $client->code) }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('code') border-red-500 @enderror"
-                        >
-                        @error('code')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="postal_code" class="block text-sm font-medium text-gray-700 mb-1">
-                            Code postal
-                        </label>
-                        <input 
-                            type="text" 
-                            name="postal_code" 
-                            id="postal_code" 
-                            value="{{ old('postal_code', $client->postal_code) }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('postal_code') border-red-500 @enderror"
-                        >
-                        @error('postal_code')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="ice" class="block text-sm font-medium text-gray-700 mb-1">
-                            ICE
-                        </label>
-                        <input 
-                            type="text" 
-                            name="ice" 
-                            id="ice" 
-                            value="{{ old('ice', $client->ice) }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('ice') border-red-500 @enderror"
-                        >
-                        @error('ice')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="region" class="block text-sm font-medium text-gray-700 mb-1">
-                            Région
-                        </label>
-                        <input 
-                            type="text" 
-                            name="region" 
-                            id="region" 
-                            value="{{ old('region', $client->region) }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('region') border-red-500 @enderror"
-                        >
-                        @error('region')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="fiscal_identifier" class="block text-sm font-medium text-gray-700 mb-1">
-                            Identifiant fiscal (IF)
-                        </label>
-                        <input 
-                            type="text" 
-                            name="fiscal_identifier" 
-                            id="fiscal_identifier" 
-                            value="{{ old('fiscal_identifier', $client->fiscal_identifier) }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('fiscal_identifier') border-red-500 @enderror"
-                        >
-                        @error('fiscal_identifier')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="ville" class="block text-sm font-medium text-gray-700 mb-1">
-                            Ville
-                        </label>
-                        <input 
-                            type="text" 
-                            name="ville" 
-                            id="ville" 
-                            value="{{ old('ville', $client->ville) }}" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('ville') border-red-500 @enderror"
-                        >
-                        @error('ville')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="latitude" class="block text-sm font-medium text-gray-700 mb-1">
-                            Latitude (Google Maps)
-                        </label>
-                        <input 
-                            type="text" 
-                            name="latitude" 
-                            id="latitude" 
-                            value="{{ old('latitude', $client->latitude) }}" 
-                            placeholder="33.5731"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('latitude') border-red-500 @enderror"
-                        >
-                        @error('latitude')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="country" class="block text-sm font-medium text-gray-700 mb-1">
-                            Pays
-                        </label>
-                        <select 
-                            name="country" 
-                            id="country" 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('country') border-red-500 @enderror"
-                        >
-                            <option value="Maroc" {{ old('country', $client->country) == 'Maroc' ? 'selected' : '' }}>Maroc</option>
-                        </select>
-                        @error('country')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label for="longitude" class="block text-sm font-medium text-gray-700 mb-1">
-                            Longitude (Google Maps)
-                        </label>
-                        <input 
-                            type="text" 
-                            name="longitude" 
-                            id="longitude" 
-                            value="{{ old('longitude', $client->longitude) }}" 
-                            placeholder="-7.5898"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent @error('longitude') border-red-500 @enderror"
-                        >
-                        @error('longitude')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-                </div>
-            </div>
-
-            <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
-                <a href="{{ route('clients.index') }}" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition duration-150">
+            <div class="sticky bottom-0 z-10 -mx-4 sm:-mx-6 lg:-mx-8 mt-2 border-t border-gray-200 bg-white/95 backdrop-blur px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
+                <a href="{{ route('clients.show', $client) }}" class="px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 text-center">
                     Annuler
                 </a>
-                <button type="submit" class="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition duration-150 text-sm font-medium">
+                <button type="submit"
+                        class="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] text-sm font-semibold shadow-sm">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                     Mettre à jour
                 </button>
             </div>

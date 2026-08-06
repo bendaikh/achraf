@@ -100,11 +100,31 @@
                 </div>
             </form>
         </div>
+        @include('financial.partials.finance-tabs')
     </header>
 
-    <div class="p-4 sm:p-6 lg:p-8 space-y-8">
+    <div class="p-4 sm:p-6 lg:p-8 space-y-8 bg-slate-50/80">
         <div id="finance-overview-help" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             La vue d'ensemble agrège vos données réelles : chiffre d'affaires, achats, dépenses, TVA, trésorerie, créances et dettes. Utilisez les onglets pour entrer dans chaque module.
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <a href="{{ route('financial.tva', request()->only(['date_from','date_to'])) }}" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 hover:shadow-sm transition">
+                <p class="text-[11px] font-semibold uppercase text-emerald-700">TVA nette</p>
+                <p class="mt-1 text-xl font-bold tabular-nums text-emerald-900">{{ number_format($overview['vat_net'], 2) }} DH</p>
+            </a>
+            <a href="{{ route('financial.tresorerie', request()->only(['date_from','date_to'])) }}" class="rounded-xl border border-[#b6d7ea] bg-[#e8f4fa] p-4 hover:shadow-sm transition">
+                <p class="text-[11px] font-semibold uppercase text-[#0a5d8a]">Disponible</p>
+                <p class="mt-1 text-xl font-bold tabular-nums text-[#084a6e]">{{ number_format($overview['treasury_total'], 2) }} DH</p>
+            </a>
+            <a href="{{ route('financial.creances-dettes', request()->only(['date_from','date_to'])) }}" class="rounded-xl border border-amber-200 bg-amber-50 p-4 hover:shadow-sm transition">
+                <p class="text-[11px] font-semibold uppercase text-amber-800">Créances</p>
+                <p class="mt-1 text-xl font-bold tabular-nums text-amber-950">{{ number_format($overview['client_receivables'], 2) }} DH</p>
+            </a>
+            <a href="{{ route('financial.mouvements.index', request()->only(['date_from','date_to'])) }}" class="rounded-xl border border-violet-200 bg-violet-50 p-4 hover:shadow-sm transition">
+                <p class="text-[11px] font-semibold uppercase text-violet-700">Mouvements</p>
+                <p class="mt-1 text-sm font-semibold text-violet-900">Ouvrir le journal →</p>
+            </a>
         </div>
 
         @if(isset($health))

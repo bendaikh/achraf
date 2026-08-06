@@ -2,6 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\Expense;
+use App\Models\InvoicePayment;
+use App\Models\PosSale;
+use App\Models\SupplierInvoicePayment;
+use App\Observers\FinancialSourceObserver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +24,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        InvoicePayment::observe(FinancialSourceObserver::class);
+        SupplierInvoicePayment::observe(FinancialSourceObserver::class);
+        Expense::observe(FinancialSourceObserver::class);
+        PosSale::observe(FinancialSourceObserver::class);
     }
 }

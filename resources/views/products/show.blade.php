@@ -101,10 +101,33 @@
                                     </div>
                                 @endif
 
-                                @if($product->element_type)
+                                @if($product->item_kind)
+                                    <div>
+                                        <span class="text-sm text-gray-500">Type d'article</span>
+                                        <p class="mt-1">
+                                            @php
+                                                $kindColors = [
+                                                    'stocked' => 'bg-blue-100 text-blue-800',
+                                                    'non_stocked' => 'bg-amber-100 text-amber-800',
+                                                    'service' => 'bg-violet-100 text-violet-800',
+                                                ];
+                                            @endphp
+                                            <span class="px-2 py-1 rounded-full text-sm font-medium {{ $kindColors[$product->item_kind] ?? 'bg-gray-100 text-gray-800' }}">
+                                                {{ $product->item_kind_label }}
+                                            </span>
+                                        </p>
+                                    </div>
+                                @elseif($product->element_type)
                                     <div>
                                         <span class="text-sm text-gray-500">Type d'élément</span>
                                         <p class="mt-1 text-gray-900">{{ $product->element_type }}</p>
+                                    </div>
+                                @endif
+
+                                @if($product->isService() && $product->service_category)
+                                    <div>
+                                        <span class="text-sm text-gray-500">Catégorie de service</span>
+                                        <p class="mt-1 text-gray-900">{{ $product->service_category }}</p>
                                     </div>
                                 @endif
 
@@ -166,6 +189,7 @@
                             </div>
                         </div>
 
+                        @if($product->tracksStock())
                         <div class="bg-white rounded-lg shadow p-6">
                             <h2 class="text-lg font-semibold text-gray-900 mb-4">Gestion des stocks</h2>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -175,19 +199,75 @@
                                 </div>
                                 @if($product->minimum_safety_stock !== null)
                                     <div>
-                                        <span class="text-sm text-gray-500">Stock minimum de sécurité</span>
+                                        <span class="text-sm text-gray-500">Stock minimum</span>
                                         <p class="mt-1 text-lg font-semibold text-gray-900">{{ $product->minimum_safety_stock }}</p>
                                     </div>
                                 @endif
 
                                 @if($product->minimum_alert_stock !== null)
                                     <div>
-                                        <span class="text-sm text-gray-500">Stock minimum d'alerte</span>
+                                        <span class="text-sm text-gray-500">Stock d'alerte</span>
                                         <p class="mt-1 text-lg font-semibold text-orange-600">{{ $product->minimum_alert_stock }}</p>
+                                    </div>
+                                @endif
+
+                                @if($product->maximum_stock !== null)
+                                    <div>
+                                        <span class="text-sm text-gray-500">Stock maximum</span>
+                                        <p class="mt-1 text-lg font-semibold text-gray-900">{{ $product->maximum_stock }}</p>
+                                    </div>
+                                @endif
+
+                                @if($product->location)
+                                    <div>
+                                        <span class="text-sm text-gray-500">Emplacement</span>
+                                        <p class="mt-1 text-gray-900">{{ $product->location }}</p>
+                                    </div>
+                                @endif
+
+                                @if($product->primarySupplier)
+                                    <div>
+                                        <span class="text-sm text-gray-500">Fournisseur principal</span>
+                                        <p class="mt-1 text-gray-900">{{ $product->primarySupplier->name }}</p>
                                     </div>
                                 @endif
                             </div>
                         </div>
+                        @elseif($product->isService())
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h2 class="text-lg font-semibold text-gray-900 mb-4">Informations service</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                @if($product->estimated_duration)
+                                    <div>
+                                        <span class="text-sm text-gray-500">Durée estimée</span>
+                                        <p class="mt-1 text-gray-900">{{ $product->estimated_duration }}</p>
+                                    </div>
+                                @endif
+                                @if($product->billing_unit)
+                                    <div>
+                                        <span class="text-sm text-gray-500">Unité de facturation</span>
+                                        <p class="mt-1 text-gray-900">{{ \App\Models\Product::BILLING_UNITS[$product->billing_unit] ?? $product->billing_unit }}</p>
+                                    </div>
+                                @endif
+                                <div>
+                                    <span class="text-sm text-gray-500">Technicien requis</span>
+                                    <p class="mt-1 text-gray-900">{{ $product->technician_required ? 'Oui' : 'Non' }}</p>
+                                </div>
+                            </div>
+                            <p class="mt-4 text-sm text-violet-700 bg-violet-50 rounded-lg px-3 py-2">Ce service n'est pas géré en stock et ne bloque jamais la vente.</p>
+                        </div>
+                        @else
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h2 class="text-lg font-semibold text-gray-900 mb-4">Stock</h2>
+                            <p class="text-sm text-amber-800 bg-amber-50 rounded-lg px-3 py-2">Produit non stocké : aucun stock n'est géré, la vente n'est jamais bloquée.</p>
+                            @if($product->primarySupplier)
+                                <div class="mt-4">
+                                    <span class="text-sm text-gray-500">Fournisseur principal</span>
+                                    <p class="mt-1 text-gray-900">{{ $product->primarySupplier->name }}</p>
+                                </div>
+                            @endif
+                        </div>
+                        @endif
 
                         <div class="bg-white rounded-lg shadow p-6">
                             <h2 class="text-lg font-semibold text-gray-900 mb-4">Informations système</h2>

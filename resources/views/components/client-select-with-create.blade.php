@@ -79,7 +79,9 @@
                         }).catch(() => clientError = 'Erreur réseau');
                     "
                 >
-                    <x-client-form-fields id-prefix="quick_client_" />
+                    <div class="space-y-4">
+                        <x-client-form-fields id-prefix="quick_client_" :compact="true" />
+                    </div>
 
                     <p x-show="clientError" x-text="clientError" class="text-sm text-red-600 mt-4"></p>
                     <div class="flex justify-end gap-3 pt-6 mt-6 border-t border-gray-200">

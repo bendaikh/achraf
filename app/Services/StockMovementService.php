@@ -49,7 +49,7 @@ class StockMovementService
             }
 
             $product = Product::query()->lockForUpdate()->find($productId);
-            if (! $product) {
+            if (! $product || ! $product->tracksStock()) {
                 continue;
             }
 
@@ -78,7 +78,7 @@ class StockMovementService
             }
 
             $product = Product::query()->lockForUpdate()->find($productId);
-            if (! $product) {
+            if (! $product || ! $product->tracksStock()) {
                 continue;
             }
 
@@ -121,6 +121,10 @@ class StockMovementService
 
     public function decrease(Product $product, int $quantity, string $channel): void
     {
+        if (! $product->tracksStock()) {
+            return;
+        }
+
         $field = $this->stockFieldForProduct($product, $channel);
         $current = (int) ($product->{$field} ?? 0);
 
@@ -138,6 +142,10 @@ class StockMovementService
 
     public function increase(Product $product, int $quantity, string $channel): void
     {
+        if (! $product->tracksStock()) {
+            return;
+        }
+
         $field = $this->stockFieldForProduct($product, $channel);
         $product->{$field} = (int) ($product->{$field} ?? 0) + $quantity;
         $this->syncAggregateStock($product, $field);

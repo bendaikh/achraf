@@ -3,9 +3,31 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
+    public const KIND_STOCKED = 'stocked';
+
+    public const KIND_NON_STOCKED = 'non_stocked';
+
+    public const KIND_SERVICE = 'service';
+
+    public const ITEM_KINDS = [
+        self::KIND_STOCKED => 'Produit stocké',
+        self::KIND_NON_STOCKED => 'Produit non stocké',
+        self::KIND_SERVICE => 'Service',
+    ];
+
+    public const BILLING_UNITS = [
+        'heure' => 'Heure',
+        'prestation' => 'Prestation',
+        'forfait' => 'Forfait',
+        'unite' => 'Unité',
+        'jour' => 'Jour',
+    ];
+
     protected $fillable = [
         'name',
         'ref',
@@ -17,16 +39,24 @@ class Product extends Model
         'product_margin',
         'minimum_safety_stock',
         'minimum_alert_stock',
+        'maximum_stock',
         'stock_quantity',
         'stock_magasin',
         'stock_enligne',
+        'location',
+        'primary_supplier_id',
         'barcode',
         'vat_category',
         'product_type_category',
         'element_type',
+        'item_kind',
         'tag',
         'status',
         'product_category',
+        'service_category',
+        'estimated_duration',
+        'billing_unit',
+        'technician_required',
         'description',
         'source',
         'external_id',
@@ -45,15 +75,63 @@ class Product extends Model
         'product_margin' => 'decimal:2',
         'minimum_safety_stock' => 'integer',
         'minimum_alert_stock' => 'integer',
+        'maximum_stock' => 'integer',
         'stock_quantity' => 'integer',
         'stock_magasin' => 'integer',
         'stock_enligne' => 'integer',
+        'technician_required' => 'boolean',
         'shopify_synced_at' => 'datetime',
         'jumia_stock_synced_at' => 'datetime',
     ];
 
+    public function primarySupplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class, 'primary_supplier_id');
+    }
+
+    public function isStocked(): bool
+    {
+        return ($this->item_kind ?? self::KIND_STOCKED) === self::KIND_STOCKED;
+    }
+
+    public function isNonStocked(): bool
+    {
+        return ($this->item_kind ?? '') === self::KIND_NON_STOCKED;
+    }
+
+    public function isService(): bool
+    {
+        return ($this->item_kind ?? '') === self::KIND_SERVICE
+            || strcasecmp((string) $this->element_type, 'Service') === 0;
+    }
+
+    /**
+     * Whether this article participates in inventory (entries, exits, alerts, blocking).
+     */
+    public function tracksStock(): bool
+    {
+        return $this->isStocked();
+    }
+
+    public function getItemKindLabelAttribute(): string
+    {
+        return self::ITEM_KINDS[$this->item_kind ?? self::KIND_STOCKED] ?? 'Produit stocké';
+    }
+
+    /**
+     * Keep legacy element_type aligned with item_kind for older screens/filters.
+     */
+    public static function elementTypeForKind(string $kind): string
+    {
+        return $kind === self::KIND_SERVICE ? 'Service' : 'Produit';
+    }
+
     public function isStockLow(): bool
     {
+        if (! $this->tracksStock()) {
+            return false;
+        }
+
         if ($this->minimum_alert_stock !== null) {
             return $this->stock_quantity <= $this->minimum_alert_stock;
         }
@@ -64,22 +142,42 @@ class Product extends Model
         return false;
     }
 
+    public function scopeStocked($query)
+    {
+        return $query->where('item_kind', self::KIND_STOCKED);
+    }
+
+    public function scopeTracksStock($query)
+    {
+        return $query->where('item_kind', self::KIND_STOCKED);
+    }
+
+    public function scopeServices($query)
+    {
+        return $query->where('item_kind', self::KIND_SERVICE);
+    }
+
     public function scopeLowStock($query)
     {
-        return $query->where(function ($q) {
-            $q->where(function ($q2) {
-                $q2->whereNotNull('minimum_alert_stock')
-                    ->whereColumn('stock_quantity', '<=', 'minimum_alert_stock');
-            })->orWhere(function ($q2) {
-                $q2->whereNull('minimum_alert_stock')
-                    ->whereNotNull('minimum_safety_stock')
-                    ->whereColumn('stock_quantity', '<=', 'minimum_safety_stock');
+        return $query->where('item_kind', self::KIND_STOCKED)
+            ->where(function ($q) {
+                $q->where(function ($q2) {
+                    $q2->whereNotNull('minimum_alert_stock')
+                        ->whereColumn('stock_quantity', '<=', 'minimum_alert_stock');
+                })->orWhere(function ($q2) {
+                    $q2->whereNull('minimum_alert_stock')
+                        ->whereNotNull('minimum_safety_stock')
+                        ->whereColumn('stock_quantity', '<=', 'minimum_safety_stock');
+                });
             });
-        });
     }
 
     public function isOutOfStock(): bool
     {
+        if (! $this->tracksStock()) {
+            return false;
+        }
+
         return $this->stock_quantity <= 0;
     }
 
@@ -91,12 +189,12 @@ class Product extends Model
         return \App\Support\PublicStorage::url($this->image);
     }
 
-    public function invoiceItems()
+    public function invoiceItems(): HasMany
     {
         return $this->hasMany(InvoiceItem::class);
     }
 
-    public function variants()
+    public function variants(): HasMany
     {
         return $this->hasMany(ProductVariant::class)->orderBy('position');
     }
@@ -119,12 +217,12 @@ class Product extends Model
      */
     public function getShopifyUrlAttribute(): ?string
     {
-        if (!$this->isShopifyProduct() || !$this->external_id) {
+        if (! $this->isShopifyProduct() || ! $this->external_id) {
             return null;
         }
 
         $integration = \App\Models\ShopifyIntegration::first();
-        if (!$integration || !$integration->shop_name) {
+        if (! $integration || ! $integration->shop_name) {
             return null;
         }
 

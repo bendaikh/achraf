@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CreditNote;
 use App\Models\Expense;
+use App\Models\FinancialMovement;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Models\PosSale;
@@ -13,6 +14,7 @@ use App\Models\SupplierInvoicePayment;
 use App\Support\DocumentTaxBreakdown;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class FinancialManagementService
 {
@@ -219,6 +221,120 @@ class FinancialManagementService
     }
 
     /**
+     * Contrôles TVA : taux erronés, calculs incohérents, pièces manquantes.
+     *
+     * @return list<array{code: string, label: string, severity: string, count: int}>
+     */
+    public function getVatControls(Carbon $dateFrom, Carbon $dateTo): array
+    {
+        $controls = [];
+
+        $invoicesMissingItems = Invoice::query()
+            ->whereBetween('invoice_date', [$dateFrom, $dateTo])
+            ->whereDoesntHave('items')
+            ->count();
+
+        if ($invoicesMissingItems > 0) {
+            $controls[] = [
+                'code' => 'missing_invoice',
+                'label' => $invoicesMissingItems.' facture(s) client(s) sans lignes',
+                'severity' => 'error',
+                'count' => $invoicesMissingItems,
+            ];
+        }
+
+        $supplierMissingItems = SupplierInvoice::query()
+            ->whereBetween('invoice_date', [$dateFrom, $dateTo])
+            ->whereDoesntHave('items')
+            ->count();
+
+        if ($supplierMissingItems > 0) {
+            $controls[] = [
+                'code' => 'missing_invoice',
+                'label' => $supplierMissingItems.' facture(s) fournisseur(s) sans lignes',
+                'severity' => 'error',
+                'count' => $supplierMissingItems,
+            ];
+        }
+
+        $expensesMissingFile = Expense::query()
+            ->where('expense_type', 'with_invoice')
+            ->whereBetween('expense_date', [$dateFrom, $dateTo])
+            ->where(function ($q) {
+                $q->whereNull('invoice_file_path')->orWhere('invoice_file_path', '');
+            })
+            ->count();
+
+        if ($expensesMissingFile > 0) {
+            $controls[] = [
+                'code' => 'missing_invoice',
+                'label' => $expensesMissingFile.' dépense(s) avec facture sans pièce jointe',
+                'severity' => 'warning',
+                'count' => $expensesMissingFile,
+            ];
+        }
+
+        $invalidRates = 0;
+        $calcErrors = 0;
+        $allowedRates = [0.0, 7.0, 10.0, 14.0, 20.0];
+
+        $documents = collect()
+            ->concat(Invoice::with('items')->whereBetween('invoice_date', [$dateFrom, $dateTo])->get())
+            ->concat(SupplierInvoice::with('items')->whereBetween('invoice_date', [$dateFrom, $dateTo])->get())
+            ->concat(CreditNote::with('items')->whereBetween('credit_note_date', [$dateFrom, $dateTo])->get())
+            ->concat(SupplierCreditNote::with('items')->whereBetween('credit_note_date', [$dateFrom, $dateTo])->get());
+
+        foreach ($documents as $document) {
+            foreach ($document->items as $item) {
+                $rate = round((float) ($item->tax_rate ?? 0), 2);
+                if ($rate > 0 && ! in_array($rate, $allowedRates, true)) {
+                    $invalidRates++;
+                }
+            }
+
+            if ($document->items->isEmpty()) {
+                continue;
+            }
+
+            $breakdown = DocumentTaxBreakdown::fromDocument($document, $document->items);
+            $storedTotal = (float) ($document->total ?? 0);
+            if ($storedTotal > 0 && abs($storedTotal - (float) $breakdown['total_ttc']) > 0.05) {
+                $calcErrors++;
+            }
+        }
+
+        if ($invalidRates > 0) {
+            $controls[] = [
+                'code' => 'invalid_rate',
+                'label' => $invalidRates.' ligne(s) avec taux de TVA hors barème (0/7/10/14/20 %)',
+                'severity' => 'error',
+                'count' => $invalidRates,
+            ];
+        }
+
+        if ($calcErrors > 0) {
+            $controls[] = [
+                'code' => 'calc_error',
+                'label' => $calcErrors.' document(s) avec total TTC incohérent vs lignes',
+                'severity' => 'error',
+                'count' => $calcErrors,
+            ];
+        }
+
+        $vat = $this->getVatBreakdown($dateFrom, $dateTo);
+        if (abs($vat['net'] - ($vat['collected'] - $vat['deductible'])) > 0.01) {
+            $controls[] = [
+                'code' => 'vat_incoherent',
+                'label' => 'TVA nette incohérente (collectée − déductible)',
+                'severity' => 'error',
+                'count' => 1,
+            ];
+        }
+
+        return $controls;
+    }
+
+    /**
      * Santé de la période : état, anomalies détectées, dernière activité.
      *
      * @return array{
@@ -233,6 +349,10 @@ class FinancialManagementService
     public function getPeriodHealth(Carbon $dateFrom, Carbon $dateTo): array
     {
         $anomalies = [];
+
+        foreach ($this->getVatControls($dateFrom, $dateTo) as $control) {
+            $anomalies[] = $control['label'];
+        }
 
         $overdueClients = Invoice::query()
             ->withSum('payments as payments_sum', 'amount')
@@ -305,6 +425,15 @@ class FinancialManagementService
             PosSale::query()->whereBetween('sold_at', [$dateFrom, $dateTo])->max('updated_at'),
         ])->filter()->map(fn ($d) => Carbon::parse($d));
 
+        if (Schema::hasTable('financial_movements')) {
+            $movementUpdated = FinancialMovement::query()
+                ->whereBetween('movement_date', [$dateFrom->toDateString(), $dateTo->toDateString()])
+                ->max('updated_at');
+            if ($movementUpdated) {
+                $lastDates->push(Carbon::parse($movementUpdated));
+            }
+        }
+
         $lastUpdated = $lastDates->sortDesc()->first();
         $anomaliesCount = count($anomalies);
         $status = $anomaliesCount > 0 ? 'a_controler' : 'ok';
@@ -374,11 +503,23 @@ class FinancialManagementService
 
     /**
      * Soldes disponibles (historique complet), ventilés caisse / banque.
+     * Priorité au journal des mouvements financiers s'il est peuplé.
      *
      * @return array{total: float, caisse: float, banque: float, other: float}
      */
     public function getTreasuryBalances(): array
     {
+        if (Schema::hasTable('financial_movements') && FinancialMovement::query()->exists()) {
+            $fromLedger = app(FinancialMovementService::class)->treasuryFromMovements();
+
+            return [
+                'caisse' => $fromLedger['caisse'],
+                'banque' => $fromLedger['banque'],
+                'other' => $fromLedger['other'],
+                'total' => $fromLedger['total'],
+            ];
+        }
+
         $caisse = 0.0;
         $banque = 0.0;
         $other = 0.0;
@@ -529,6 +670,10 @@ class FinancialManagementService
         ?string $type = null,
         ?string $search = null,
     ): array {
+        if (Schema::hasTable('financial_movements') && FinancialMovement::query()->exists()) {
+            return $this->getRecentTransactionsFromLedger($limit, $dateFrom, $dateTo, $type, $search);
+        }
+
         $transactions = collect();
 
         $includeIn = $type === null || $type === '' || $type === 'all' || in_array($type, ['encaissement', 'in'], true);
@@ -658,6 +803,67 @@ class FinancialManagementService
                 'date_formatted' => $item['date']?->format('d/m/Y') ?? '—',
             ])
             ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function getRecentTransactionsFromLedger(
+        int $limit,
+        ?Carbon $dateFrom,
+        ?Carbon $dateTo,
+        ?string $type,
+        ?string $search,
+    ): array {
+        $query = FinancialMovement::query()
+            ->when($dateFrom && $dateTo, fn ($q) => $q->whereBetween('movement_date', [$dateFrom->toDateString(), $dateTo->toDateString()]));
+
+        if ($type && $type !== 'all') {
+            if (in_array($type, ['encaissement', 'in', 'sale', 'pos'], true)) {
+                $query->where('type', FinancialMovement::TYPE_ENTREE);
+            } elseif (in_array($type, ['decaissement', 'out', 'expense', 'purchase'], true)) {
+                $query->where('type', FinancialMovement::TYPE_SORTIE);
+            } elseif (in_array($type, ['entree', 'sortie', 'virement'], true)) {
+                $query->where('type', $type);
+            }
+        }
+
+        if ($search) {
+            $needle = '%'.trim($search).'%';
+            $query->where(function ($q) use ($needle) {
+                $q->where('reference', 'like', $needle)
+                    ->orWhere('label', 'like', $needle)
+                    ->orWhere('notes', 'like', $needle);
+            });
+        }
+
+        return $query
+            ->latest('movement_date')
+            ->latest('id')
+            ->limit($limit)
+            ->get()
+            ->map(function (FinancialMovement $movement) {
+                $amount = max((float) $movement->amount_in, (float) $movement->amount_out);
+
+                return [
+                    'date' => $movement->movement_date,
+                    'date_formatted' => $movement->movement_date?->format('d/m/Y') ?? '—',
+                    'label' => $movement->label,
+                    'type' => $movement->type === FinancialMovement::TYPE_ENTREE ? 'encaissement' : 'decaissement',
+                    'status' => $movement->status === FinancialMovement::STATUS_CLOTURE ? 'paid' : 'paid',
+                    'reference' => $movement->reference,
+                    'party' => FinancialMovement::originLabels()[$movement->origin] ?? $movement->origin,
+                    'method' => FinancialMovement::accountLabels()[$movement->account] ?? $movement->account,
+                    'amount' => $amount,
+                    'direction' => $movement->type === FinancialMovement::TYPE_ENTREE ? 'in' : 'out',
+                    'url' => route('financial.mouvements.index', [
+                        'date_from' => $movement->movement_date?->toDateString(),
+                        'date_to' => $movement->movement_date?->toDateString(),
+                        'q' => $movement->reference,
+                    ]),
+                ];
+            })
             ->all();
     }
 

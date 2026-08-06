@@ -22,27 +22,13 @@ class PointOfSaleController extends Controller
     public function index()
     {
         $comptoirClient = PosDefaultClient::ensure();
-        $productsMagasinForJs = $this->catalogQuery('magasin')->get()->map(fn (Product $p) => [
-            'id' => $p->id,
-            'name' => $p->name,
-            'ref' => $p->ref,
-            'sale_price' => (float) ($p->sale_price ?? 0),
-            'barcode' => $p->barcode,
-            'tax_rate' => $this->defaultTaxRate($p),
-            'image_url' => $p->image_url,
-            'stock' => (int) ($p->stock_magasin ?? 0),
-        ])->values();
+        $productsMagasinForJs = $this->catalogQuery('magasin')->get()
+            ->map(fn (Product $p) => $this->mapProductForPos($p, 'magasin'))
+            ->values();
 
-        $productsEnligneForJs = $this->catalogQuery('enligne')->get()->map(fn (Product $p) => [
-            'id' => $p->id,
-            'name' => $p->name,
-            'ref' => $p->ref,
-            'sale_price' => (float) ($p->sale_price ?? 0),
-            'barcode' => $p->barcode,
-            'tax_rate' => $this->defaultTaxRate($p),
-            'image_url' => $p->image_url,
-            'stock' => (int) ($p->stock_enligne ?? 0),
-        ])->values();
+        $productsEnligneForJs = $this->catalogQuery('enligne')->get()
+            ->map(fn (Product $p) => $this->mapProductForPos($p, 'enligne'))
+            ->values();
 
         $paymentMethods = PosSale::paymentLabels();
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
@@ -88,12 +74,10 @@ class PointOfSaleController extends Controller
         // Filter by stock type
         if ($stockType === 'enligne') {
             $query->where('source', 'shopify');
-            $stockField = 'stock_enligne';
         } else {
             $query->where(function ($q) {
                 $q->whereNull('source')->orWhere('source', '!=', 'shopify');
             });
-            $stockField = 'stock_magasin';
         }
 
         if ($barcode !== '') {
@@ -108,18 +92,9 @@ class PointOfSaleController extends Controller
             return response()->json(['products' => []]);
         }
 
-        $rows = $query->limit(30)->get(['id', 'name', 'ref', 'sale_price', 'barcode', 'vat_category', 'image', $stockField]);
+        $rows = $query->limit(30)->get();
 
-        $products = $rows->map(fn (Product $p) => [
-            'id' => $p->id,
-            'name' => $p->name,
-            'ref' => $p->ref,
-            'sale_price' => (float) ($p->sale_price ?? 0),
-            'barcode' => $p->barcode,
-            'tax_rate' => $this->defaultTaxRate($p),
-            'image_url' => $p->image_url,
-            'stock' => (int) ($p->$stockField ?? 0),
-        ])->values();
+        $products = $rows->map(fn (Product $p) => $this->mapProductForPos($p, $stockType))->values();
 
         return response()->json(['products' => $products]);
     }
@@ -318,6 +293,7 @@ class PointOfSaleController extends Controller
     protected function mapProductForPos(Product $p, string $stockType): array
     {
         $stockField = $stockType === 'enligne' ? 'stock_enligne' : 'stock_magasin';
+        $tracksStock = $p->tracksStock();
 
         return [
             'id' => $p->id,
@@ -327,7 +303,10 @@ class PointOfSaleController extends Controller
             'barcode' => $p->barcode,
             'tax_rate' => $this->defaultTaxRate($p),
             'image_url' => $p->image_url,
-            'stock' => (int) ($p->{$stockField} ?? 0),
+            'stock' => $tracksStock ? (int) ($p->{$stockField} ?? 0) : null,
+            'tracks_stock' => $tracksStock,
+            'item_kind' => $p->item_kind ?? Product::KIND_STOCKED,
+            'item_kind_label' => $p->item_kind_label,
         ];
     }
 

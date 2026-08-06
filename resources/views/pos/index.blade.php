@@ -151,8 +151,16 @@
                                             </svg>
                                         </div>
                                         <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                        <div class="absolute top-1.5 right-1.5 px-2 py-0.5 rounded text-xs font-medium" :class="p.stock > 0 ? 'bg-emerald-500/90 text-white' : 'bg-red-500/90 text-white'">
-                                            <span x-text="p.stock"></span> en stock
+                                        <div
+                                            class="absolute top-1.5 right-1.5 px-2 py-0.5 rounded text-xs font-medium"
+                                            :class="p.tracks_stock === false ? 'bg-violet-500/90 text-white' : (p.stock > 0 ? 'bg-emerald-500/90 text-white' : 'bg-red-500/90 text-white')"
+                                        >
+                                            <template x-if="p.tracks_stock === false">
+                                                <span x-text="p.item_kind === 'service' ? 'Service' : 'Non stocké'"></span>
+                                            </template>
+                                            <template x-if="p.tracks_stock !== false">
+                                                <span><span x-text="p.stock"></span> en stock</span>
+                                            </template>
                                         </div>
                                     </div>
                                     <div class="px-2.5 py-2">

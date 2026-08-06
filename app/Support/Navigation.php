@@ -40,11 +40,12 @@ class Navigation
                 'icon' => ['M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z'],
                 'children' => [
                     ['label' => 'Vue d\'ensemble', 'route' => 'financial.index', 'active' => ['financial.index']],
-                    ['label' => 'TVA', 'route' => 'financial.tva', 'active' => ['financial.tva']],
-                    ['label' => 'Trésorerie', 'route' => 'financial.tresorerie', 'active' => ['financial.tresorerie']],
+                    ['label' => 'TVA', 'route' => 'financial.tva', 'active' => ['financial.tva', 'financial.tva.*']],
+                    ['label' => 'Trésorerie', 'route' => 'financial.tresorerie', 'active' => ['financial.tresorerie', 'financial.tresorerie.*']],
                     ['label' => 'Achats & dépenses', 'route' => 'financial.achats-depenses', 'active' => ['financial.achats-depenses']],
-                    ['label' => 'Créances & dettes', 'route' => 'financial.creances-dettes', 'active' => ['financial.creances-dettes']],
-                    ['label' => 'Déclarations', 'route' => 'financial.declarations', 'active' => ['financial.declarations', 'financial.export']],
+                    ['label' => 'Créances & dettes', 'route' => 'financial.creances-dettes', 'active' => ['financial.creances-dettes', 'financial.creances-dettes.*']],
+                    ['label' => 'Mouvements', 'route' => 'financial.mouvements.index', 'active' => ['financial.mouvements.*']],
+                    ['label' => 'Déclarations', 'route' => 'financial.declarations', 'active' => ['financial.declarations', 'financial.declarations.*', 'financial.export']],
                 ],
             ],
             [
