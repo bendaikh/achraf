@@ -100,7 +100,6 @@
                 </div>
             </form>
         </div>
-        @include('financial.partials.finance-tabs')
     </header>
 
     <div class="p-4 sm:p-6 lg:p-8 space-y-8 bg-slate-50/80">

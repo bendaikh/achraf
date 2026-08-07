@@ -1,7 +1,7 @@
 {{-- Shared product/service form. Expects: vatCategories, productTypeCategories, serviceCategories, billingUnits, suppliers, optional $product --}}
 @php
     $isEdit = isset($product);
-    $defaultKind = old('item_kind', $isEdit ? ($product->item_kind ?? 'stocked') : 'stocked');
+    $defaultKind = old('item_kind', $isEdit ? ($product->item_kind ?? 'stocked') : ($preselectedKind ?? 'stocked'));
     $field = 'w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#fdb819]/40 focus:border-[#fdb819] transition';
     $label = 'block text-sm font-medium text-slate-700 mb-1.5';
 @endphp
@@ -261,10 +261,17 @@
 
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                             <div>
-                                <label for="stock_quantity" class="{{ $label }}">Quantité en stock</label>
+                                <label for="stock_quantity" class="{{ $label }}">Quantité en stock (physique)</label>
                                 <input type="number" name="stock_quantity" id="stock_quantity" min="0"
                                     value="{{ old('stock_quantity', $isEdit ? $product->stock_quantity : 0) }}"
                                     class="{{ $field }}" :disabled="!tracksStock()">
+                            </div>
+                            <div>
+                                <label for="stock_reserved" class="{{ $label }}">Stock réservé</label>
+                                <input type="number" name="stock_reserved" id="stock_reserved" min="0"
+                                    value="{{ old('stock_reserved', $isEdit ? ($product->stock_reserved ?? 0) : 0) }}"
+                                    class="{{ $field }}" :disabled="!tracksStock()">
+                                <p class="mt-1 text-xs text-slate-500">Disponible = physique − réservé</p>
                             </div>
                             <div>
                                 <label for="minimum_safety_stock" class="{{ $label }}">Stock minimum</label>
@@ -282,6 +289,13 @@
                                 <label for="maximum_stock" class="{{ $label }}">Stock maximum</label>
                                 <input type="number" name="maximum_stock" id="maximum_stock" min="0"
                                     value="{{ old('maximum_stock', $isEdit ? $product->maximum_stock : '') }}"
+                                    class="{{ $field }}" :disabled="!tracksStock()">
+                            </div>
+                            <div>
+                                <label for="depot" class="{{ $label }}">Dépôt</label>
+                                <input type="text" name="depot" id="depot"
+                                    value="{{ old('depot', $isEdit ? $product->depot : '') }}"
+                                    placeholder="Ex: Magasin principal"
                                     class="{{ $field }}" :disabled="!tracksStock()">
                             </div>
                             <div>

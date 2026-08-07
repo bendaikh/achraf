@@ -97,6 +97,10 @@ class Navigation
                 'soft_nav' => true,
                 'active' => ['products.*'],
                 'icon' => ['M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
+                'children' => [
+                    ['label' => 'Liste des produits', 'route' => 'products.index', 'active' => ['products.index', 'products.show', 'products.edit']],
+                    ['label' => 'Ajouter un produit / service', 'route' => 'products.create', 'active' => ['products.create']],
+                ],
             ],
             [
                 'label' => 'Gestion stock',
@@ -192,8 +196,50 @@ class Navigation
         $routePatterns = $item['active'] ?? [];
         $pathPatterns = $item['active_paths'] ?? [];
 
-        return ($routePatterns !== [] && $request->routeIs(...$routePatterns))
+        $routeMatches = ($routePatterns !== [] && $request->routeIs(...$routePatterns))
             || ($pathPatterns !== [] && $request->is(...$pathPatterns));
+
+        if (! $routeMatches && $routePatterns === [] && $pathPatterns === [] && isset($item['route_params'])) {
+            $routeMatches = $request->routeIs($item['route']);
+        }
+
+        if (! $routeMatches) {
+            return false;
+        }
+
+        if (! empty($item['route_params']) && is_array($item['route_params'])) {
+            foreach ($item['route_params'] as $key => $value) {
+                if ((string) $request->query($key) !== (string) $value) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Tabs without query params should not stay active when a sibling query filter is set.
+        // Only apply to leaf nav items (no children), never to parent modules.
+        if (
+            empty($item['children'])
+            && ($item['route'] ?? null) === 'products.index'
+            && empty($item['route_params'])
+        ) {
+            if ($request->filled('item_kind') || $request->filled('stock_status')) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    public static function url(array $item): string
+    {
+        $params = $item['route_params'] ?? [];
+
+        return route($item['route'], $params);
     }
 
     /**

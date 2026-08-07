@@ -22,7 +22,6 @@
                 <a href="{{ route('financial.mouvements.create') }}" class="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#0a5d8a] hover:bg-[#084a6e]">+ Nouveau</a>
             </div>
         </div>
-        @include('financial.partials.finance-tabs')
     </header>
 
     <div class="p-4 sm:p-6 lg:p-8 space-y-5 bg-slate-50/80">

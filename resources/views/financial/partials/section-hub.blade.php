@@ -46,7 +46,6 @@
             <button type="submit" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-medium hover:bg-[#084a6e]">Filtrer</button>
         </form>
     </div>
-    @include('financial.partials.finance-tabs')
 </header>
 
 <div class="p-4 sm:p-6 lg:p-8 space-y-6 bg-slate-50/80 min-h-[60vh]">

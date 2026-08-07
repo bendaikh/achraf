@@ -17,7 +17,6 @@
                 <a href="{{ route('financial.declarations', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-medium">Déclarations</a>
             </div>
         </div>
-        @include('financial.partials.finance-tabs')
     </header>
 
     <div class="p-8 space-y-6 max-w-4xl">

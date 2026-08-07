@@ -12,12 +12,17 @@ A Laravel-based management system with role-based authentication.
 
 ## Installation
 
-1. Install dependencies:
+1. Install PHP dependencies (this also creates `.env` from `.env.example` if missing):
 ```bash
 composer install
 ```
 
-2. Configure your `.env` file with database credentials:
+2. Generate the application key:
+```bash
+php artisan key:generate
+```
+
+3. Configure your `.env` file with database credentials:
 ```
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -27,18 +32,23 @@ DB_USERNAME=root
 DB_PASSWORD=
 ```
 
-3. Run migrations:
+Or copy manually if needed:
+```bash
+cp .env.example .env
+```
+
+4. Run migrations:
 ```bash
 php artisan migrate
 ```
 
-4. Seed roles and super admin:
+5. Seed roles and super admin:
 ```bash
 php artisan db:seed --class=RoleSeeder
 php artisan db:seed --class=SuperAdminSeeder
 ```
 
-5. Start the development server:
+6. Start the development server:
 ```bash
 php artisan serve
 ```

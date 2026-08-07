@@ -14,7 +14,6 @@
             </div>
             <a href="{{ route('financial.mouvements.index', request()->only(['date_from','date_to'])) }}" class="text-sm font-medium text-[#0a5d8a] hover:underline">← Retour au journal</a>
         </div>
-        @include('financial.partials.finance-tabs')
     </header>
 
     <div class="p-8 space-y-6">

@@ -19,43 +19,24 @@ class ProductController extends Controller
 
     public function index(Request $request)
     {
-        $query = Product::query();
+        $query = Product::query()->with(['primarySupplier', 'variants']);
 
-        if ($request->filled('source')) {
-            $source = $request->input('source');
-            if ($source === 'shopify') {
-                $query->where('source', 'shopify');
-            } elseif ($source === 'manual') {
-                $query->where(function ($q) {
-                    $q->whereNull('source')->orWhere('source', '!=', 'shopify');
-                });
-            }
-        }
+        $this->applyProductFilters($query, $request);
 
-        if ($request->filled('item_kind')) {
-            $query->where('item_kind', $request->input('item_kind'));
-        }
+        $products = $this->paginateTable(
+            $query->withCount('variants')->latest(),
+            $request,
+            20
+        );
 
-        $this->applyTableSearch($query, $request, ['name', 'ref', 'barcode']);
-        $this->applyTableFilter($query, $request, 'status', 'status');
-        $this->applyTableDateRange($query, $request, 'created_at', 'date_from', 'date_to');
-
-        $products = $this->paginateTable($query->withCount('variants')->latest(), $request, 20);
-
-        $totalProducts = Product::count();
-        $totalShopifyProducts = Product::where('source', 'shopify')->count();
-        $totalManualProducts = Product::whereNull('source')->orWhere('source', '!=', 'shopify')->count();
-        $lowStockProducts = Product::lowStock()->count();
-
+        $stats = $this->productStats();
+        $filterOptions = $this->filterOptions();
         $shopifyIntegration = ShopifyIntegration::first();
 
-        return view('products.index', compact(
-            'products',
-            'totalProducts',
-            'totalShopifyProducts',
-            'totalManualProducts',
-            'lowStockProducts',
-            'shopifyIntegration'
+        return view('products.index', array_merge(
+            compact('products', 'shopifyIntegration'),
+            $stats,
+            $filterOptions
         ));
     }
 
@@ -82,9 +63,15 @@ class ProductController extends Controller
         }
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        return view('products.create', $this->formData());
+        $data = $this->formData();
+        $kind = $request->query('kind');
+        if ($kind && array_key_exists($kind, Product::ITEM_KINDS)) {
+            $data['preselectedKind'] = $kind;
+        }
+
+        return view('products.create', $data);
     }
 
     public function store(Request $request)
@@ -134,6 +121,11 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
+        if ($product->invoiceItems()->exists()) {
+            return redirect()->route('products.index')
+                ->with('error', 'Impossible de supprimer cet article : des ventes ou factures y sont liées.');
+        }
+
         if ($product->image) {
             Storage::disk('public')->delete($product->image);
         }
@@ -142,6 +134,54 @@ class ProductController extends Controller
 
         return redirect()->route('products.index')
             ->with('success', 'Article supprimé avec succès.');
+    }
+
+    public function toggleStatus(Product $product)
+    {
+        $product->update([
+            'status' => $product->isActive() ? 'Désactiver' : 'Activer',
+        ]);
+
+        $label = $product->fresh()->isActive() ? 'activé' : 'désactivé';
+
+        return redirect()->back()
+            ->with('success', 'Article '.$label.' avec succès.');
+    }
+
+    public function duplicate(Product $product)
+    {
+        $copy = $product->replicate([
+            'external_id',
+            'shopify_status',
+            'shopify_synced_at',
+            'shopify_image_url',
+            'jumia_product_sid',
+            'jumia_stock_synced_at',
+        ]);
+
+        $copy->name = $product->name.' (copie)';
+        $copy->ref = $this->uniqueCopyRef($product->ref);
+        $copy->source = null;
+        $copy->external_id = null;
+        $copy->shopify_status = null;
+        $copy->shopify_synced_at = null;
+        $copy->status = 'Activer';
+        $copy->stock_quantity = $product->tracksStock() ? 0 : 0;
+        $copy->stock_reserved = 0;
+        $copy->stock_magasin = 0;
+        $copy->stock_enligne = 0;
+        $copy->save();
+
+        return redirect()->route('products.edit', $copy)
+            ->with('success', 'Article dupliqué. Vous pouvez ajuster les informations.');
+    }
+
+    public function archive(Product $product)
+    {
+        $product->update(['status' => 'Désactiver']);
+
+        return redirect()->back()
+            ->with('success', 'Article archivé (désactivé).');
     }
 
     public function duplicateToManual(Request $request, Product $product)
@@ -170,8 +210,10 @@ class ProductController extends Controller
             'minimum_alert_stock' => $product->minimum_alert_stock,
             'maximum_stock' => $product->maximum_stock,
             'stock_quantity' => $validated['initial_stock'],
+            'stock_reserved' => 0,
             'stock_magasin' => $validated['initial_stock'],
             'location' => $product->location,
+            'depot' => $product->depot,
             'primary_supplier_id' => $product->primary_supplier_id,
             'barcode' => $product->barcode,
             'vat_category' => $product->vat_category,
@@ -211,6 +253,147 @@ class ProductController extends Controller
 
         return redirect()->route('products.show', $manualProduct)
             ->with('success', 'Produit manuel créé avec succès: '.$manualProduct->name.' (Réf: '.$manualProduct->ref.')');
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Product>  $query
+     */
+    protected function applyProductFilters($query, Request $request): void
+    {
+        if ($request->filled('source')) {
+            $source = $request->input('source');
+            if ($source === 'shopify') {
+                $query->shopify();
+            } elseif ($source === 'manual') {
+                $query->manual();
+            }
+        }
+
+        if ($request->filled('item_kind')) {
+            $query->where('item_kind', $request->input('item_kind'));
+        }
+
+        if ($request->filled('stock_status')) {
+            match ($request->input('stock_status')) {
+                Product::STOCK_STATUS_IN_STOCK => $query->inStock(),
+                Product::STOCK_STATUS_LOW => $query->lowStock(),
+                Product::STOCK_STATUS_OUT => $query->outOfStock(),
+                Product::STOCK_STATUS_NO_TRACKING => $query->noStockTracking(),
+                default => null,
+            };
+        }
+
+        $this->applyTableSearch($query, $request, ['name', 'ref', 'barcode']);
+        $this->applyTableFilter($query, $request, 'status', 'status');
+        $this->applyTableFilter($query, $request, 'product_type_category', 'category');
+        $this->applyTableFilter($query, $request, 'product_category', 'subcategory');
+        $this->applyTableFilter($query, $request, 'service_category', 'service_category');
+        $this->applyTableFilter($query, $request, 'primary_supplier_id', 'supplier_id');
+        $this->applyTableFilter($query, $request, 'depot', 'depot');
+        $this->applyTableFilter($query, $request, 'location', 'location');
+        $this->applyTableFilter($query, $request, 'vat_category', 'vat_category');
+        $this->applyTableDateRange($query, $request, 'created_at', 'date_from', 'date_to');
+
+        if ($request->filled('price_min')) {
+            $query->where('sale_price', '>=', (float) $request->input('price_min'));
+        }
+        if ($request->filled('price_max')) {
+            $query->where('sale_price', '<=', (float) $request->input('price_max'));
+        }
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    protected function productStats(): array
+    {
+        $total = Product::count();
+        $stocked = Product::stocked()->count();
+        $nonStocked = Product::nonStocked()->count();
+        $services = Product::services()->count();
+        $inStock = Product::inStock()->count();
+        $lowStock = Product::lowStock()->count();
+        $outOfStock = Product::outOfStock()->count();
+
+        return [
+            'stats' => [
+                'total' => $total,
+                'stocked' => $stocked,
+                'non_stocked' => $nonStocked,
+                'services' => $services,
+                'in_stock' => $inStock,
+                'low_stock' => $lowStock,
+                'out_of_stock' => $outOfStock,
+                'shopify' => Product::shopify()->count(),
+                'manual' => Product::manual()->count(),
+            ],
+            'tabCounts' => [
+                'all' => $total,
+                'stocked' => $stocked,
+                'non_stocked' => $nonStocked,
+                'service' => $services,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function filterOptions(): array
+    {
+        return [
+            'categories' => Product::query()
+                ->whereNotNull('product_type_category')
+                ->where('product_type_category', '!=', '')
+                ->distinct()
+                ->orderBy('product_type_category')
+                ->pluck('product_type_category', 'product_type_category')
+                ->all(),
+            'subcategories' => Product::query()
+                ->whereNotNull('product_category')
+                ->where('product_category', '!=', '')
+                ->distinct()
+                ->orderBy('product_category')
+                ->pluck('product_category', 'product_category')
+                ->all(),
+            'serviceCategories' => Product::query()
+                ->whereNotNull('service_category')
+                ->where('service_category', '!=', '')
+                ->distinct()
+                ->orderBy('service_category')
+                ->pluck('service_category', 'service_category')
+                ->all(),
+            'depots' => Product::query()
+                ->whereNotNull('depot')
+                ->where('depot', '!=', '')
+                ->distinct()
+                ->orderBy('depot')
+                ->pluck('depot', 'depot')
+                ->all(),
+            'locations' => Product::query()
+                ->whereNotNull('location')
+                ->where('location', '!=', '')
+                ->distinct()
+                ->orderBy('location')
+                ->pluck('location', 'location')
+                ->all(),
+            'vatCategories' => \App\Support\VatCategoryHelper::all(),
+            'suppliers' => Supplier::query()->orderBy('name')->pluck('name', 'id')->all(),
+            'stockStatuses' => Product::STOCK_STATUSES,
+            'itemKinds' => Product::ITEM_KINDS,
+        ];
+    }
+
+    protected function uniqueCopyRef(string $baseRef): string
+    {
+        $candidate = $baseRef.'-copy';
+        $i = 2;
+        while (Product::where('ref', $candidate)->exists()) {
+            $candidate = $baseRef.'-copy-'.$i;
+            $i++;
+        }
+
+        return $candidate;
     }
 
     /**
@@ -259,7 +442,9 @@ class ProductController extends Controller
             'minimum_alert_stock' => 'nullable|integer|min:0',
             'maximum_stock' => 'nullable|integer|min:0',
             'stock_quantity' => 'nullable|integer|min:0',
+            'stock_reserved' => 'nullable|integer|min:0',
             'location' => 'nullable|string|max:255',
+            'depot' => 'nullable|string|max:255',
             'primary_supplier_id' => 'nullable|exists:suppliers,id',
             'barcode' => 'nullable|string|max:255',
             'vat_category' => 'nullable|string|max:255',
@@ -290,6 +475,7 @@ class ProductController extends Controller
         if ($kind === Product::KIND_STOCKED) {
             $qty = (int) ($validated['stock_quantity'] ?? ($existing->stock_quantity ?? 0));
             $validated['stock_quantity'] = $qty;
+            $validated['stock_reserved'] = (int) ($validated['stock_reserved'] ?? ($existing->stock_reserved ?? 0));
 
             if (! $existing || ! $existing->isShopifyProduct()) {
                 $validated['stock_magasin'] = $qty;
@@ -305,11 +491,13 @@ class ProductController extends Controller
 
         // Non-stocked product or service: never track inventory
         $validated['stock_quantity'] = 0;
+        $validated['stock_reserved'] = 0;
         $validated['stock_magasin'] = 0;
         $validated['minimum_safety_stock'] = null;
         $validated['minimum_alert_stock'] = null;
         $validated['maximum_stock'] = null;
         $validated['location'] = null;
+        $validated['depot'] = null;
 
         if ($kind === Product::KIND_SERVICE) {
             $validated['barcode'] = null;

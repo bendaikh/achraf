@@ -28,6 +28,21 @@ class Product extends Model
         'jour' => 'Jour',
     ];
 
+    public const STOCK_STATUS_IN_STOCK = 'in_stock';
+
+    public const STOCK_STATUS_LOW = 'low_stock';
+
+    public const STOCK_STATUS_OUT = 'out_of_stock';
+
+    public const STOCK_STATUS_NO_TRACKING = 'no_tracking';
+
+    public const STOCK_STATUSES = [
+        self::STOCK_STATUS_IN_STOCK => 'En stock',
+        self::STOCK_STATUS_LOW => 'Stock faible',
+        self::STOCK_STATUS_OUT => 'Rupture de stock',
+        self::STOCK_STATUS_NO_TRACKING => 'Sans gestion de stock',
+    ];
+
     protected $fillable = [
         'name',
         'ref',
@@ -41,9 +56,11 @@ class Product extends Model
         'minimum_alert_stock',
         'maximum_stock',
         'stock_quantity',
+        'stock_reserved',
         'stock_magasin',
         'stock_enligne',
         'location',
+        'depot',
         'primary_supplier_id',
         'barcode',
         'vat_category',
@@ -77,6 +94,7 @@ class Product extends Model
         'minimum_alert_stock' => 'integer',
         'maximum_stock' => 'integer',
         'stock_quantity' => 'integer',
+        'stock_reserved' => 'integer',
         'stock_magasin' => 'integer',
         'stock_enligne' => 'integer',
         'technician_required' => 'boolean',
@@ -126,25 +144,103 @@ class Product extends Model
         return $kind === self::KIND_SERVICE ? 'Service' : 'Produit';
     }
 
-    public function isStockLow(): bool
+    /**
+     * Stock disponible = stock physique − stock réservé.
+     */
+    public function availableStock(): int
     {
         if (! $this->tracksStock()) {
-            return false;
+            return 0;
         }
 
+        return max(0, (int) $this->stock_quantity - (int) ($this->stock_reserved ?? 0));
+    }
+
+    public function getAvailableStockAttribute(): int
+    {
+        return $this->availableStock();
+    }
+
+    /**
+     * Seuil d’alerte effectif (alerte prioritaire, sinon stock minimum).
+     */
+    public function alertThreshold(): ?int
+    {
         if ($this->minimum_alert_stock !== null) {
-            return $this->stock_quantity <= $this->minimum_alert_stock;
-        }
-        if ($this->minimum_safety_stock !== null) {
-            return $this->stock_quantity <= $this->minimum_safety_stock;
+            return (int) $this->minimum_alert_stock;
         }
 
-        return false;
+        if ($this->minimum_safety_stock !== null) {
+            return (int) $this->minimum_safety_stock;
+        }
+
+        return null;
+    }
+
+    /**
+     * État de stock pour badges / filtres.
+     */
+    public function stockStatus(): string
+    {
+        if (! $this->tracksStock()) {
+            return self::STOCK_STATUS_NO_TRACKING;
+        }
+
+        $available = $this->availableStock();
+
+        if ($available <= 0) {
+            return self::STOCK_STATUS_OUT;
+        }
+
+        $threshold = $this->alertThreshold();
+        if ($threshold !== null && $available <= $threshold) {
+            return self::STOCK_STATUS_LOW;
+        }
+
+        return self::STOCK_STATUS_IN_STOCK;
+    }
+
+    public function getStockStatusLabelAttribute(): string
+    {
+        if ($this->isService()) {
+            return 'Sans gestion de stock';
+        }
+
+        if ($this->isNonStocked()) {
+            return 'Vendu sans contrôle de stock';
+        }
+
+        return self::STOCK_STATUSES[$this->stockStatus()] ?? '—';
+    }
+
+    public function isStockLow(): bool
+    {
+        return $this->stockStatus() === self::STOCK_STATUS_LOW;
+    }
+
+    public function isOutOfStock(): bool
+    {
+        return $this->stockStatus() === self::STOCK_STATUS_OUT;
+    }
+
+    public function isInStock(): bool
+    {
+        return $this->stockStatus() === self::STOCK_STATUS_IN_STOCK;
+    }
+
+    public function isActive(): bool
+    {
+        return ($this->status ?? '') === 'Activer';
     }
 
     public function scopeStocked($query)
     {
         return $query->where('item_kind', self::KIND_STOCKED);
+    }
+
+    public function scopeNonStocked($query)
+    {
+        return $query->where('item_kind', self::KIND_NON_STOCKED);
     }
 
     public function scopeTracksStock($query)
@@ -157,28 +253,76 @@ class Product extends Model
         return $query->where('item_kind', self::KIND_SERVICE);
     }
 
-    public function scopeLowStock($query)
+    public function scopeManual($query)
     {
+        return $query->where(function ($q) {
+            $q->whereNull('source')->orWhere('source', '!=', 'shopify');
+        });
+    }
+
+    public function scopeShopify($query)
+    {
+        return $query->where('source', 'shopify');
+    }
+
+    /**
+     * SQL expression for available stock (physical − reserved).
+     */
+    public static function availableStockSql(): string
+    {
+        return 'GREATEST(0, COALESCE(stock_quantity, 0) - COALESCE(stock_reserved, 0))';
+    }
+
+    public function scopeInStock($query)
+    {
+        $available = self::availableStockSql();
+
         return $query->where('item_kind', self::KIND_STOCKED)
-            ->where(function ($q) {
-                $q->where(function ($q2) {
+            ->whereRaw("{$available} > 0")
+            ->where(function ($q) use ($available) {
+                $q->where(function ($q2) use ($available) {
                     $q2->whereNotNull('minimum_alert_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_alert_stock');
-                })->orWhere(function ($q2) {
+                        ->whereRaw("{$available} > minimum_alert_stock");
+                })->orWhere(function ($q2) use ($available) {
                     $q2->whereNull('minimum_alert_stock')
                         ->whereNotNull('minimum_safety_stock')
-                        ->whereColumn('stock_quantity', '<=', 'minimum_safety_stock');
+                        ->whereRaw("{$available} > minimum_safety_stock");
+                })->orWhere(function ($q2) {
+                    $q2->whereNull('minimum_alert_stock')
+                        ->whereNull('minimum_safety_stock');
                 });
             });
     }
 
-    public function isOutOfStock(): bool
+    public function scopeLowStock($query)
     {
-        if (! $this->tracksStock()) {
-            return false;
-        }
+        $available = self::availableStockSql();
 
-        return $this->stock_quantity <= 0;
+        return $query->where('item_kind', self::KIND_STOCKED)
+            ->whereRaw("{$available} > 0")
+            ->where(function ($q) use ($available) {
+                $q->where(function ($q2) use ($available) {
+                    $q2->whereNotNull('minimum_alert_stock')
+                        ->whereRaw("{$available} <= minimum_alert_stock");
+                })->orWhere(function ($q2) use ($available) {
+                    $q2->whereNull('minimum_alert_stock')
+                        ->whereNotNull('minimum_safety_stock')
+                        ->whereRaw("{$available} <= minimum_safety_stock");
+                });
+            });
+    }
+
+    public function scopeOutOfStock($query)
+    {
+        $available = self::availableStockSql();
+
+        return $query->where('item_kind', self::KIND_STOCKED)
+            ->whereRaw("{$available} <= 0");
+    }
+
+    public function scopeNoStockTracking($query)
+    {
+        return $query->whereIn('item_kind', [self::KIND_NON_STOCKED, self::KIND_SERVICE]);
     }
 
     /**
