@@ -18,27 +18,31 @@ class RegisterShopifyWebhooks extends Command
     {
         $integration = ShopifyIntegration::query()->first();
 
-        if (!$integration) {
+        if (! $integration) {
             $this->error('No Shopify integration configured. Please set it up first.');
+
             return self::FAILURE;
         }
 
-        if (!$integration->enabled) {
+        if (! $integration->enabled) {
             $this->warn('Shopify integration is disabled.');
+
             return self::FAILURE;
         }
 
         $accessToken = $integration->oauth_access_token ?? $integration->api_access_token;
 
-        if (!$integration->shop_name || !$accessToken) {
+        if (! $integration->shop_name || ! $accessToken) {
             $this->error('Shopify API credentials not configured.');
+
             return self::FAILURE;
         }
 
         $client = new ShopifyApiClient($integration);
 
-        if (!$client->testConnection()) {
+        if (! $client->testConnection()) {
             $this->error('Failed to connect to Shopify API. Please check your credentials.');
+
             return self::FAILURE;
         }
 
@@ -46,9 +50,10 @@ class RegisterShopifyWebhooks extends Command
 
         // Get existing webhooks
         $existingWebhooks = $client->getWebhooks();
-        
+
         if ($this->option('list')) {
             $this->listWebhooks($existingWebhooks);
+
             return self::SUCCESS;
         }
 
@@ -60,6 +65,7 @@ class RegisterShopifyWebhooks extends Command
             'products/create' => "{$baseUrl}/api/webhooks/shopify/products/create",
             'products/update' => "{$baseUrl}/api/webhooks/shopify/products/update",
             'products/delete' => "{$baseUrl}/api/webhooks/shopify/products/delete",
+            'inventory_levels/update' => "{$baseUrl}/api/webhooks/shopify/inventory-levels/update",
         ];
 
         $this->info("Base URL: {$baseUrl}");
@@ -96,13 +102,14 @@ class RegisterShopifyWebhooks extends Command
                 if ($existingTopics[$topic] === $address) {
                     $this->line("  ⏭ Skipped (already registered): {$topic}");
                     $skipped++;
+
                     continue;
                 }
                 $this->warn("  ⚠ Different URL registered for {$topic}: {$existingTopics[$topic]}");
             }
 
             $result = $client->createWebhook($topic, $address);
-            
+
             if ($result) {
                 $this->info("  ✓ Registered: {$topic} → {$address}");
                 $registered++;
@@ -142,6 +149,7 @@ class RegisterShopifyWebhooks extends Command
     {
         if (empty($webhooks)) {
             $this->warn('No webhooks currently registered.');
+
             return;
         }
 

@@ -13,11 +13,14 @@ class ExpenseController extends Controller
 
     public function index(Request $request)
     {
-        $query = Expense::with(['client', 'supplier'])->latest();
+        $query = Expense::with(['client', 'supplier']);
 
         $this->applyTableSearch($query, $request, ['designation', 'reference', 'client.name', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'expense_date');
         $this->applyTableFilter($query, $request, 'expense_type', 'expense_type');
+        $this->applyTableSort($query, $request, [
+            'expense_date' => 'expense_date',
+        ], 'expense_date', 'desc');
 
         $expenses = $this->paginateTable($query, $request);
 
@@ -27,6 +30,7 @@ class ExpenseController extends Controller
     public function create()
     {
         $clients = Client::all();
+
         return view('purchases.expenses.create', compact('clients'));
     }
 
@@ -53,12 +57,14 @@ class ExpenseController extends Controller
     public function show(Expense $expense)
     {
         $expense->load('client');
+
         return view('purchases.expenses.show', compact('expense'));
     }
 
     public function edit(Expense $expense)
     {
         $clients = Client::all();
+
         return view('purchases.expenses.edit', compact('expense', 'clients'));
     }
 
@@ -85,6 +91,7 @@ class ExpenseController extends Controller
     public function destroy(Expense $expense)
     {
         $expense->delete();
+
         return redirect()->route('expenses.index')->with('success', 'Dépense supprimée avec succès!');
     }
 }

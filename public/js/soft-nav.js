@@ -340,11 +340,26 @@
         }
     }
 
-    async function navigate(url, { pushState = true, fromPopState = false } = {}) {
+    async function navigate(url, { pushState = true, fromPopState = false, scrollY = null } = {}) {
         const root = pageRoot();
         if (!root) {
             window.location.href = url;
             return;
+        }
+
+        if (pushState && !fromPopState) {
+            const current = window.history.state || {};
+            try {
+                window.history.replaceState(
+                    Object.assign({}, current, {
+                        softNav: current.softNav === undefined ? true : current.softNav,
+                        url: window.location.href,
+                        scrollY: window.scrollY || 0,
+                    }),
+                    '',
+                    window.location.href
+                );
+            } catch (e) {}
         }
 
         const started = performance.now();
@@ -396,8 +411,15 @@
             updateSidebarActive(payload.module || null, payload.url || url);
 
             if (pushState && !fromPopState) {
-                window.history.pushState({ softNav: true, url: payload.url || url }, '', payload.url || url);
+                window.history.pushState({ softNav: true, url: payload.url || url, scrollY: 0 }, '', payload.url || url);
             }
+
+            const restoreY = fromPopState
+                ? (scrollY != null ? scrollY : ((window.history.state && window.history.state.scrollY) || 0))
+                : 0;
+            requestAnimationFrame(function () {
+                window.scrollTo(0, restoreY);
+            });
 
             logMetric('soft-nav-total-ms', performance.now() - started);
             window.dispatchEvent(new CustomEvent('soft-nav:loaded', { detail: payload }));
@@ -423,7 +445,11 @@
 
     function onPopState(event) {
         if (event.state && event.state.softNav && event.state.url) {
-            navigate(event.state.url, { pushState: false, fromPopState: true });
+            navigate(event.state.url, {
+                pushState: false,
+                fromPopState: true,
+                scrollY: event.state.scrollY || 0,
+            });
             return;
         }
         if (event.state && event.state.softNav === false) {

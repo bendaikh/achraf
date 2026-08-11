@@ -182,7 +182,7 @@
 
         <!-- Filters -->
         <div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-            <form method="GET" action="{{ route('orders.index') }}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
+            <form method="GET" action="{{ route('orders.index') }}" data-list-page class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
                 <div>
                     <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Rechercher</label>
                     <input type="text" name="search" id="search" value="{{ request('search') }}" 
@@ -236,13 +236,19 @@
                 @if(request()->filled('per_page'))
                     <input type="hidden" name="per_page" value="{{ request('per_page') }}">
                 @endif
+                @if(request()->filled('sort'))
+                    <input type="hidden" name="sort" value="{{ request('sort') }}">
+                @endif
+                @if(request()->filled('direction'))
+                    <input type="hidden" name="direction" value="{{ request('direction') }}">
+                @endif
 
                 <div class="flex items-end gap-2">
                     <button type="submit" class="flex-1 px-4 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] transition font-medium">
                         Filtrer
                     </button>
                     @if(count(request()->except(['page', 'per_page'])) > 0)
-                        <a href="{{ route('orders.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm whitespace-nowrap">
+                        <a href="{{ route('orders.index') }}" data-list-reset class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm whitespace-nowrap">
                             Réinitialiser
                         </a>
                     @endif
@@ -255,10 +261,14 @@
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
                     <span class="text-sm font-medium text-gray-700">
-                        <span id="selectedCount-orders">0</span> commande(s) sélectionnée(s)
+                        <span id="selectedCount-orders">0</span> éléments sélectionnés
                     </span>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button type="button" onclick="deleteSelectedTable('orders')"
+                        class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium">
+                        Supprimer
+                    </button>
                     <button type="button" onclick="exportSelectedToExcel('orders')"
                         class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -268,7 +278,7 @@
                     </button>
                     <div class="relative">
                         <button type="button" id="actionsDropdownBtn" class="inline-flex items-center px-4 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] transition text-sm font-medium">
-                            Actions
+                            Autres actions
                             <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                             </svg>
@@ -313,7 +323,7 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-numero">N° Commande</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-source">Source</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-client">Client</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-date">Date</th>
+                            <x-table-sort-header column="sold_at" label="Date" :default="true" default-direction="desc" />
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-total">Total</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-paiement">Paiement</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider column-livraison">Livraison</th>

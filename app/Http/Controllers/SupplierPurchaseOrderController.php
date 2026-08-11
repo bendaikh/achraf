@@ -3,13 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\SupplierPurchaseOrder;
-use App\Models\Product;
 use App\Services\DocumentNumberService;
 use App\Services\ProductPurchasePriceService;
 use App\Support\LineItemCalculator;
-use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -23,10 +23,14 @@ class SupplierPurchaseOrderController extends Controller
 
     public function index(Request $request)
     {
-        $query = SupplierPurchaseOrder::with('supplier')->latest();
+        $query = SupplierPurchaseOrder::with('supplier');
 
         $this->applyTableSearch($query, $request, ['order_number', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'order_date');
+        $this->applyTableSort($query, $request, [
+            'order_date' => 'order_date',
+            'due_date' => 'due_date',
+        ], 'order_date', 'desc');
 
         $orders = $this->paginateTable($query, $request);
 
@@ -110,13 +114,15 @@ class SupplierPurchaseOrderController extends Controller
             return redirect()->route('supplier-purchase-orders.index')->with('success', 'BC fournisseur créé avec succès!');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withInput()->with('error', 'Erreur: ' . $e->getMessage());
+
+            return back()->withInput()->with('error', 'Erreur: '.$e->getMessage());
         }
     }
 
     public function show(SupplierPurchaseOrder $supplierPurchaseOrder)
     {
         $supplierPurchaseOrder->load(['supplier', 'items.product']);
+
         return view('purchases.supplier-purchase-orders.show', compact('supplierPurchaseOrder'));
     }
 
@@ -125,13 +131,14 @@ class SupplierPurchaseOrderController extends Controller
         $supplierPurchaseOrder->load(['supplier', 'items.product']);
         $suppliers = Supplier::all();
         $products = Product::all();
+
         return view('purchases.supplier-purchase-orders.edit', compact('supplierPurchaseOrder', 'suppliers', 'products'));
     }
 
     public function update(Request $request, SupplierPurchaseOrder $supplierPurchaseOrder)
     {
         $validated = $request->validate([
-            'order_number' => 'required|string|unique:supplier_purchase_orders,order_number,' . $supplierPurchaseOrder->id,
+            'order_number' => 'required|string|unique:supplier_purchase_orders,order_number,'.$supplierPurchaseOrder->id,
             'supplier_id' => 'required|exists:suppliers,id',
             'order_date' => 'required|date',
             'due_date' => 'nullable|date',
@@ -190,16 +197,19 @@ class SupplierPurchaseOrderController extends Controller
             $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
 
             DB::commit();
+
             return redirect()->route('supplier-purchase-orders.index')->with('success', 'BC fournisseur modifié avec succès!');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withInput()->with('error', 'Erreur: ' . $e->getMessage());
+
+            return back()->withInput()->with('error', 'Erreur: '.$e->getMessage());
         }
     }
 
     public function destroy(SupplierPurchaseOrder $supplierPurchaseOrder)
     {
         $supplierPurchaseOrder->delete();
+
         return redirect()->route('supplier-purchase-orders.index')->with('success', 'BC supprimé!');
     }
 }

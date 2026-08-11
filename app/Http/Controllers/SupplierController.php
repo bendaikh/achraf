@@ -15,7 +15,7 @@ class SupplierController extends Controller
 
     public function index(Request $request)
     {
-        $query = Supplier::query()->orderBy('created_at', 'desc');
+        $query = Supplier::query();
 
         $this->applyTableSearch($query, $request, [
             'name', 'email', 'phone', 'code', 'ice', 'ville', 'city', 'legal_name', 'trade_name', 'rc',
@@ -24,6 +24,11 @@ class SupplierController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
+
+        $this->applyTableSort($query, $request, [
+            'created_at' => 'created_at',
+            'name' => 'name',
+        ], 'created_at', 'desc');
 
         $suppliers = $this->paginateTable($query, $request);
 
@@ -142,17 +147,17 @@ class SupplierController extends Controller
         $prefix = 'FRN';
         $year = date('Y');
 
-        $lastSupplier = Supplier::where('code', 'like', $prefix . $year . '%')
+        $lastSupplier = Supplier::where('code', 'like', $prefix.$year.'%')
             ->orderBy('code', 'desc')
             ->first();
 
-        if ($lastSupplier && preg_match('/' . $prefix . $year . '(\d+)/', $lastSupplier->code, $matches)) {
+        if ($lastSupplier && preg_match('/'.$prefix.$year.'(\d+)/', $lastSupplier->code, $matches)) {
             $nextNumber = intval($matches[1]) + 1;
         } else {
             $nextNumber = 1;
         }
 
-        return $prefix . $year . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        return $prefix.$year.str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
     private function validatedSupplierPayload(Request $request, bool $quick = false, ?Supplier $supplier = null): array

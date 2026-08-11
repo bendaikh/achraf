@@ -3,18 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Models\DeliveryNote;
+use App\Models\InvoiceItem;
 use App\Models\JumiaIntegration;
 use App\Models\PosSale;
-use App\Models\ShopifyIntegration;
-use App\Support\OrderSource;
 use App\Models\Quote;
-use App\Models\DeliveryNote;
-use App\Models\Invoice;
-use App\Models\InvoiceItem;
+use App\Models\ShopifyIntegration;
 use App\Services\DocumentNumberService;
 use App\Services\OrderToInvoiceConverter;
-use Illuminate\Http\Request;
+use App\Support\OrderSource;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -28,8 +27,7 @@ class OrderController extends Controller
 
     public function index(Request $request): View
     {
-        $query = PosSale::with(['client'])
-            ->orderBy('sold_at', 'desc');
+        $query = PosSale::with(['client']);
 
         // Filter by source (Shopify, Jumia, POS, etc.)
         if ($request->filled('source')) {
@@ -79,6 +77,10 @@ class OrderController extends Controller
         if ($request->filled('date_to')) {
             $query->whereDate('sold_at', '<=', $request->input('date_to'));
         }
+
+        $this->applyTableSort($query, $request, [
+            'sold_at' => 'sold_at',
+        ], 'sold_at', 'desc');
 
         $orders = $this->paginateTable($query, $request);
 
@@ -158,15 +160,16 @@ class OrderController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => count($created) . ' ' . $typeLabels[$type] . ' créé(s) avec succès.',
+                'message' => count($created).' '.$typeLabels[$type].' créé(s) avec succès.',
                 'created' => $created,
                 'errors' => $errors,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la conversion: ' . $e->getMessage(),
+                'message' => 'Erreur lors de la conversion: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -218,7 +221,7 @@ class OrderController extends Controller
             'discount' => $order->discount,
             'adjustment' => 0,
             'total' => $order->total,
-            'remarks' => 'Converti depuis la commande ' . $order->ticket_number,
+            'remarks' => 'Converti depuis la commande '.$order->ticket_number,
         ]);
 
         $this->copyOrderItems($order, $quote);
@@ -245,7 +248,7 @@ class OrderController extends Controller
             'discount' => $order->discount,
             'adjustment' => 0,
             'total' => $order->total,
-            'remarks' => 'Converti depuis la commande ' . $order->ticket_number,
+            'remarks' => 'Converti depuis la commande '.$order->ticket_number,
         ]);
 
         $this->copyOrderItems($order, $deliveryNote);

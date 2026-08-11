@@ -5,13 +5,12 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
-use App\Models\Client;
-use App\Models\PurchaseOrder;
 use App\Models\Product;
+use App\Models\PurchaseOrder;
+use App\Models\Setting;
 use App\Services\DocumentNumberService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
-use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -21,11 +20,15 @@ class PurchaseOrderController extends Controller
 
     public function index(Request $request)
     {
-        $query = PurchaseOrder::with('client')->latest();
+        $query = PurchaseOrder::with('client');
 
         $this->applyTableSearch($query, $request, ['reference', 'client.name']);
         $this->applyTableDateRange($query, $request, 'order_date');
         $this->applyTableFilter($query, $request, 'status', 'status');
+        $this->applyTableSort($query, $request, [
+            'order_date' => 'order_date',
+            'expiry_date' => 'expiry_date',
+        ], 'order_date', 'desc');
 
         $purchaseOrders = $this->paginateTable($query, $request);
 
@@ -36,7 +39,7 @@ class PurchaseOrderController extends Controller
     {
         $products = Product::all();
         $reference = DocumentNumberService::preview('bc_client');
-        
+
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
         return view('sales.purchase-orders.create', compact('products', 'reference', 'pricesAreTtc'));
@@ -111,16 +114,19 @@ class PurchaseOrderController extends Controller
             ]);
 
             DB::commit();
+
             return redirect()->route('purchase-orders.index')->with('success', 'Bon de commande créé avec succès!');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withInput()->with('error', 'Erreur lors de la création du bon de commande: ' . $e->getMessage());
+
+            return back()->withInput()->with('error', 'Erreur lors de la création du bon de commande: '.$e->getMessage());
         }
     }
 
     public function show(PurchaseOrder $purchaseOrder)
     {
         $purchaseOrder->load('client', 'items');
+
         return view('sales.purchase-orders.show', compact('purchaseOrder'));
     }
 
@@ -156,6 +162,7 @@ class PurchaseOrderController extends Controller
     public function destroy(PurchaseOrder $purchaseOrder)
     {
         $purchaseOrder->delete();
+
         return redirect()->route('purchase-orders.index')->with('success', 'Bon de commande supprimé avec succès!');
     }
 }

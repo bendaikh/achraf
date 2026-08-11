@@ -237,6 +237,7 @@
 <script>
     window.tableBulkExportUrl = @json(route('table.export'));
     window.tableBulkZipExportUrl = @json(route('table.export.zip'));
+    window.tableBulkDestroyUrl = @json(route('table.bulk-destroy'));
 </script>
 @php
     $tableBulkSelectionScript = public_path('js/table-bulk-selection.js');
@@ -254,6 +255,15 @@
 <script>{!! file_get_contents($tablePaginationScript) !!}</script>
 @else
 <script src="{{ asset('js/table-pagination.js') }}?v=1"></script>
+@endif
+@php
+    $listStateScript = public_path('js/list-state.js');
+    $listStateVersion = is_readable($listStateScript) ? filemtime($listStateScript) : time();
+@endphp
+@if (is_readable($listStateScript))
+<script>/* list-state v={{ $listStateVersion }} */{!! file_get_contents($listStateScript) !!}</script>
+@else
+<script src="{{ asset('js/list-state.js') }}?v={{ $listStateVersion }}"></script>
 @endif
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 @endsection

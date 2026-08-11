@@ -14,10 +14,13 @@ class ExpenseWithoutInvoiceController extends Controller
 
     public function index(Request $request)
     {
-        $query = Expense::where('expense_type', 'without_invoice')->with('client')->latest();
+        $query = Expense::where('expense_type', 'without_invoice')->with('client');
 
         $this->applyTableSearch($query, $request, ['designation', 'reference', 'client.name']);
         $this->applyTableDateRange($query, $request, 'expense_date');
+        $this->applyTableSort($query, $request, [
+            'expense_date' => 'expense_date',
+        ], 'expense_date', 'desc');
 
         $expenses = $this->paginateTable($query, $request);
 

@@ -43,12 +43,8 @@
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Client
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Date
-                                </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Échéance
-                                </th>
+                                <x-table-sort-header column="order_date" label="Date de commande" :default="true" default-direction="desc" />
+                                <x-table-sort-header column="due_date" label="Échéance" default-direction="desc" />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Devise
                                 </th>

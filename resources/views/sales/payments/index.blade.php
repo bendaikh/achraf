@@ -58,16 +58,19 @@
             </div>
         </x-table-filters>
 
+        <x-table-bulk-bar export-type="invoices" item-label="facture(s)" />
+
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="w-full">
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
+                            <x-table-checkbox-header export-type="invoices" />
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° Facture</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° commande</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Échéance</th>
+                            <x-table-sort-header column="invoice_date" label="Date de facture" :default="true" default-direction="desc" />
+                            <x-table-sort-header column="due_date" label="Échéance" default-direction="desc" />
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Encaissé</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
@@ -84,6 +87,7 @@
                                 $status = $totalPaid <= 0 ? 'unpaid' : ($totalPaid >= $invoiceTotal ? 'paid' : 'partial');
                             @endphp
                             <tr class="hover:bg-gray-50 transition duration-150">
+                                <x-table-checkbox-cell export-type="invoices" :id="$invoice->id" />
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <x-table-show-link :href="route('invoices.show', $invoice)" :label="$invoice->invoice_number" />
                                 </td>
@@ -141,7 +145,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="px-6 py-12 text-center">
+                                <td colspan="11" class="px-6 py-12 text-center">
                                     <div class="flex flex-col items-center">
                                         <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>

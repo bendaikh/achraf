@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Services\DocumentNumberService;
 use App\Services\StockMovementService;
 use App\Support\CommercialDocumentView;
@@ -25,10 +26,14 @@ class InvoiceController extends Controller
 
     public function index(Request $request)
     {
-        $query = Invoice::with(['client', 'posSale', 'items'])->latest();
+        $query = Invoice::with(['client', 'posSale', 'items']);
 
         $this->applyTableSearch($query, $request, ['invoice_number', 'client.name', 'posSale.ticket_number']);
         $this->applyTableDateRange($query, $request, 'invoice_date');
+        $this->applyTableSort($query, $request, [
+            'invoice_date' => 'invoice_date',
+            'due_date' => 'due_date',
+        ], 'invoice_date', 'desc');
 
         $invoices = $this->paginateTable($query, $request);
 
@@ -39,12 +44,12 @@ class InvoiceController extends Controller
     {
         $products = Product::all();
         $invoiceNumber = DocumentNumberService::preview('facture');
-        $pricesAreTtc = \App\Models\Setting::getShopifyPriceType() === 'ttc';
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
         return view('sales.invoices.create', compact('products', 'invoiceNumber', 'pricesAreTtc'));
     }
 
-    public function byClient(\App\Models\Client $client)
+    public function byClient(Client $client)
     {
         $invoices = Invoice::query()
             ->where('client_id', $client->id)
@@ -129,26 +134,36 @@ class InvoiceController extends Controller
                 'total' => $subtotal + ($request->adjustment ?? 0),
             ]);
 
-            $this->stockMovement->decreaseForSale(
+            $stockWarnings = $this->stockMovement->decreaseForSale(
                 $validated['items'],
-                $validated['stock_location']
+                $validated['stock_location'],
+                strict: false
             );
 
             DB::commit();
-            return redirect()->route('invoices.index')->with('success', 'Facture créée avec succès!');
+
+            $redirect = redirect()->route('invoices.index')->with('success', 'Facture créée avec succès!');
+
+            if ($stockWarnings !== []) {
+                $redirect->with('warning', implode(' ', $stockWarnings).' The invoice was created anyway.');
+            }
+
+            return $redirect;
         } catch (\RuntimeException $e) {
             DB::rollBack();
 
             return back()->withInput()->with('error', $e->getMessage());
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withInput()->with('error', 'Erreur lors de la création de la facture: ' . $e->getMessage());
+
+            return back()->withInput()->with('error', 'Erreur lors de la création de la facture: '.$e->getMessage());
         }
     }
 
     public function show(Invoice $invoice)
     {
         $invoice->load('client', 'items', 'posSale', 'payments');
+
         return view('sales.invoices.show', compact('invoice'));
     }
 
@@ -167,7 +182,7 @@ class InvoiceController extends Controller
             'discount_type' => $item->discount_type ?? 'fixed',
         ])->values();
 
-        $pricesAreTtc = \App\Models\Setting::getShopifyPriceType() === 'ttc';
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
         return view('sales.invoices.edit', compact('invoice', 'products', 'existingItems', 'pricesAreTtc'));
     }
@@ -247,7 +262,7 @@ class InvoiceController extends Controller
             DB::rollBack();
 
             return back()->withInput()
-                ->with('error', 'Erreur lors de la modification de la facture: ' . $e->getMessage());
+                ->with('error', 'Erreur lors de la modification de la facture: '.$e->getMessage());
         }
     }
 

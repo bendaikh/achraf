@@ -15,12 +15,15 @@ class SalesPaymentController extends Controller
     {
         $query = Invoice::query()
             ->with(['client', 'posSale', 'items'])
-            ->withSum('payments as payments_sum', 'amount')
-            ->latest('invoice_date');
+            ->withSum('payments as payments_sum', 'amount');
 
         $this->applyTableSearch($query, $request, ['invoice_number', 'client.name', 'posSale.ticket_number']);
         $this->applyTableDateRange($query, $request, 'invoice_date');
         $this->applyPaymentStatusFilter($query, $request, 'invoice_payments', 'invoice_id', 'invoices');
+        $this->applyTableSort($query, $request, [
+            'invoice_date' => 'invoice_date',
+            'due_date' => 'due_date',
+        ], 'invoice_date', 'desc');
 
         $invoices = $this->paginateTable($query, $request);
 

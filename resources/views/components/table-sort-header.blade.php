@@ -12,14 +12,19 @@
         $currentDirection = $defaultDirection;
     }
 
+    $isExplicit = filled($currentSort);
     $isActive = $currentSort === $column || ($default && blank($currentSort));
     $activeDirection = $isActive
         ? (blank($currentSort) ? $defaultDirection : $currentDirection)
         : null;
 
-    $nextDirection = $isActive
-        ? ($activeDirection === 'asc' ? 'desc' : 'asc')
-        : $defaultDirection;
+    // First click on a date column always shows newest → oldest.
+    // Second click toggles to oldest → newest.
+    if (! $isActive || ($default && ! $isExplicit)) {
+        $nextDirection = $defaultDirection;
+    } else {
+        $nextDirection = $activeDirection === 'desc' ? 'asc' : 'desc';
+    }
 
     $url = request()->fullUrlWithQuery([
         'sort' => $column,
@@ -33,11 +38,11 @@
         default => 'none',
     };
 
-    $hint = $isActive
+    $hint = ($isActive && $isExplicit)
         ? ($activeDirection === 'desc'
             ? 'Cliquer pour afficher les plus anciens en premier'
             : 'Cliquer pour afficher les plus récents en premier')
-        : 'Cliquer pour trier';
+        : 'Cliquer pour trier du plus récent au plus ancien';
 @endphp
 
 <th

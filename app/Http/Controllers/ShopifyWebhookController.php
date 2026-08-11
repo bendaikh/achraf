@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ShopifyIntegration;
+use App\Services\MarketplaceStockSyncService;
+use App\Services\ShopifyInventorySyncService;
 use App\Services\ShopifyOrderImporter;
 use App\Services\ShopifyProductImporter;
 use Illuminate\Http\Request;
@@ -14,7 +16,7 @@ class ShopifyWebhookController extends Controller
 {
     /**
      * Verify the webhook HMAC signature
-     * 
+     *
      * Shopify signs webhooks with the app's API secret key. For webhooks registered
      * via the Admin API (programmatic), this is the oauth_client_secret. For webhooks
      * registered manually in the Shopify admin, a separate webhook_secret may be used.
@@ -27,6 +29,7 @@ class ShopifyWebhookController extends Controller
 
         if ($hmacHeader === '') {
             Log::warning('Shopify webhook missing HMAC header.');
+
             return response('Unauthorized', 401);
         }
 
@@ -38,6 +41,7 @@ class ShopifyWebhookController extends Controller
 
         if (empty($secrets)) {
             Log::error('No Shopify secret configured for webhook verification.');
+
             return response('Webhook secret not configured', 401);
         }
 
@@ -49,9 +53,10 @@ class ShopifyWebhookController extends Controller
         }
 
         Log::warning('Shopify webhook HMAC verification failed.', [
-            'hmac_header' => substr($hmacHeader, 0, 10) . '...',
+            'hmac_header' => substr($hmacHeader, 0, 10).'...',
             'secrets_tried' => count($secrets),
         ]);
+
         return response('Unauthorized', 401);
     }
 
@@ -82,6 +87,7 @@ class ShopifyWebhookController extends Controller
             Log::info('Shopify order webhook processed', ['order_id' => $order['id'] ?? 'unknown']);
         } catch (\Throwable $e) {
             Log::error('Shopify order import failed: '.$e->getMessage(), ['exception' => $e]);
+
             return response('Processing error', 500);
         }
 
@@ -122,6 +128,7 @@ class ShopifyWebhookController extends Controller
             Log::info('Shopify product webhook processed (create)', ['product_id' => $product['id'] ?? 'unknown']);
         } catch (\Throwable $e) {
             Log::error('Shopify product import failed: '.$e->getMessage(), ['exception' => $e]);
+
             return response('Processing error', 500);
         }
 
@@ -170,6 +177,56 @@ class ShopifyWebhookController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::error('Shopify product delete failed: '.$e->getMessage(), ['exception' => $e]);
+
+            return response('Processing error', 500);
+        }
+
+        return response('OK', 200);
+    }
+
+    /**
+     * Handle inventory_levels/update webhook from Shopify.
+     */
+    public function inventoryLevelsUpdate(
+        Request $request,
+        ShopifyInventorySyncService $inventorySync,
+        MarketplaceStockSyncService $marketplaceStockSync
+    ): Response {
+        $integration = ShopifyIntegration::query()->first();
+
+        if (! $integration || ! $integration->enabled) {
+            return response('Integration disabled', 401);
+        }
+
+        $verifyError = $this->verifyWebhook($request, $integration);
+        if ($verifyError) {
+            return $verifyError;
+        }
+
+        $payload = json_decode($request->getContent(), true);
+        if (! is_array($payload) || empty($payload['inventory_item_id'])) {
+            return response('Invalid payload', 400);
+        }
+
+        try {
+            $product = $inventorySync->applyInventoryLevelUpdate(
+                (string) $payload['inventory_item_id'],
+                (string) ($payload['location_id'] ?? ''),
+                (int) ($payload['available'] ?? 0)
+            );
+
+            if ($product && filled($product->jumia_product_sid)) {
+                $marketplaceStockSync->pushProductStockToJumia($product);
+            }
+
+            Log::info('Shopify inventory webhook processed', [
+                'inventory_item_id' => $payload['inventory_item_id'] ?? null,
+                'available' => $payload['available'] ?? null,
+                'product_id' => $product?->id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Shopify inventory webhook failed: '.$e->getMessage(), ['exception' => $e]);
+
             return response('Processing error', 500);
         }
 

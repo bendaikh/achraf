@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Product;
 use App\Models\Setting;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -35,12 +36,15 @@ class StockMovementService
 
     /**
      * @param  iterable<int, array{product_id?: int|null, quantity: int}>  $items
+     * @return list<string>
      */
-    public function decreaseForSale(iterable $items, ?string $stockLocation): void
+    public function decreaseForSale(iterable $items, ?string $stockLocation, bool $strict = true): array
     {
         if (! $this->isStockControlEnabled()) {
-            return;
+            return [];
         }
+
+        $warnings = [];
 
         foreach ($items as $item) {
             $productId = $item['product_id'] ?? null;
@@ -58,8 +62,13 @@ class StockMovementService
                 continue;
             }
 
-            $this->decrease($product, $qty, $this->resolveChannel($stockLocation));
+            $warning = $this->decrease($product, $qty, $this->resolveChannel($stockLocation), $strict);
+            if ($warning !== null) {
+                $warnings[] = $warning;
+            }
         }
+
+        return $warnings;
     }
 
     /**
@@ -119,28 +128,34 @@ class StockMovementService
         $this->decreaseForSale($rows, $stockLocation);
     }
 
-    public function decrease(Product $product, int $quantity, string $channel): void
+    public function decrease(Product $product, int $quantity, string $channel, bool $strict = true, bool $syncShopify = true): ?string
     {
         if (! $product->tracksStock()) {
-            return;
+            return null;
         }
 
         $field = $this->stockFieldForProduct($product, $channel);
         $current = (int) ($product->{$field} ?? 0);
+        $warning = null;
 
         if ($current < $quantity) {
-            throw new RuntimeException(
-                'Stock insuffisant pour « '.$product->name.' » (disponible: '.$current.', demandé: '.$quantity.').'
-            );
+            $warning = 'Stock insuffisant pour « '.$product->name.' » (disponible: '.$current.', demandé: '.$quantity.').';
+
+            if ($strict) {
+                throw new RuntimeException($warning);
+            }
         }
 
         $product->{$field} = $current - $quantity;
         $this->syncAggregateStock($product, $field);
         $product->save();
         $this->pushEnligneStockToJumia($product, $field);
+        $this->pushEnligneStockToShopify($product, $field, $syncShopify);
+
+        return $warning;
     }
 
-    public function increase(Product $product, int $quantity, string $channel): void
+    public function increase(Product $product, int $quantity, string $channel, bool $syncShopify = true): void
     {
         if (! $product->tracksStock()) {
             return;
@@ -151,6 +166,7 @@ class StockMovementService
         $this->syncAggregateStock($product, $field);
         $product->save();
         $this->pushEnligneStockToJumia($product, $field);
+        $this->pushEnligneStockToShopify($product, $field, $syncShopify);
     }
 
     protected function pushEnligneStockToJumia(Product $product, string $field): void
@@ -168,6 +184,31 @@ class StockMovementService
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    protected function pushEnligneStockToShopify(Product $product, string $field, bool $enabled): void
+    {
+        if (! $enabled || $field !== 'stock_enligne' || ! $product->isShopifyProduct()) {
+            return;
+        }
+
+        $productId = $product->id;
+
+        DB::afterCommit(function () use ($productId): void {
+            try {
+                $fresh = Product::query()->find($productId);
+                if (! $fresh) {
+                    return;
+                }
+
+                app(ShopifyInventorySyncService::class)->pushProductStock($fresh);
+            } catch (\Throwable $e) {
+                Log::warning('Shopify stock push after local stock change failed', [
+                    'product_id' => $productId,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        });
     }
 
     protected function stockFieldForProduct(Product $product, string $channel): string

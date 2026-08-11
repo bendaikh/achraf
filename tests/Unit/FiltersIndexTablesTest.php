@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Models\DeliveryNote;
 use Illuminate\Http\Request;
 use Tests\TestCase;
 
@@ -89,6 +90,58 @@ class FiltersIndexTablesTest extends TestCase
                 'total' => 'total',
             ], 'total', 'asc')
         );
+    }
+
+    public function test_apply_table_sort_orders_date_columns_by_calendar_date(): void
+    {
+        $resolver = new class
+        {
+            use FiltersIndexTables;
+
+            public function sort($query, Request $request, array $allowed, string $default, string $direction)
+            {
+                return $this->applyTableSort($query, $request, $allowed, $default, $direction);
+            }
+        };
+
+        $query = DeliveryNote::query();
+        $resolver->sort(
+            $query,
+            Request::create('/', 'GET'),
+            ['delivery_date' => 'delivery_date'],
+            'delivery_date',
+            'desc'
+        );
+
+        $sql = strtolower($query->toSql());
+
+        $this->assertStringContainsString('date(', $sql);
+        $this->assertStringContainsString('desc', $sql);
+        $this->assertStringContainsString('delivery_date', $sql);
+    }
+
+    public function test_apply_table_sort_respects_requested_direction_for_dates(): void
+    {
+        $resolver = new class
+        {
+            use FiltersIndexTables;
+
+            public function sort($query, Request $request, array $allowed, string $default, string $direction)
+            {
+                return $this->applyTableSort($query, $request, $allowed, $default, $direction);
+            }
+        };
+
+        $query = DeliveryNote::query();
+        $resolver->sort(
+            $query,
+            Request::create('/', 'GET', ['sort' => 'delivery_date', 'direction' => 'asc']),
+            ['delivery_date' => 'delivery_date'],
+            'delivery_date',
+            'desc'
+        );
+
+        $this->assertStringContainsString('asc', strtolower($query->toSql()));
     }
 
     private function makeSortResolver(): object

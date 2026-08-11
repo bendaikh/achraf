@@ -18,6 +18,7 @@ class ShopifyIntegration extends Model
         'oauth_scope',
         'oauth_state',
         'api_version',
+        'primary_location_id',
         'enabled',
         'last_sync_at',
     ];

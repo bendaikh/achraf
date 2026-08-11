@@ -28,38 +28,38 @@ class ShopifyProductImporter
             // Extract product data
             $title = (string) ($product['title'] ?? 'Untitled Product');
             $sku = $this->extractSku($product);
-            $ref = $sku ?: 'SHOPIFY-' . $externalId;
-            
+            $ref = $sku ?: 'SHOPIFY-'.$externalId;
+
             // Get variant data (use first variant for pricing)
             $variant = $this->getFirstVariant($product);
             $price = $variant ? (float) ($variant['price'] ?? 0) : 0;
             $compareAtPrice = $variant ? (float) ($variant['compare_at_price'] ?? 0) : 0;
             $barcode = $variant ? (string) ($variant['barcode'] ?? '') : '';
-            
-            // Get inventory data
-            $inventoryQuantity = $variant ? (int) ($variant['inventory_quantity'] ?? 0) : 0;
-            
+
+            // Total available units across all variants (not only the first one).
+            $inventoryQuantity = $this->totalInventoryQuantity($product);
+
             // Get product image
             $imageUrl = $this->extractImageUrl($product);
-            
+
             // Get product status
             $shopifyStatus = strtolower((string) ($product['status'] ?? 'draft'));
             $status = $shopifyStatus === 'active' ? 'Activer' : 'Desactiver';
-            
+
             // Get product type/category
             $productType = (string) ($product['product_type'] ?? '');
             $tags = (string) ($product['tags'] ?? '');
-            
+
             // Get description
             $description = strip_tags((string) ($product['body_html'] ?? ''));
-            
+
             // Calculate HT price from TTC if prices come as TTC from Shopify
             $priceType = Setting::getShopifyPriceType();
             $defaultTaxRate = 20; // Default VAT rate in Morocco
-            
+
             $salePrice = $price;
             $salePriceHT = null;
-            
+
             if ($priceType === 'ttc' && $price > 0) {
                 // Price from Shopify is TTC, calculate HT
                 $salePriceHT = round($price / (1 + $defaultTaxRate / 100), 2);
@@ -68,7 +68,7 @@ class ShopifyProductImporter
                 $salePriceHT = $price;
                 $salePrice = round($price * (1 + $defaultTaxRate / 100), 2);
             }
-            
+
             $data = [
                 'name' => $title,
                 'ref' => $ref,
@@ -85,13 +85,8 @@ class ShopifyProductImporter
                 'shopify_synced_at' => now(),
             ];
 
-            // Keep app stock as source of truth for Jumia-linked products so Shopify
-            // product sync does not restore quantities after Jumia/POS sales.
-            $isJumiaLinked = $existing && filled($existing->jumia_product_sid);
-            if (! $isJumiaLinked) {
-                $data['stock_quantity'] = $inventoryQuantity;
-                $data['stock_enligne'] = max(0, $inventoryQuantity);
-            }
+            $data['stock_quantity'] = $inventoryQuantity;
+            $data['stock_enligne'] = $inventoryQuantity;
 
             if ($existing) {
                 // Never overwrite Libromart-only fields without explicit user action.
@@ -115,28 +110,28 @@ class ShopifyProductImporter
                 try {
                     // For new products, always download the image
                     // For existing products, download if the image URL has changed
-                    $shouldDownload = !$existing;
-                    
+                    $shouldDownload = ! $existing;
+
                     if ($existing) {
                         // Check if we need to update the image
                         // We'll store the Shopify image URL to compare
                         $currentShopifyImageUrl = $existing->shopify_image_url ?? null;
-                        
+
                         // Download if:
                         // 1. No image exists yet
                         // 2. The Shopify image URL has changed
                         // 3. The stored URL is different (first time storing URL)
-                        if (!$existing->image || $currentShopifyImageUrl !== $imageUrl) {
+                        if (! $existing->image || $currentShopifyImageUrl !== $imageUrl) {
                             $shouldDownload = true;
                         }
                     }
-                    
+
                     if ($shouldDownload) {
                         $imagePath = $this->downloadImage($imageUrl, $externalId);
                         if ($imagePath) {
                             $data['image'] = $imagePath;
                             $data['shopify_image_url'] = $imageUrl; // Store URL for comparison
-                            
+
                             if ($existing) {
                                 Log::info('Updated Shopify product image', [
                                     'product_id' => $externalId,
@@ -164,25 +159,27 @@ class ShopifyProductImporter
                 // Sync variants
                 $this->syncVariants($existing, $product['variants'] ?? []);
                 Log::info('Updated Shopify product', ['product_id' => $externalId, 'ref' => $ref]);
+
                 return $existing;
             }
 
             // Check if ref already exists (from manual entry or another Shopify product)
             $existingByRef = Product::query()->where('ref', $ref)->first();
             if ($existingByRef) {
-                if (!$existingByRef->source) {
+                if (! $existingByRef->source) {
                     // Update manual product with Shopify data
                     $existingByRef->update($data);
                     // Sync variants
                     $this->syncVariants($existingByRef, $product['variants'] ?? []);
                     Log::info('Linked existing product to Shopify', ['product_id' => $externalId, 'ref' => $ref]);
+
                     return $existingByRef;
                 } else {
                     // Reference already exists for another Shopify product, generate unique reference
                     $counter = 1;
                     $originalRef = $ref;
                     while (Product::where('ref', $ref)->exists()) {
-                        $ref = $originalRef . '-' . $counter;
+                        $ref = $originalRef.'-'.$counter;
                         $counter++;
                     }
                     $data['ref'] = $ref;
@@ -199,7 +196,7 @@ class ShopifyProductImporter
             // Sync variants
             $this->syncVariants($newProduct, $product['variants'] ?? []);
             Log::info('Created new Shopify product', ['product_id' => $externalId, 'ref' => $ref]);
-            
+
             return $newProduct;
         });
     }
@@ -227,16 +224,19 @@ class ShopifyProductImporter
             $variantAttributes = [
                 'product_id' => $product->id,
                 'shopify_variant_id' => $variantId,
+                'inventory_item_id' => ! empty($variantData['inventory_item_id'])
+                    ? (string) $variantData['inventory_item_id']
+                    : null,
                 'title' => (string) ($variantData['title'] ?? 'Default'),
                 'sku' => trim((string) ($variantData['sku'] ?? '')) ?: null,
                 'price' => (float) ($variantData['price'] ?? 0),
-                'compare_at_price' => !empty($variantData['compare_at_price']) ? (float) $variantData['compare_at_price'] : null,
+                'compare_at_price' => ! empty($variantData['compare_at_price']) ? (float) $variantData['compare_at_price'] : null,
                 'barcode' => trim((string) ($variantData['barcode'] ?? '')) ?: null,
                 'inventory_quantity' => (int) ($variantData['inventory_quantity'] ?? 0),
                 'option1' => trim((string) ($variantData['option1'] ?? '')) ?: null,
                 'option2' => trim((string) ($variantData['option2'] ?? '')) ?: null,
                 'option3' => trim((string) ($variantData['option3'] ?? '')) ?: null,
-                'weight' => !empty($variantData['weight']) ? (float) $variantData['weight'] : null,
+                'weight' => ! empty($variantData['weight']) ? (float) $variantData['weight'] : null,
                 'weight_unit' => trim((string) ($variantData['weight_unit'] ?? '')) ?: null,
                 'position' => (int) ($variantData['position'] ?? $index + 1),
             ];
@@ -251,9 +251,9 @@ class ShopifyProductImporter
         }
 
         // Delete variants that no longer exist in Shopify
-        if (!empty($existingVariantIds)) {
+        if (! empty($existingVariantIds)) {
             $toDelete = array_diff($existingVariantIds, $syncedVariantIds);
-            if (!empty($toDelete)) {
+            if (! empty($toDelete)) {
                 $product->variants()->whereIn('shopify_variant_id', $toDelete)->delete();
             }
         }
@@ -265,11 +265,12 @@ class ShopifyProductImporter
     private function extractSku(array $product): string
     {
         $variants = $product['variants'] ?? [];
-        if (!is_array($variants) || empty($variants)) {
+        if (! is_array($variants) || empty($variants)) {
             return '';
         }
 
         $firstVariant = $variants[0];
+
         return trim((string) ($firstVariant['sku'] ?? ''));
     }
 
@@ -279,11 +280,29 @@ class ShopifyProductImporter
     private function getFirstVariant(array $product): ?array
     {
         $variants = $product['variants'] ?? [];
-        if (!is_array($variants) || empty($variants)) {
+        if (! is_array($variants) || empty($variants)) {
             return null;
         }
 
         return $variants[0];
+    }
+
+    /**
+     * Sum inventory across every Shopify variant so Libromart stock matches the storefront.
+     */
+    private function totalInventoryQuantity(array $product): int
+    {
+        $total = 0;
+
+        foreach ($product['variants'] ?? [] as $variantData) {
+            if (! is_array($variantData)) {
+                continue;
+            }
+
+            $total += (int) ($variantData['inventory_quantity'] ?? 0);
+        }
+
+        return max(0, $total);
     }
 
     /**
@@ -298,7 +317,7 @@ class ShopifyProductImporter
 
         // Try images array
         $images = $product['images'] ?? [];
-        if (is_array($images) && !empty($images) && isset($images[0]['src'])) {
+        if (is_array($images) && ! empty($images) && isset($images[0]['src'])) {
             return (string) $images[0]['src'];
         }
 
@@ -318,12 +337,12 @@ class ShopifyProductImporter
 
             // Generate filename from URL
             $extension = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION);
-            if (!$extension || !in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+            if (! $extension || ! in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
                 $extension = 'jpg';
             }
 
-            $filename = 'shopify-' . $productId . '-' . time() . '.' . $extension;
-            $path = 'products/' . $filename;
+            $filename = 'shopify-'.$productId.'-'.time().'.'.$extension;
+            $path = 'products/'.$filename;
 
             // Store in public disk
             Storage::disk('public')->put($path, $contents);
@@ -334,6 +353,7 @@ class ShopifyProductImporter
                 'url' => $url,
                 'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
@@ -370,7 +390,7 @@ class ShopifyProductImporter
                     'product_id' => $productData['id'] ?? 'unknown',
                     'error' => $e->getMessage(),
                 ];
-                
+
                 Log::error('Failed to import Shopify product', [
                     'product' => $productData,
                     'error' => $e->getMessage(),

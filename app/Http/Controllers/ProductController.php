@@ -8,6 +8,8 @@ use App\Models\ProductVariant;
 use App\Models\Setting;
 use App\Models\ShopifyIntegration;
 use App\Models\Supplier;
+use App\Support\VatCategoryHelper;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
@@ -23,11 +25,13 @@ class ProductController extends Controller
 
         $this->applyProductFilters($query, $request);
 
-        $products = $this->paginateTable(
-            $query->withCount('variants')->latest(),
-            $request,
-            20
-        );
+        $query->withCount('variants');
+        $this->applyTableSort($query, $request, [
+            'created_at' => 'created_at',
+            'name' => 'name',
+        ], 'created_at', 'desc');
+
+        $products = $this->paginateTable($query, $request, 20);
 
         $stats = $this->productStats();
         $filterOptions = $this->filterOptions();
@@ -256,7 +260,7 @@ class ProductController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Product>  $query
+     * @param  Builder<Product>  $query
      */
     protected function applyProductFilters($query, Request $request): void
     {
@@ -377,7 +381,7 @@ class ProductController extends Controller
                 ->orderBy('location')
                 ->pluck('location', 'location')
                 ->all(),
-            'vatCategories' => \App\Support\VatCategoryHelper::all(),
+            'vatCategories' => VatCategoryHelper::all(),
             'suppliers' => Supplier::query()->orderBy('name')->pluck('name', 'id')->all(),
             'stockStatuses' => Product::STOCK_STATUSES,
             'itemKinds' => Product::ITEM_KINDS,
@@ -402,7 +406,7 @@ class ProductController extends Controller
     protected function formData(): array
     {
         return [
-            'vatCategories' => \App\Support\VatCategoryHelper::all(),
+            'vatCategories' => VatCategoryHelper::all(),
             'productTypeCategories' => Setting::getList('product_type_categories', ['Électronique', 'Textile', 'Alimentaire', 'Service']),
             'serviceCategories' => Setting::getList('service_categories', [
                 'Installation',

@@ -14,10 +14,13 @@ class ExpenseWithInvoiceController extends Controller
 
     public function index(Request $request)
     {
-        $query = Expense::where('expense_type', 'with_invoice')->with('supplier')->latest();
+        $query = Expense::where('expense_type', 'with_invoice')->with('supplier');
 
         $this->applyTableSearch($query, $request, ['designation', 'reference', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'expense_date');
+        $this->applyTableSort($query, $request, [
+            'expense_date' => 'expense_date',
+        ], 'expense_date', 'desc');
 
         $expenses = $this->paginateTable($query, $request);
 

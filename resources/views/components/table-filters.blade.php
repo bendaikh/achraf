@@ -14,7 +14,7 @@
 @endphp
 
 <div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-    <form method="GET" action="{{ $action }}" class="grid grid-cols-1 {{ $gridCols }} gap-4">
+    <form method="GET" action="{{ $action }}" data-list-page class="grid grid-cols-1 {{ $gridCols }} gap-4">
         @if($search)
             <div>
                 <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Rechercher</label>
@@ -74,7 +74,7 @@
                 Filtrer
             </button>
             @if($hasActiveFilters)
-                <a href="{{ $resetUrl }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm whitespace-nowrap">
+                <a href="{{ $resetUrl }}" data-list-reset class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm whitespace-nowrap">
                     Réinitialiser
                 </a>
             @endif

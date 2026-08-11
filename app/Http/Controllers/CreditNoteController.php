@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
-use App\Models\Client;
 use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Models\Product;
@@ -27,10 +26,13 @@ class CreditNoteController extends Controller
 
     public function index(Request $request)
     {
-        $query = CreditNote::with('client', 'invoice')->latest();
+        $query = CreditNote::with('client', 'invoice');
 
         $this->applyTableSearch($query, $request, ['credit_note_number', 'client.name']);
         $this->applyTableDateRange($query, $request, 'credit_note_date');
+        $this->applyTableSort($query, $request, [
+            'credit_note_date' => 'credit_note_date',
+        ], 'credit_note_date', 'desc');
 
         $creditNotes = $this->paginateTable($query, $request);
 

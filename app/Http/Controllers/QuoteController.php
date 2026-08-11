@@ -5,13 +5,12 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
-use App\Models\Client;
-use App\Models\Quote;
 use App\Models\Product;
+use App\Models\Quote;
+use App\Models\Setting;
 use App\Services\DocumentNumberService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
-use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -21,11 +20,15 @@ class QuoteController extends Controller
 
     public function index(Request $request)
     {
-        $query = Quote::with('client')->latest();
+        $query = Quote::with('client');
 
         $this->applyTableSearch($query, $request, ['quote_number', 'client.name']);
         $this->applyTableDateRange($query, $request, 'quote_date');
         $this->applyTableFilter($query, $request, 'status', 'status');
+        $this->applyTableSort($query, $request, [
+            'quote_date' => 'quote_date',
+            'expiry_date' => 'expiry_date',
+        ], 'quote_date', 'desc');
 
         $quotes = $this->paginateTable($query, $request);
 
@@ -36,7 +39,7 @@ class QuoteController extends Controller
     {
         $products = Product::all();
         $quoteNumber = DocumentNumberService::preview('devis');
-        
+
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
         return view('sales.quotes.create', compact('products', 'quoteNumber', 'pricesAreTtc'));
@@ -74,16 +77,19 @@ class QuoteController extends Controller
             ]);
 
             DB::commit();
+
             return redirect()->route('quotes.index')->with('success', 'Devis créé avec succès!');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withInput()->with('error', 'Erreur lors de la création du devis: ' . $e->getMessage());
+
+            return back()->withInput()->with('error', 'Erreur lors de la création du devis: '.$e->getMessage());
         }
     }
 
     public function show(Quote $quote)
     {
         $quote->load('client', 'items');
+
         return view('sales.quotes.show', compact('quote'));
     }
 
@@ -175,6 +181,7 @@ class QuoteController extends Controller
     public function destroy(Quote $quote)
     {
         $quote->delete();
+
         return redirect()->route('quotes.index')->with('success', 'Devis supprimé avec succès!');
     }
 

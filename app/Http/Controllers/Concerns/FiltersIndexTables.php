@@ -96,7 +96,13 @@ trait FiltersIndexTables
             $directionParam,
         );
 
-        $query->reorder()->orderBy($column, $direction);
+        $query->reorder();
+
+        if ($this->isDateSortColumn($column)) {
+            $this->applyDateOnlyOrder($query, $column, $direction);
+        } else {
+            $query->orderBy($column, $direction);
+        }
 
         $keyName = $query->getModel()->getQualifiedKeyName();
         if ($column !== $keyName && $column !== $query->getModel()->getKeyName()) {
@@ -106,9 +112,31 @@ trait FiltersIndexTables
         return $query;
     }
 
+    protected function isDateSortColumn(string $column): bool
+    {
+        $basename = str_contains($column, '.') ? substr($column, strrpos($column, '.') + 1) : $column;
+
+        return (bool) preg_match('/(_date|_at)$/', $basename);
+    }
+
+    protected function applyDateOnlyOrder(Builder $query, string $column, string $direction): void
+    {
+        $direction = $direction === 'asc' ? 'asc' : 'desc';
+        $qualified = str_contains($column, '.')
+            ? $column
+            : $query->getModel()->getTable().'.'.$column;
+        $wrapped = $query->getGrammar()->wrap($qualified);
+        $driver = $query->getConnection()->getDriverName();
+        $dateExpr = in_array($driver, ['sqlite', 'pgsql'], true)
+            ? "date({$wrapped})"
+            : "DATE({$wrapped})";
+
+        $query->orderByRaw("{$dateExpr} is null, {$dateExpr} {$direction}");
+    }
+
     /**
      * @param  array<string, string>  $allowed
-     * @return array{0: string, 1: string, 2: string}  Sort key, direction, database column
+     * @return array{0: string, 1: string, 2: string} Sort key, direction, database column
      */
     protected function resolveTableSort(
         Request $request,

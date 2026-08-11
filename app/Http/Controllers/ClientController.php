@@ -15,7 +15,7 @@ class ClientController extends Controller
 
     public function index(Request $request)
     {
-        $query = Client::query()->orderBy('created_at', 'desc');
+        $query = Client::query();
 
         $this->applyTableSearch($query, $request, [
             'name', 'email', 'phone', 'code', 'ice', 'ville', 'city', 'first_name', 'last_name', 'cin',
@@ -24,6 +24,11 @@ class ClientController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
+
+        $this->applyTableSort($query, $request, [
+            'created_at' => 'created_at',
+            'name' => 'name',
+        ], 'created_at', 'desc');
 
         $clients = $this->paginateTable($query, $request);
 
@@ -57,17 +62,17 @@ class ClientController extends Controller
         $prefix = 'CLT';
         $year = date('Y');
 
-        $lastClient = Client::where('code', 'like', $prefix . $year . '%')
+        $lastClient = Client::where('code', 'like', $prefix.$year.'%')
             ->orderBy('code', 'desc')
             ->first();
 
-        if ($lastClient && preg_match('/' . $prefix . $year . '(\d+)/', $lastClient->code, $matches)) {
+        if ($lastClient && preg_match('/'.$prefix.$year.'(\d+)/', $lastClient->code, $matches)) {
             $nextNumber = intval($matches[1]) + 1;
         } else {
             $nextNumber = 1;
         }
 
-        return $prefix . $year . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        return $prefix.$year.str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
     public function show(Client $client)
@@ -204,7 +209,7 @@ class ClientController extends Controller
         if ($clientType === 'particulier') {
             $validated['first_name'] = trim($validated['first_name'] ?? '');
             $validated['last_name'] = trim($validated['last_name'] ?? '');
-            $validated['name'] = trim($validated['first_name'] . ' ' . $validated['last_name']);
+            $validated['name'] = trim($validated['first_name'].' '.$validated['last_name']);
         } else {
             $validated['first_name'] = null;
             $validated['last_name'] = null;

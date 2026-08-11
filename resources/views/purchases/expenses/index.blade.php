@@ -44,7 +44,7 @@
                             <tr>
                                 <x-table-checkbox-header export-type="expenses" />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                <x-table-sort-header column="expense_date" label="Date" :default="true" default-direction="desc" />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>

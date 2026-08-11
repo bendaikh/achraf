@@ -1,42 +1,43 @@
 <?php
 
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\InvoiceController;
-use App\Http\Controllers\QuoteController;
-use App\Http\Controllers\PurchaseOrderController;
-use App\Http\Controllers\CreditNoteController;
-use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\ExpenseWithInvoiceController;
-use App\Http\Controllers\ExpenseWithoutInvoiceController;
-use App\Http\Controllers\SupplierInvoicePaymentController;
-use App\Http\Controllers\PurchasePaymentController;
-use App\Http\Controllers\SalesPaymentController;
-use App\Http\Controllers\InvoicePaymentController;
-use App\Http\Controllers\SupplierPurchaseOrderController;
-use App\Http\Controllers\ReceptionController;
-use App\Http\Controllers\SupplierInvoiceController;
-use App\Http\Controllers\SupplierDeliveryNoteController;
-use App\Http\Controllers\SupplierCreditNoteController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\StockController;
-use App\Http\Controllers\PointOfSaleController;
-use App\Http\Controllers\PosSaleController;
-use App\Http\Controllers\ShopifyIntegrationController;
-use App\Http\Controllers\JumiaIntegrationController;
-use App\Http\Controllers\ShopifyWebhookController;
 use App\Http\Controllers\ClientController;
-use App\Http\Controllers\SupplierController;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\TableExportController;
-use App\Http\Controllers\StockReportController;
-use App\Http\Controllers\DocumentImportController;
+use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\CrmImportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryNoteController;
+use App\Http\Controllers\DocumentFileController;
+use App\Http\Controllers\DocumentImportController;
+use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpenseWithInvoiceController;
+use App\Http\Controllers\ExpenseWithoutInvoiceController;
 use App\Http\Controllers\FinancialManagementController;
 use App\Http\Controllers\FinancialMovementController;
-use App\Http\Controllers\DocumentFileController;
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoicePaymentController;
+use App\Http\Controllers\JumiaIntegrationController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PointOfSaleController;
+use App\Http\Controllers\PosSaleController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\PurchasePaymentController;
+use App\Http\Controllers\QuoteController;
+use App\Http\Controllers\ReceptionController;
+use App\Http\Controllers\SalesPaymentController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ShopifyIntegrationController;
+use App\Http\Controllers\ShopifyWebhookController;
+use App\Http\Controllers\StockController;
+use App\Http\Controllers\StockReportController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierCreditNoteController;
+use App\Http\Controllers\SupplierDeliveryNoteController;
+use App\Http\Controllers\SupplierInvoiceController;
+use App\Http\Controllers\SupplierInvoicePaymentController;
+use App\Http\Controllers\SupplierPurchaseOrderController;
+use App\Http\Controllers\TableBulkDestroyController;
+use App\Http\Controllers\TableExportController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -58,6 +59,8 @@ Route::post('/api/webhooks/shopify/products/update', [ShopifyWebhookController::
     ->name('webhooks.shopify.products.update');
 Route::post('/api/webhooks/shopify/products/delete', [ShopifyWebhookController::class, 'productsDelete'])
     ->name('webhooks.shopify.products.delete');
+Route::post('/api/webhooks/shopify/inventory-levels/update', [ShopifyWebhookController::class, 'inventoryLevelsUpdate'])
+    ->name('webhooks.shopify.inventory_levels.update');
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -91,7 +94,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/financial/mouvements/{mouvement}', [FinancialMovementController::class, 'destroy'])->name('financial.mouvements.destroy');
     Route::post('/financial/mouvements/{mouvement}/point', [FinancialMovementController::class, 'point'])->name('financial.mouvements.point');
     Route::post('/document-files/{type}/{id}', [DocumentFileController::class, 'store'])->name('document-files.store');
-    
+
     Route::resource('products', ProductController::class);
     Route::post('/products/sync-shopify', [ProductController::class, 'syncShopify'])->name('products.sync-shopify');
     Route::post('/products/{product}/duplicate-to-manual', [ProductController::class, 'duplicateToManual'])->name('products.duplicate-to-manual');
@@ -104,13 +107,13 @@ Route::middleware('auth')->group(function () {
         Route::get('/enligne/export/{format}', [StockReportController::class, 'exportEnligne'])->name('stock.enligne.export');
         Route::get('/enligne/{product}/edit', [StockController::class, 'editEnligne'])->name('stock.enligne.edit');
         Route::patch('/enligne/{product}', [StockController::class, 'updateEnligne'])->name('stock.enligne.update');
-        
+
         Route::get('/magasin', [StockController::class, 'indexMagasin'])->name('stock.magasin.index');
         Route::get('/magasin/export/{format}', [StockReportController::class, 'exportMagasin'])->name('stock.magasin.export');
         Route::get('/magasin/{product}/edit', [StockController::class, 'editMagasin'])->name('stock.magasin.edit');
         Route::patch('/magasin/{product}', [StockController::class, 'updateMagasin'])->name('stock.magasin.update');
     });
-    
+
     Route::prefix('crm')->group(function () {
         Route::get('clients/import/template', [CrmImportController::class, 'clientTemplate'])->name('clients.import.template');
         Route::post('clients/import', [CrmImportController::class, 'importClients'])->name('clients.import');
@@ -124,7 +127,7 @@ Route::middleware('auth')->group(function () {
         Route::post('suppliers/quick-store', [SupplierController::class, 'quickStore'])->name('suppliers.quick-store');
         Route::resource('suppliers', SupplierController::class);
     });
-    
+
     Route::prefix('sales')->group(function () {
         Route::get('orders', [OrderController::class, 'index'])->name('orders.index');
         Route::get('orders/{order}', [OrderController::class, 'show'])->name('orders.show');
@@ -225,6 +228,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings/depenses', [SettingsController::class, 'depenses'])->name('settings.depenses');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
 
+    Route::post('/export/table-destroy', TableBulkDestroyController::class)->name('table.bulk-destroy');
     Route::post('/export/table', [TableExportController::class, 'export'])->name('table.export');
     Route::get('/export/table/{export}/status', [TableExportController::class, 'status'])->name('table.export.status');
     Route::get('/export/table/{export}/download', [TableExportController::class, 'download'])->name('table.export.download');

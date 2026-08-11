@@ -294,7 +294,86 @@
             });
     };
 
-    var zipPdfTypes = ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'supplier-invoices'];
+    window.deleteSelectedTable = function (exportType) {
+        var ids = getSelectedTableIds(exportType);
+        if (ids.length === 0) {
+            alert('Veuillez sélectionner au moins un élément.');
+            return;
+        }
+
+        if (!confirm('Supprimer ' + ids.length + ' élément(s) sélectionné(s) ? Cette action est irréversible.')) {
+            return;
+        }
+
+        fetch(window.tableBulkDestroyUrl || '/export/table-destroy', {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                type: exportType,
+                ids: ids
+            })
+        })
+            .then(function (response) {
+                return response.json().then(function (data) {
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Impossible de supprimer la sélection.');
+                    }
+                    return data;
+                });
+            })
+            .then(function (data) {
+                var lines = [data.message || 'Suppression terminée.'];
+                if (data.blocked && data.blocked.length) {
+                    lines.push('');
+                    lines.push('Non supprimés :');
+                    data.blocked.forEach(function (item) {
+                        lines.push('- ' + (item.label || ('#' + item.id)) + ' : ' + item.reason);
+                    });
+                }
+                alert(lines.join('\n'));
+                if (data.deleted > 0) {
+                    if (window.SoftNav && typeof window.SoftNav.navigate === 'function') {
+                        window.SoftNav.navigate(window.location.href);
+                    } else {
+                        window.location.reload();
+                    }
+                }
+            })
+            .catch(function (error) {
+                alert(error.message || 'Impossible de supprimer la sélection.');
+            });
+    };
+
+    window.printSelectedTable = function (exportType) {
+        var ids = getSelectedTableIds(exportType);
+        if (ids.length === 0) {
+            alert('Veuillez sélectionner au moins un élément.');
+            return;
+        }
+
+        var bar = getBar(exportType);
+        var pattern = bar ? bar.getAttribute('data-print-pattern') : null;
+        if (!pattern) {
+            alert('L’impression groupée n’est pas disponible pour cette liste.');
+            return;
+        }
+
+        if (ids.length > 8 && !confirm('Ouvrir ' + ids.length + ' documents à imprimer ?')) {
+            return;
+        }
+
+        ids.forEach(function (id) {
+            window.open(pattern.replace('__ID__', String(id)), '_blank');
+        });
+    };
+
+    var zipPdfTypes = ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'delivery-notes', 'supplier-invoices'];
 
     window.exportSelectedToZip = function (exportType) {
         if (zipPdfTypes.indexOf(exportType) === -1) {

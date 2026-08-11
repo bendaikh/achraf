@@ -3,9 +3,9 @@
 namespace App\Services;
 
 use App\Models\JumiaIntegration;
+use App\Models\PosSale;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Models\PosSale;
 use App\Services\Jumia\JumiaApiClient;
 use App\Support\OrderSource;
 use Illuminate\Support\Facades\DB;
@@ -109,7 +109,7 @@ class MarketplaceStockSyncService
                 if ($delta > 0) {
                     $this->decreaseForMarketplace($product, $delta);
                 } else {
-                    $this->stockMovement->increase($product, abs($delta), 'enligne');
+                    $this->stockMovement->increase($product, abs($delta), 'enligne', syncShopify: false);
                 }
 
                 $product->refresh();
@@ -134,8 +134,15 @@ class MarketplaceStockSyncService
 
         if (in_array($source, [OrderSource::SHOPIFY, OrderSource::JUMIA], true) && $productsToPush !== []) {
             $allowDiscovery = $source === OrderSource::JUMIA;
-            DB::afterCommit(function () use ($productsToPush, $allowDiscovery): void {
+            DB::afterCommit(function () use ($productsToPush, $allowDiscovery, $source): void {
                 $this->pushStockToJumia(array_values($productsToPush), $allowDiscovery);
+
+                if ($source === OrderSource::JUMIA) {
+                    $shopifyInventory = app(ShopifyInventorySyncService::class);
+                    foreach ($productsToPush as $product) {
+                        $shopifyInventory->pushProductStock($product->fresh() ?? $product);
+                    }
+                }
             });
         }
 

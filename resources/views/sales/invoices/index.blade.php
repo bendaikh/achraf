@@ -23,6 +23,12 @@
                 </div>
             @endif
 
+            @if(session('warning'))
+                <div class="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-lg">
+                    <p class="text-sm text-amber-800">{{ session('warning') }}</p>
+                </div>
+            @endif
+
             @if(session('error'))
                 <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
                     <p class="text-sm text-red-700">{{ session('error') }}</p>
@@ -61,12 +67,8 @@
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Origine
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Date
-                                </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Échéance
-                                </th>
+                                <x-table-sort-header column="invoice_date" label="Date" :default="true" default-direction="desc" />
+                                <x-table-sort-header column="due_date" label="Échéance" default-direction="desc" />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Devise
                                 </th>

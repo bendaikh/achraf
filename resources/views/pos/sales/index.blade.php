@@ -44,7 +44,7 @@
                             <tr>
                                 <x-table-checkbox-header export-type="pos-sales" />
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ticket</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                <x-table-sort-header column="sold_at" label="Date" :default="true" default-direction="desc" />
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Paiement</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total TTC</th>

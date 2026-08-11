@@ -15,12 +15,15 @@ class PurchasePaymentController extends Controller
     {
         $query = SupplierInvoice::query()
             ->with(['supplier'])
-            ->withSum('payments as payments_sum', 'amount')
-            ->latest('invoice_date');
+            ->withSum('payments as payments_sum', 'amount');
 
         $this->applyTableSearch($query, $request, ['invoice_number', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'invoice_date');
         $this->applyPaymentStatusFilter($query, $request, 'supplier_invoice_payments', 'supplier_invoice_id', 'supplier_invoices');
+        $this->applyTableSort($query, $request, [
+            'invoice_date' => 'invoice_date',
+            'due_date' => 'due_date',
+        ], 'invoice_date', 'desc');
 
         $invoices = $this->paginateTable($query, $request);
 

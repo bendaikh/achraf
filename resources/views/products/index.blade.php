@@ -230,12 +230,21 @@
 
         {{-- Filters --}}
         <div class="bg-white rounded-xl border border-slate-200 p-4 mb-6" x-data="{ more: {{ request()->hasAny(['price_min','price_max','vat_category','date_from','date_to','service_category']) ? 'true' : 'false' }} }">
-            <form method="GET" action="{{ route('products.index') }}" class="space-y-4">
+            <form method="GET" action="{{ route('products.index') }}" data-list-page class="space-y-4">
                 @if($currentKind !== '')
                     <input type="hidden" name="item_kind" value="{{ $currentKind }}">
                 @endif
                 @if($currentSource !== '')
                     <input type="hidden" name="source" value="{{ $currentSource }}">
+                @endif
+                @if(request()->filled('sort'))
+                    <input type="hidden" name="sort" value="{{ request('sort') }}">
+                @endif
+                @if(request()->filled('direction'))
+                    <input type="hidden" name="direction" value="{{ request('direction') }}">
+                @endif
+                @if(request()->filled('per_page'))
+                    <input type="hidden" name="per_page" value="{{ request('per_page') }}">
                 @endif
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
@@ -356,7 +365,7 @@
                         <span x-text="more ? 'Moins de filtres' : 'Plus de filtres'"></span>
                     </button>
                     @if(count(request()->except(['page', 'per_page'])) > 0)
-                        <a href="{{ route('products.index') }}" class="px-4 py-2 text-sm text-slate-600 hover:text-slate-900">Réinitialiser</a>
+                        <a href="{{ route('products.index') }}" data-list-reset class="px-4 py-2 text-sm text-slate-600 hover:text-slate-900">Réinitialiser</a>
                     @endif
                 </div>
             </form>

@@ -62,8 +62,7 @@ class ShopifyApiClient
      * Fetch ALL orders using cursor-based pagination.
      * Returns a generator that yields batches of orders.
      *
-     * @param array $params Query parameters
-     * @return \Generator
+     * @param  array  $params  Query parameters
      */
     public function getAllOrders(array $params = []): \Generator
     {
@@ -77,7 +76,7 @@ class ShopifyApiClient
         // Initial request
         $orders = $this->getOrders($queryParams);
 
-        if (!empty($orders)) {
+        if (! empty($orders)) {
             yield $orders;
         }
 
@@ -85,7 +84,7 @@ class ShopifyApiClient
         while ($this->nextPageUrl !== null) {
             $orders = $this->fetchNextPage();
 
-            if (!empty($orders)) {
+            if (! empty($orders)) {
                 yield $orders;
             }
         }
@@ -138,7 +137,7 @@ class ShopifyApiClient
 
     /**
      * Parse the Link header to extract the next page URL
-     * Shopify Link header format: 
+     * Shopify Link header format:
      * <https://shop.myshopify.com/admin/api/2024-01/orders.json?page_info=xxx>; rel="next"
      */
     protected function parseNextPageLink(string $linkHeader): void
@@ -155,6 +154,7 @@ class ShopifyApiClient
         foreach ($links as $link) {
             if (preg_match('/<(.+?)>;\s*rel="next"/i', trim($link), $matches)) {
                 $this->nextPageUrl = $matches[1];
+
                 return;
             }
         }
@@ -269,7 +269,7 @@ class ShopifyApiClient
         // Initial request
         $products = $this->getProducts($queryParams);
 
-        if (!empty($products)) {
+        if (! empty($products)) {
             yield $products;
         }
 
@@ -277,7 +277,7 @@ class ShopifyApiClient
         while ($this->nextPageUrl !== null) {
             $products = $this->fetchNextPageProducts();
 
-            if (!empty($products)) {
+            if (! empty($products)) {
                 yield $products;
             }
         }
@@ -329,11 +329,40 @@ class ShopifyApiClient
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function getLocations(): array
+    {
+        $response = $this->makeRequest('GET', 'locations.json');
+
+        return $response['locations'] ?? [];
+    }
+
+    public function setInventoryLevel(string $inventoryItemId, string $locationId, int $available): array
+    {
+        return $this->makeRequest('POST', 'inventory_levels/set.json', [
+            'location_id' => (int) $locationId,
+            'inventory_item_id' => (int) $inventoryItemId,
+            'available' => $available,
+        ]);
+    }
+
+    public function connectInventoryLevel(string $inventoryItemId, string $locationId): array
+    {
+        return $this->makeRequest('POST', 'inventory_levels/connect.json', [
+            'location_id' => (int) $locationId,
+            'inventory_item_id' => (int) $inventoryItemId,
+            'relocate_if_necessary' => true,
+        ]);
+    }
+
+    /**
      * Get all registered webhooks
      */
     public function getWebhooks(): array
     {
         $response = $this->makeRequest('GET', 'webhooks.json');
+
         return $response['webhooks'] ?? [];
     }
 
@@ -374,6 +403,7 @@ class ShopifyApiClient
                     'topic' => $topic,
                     'body' => $response->body(),
                 ]);
+
                 return null;
             }
 
@@ -383,6 +413,7 @@ class ShopifyApiClient
                 'message' => $e->getMessage(),
                 'topic' => $topic,
             ]);
+
             return null;
         }
     }
@@ -419,6 +450,7 @@ class ShopifyApiClient
                 'message' => $e->getMessage(),
                 'webhook_id' => $webhookId,
             ]);
+
             return false;
         }
     }

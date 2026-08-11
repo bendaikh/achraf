@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\SupplierCreditNote;
-use App\Models\SupplierInvoice;
-use App\Models\Product;
 use App\Services\StockMovementService;
 use App\Support\LineItemCalculator;
 use Illuminate\Http\Request;
@@ -22,10 +22,13 @@ class SupplierCreditNoteController extends Controller
 
     public function index(Request $request)
     {
-        $query = SupplierCreditNote::with('supplier')->latest();
+        $query = SupplierCreditNote::with('supplier');
 
         $this->applyTableSearch($query, $request, ['credit_note_number', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'credit_note_date');
+        $this->applyTableSort($query, $request, [
+            'credit_note_date' => 'credit_note_date',
+        ], 'credit_note_date', 'desc');
 
         $supplierCreditNotes = $this->paginateTable($query, $request);
 
@@ -36,8 +39,8 @@ class SupplierCreditNoteController extends Controller
     {
         $suppliers = Supplier::all();
         $products = Product::all();
-        $creditNoteNumber = 'AVOIR-FOUR N°' . str_pad(SupplierCreditNote::count() + 1, 6, '0', STR_PAD_LEFT);
-        $pricesAreTtc = \App\Models\Setting::getShopifyPriceType() === 'ttc';
+        $creditNoteNumber = 'AVOIR-FOUR N°'.str_pad(SupplierCreditNote::count() + 1, 6, '0', STR_PAD_LEFT);
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
         return view('purchases.supplier-credit-notes.create', compact('suppliers', 'products', 'creditNoteNumber', 'pricesAreTtc'));
     }
@@ -105,22 +108,26 @@ class SupplierCreditNoteController extends Controller
             );
 
             DB::commit();
+
             return redirect()->route('supplier-credit-notes.index')->with('success', 'Avoir fournisseur créé avec succès!');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withInput()->with('error', 'Erreur: ' . $e->getMessage());
+
+            return back()->withInput()->with('error', 'Erreur: '.$e->getMessage());
         }
     }
 
     public function show(SupplierCreditNote $supplierCreditNote)
     {
         $supplierCreditNote->load(['supplier', 'items']);
+
         return view('purchases.supplier-credit-notes.show', compact('supplierCreditNote'));
     }
 
     public function destroy(SupplierCreditNote $supplierCreditNote)
     {
         $supplierCreditNote->delete();
+
         return redirect()->route('supplier-credit-notes.index')->with('success', 'Avoir supprimé!');
     }
 }

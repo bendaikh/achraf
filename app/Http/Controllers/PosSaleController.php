@@ -13,12 +13,14 @@ class PosSaleController extends Controller
     public function index(Request $request)
     {
         $query = PosSale::with(['client', 'user'])
-            ->where('status', PosSale::STATUS_COMPLETED)
-            ->latest('sold_at');
+            ->where('status', PosSale::STATUS_COMPLETED);
 
         $this->applyTableSearch($query, $request, ['ticket_number', 'client.name']);
         $this->applyTableDateRange($query, $request, 'sold_at', 'date_from', 'date_to');
         $this->applyTableFilter($query, $request, 'payment_method', 'payment_method');
+        $this->applyTableSort($query, $request, [
+            'sold_at' => 'sold_at',
+        ], 'sold_at', 'desc');
 
         $sales = $this->paginateTable($query, $request, 20);
         $paymentMethods = PosSale::paymentLabels();

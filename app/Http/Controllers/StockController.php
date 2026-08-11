@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Product;
 use App\Services\MarketplaceStockSyncService;
+use App\Services\ShopifyInventorySyncService;
 use Illuminate\Http\Request;
 
 class StockController extends Controller
@@ -12,7 +13,8 @@ class StockController extends Controller
     use FiltersIndexTables;
 
     public function __construct(
-        protected MarketplaceStockSyncService $marketplaceStockSync
+        protected MarketplaceStockSyncService $marketplaceStockSync,
+        protected ShopifyInventorySyncService $shopifyInventory
     ) {}
 
     private function applyStockFilters($query, Request $request, string $stockField = 'stock_quantity'): void
@@ -124,6 +126,7 @@ class StockController extends Controller
         if ($product->source !== 'shopify' || ! $product->tracksStock()) {
             abort(404);
         }
+
         return view('stock.enligne.edit', compact('product'));
     }
 
@@ -144,6 +147,7 @@ class StockController extends Controller
 
         $product->refresh();
         $this->marketplaceStockSync->pushProductStockToJumia($product);
+        $this->shopifyInventory->pushProductStock($product);
 
         return redirect()->route('stock.enligne.index')
             ->with('success', 'Stock enligne mis à jour pour « '.$product->name.' ».');
@@ -175,6 +179,7 @@ class StockController extends Controller
         if ($product->source === 'shopify' || ! $product->tracksStock()) {
             abort(404);
         }
+
         return view('stock.magasin.edit', compact('product'));
     }
 

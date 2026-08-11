@@ -1,30 +1,72 @@
-@props(['exportType', 'itemLabel' => 'élément(s)', 'zipExport' => false])
+@props([
+    'exportType',
+    'itemLabel' => 'élément(s)',
+    'zipExport' => false,
+    'canDelete' => null,
+    'canPrint' => null,
+    'printRoute' => null,
+])
 
 @php
-    $zipTypes = ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'delivery-notes', 'supplier-invoices', 'supplier-purchase-orders', 'supplier-credit-notes', 'supplier-delivery-notes', 'receptions', 'expenses-with-invoice'];
-    $showZip = $zipExport || in_array($exportType, $zipTypes, true);
+    $showZip = $zipExport || in_array($exportType, ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'delivery-notes', 'supplier-invoices'], true);
+
+    $deletableTypes = [
+        'invoices', 'quotes', 'purchase-orders', 'delivery-notes', 'credit-notes',
+        'supplier-invoices', 'supplier-delivery-notes', 'receptions', 'supplier-purchase-orders',
+        'supplier-credit-notes', 'expenses', 'expenses-with-invoice', 'expenses-without-invoice',
+        'orders', 'pos-sales', 'products', 'clients', 'suppliers',
+    ];
+    $showDelete = $canDelete ?? in_array($exportType, $deletableTypes, true);
+
+    $printRoutes = [
+        'invoices' => 'invoices.print',
+        'quotes' => 'quotes.print',
+        'purchase-orders' => 'purchase-orders.print',
+        'delivery-notes' => 'delivery-notes.print',
+        'credit-notes' => 'credit-notes.print',
+        'supplier-invoices' => 'supplier-invoices.print',
+        'supplier-delivery-notes' => 'supplier-delivery-notes.print',
+        'receptions' => 'receptions.print',
+    ];
+    $printPattern = null;
+    $resolvedPrintRoute = $printRoute ?? ($printRoutes[$exportType] ?? null);
+    if ($canPrint !== false && is_string($resolvedPrintRoute) && \Illuminate\Support\Facades\Route::has($resolvedPrintRoute)) {
+        $printPattern = str_replace('999999001', '__ID__', route($resolvedPrintRoute, 999999001));
+    }
+    $showPrint = $canPrint ?? ($printPattern !== null);
 @endphp
 
-<div id="bulkActionsBar-{{ $exportType }}" class="hidden bg-[#0a5d8a]/10 border border-[#0a5d8a]/30 rounded-lg p-4 mb-4">
+<div
+    id="bulkActionsBar-{{ $exportType }}"
+    class="hidden bg-[#0a5d8a]/10 border border-[#0a5d8a]/30 rounded-lg p-4 mb-4"
+    data-export-type="{{ $exportType }}"
+    @if($printPattern) data-print-pattern="{{ $printPattern }}" @endif
+>
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <span class="text-sm font-medium text-gray-700">
-            <span id="selectedCount-{{ $exportType }}">0</span> {{ $itemLabel }} sélectionné(s)
+            <span id="selectedCount-{{ $exportType }}">0</span> éléments sélectionnés
         </span>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+            @if($showDelete)
+            <button type="button" onclick="deleteSelectedTable('{{ $exportType }}')"
+                class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium">
+                Supprimer
+            </button>
+            @endif
             <button type="button" onclick="exportSelectedToExcel('{{ $exportType }}')"
                 class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                Exporter vers Excel
+                Exporter
             </button>
-            @if($showZip && in_array($exportType, ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'delivery-notes', 'supplier-invoices'], true))
+            @if($showZip)
             <button type="button" onclick="exportSelectedToZip('{{ $exportType }}')"
-                class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                </svg>
-                Exporter ZIP (PDF)
+                class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition text-sm font-medium">
+                Télécharger
+            </button>
+            @endif
+            @if($showPrint && $printPattern)
+            <button type="button" onclick="printSelectedTable('{{ $exportType }}')"
+                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+                Imprimer
             </button>
             @endif
             @if($exportType === 'receptions')
@@ -39,6 +81,7 @@
                 Convertir
             </button>
             @endif
+            {{ $slot }}
             <button type="button" onclick="clearTableSelection('{{ $exportType }}')"
                 class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium">
                 Annuler
