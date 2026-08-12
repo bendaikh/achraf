@@ -53,6 +53,10 @@ Route::post('/api/webhooks/shopify/orders/create', [ShopifyWebhookController::cl
     ->name('webhooks.shopify.orders.create');
 Route::post('/api/webhooks/shopify/orders/updated', [ShopifyWebhookController::class, 'ordersUpdated'])
     ->name('webhooks.shopify.orders.updated');
+Route::post('/api/webhooks/shopify/fulfillments/create', [ShopifyWebhookController::class, 'fulfillmentsCreate'])
+    ->name('webhooks.shopify.fulfillments.create');
+Route::post('/api/webhooks/shopify/fulfillments/update', [ShopifyWebhookController::class, 'fulfillmentsUpdate'])
+    ->name('webhooks.shopify.fulfillments.update');
 Route::post('/api/webhooks/shopify/products/create', [ShopifyWebhookController::class, 'productsCreate'])
     ->name('webhooks.shopify.products.create');
 Route::post('/api/webhooks/shopify/products/update', [ShopifyWebhookController::class, 'productsUpdate'])
@@ -142,6 +146,14 @@ Route::middleware('auth')->group(function () {
         Route::post('invoices/{invoice}/payments', [InvoicePaymentController::class, 'store'])->name('invoices.payments.store');
         Route::delete('invoices/{invoice}/payments/{payment}', [InvoicePaymentController::class, 'destroy'])->name('invoices.payments.destroy');
         Route::get('payments', [SalesPaymentController::class, 'index'])->name('sales.payments.index');
+        Route::post('payments/manual', [SalesPaymentController::class, 'storeManual'])->name('sales.payments.manual');
+        Route::get('payments/bulk', [SalesPaymentController::class, 'bulkForm'])->name('sales.payments.bulk');
+        Route::post('payments/bulk', [SalesPaymentController::class, 'storeBulk'])->name('sales.payments.bulk.store');
+        Route::get('payments/import', [SalesPaymentController::class, 'importForm'])->name('sales.payments.import');
+        Route::post('payments/import', [SalesPaymentController::class, 'importStore'])->name('sales.payments.import.store');
+        Route::get('payments/import/{paymentImport}', [SalesPaymentController::class, 'importShow'])->name('sales.payments.import.show');
+        Route::patch('payments/import/{paymentImport}/lines/{line}', [SalesPaymentController::class, 'importUpdateLine'])->name('sales.payments.import.line');
+        Route::post('payments/import/{paymentImport}/validate', [SalesPaymentController::class, 'importValidate'])->name('sales.payments.import.validate');
         Route::resource('invoices', InvoiceController::class);
         Route::get('quotes/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'quotes')->name('quotes.import.template');
         Route::post('quotes/import', [DocumentImportController::class, 'import'])->defaults('type', 'quotes')->name('quotes.import');
@@ -167,6 +179,14 @@ Route::middleware('auth')->group(function () {
 
     Route::prefix('purchases')->group(function () {
         Route::get('payments', [PurchasePaymentController::class, 'index'])->name('purchases.payments.index');
+        Route::post('payments/manual', [PurchasePaymentController::class, 'storeManual'])->name('purchases.payments.manual');
+        Route::get('payments/bulk', [PurchasePaymentController::class, 'bulkForm'])->name('purchases.payments.bulk');
+        Route::post('payments/bulk', [PurchasePaymentController::class, 'storeBulk'])->name('purchases.payments.bulk.store');
+        Route::get('payments/import', [PurchasePaymentController::class, 'importForm'])->name('purchases.payments.import');
+        Route::post('payments/import', [PurchasePaymentController::class, 'importStore'])->name('purchases.payments.import.store');
+        Route::get('payments/import/{paymentImport}', [PurchasePaymentController::class, 'importShow'])->name('purchases.payments.import.show');
+        Route::patch('payments/import/{paymentImport}/lines/{line}', [PurchasePaymentController::class, 'importUpdateLine'])->name('purchases.payments.import.line');
+        Route::post('payments/import/{paymentImport}/validate', [PurchasePaymentController::class, 'importValidate'])->name('purchases.payments.import.validate');
         Route::resource('expenses', ExpenseController::class);
         Route::resource('expenses-with-invoice', ExpenseWithInvoiceController::class)->parameters(['expenses-with-invoice' => 'expenseWithInvoice']);
         Route::resource('expenses-without-invoice', ExpenseWithoutInvoiceController::class)->parameters(['expenses-without-invoice' => 'expenseWithoutInvoice']);

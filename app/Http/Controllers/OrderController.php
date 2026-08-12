@@ -111,7 +111,14 @@ class OrderController extends Controller
 
     public function show(PosSale $order): View
     {
-        $order->load(['client', 'user', 'items.product', 'invoice']);
+        $order->load([
+            'client',
+            'user',
+            'items.product',
+            'invoice.payments.user',
+            'invoice.payments.paymentImport',
+            'fulfillments',
+        ]);
 
         return view('sales.orders.show', compact('order'));
     }

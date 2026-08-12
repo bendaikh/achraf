@@ -54,7 +54,8 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Montant *</label>
-                        <input type="number" step="0.01" name="amount" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="0.00">
+                        <input type="number" step="0.01" name="amount" required value="{{ old('amount', number_format($invoice->remaining_balance, 2, '.', '')) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="0.00">
+                        <p class="text-xs text-gray-500 mt-1">Solde restant : {{ number_format($invoice->remaining_balance, 2) }} {{ $invoice->currency }}</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Méthode de paiement *</label>
@@ -79,6 +80,12 @@
                         <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
                         <input type="text" name="notes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Notes optionnelles...">
                     </div>
+                    <div class="md:col-span-3">
+                        <label class="inline-flex items-center gap-2 text-sm text-amber-800">
+                            <input type="checkbox" name="allow_overpayment" value="1" class="rounded border-gray-300">
+                            Autoriser un montant supérieur au solde restant
+                        </label>
+                    </div>
                 </div>
                 <div class="mt-4">
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150">
@@ -100,6 +107,10 @@
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Méthode</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tracking</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Créé le</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Justificatif</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -119,6 +130,29 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">{{ $payment->payment_reference ?? '-' }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-mono text-gray-900">{{ $payment->tracking_number ?? ($invoice->posSale?->primaryTrackingNumber() ?? '-') }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">
+                                        @if(($payment->source ?? 'manual') === 'import')
+                                            Import
+                                            @if($payment->paymentImport)
+                                                <div class="text-xs text-gray-500">{{ $payment->paymentImport->original_filename }}</div>
+                                            @endif
+                                        @elseif(($payment->source ?? '') === 'bulk')
+                                            Groupé
+                                        @else
+                                            Manuel
+                                        @endif
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">{{ $payment->user->name ?? '-' }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">{{ $payment->created_at?->format('d/m/Y H:i') ?? '-' }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     @if($payment->payment_file_path)
@@ -148,7 +182,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-6 py-12 text-center">
+                                <td colspan="11" class="px-6 py-12 text-center">
                                     <div class="flex flex-col items-center">
                                         <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>

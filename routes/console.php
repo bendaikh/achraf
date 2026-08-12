@@ -19,6 +19,14 @@ Schedule::command('shopify:sync-products')
     ->withoutOverlapping(10)
     ->runInBackground();
 
+// Keep Shopify webhooks registered (adds missing topics like fulfillments/tracking).
+// No --force: skips already-correct webhooks; updates only missing/outdated ones.
+Schedule::command('shopify:register-webhooks')
+    ->daily()
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/shopify-webhooks.log'));
+
 Schedule::command('jumia:sync-orders')
     ->everyFiveMinutes()
     ->withoutOverlapping(10)

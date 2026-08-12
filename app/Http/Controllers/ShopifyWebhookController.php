@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\ShopifyIntegration;
 use App\Services\MarketplaceStockSyncService;
+use App\Services\ShopifyFulfillmentSyncService;
 use App\Services\ShopifyInventorySyncService;
 use App\Services\ShopifyOrderImporter;
 use App\Services\ShopifyProductImporter;
@@ -231,5 +232,49 @@ class ShopifyWebhookController extends Controller
         }
 
         return response('OK', 200);
+    }
+
+    /**
+     * Handle fulfillments/create webhook from Shopify
+     */
+    public function fulfillmentsCreate(Request $request, ShopifyFulfillmentSyncService $sync): Response
+    {
+        $integration = ShopifyIntegration::query()->first();
+
+        if (! $integration || ! $integration->enabled) {
+            return response('Integration disabled', 401);
+        }
+
+        $verifyError = $this->verifyWebhook($request, $integration);
+        if ($verifyError) {
+            return $verifyError;
+        }
+
+        $fulfillment = json_decode($request->getContent(), true);
+        if (! is_array($fulfillment)) {
+            return response('Invalid payload', 400);
+        }
+
+        try {
+            $sync->syncFromFulfillmentWebhook($fulfillment);
+            Log::info('Shopify fulfillment webhook processed', [
+                'fulfillment_id' => $fulfillment['id'] ?? 'unknown',
+                'order_id' => $fulfillment['order_id'] ?? 'unknown',
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Shopify fulfillment sync failed: '.$e->getMessage(), ['exception' => $e]);
+
+            return response('Processing error', 500);
+        }
+
+        return response('OK', 200);
+    }
+
+    /**
+     * Handle fulfillments/update webhook from Shopify
+     */
+    public function fulfillmentsUpdate(Request $request, ShopifyFulfillmentSyncService $sync): Response
+    {
+        return $this->fulfillmentsCreate($request, $sync);
     }
 }

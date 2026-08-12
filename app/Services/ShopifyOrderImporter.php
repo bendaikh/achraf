@@ -15,7 +15,8 @@ class ShopifyOrderImporter
 {
     public function __construct(
         protected OrderToInvoiceConverter $orderToInvoiceConverter,
-        protected MarketplaceStockSyncService $stockSync
+        protected MarketplaceStockSyncService $stockSync,
+        protected ShopifyFulfillmentSyncService $fulfillmentSync
     ) {}
 
     public function import(array $order): PosSale
@@ -122,6 +123,7 @@ class ShopifyOrderImporter
                     ]);
 
                     $existing->refresh();
+                    $this->fulfillmentSync->syncFromOrderPayload($existing, $order);
                     $this->orderToInvoiceConverter->tryAutoGenerate($existing);
 
                     return $existing;
@@ -224,6 +226,7 @@ class ShopifyOrderImporter
                 ]);
 
                 $existing->refresh();
+                $this->fulfillmentSync->syncFromOrderPayload($existing, $order);
                 $this->orderToInvoiceConverter->tryAutoGenerate($existing);
 
                 $this->stockSync->syncOrderStock(
@@ -274,6 +277,7 @@ class ShopifyOrderImporter
             }
 
             $sale->refresh();
+            $this->fulfillmentSync->syncFromOrderPayload($sale, $order);
             $this->orderToInvoiceConverter->tryAutoGenerate($sale);
 
             $this->stockSync->syncOrderStock(

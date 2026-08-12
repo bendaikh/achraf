@@ -160,6 +160,12 @@ class ShopifyIntegrationController extends Controller
 
             $integration->save();
 
+            try {
+                Artisan::call('shopify:register-webhooks');
+            } catch (\Throwable $e) {
+                Log::warning('Shopify webhook auto-registration after OAuth failed: '.$e->getMessage());
+            }
+
             return redirect()
                 ->route('integrations.shopify.edit')
                 ->with('success', 'Successfully connected to Shopify! Your store is now integrated.');
@@ -287,6 +293,7 @@ class ShopifyIntegrationController extends Controller
 
         // Test connection if enabled
         $token = $integration->oauth_access_token ?? $integration->api_access_token;
+        $webhookNote = '';
         if ($integration->enabled && $token && $integration->shop_name) {
             try {
                 $client = new ShopifyApiClient($integration);
@@ -294,6 +301,14 @@ class ShopifyIntegrationController extends Controller
                     return redirect()
                         ->route('integrations.shopify.edit')
                         ->with('error', 'Integration saved but failed to connect to Shopify API. Please verify your credentials.');
+                }
+
+                try {
+                    Artisan::call('shopify:register-webhooks');
+                    $webhookNote = ' Webhooks Shopify synchronisés.';
+                } catch (\Throwable $e) {
+                    Log::warning('Shopify webhook auto-registration failed: '.$e->getMessage());
+                    $webhookNote = ' (webhooks non enregistrés automatiquement — vérifiez APP_URL).';
                 }
             } catch (\Exception $e) {
                 return redirect()
@@ -304,7 +319,7 @@ class ShopifyIntegrationController extends Controller
 
         return redirect()
             ->route('integrations.shopify.edit')
-            ->with('success', 'Integration updated successfully.');
+            ->with('success', 'Integration updated successfully.'.$webhookNote);
     }
 
     public function destroy(): RedirectResponse

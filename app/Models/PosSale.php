@@ -77,6 +77,60 @@ class PosSale extends Model
         return $this->hasOne(Invoice::class);
     }
 
+    public function fulfillments(): HasMany
+    {
+        return $this->hasMany(OrderFulfillment::class);
+    }
+
+    public function trackings(): HasMany
+    {
+        return $this->hasMany(OrderTracking::class);
+    }
+
+    public function primaryTrackingNumber(): ?string
+    {
+        $fromFulfillments = $this->relationLoaded('fulfillments')
+            ? $this->fulfillments
+            : $this->fulfillments()->get();
+
+        $withTracking = $fromFulfillments
+            ->filter(fn (OrderFulfillment $f) => filled($f->tracking_number))
+            ->sortByDesc('shopify_updated_at');
+
+        if ($withTracking->isNotEmpty()) {
+            return $withTracking->first()?->tracking_number;
+        }
+
+        $fromTrackings = $this->relationLoaded('trackings')
+            ? $this->trackings
+            : $this->trackings()->get();
+
+        return $fromTrackings
+            ->filter(fn (OrderTracking $t) => filled($t->tracking_number))
+            ->sortByDesc('shopify_updated_at')
+            ->first()
+            ?->tracking_number;
+    }
+
+    public function trackingNumbers(): array
+    {
+        $fulfillments = $this->relationLoaded('fulfillments')
+            ? $this->fulfillments
+            : $this->fulfillments()->get();
+
+        $trackings = $this->relationLoaded('trackings')
+            ? $this->trackings
+            : $this->trackings()->get();
+
+        return collect()
+            ->merge($fulfillments->pluck('tracking_number'))
+            ->merge($trackings->pluck('tracking_number'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     public function isPaidAndFulfilled(): bool
     {
         return $this->payment_status === 'paid' && $this->fulfillment_status === 'fulfilled';

@@ -28,7 +28,7 @@ class FinancialMovementService
             'amount_in' => (float) $payment->amount,
             'amount_out' => 0,
             'justificatif_path' => $payment->payment_file_path,
-            'notes' => $payment->notes,
+            'notes' => $this->paymentNotes($payment),
         ]);
     }
 
@@ -48,7 +48,7 @@ class FinancialMovementService
             'amount_in' => 0,
             'amount_out' => (float) $payment->amount,
             'justificatif_path' => $payment->payment_file_path,
-            'notes' => $payment->notes,
+            'notes' => $this->paymentNotes($payment),
         ]);
     }
 
@@ -445,5 +445,31 @@ class FinancialMovementService
         }
 
         return 'MVT-'.str_pad((string) $next, 5, '0', STR_PAD_LEFT);
+    }
+
+    private function paymentNotes(InvoicePayment|SupplierInvoicePayment $payment): ?string
+    {
+        $parts = [];
+
+        if ($payment->notes) {
+            $parts[] = $payment->notes;
+        }
+
+        if ($payment->payment_reference) {
+            $parts[] = 'Réf: '.$payment->payment_reference;
+        }
+
+        if ($payment->tracking_number) {
+            $parts[] = 'Tracking: '.$payment->tracking_number;
+        }
+
+        if (($payment->source ?? '') === 'import' && $payment->payment_import_id) {
+            $payment->loadMissing('paymentImport');
+            $parts[] = 'Import: '.($payment->paymentImport?->file_name ?? '#'.$payment->payment_import_id);
+        } elseif ($payment->source) {
+            $parts[] = 'Source: '.$payment->source;
+        }
+
+        return $parts !== [] ? implode(' | ', $parts) : null;
     }
 }

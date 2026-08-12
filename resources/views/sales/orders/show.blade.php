@@ -134,9 +134,89 @@
                         <p class="text-sm font-medium text-green-900">Facture liée</p>
                         <p class="text-sm text-green-800">{{ $order->invoice->invoice_number }}</p>
                     </div>
-                    <a href="{{ route('invoices.show', $order->invoice) }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition">
-                        Voir la facture
-                    </a>
+                    <div class="flex gap-2">
+                        <a href="{{ route('invoices.payments.index', $order->invoice) }}" class="inline-flex items-center px-4 py-2 bg-white border border-green-300 text-green-800 rounded-lg hover:bg-green-100 text-sm font-medium transition">
+                            Historique paiements
+                        </a>
+                        <a href="{{ route('invoices.show', $order->invoice) }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition">
+                            Voir la facture
+                        </a>
+                    </div>
+                </div>
+                @endif
+
+                @if($order->fulfillments->isNotEmpty())
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-900 mb-3">Livraisons / Tracking Shopify</h3>
+                    <div class="border border-gray-200 rounded-lg overflow-hidden">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tracking</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transporteur</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fulfillment ID</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mise à jour</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y">
+                                @foreach($order->fulfillments as $fulfillment)
+                                    <tr>
+                                        <td class="px-4 py-3 font-mono">
+                                            @if($fulfillment->tracking_url)
+                                                <a href="{{ $fulfillment->tracking_url }}" target="_blank" class="text-blue-600 hover:underline">{{ $fulfillment->tracking_number ?? '—' }}</a>
+                                            @else
+                                                {{ $fulfillment->tracking_number ?? '—' }}
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-3">{{ $fulfillment->tracking_company ?? '—' }}</td>
+                                        <td class="px-4 py-3">{{ $fulfillment->status ?? '—' }}</td>
+                                        <td class="px-4 py-3 font-mono text-xs">{{ $fulfillment->shopify_fulfillment_id ?? '—' }}</td>
+                                        <td class="px-4 py-3">{{ optional($fulfillment->shopify_updated_at ?? $fulfillment->updated_at)->format('d/m/Y H:i') }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                @endif
+
+                @if($order->invoice && $order->invoice->payments->isNotEmpty())
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-900 mb-3">Historique des paiements</h3>
+                    <div class="border border-gray-200 rounded-lg overflow-hidden">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mode</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf.</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tracking</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Utilisateur</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y">
+                                @foreach($order->invoice->payments as $payment)
+                                    <tr>
+                                        <td class="px-4 py-3">{{ $payment->payment_date->format('d/m/Y') }}</td>
+                                        <td class="px-4 py-3 font-semibold">{{ number_format($payment->amount, 2) }} DH</td>
+                                        <td class="px-4 py-3">{{ $payment->payment_method }}</td>
+                                        <td class="px-4 py-3">{{ $payment->payment_reference ?? '—' }}</td>
+                                        <td class="px-4 py-3 font-mono">{{ $payment->tracking_number ?? '—' }}</td>
+                                        <td class="px-4 py-3">
+                                            {{ $payment->source ?? 'manual' }}
+                                            @if($payment->paymentImport)
+                                                <div class="text-xs text-gray-500">{{ $payment->paymentImport->original_filename }}</div>
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-3">{{ $payment->user->name ?? '—' }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 @endif
 

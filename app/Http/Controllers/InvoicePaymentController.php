@@ -4,14 +4,25 @@ namespace App\Http\Controllers;
 
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
+use App\Services\PaymentRecordingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class InvoicePaymentController extends Controller
 {
+    public function __construct(
+        protected PaymentRecordingService $recorder
+    ) {}
+
     public function index(Invoice $invoice)
     {
-        $invoice->load(['client', 'payments']);
+        $invoice->load([
+            'client',
+            'posSale.fulfillments',
+            'payments.user',
+            'payments.paymentImport',
+            'items',
+        ]);
 
         return view('sales.invoices.payments.index', compact('invoice'));
     }
@@ -20,19 +31,32 @@ class InvoicePaymentController extends Controller
     {
         $validated = $request->validate([
             'payment_date' => 'required|date',
-            'amount' => 'required|numeric|min:0',
+            'amount' => 'required|numeric|min:0.01',
             'payment_method' => 'required|string',
             'payment_reference' => 'nullable|string',
             'payment_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
             'notes' => 'nullable|string',
+            'allow_overpayment' => 'sometimes|boolean',
         ]);
 
+        $filePath = null;
         if ($request->hasFile('payment_file')) {
-            $validated['payment_file_path'] = $request->file('payment_file')->store('invoice_payments', 'public');
+            $filePath = $request->file('payment_file')->store('invoice_payments', 'public');
         }
 
-        $invoice->payments()->create($validated);
-        $invoice->syncPaymentStatus();
+        $invoice->load(['items', 'posSale.fulfillments']);
+
+        $this->recorder->recordInvoicePayment($invoice, [
+            'payment_date' => $validated['payment_date'],
+            'amount' => $validated['amount'],
+            'payment_method' => $validated['payment_method'],
+            'payment_reference' => $validated['payment_reference'] ?? null,
+            'payment_file_path' => $filePath,
+            'notes' => $validated['notes'] ?? null,
+            'allow_overpayment' => (bool) ($validated['allow_overpayment'] ?? false),
+            'source' => 'manual',
+            'tracking_number' => $invoice->posSale?->primaryTrackingNumber(),
+        ]);
 
         return redirect()->route('invoices.payments.index', $invoice)->with('success', 'Paiement ajouté avec succès!');
     }
@@ -44,6 +68,7 @@ class InvoicePaymentController extends Controller
         }
 
         $payment->delete();
+        $invoice->load('items');
         $invoice->syncPaymentStatus();
 
         return redirect()->route('invoices.payments.index', $invoice)->with('success', 'Paiement supprimé avec succès!');

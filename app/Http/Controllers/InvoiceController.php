@@ -297,7 +297,7 @@ class InvoiceController extends Controller
     public function updatePaymentStatus(Request $request, Invoice $invoice)
     {
         $validated = $request->validate([
-            'payment_status' => 'required|in:unpaid,paid',
+            'payment_status' => 'required|in:unpaid,partial,paid',
         ]);
 
         $invoice->update(['payment_status' => $validated['payment_status']]);

@@ -12,7 +12,7 @@ class RegisterShopifyWebhooks extends Command
                             {--force : Delete existing webhooks and re-register}
                             {--list : Only list currently registered webhooks}';
 
-    protected $description = 'Register webhooks in Shopify for real-time order and product sync';
+    protected $description = 'Register Shopify webhooks for real-time order, fulfillment and product sync';
 
     public function handle(): int
     {
@@ -27,7 +27,7 @@ class RegisterShopifyWebhooks extends Command
         if (! $integration->enabled) {
             $this->warn('Shopify integration is disabled.');
 
-            return self::FAILURE;
+            return self::SUCCESS;
         }
 
         $accessToken = $integration->oauth_access_token ?? $integration->api_access_token;
@@ -36,6 +36,15 @@ class RegisterShopifyWebhooks extends Command
             $this->error('Shopify API credentials not configured.');
 
             return self::FAILURE;
+        }
+
+        $baseUrl = rtrim((string) config('app.url'), '/');
+        $isLocalUrl = $this->isLocalUrl($baseUrl);
+
+        if ($isLocalUrl && ! $this->option('list') && ! $this->option('force')) {
+            $this->warn("APP_URL is local ({$baseUrl}). Skipping webhook registration (Shopify needs a public URL).");
+
+            return self::SUCCESS;
         }
 
         $client = new ShopifyApiClient($integration);
@@ -48,7 +57,6 @@ class RegisterShopifyWebhooks extends Command
 
         $this->info("Connected to Shopify shop: {$integration->shop_name}");
 
-        // Get existing webhooks
         $existingWebhooks = $client->getWebhooks();
 
         if ($this->option('list')) {
@@ -57,11 +65,11 @@ class RegisterShopifyWebhooks extends Command
             return self::SUCCESS;
         }
 
-        // Define webhooks to register
-        $baseUrl = config('app.url');
         $webhooksToRegister = [
             'orders/create' => "{$baseUrl}/api/webhooks/shopify/orders/create",
             'orders/updated' => "{$baseUrl}/api/webhooks/shopify/orders/updated",
+            'fulfillments/create' => "{$baseUrl}/api/webhooks/shopify/fulfillments/create",
+            'fulfillments/update' => "{$baseUrl}/api/webhooks/shopify/fulfillments/update",
             'products/create' => "{$baseUrl}/api/webhooks/shopify/products/create",
             'products/update' => "{$baseUrl}/api/webhooks/shopify/products/update",
             'products/delete' => "{$baseUrl}/api/webhooks/shopify/products/delete",
@@ -71,7 +79,6 @@ class RegisterShopifyWebhooks extends Command
         $this->info("Base URL: {$baseUrl}");
         $this->newLine();
 
-        // If --force, delete existing webhooks first
         if ($this->option('force')) {
             $this->warn('Deleting existing webhooks...');
             foreach ($existingWebhooks as $webhook) {
@@ -83,36 +90,47 @@ class RegisterShopifyWebhooks extends Command
             $existingWebhooks = [];
         }
 
-        // Build a map of existing webhooks by topic
-        $existingTopics = [];
+        $existingByTopic = [];
         foreach ($existingWebhooks as $webhook) {
-            $existingTopics[$webhook['topic']] = $webhook['address'];
+            $existingByTopic[$webhook['topic']] = $webhook;
         }
 
         $this->info('Registering webhooks...');
         $this->newLine();
 
         $registered = 0;
+        $updated = 0;
         $skipped = 0;
         $failed = 0;
 
         foreach ($webhooksToRegister as $topic => $address) {
-            // Check if webhook already exists
-            if (isset($existingTopics[$topic])) {
-                if ($existingTopics[$topic] === $address) {
+            $existing = $existingByTopic[$topic] ?? null;
+
+            if ($existing) {
+                if (($existing['address'] ?? '') === $address) {
                     $this->line("  ⏭ Skipped (already registered): {$topic}");
                     $skipped++;
 
                     continue;
                 }
-                $this->warn("  ⚠ Different URL registered for {$topic}: {$existingTopics[$topic]}");
+
+                // Replace outdated URL for this topic only (safe for cron / new topics)
+                $this->warn("  ↻ Updating URL for {$topic}");
+                $this->line('     old: '.($existing['address'] ?? '—'));
+                $this->line("     new: {$address}");
+                $client->deleteWebhook((string) $existing['id']);
             }
 
             $result = $client->createWebhook($topic, $address);
 
             if ($result) {
-                $this->info("  ✓ Registered: {$topic} → {$address}");
-                $registered++;
+                if ($existing) {
+                    $this->info("  ✓ Updated: {$topic} → {$address}");
+                    $updated++;
+                } else {
+                    $this->info("  ✓ Registered: {$topic} → {$address}");
+                    $registered++;
+                }
             } else {
                 $this->error("  ✗ Failed: {$topic}");
                 $failed++;
@@ -122,6 +140,7 @@ class RegisterShopifyWebhooks extends Command
         $this->newLine();
         $this->info('═══════════════════════════════════════');
         $this->line("  Registered: {$registered}");
+        $this->line("  Updated: {$updated}");
         $this->line("  Skipped: {$skipped}");
         if ($failed > 0) {
             $this->line("  Failed: {$failed}");
@@ -132,17 +151,25 @@ class RegisterShopifyWebhooks extends Command
             $this->newLine();
             $this->warn('Some webhooks failed to register. Make sure:');
             $this->line('  1. Your APP_URL is publicly accessible (not localhost)');
-            $this->line('  2. Your Shopify app has the required permissions');
+            $this->line('  2. Your Shopify app has the required permissions (read_fulfillments, etc.)');
             $this->line('  3. The webhook endpoints are not blocked by CSRF protection');
         }
 
-        if ($registered > 0 || $skipped > 0) {
+        if ($registered > 0 || $updated > 0 || $skipped > 0) {
             $this->newLine();
-            $this->info('✓ Webhooks are now set up for real-time sync!');
-            $this->line('When orders are created or updated in Shopify, they will sync automatically.');
+            $this->info('✓ Webhooks are set up for real-time sync (orders, fulfillments/tracking, products).');
         }
 
         return $failed > 0 ? self::FAILURE : self::SUCCESS;
+    }
+
+    private function isLocalUrl(string $url): bool
+    {
+        $host = parse_url($url, PHP_URL_HOST) ?: $url;
+
+        return in_array(strtolower($host), ['localhost', '127.0.0.1', '::1'], true)
+            || str_ends_with(strtolower($host), '.local')
+            || str_ends_with(strtolower($host), '.test');
     }
 
     private function listWebhooks(array $webhooks): void

@@ -9,6 +9,8 @@ class Invoice extends Model
 {
     public const PAYMENT_UNPAID = 'unpaid';
 
+    public const PAYMENT_PARTIAL = 'partial';
+
     public const PAYMENT_PAID = 'paid';
 
     protected $fillable = [
@@ -112,9 +114,7 @@ class Invoice extends Model
     public function syncPaymentStatus(): void
     {
         $this->update([
-            'payment_status' => $this->total_paid >= $this->computed_total
-                ? self::PAYMENT_PAID
-                : self::PAYMENT_UNPAID,
+            'payment_status' => $this->computed_payment_status,
         ]);
     }
 
