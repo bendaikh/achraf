@@ -24,6 +24,7 @@
                     <a
                         href="{{ \App\Support\Navigation::url($tab) }}"
                         data-soft-nav
+                        @if(! empty($tab['list_reset'])) data-list-reset @endif
                         class="relative inline-flex min-h-12 items-center px-3 py-3 text-sm font-medium whitespace-nowrap transition-colors {{ $tabActive ? 'text-[#0a5d8a]' : 'text-gray-500 hover:text-gray-900' }}"
                         @if($tabActive) aria-current="page" @endif
                     >

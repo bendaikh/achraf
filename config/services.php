@@ -39,7 +39,10 @@ return [
         'client_id' => env('SHOPIFY_CLIENT_ID'),
         'client_secret' => env('SHOPIFY_CLIENT_SECRET'),
         'api_version' => env('SHOPIFY_API_VERSION', '2024-01'),
-        'scopes' => env('SHOPIFY_SCOPES', 'read_orders,read_products,read_customers'),
+        'scopes' => env(
+            'SHOPIFY_SCOPES',
+            'read_orders,read_all_orders,write_orders,read_products,write_products,write_inventory,read_fulfillments,read_customers'
+        ),
     ],
 
 ];

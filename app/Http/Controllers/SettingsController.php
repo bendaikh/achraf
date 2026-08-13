@@ -43,6 +43,7 @@ class SettingsController extends Controller
         'vat_categories' => 'settings.fiscalite',
         'depenses' => 'settings.depenses',
         'mon_entreprise' => 'settings.entreprise',
+        'stock' => 'settings.stock',
     ];
 
     public function index()
@@ -87,6 +88,16 @@ class SettingsController extends Controller
         ]);
     }
 
+    public function stock()
+    {
+        return view('settings.stock', [
+            'settings' => $this->getAllSettings(),
+            'warehouses' => \App\Models\Warehouse::query()->withCount('locations')->orderByDesc('is_primary')->orderBy('name')->get(),
+            'locations' => \App\Models\WarehouseLocation::query()->with('warehouse')->orderBy('code')->get(),
+            'tab' => request('tab', 'regles'),
+        ]);
+    }
+
     public function update(Request $request)
     {
         $settingsType = $request->input('settings_type');
@@ -102,6 +113,11 @@ class SettingsController extends Controller
 
         if ($settingsType === 'depenses') {
             $this->saveExpenseParameterSettings($request);
+        }
+
+        if ($settingsType === 'stock') {
+            $this->saveStockSettings($request);
+            $redirectKey = 'stock';
         }
 
         if ($settingsType === 'produit_types') {
@@ -135,6 +151,10 @@ class SettingsController extends Controller
             'facture', 'devis', 'avoir', 'bc_fournisseur', 'bc_client', 'bon_livraison', 'bon_livraison_fournisseur', 'bon_reception',
         ], true)) {
             $params['open'] = $settingsType;
+        }
+
+        if ($route === 'settings.stock') {
+            $params['tab'] = $request->input('tab', 'regles');
         }
 
         return redirect()->route($route, $params)->with('success', 'Paramètres mis à jour avec succès.');
@@ -275,6 +295,12 @@ class SettingsController extends Controller
         $settings['vat_categories'] = implode("\n", Setting::getList('vat_categories', \App\Support\VatCategoryHelper::defaultCategories()));
         $settings['product_type_categories'] = implode("\n", Setting::getList('product_type_categories', ['Électronique', 'Textile', 'Alimentaire', 'Service']));
         $settings['auto_invoice_start_order_number'] = Setting::get('auto_invoice_start_order_number', '');
+        $settings['stock_low_threshold'] = Setting::get('stock_low_threshold', '3');
+        $settings['stock_minimum_default'] = Setting::get('stock_minimum_default', '0');
+        $settings['stock_allow_negative'] = Setting::get('stock_allow_negative', '0');
+        $settings['stock_multi_warehouse'] = Setting::get('stock_multi_warehouse', '1');
+        $settings['stock_valuation_method'] = Setting::get('stock_valuation_method', '');
+        $settings['stock_control_enabled'] = Setting::get('stock_control_enabled', '1');
 
         return $settings;
     }
@@ -401,6 +427,25 @@ class SettingsController extends Controller
         $this->saveListFromTextarea($request, 'expense_categories', 'Catégories de dépense');
         $this->saveListFromTextarea($request, 'expense_accounts', 'Comptes de dépense');
         $this->saveListFromTextarea($request, 'expense_payment_methods', 'Modes de règlement');
+    }
+
+    protected function saveStockSettings(Request $request): void
+    {
+        $validated = $request->validate([
+            'stock_low_threshold' => 'required|integer|min:0|max:999999',
+            'stock_minimum_default' => 'nullable|integer|min:0|max:999999',
+            'stock_allow_negative' => 'nullable|in:0,1',
+            'stock_multi_warehouse' => 'nullable|in:0,1',
+            'stock_valuation_method' => 'nullable|string|max:100',
+            'stock_control_enabled' => 'nullable|in:0,1',
+        ]);
+
+        Setting::set('stock_low_threshold', (string) $validated['stock_low_threshold'], 'Seuil de stock faible par défaut');
+        Setting::set('stock_minimum_default', (string) ($validated['stock_minimum_default'] ?? 0), 'Stock minimum par défaut');
+        Setting::set('stock_allow_negative', $request->input('stock_allow_negative', '0') === '1' ? '1' : '0', 'Autoriser stock négatif');
+        Setting::set('stock_multi_warehouse', $request->input('stock_multi_warehouse', '0') === '1' ? '1' : '0', 'Gestion multi-dépôts');
+        Setting::set('stock_valuation_method', (string) ($validated['stock_valuation_method'] ?? ''), 'Méthode de valorisation du stock');
+        Setting::set('stock_control_enabled', $request->input('stock_control_enabled', '0') === '1' ? '1' : '0', 'Contrôle de stock activé');
     }
 
     protected function saveListFromTextarea(Request $request, string $key, string $description): void

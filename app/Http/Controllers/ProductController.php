@@ -8,10 +8,16 @@ use App\Models\ProductVariant;
 use App\Models\Setting;
 use App\Models\ShopifyIntegration;
 use App\Models\Supplier;
+use App\Models\Warehouse;
+use App\Models\WarehouseLocation;
+use App\Services\ProductPurchaseHistoryService;
+use App\Services\StockMovementService;
+use App\Support\StockSettings;
 use App\Support\VatCategoryHelper;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -19,9 +25,14 @@ class ProductController extends Controller
 {
     use FiltersIndexTables;
 
+    public function __construct(
+        protected StockMovementService $stockMovement,
+        protected ProductPurchaseHistoryService $purchaseHistoryService
+    ) {}
+
     public function index(Request $request)
     {
-        $query = Product::query()->with(['primarySupplier', 'variants']);
+        $query = Product::query()->with(['primarySupplier', 'variants', 'warehouse', 'warehouseLocation']);
 
         $this->applyProductFilters($query, $request);
 
@@ -32,6 +43,7 @@ class ProductController extends Controller
         ], 'created_at', 'desc');
 
         $products = $this->paginateTable($query, $request, 20);
+        $this->purchaseHistoryService->attachLastSuppliers($products->getCollection());
 
         $stats = $this->productStats();
         $filterOptions = $this->filterOptions();
@@ -42,6 +54,28 @@ class ProductController extends Controller
             $stats,
             $filterOptions
         ));
+    }
+
+    /**
+     * Historique fournisseurs / achats d'un produit (données Gestion des achats).
+     */
+    public function purchaseHistory(Product $product)
+    {
+        $history = $this->purchaseHistoryService->historyForProduct((int) $product->id);
+        $last = $history[0] ?? null;
+
+        return response()->json([
+            'product' => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'ref' => $product->ref,
+            ],
+            'last_supplier' => $last ? [
+                'id' => $last['supplier_id'],
+                'name' => $last['supplier_name'],
+            ] : null,
+            'history' => $history,
+        ]);
     }
 
     public function syncShopify()
@@ -87,7 +121,24 @@ class ProductController extends Controller
             $validated['image'] = $request->file('image')->store('products', 'public');
         }
 
-        Product::create($validated);
+        $warehouseId = $validated['warehouse_id'] ?? null;
+        $locationId = $validated['warehouse_location_id'] ?? null;
+        $qty = isset($validated['stock_quantity']) ? (int) $validated['stock_quantity'] : 0;
+
+        $product = DB::transaction(function () use ($validated, $warehouseId, $locationId, $qty) {
+            $product = Product::create($validated);
+            if ($product->tracksStock()) {
+                $this->stockMovement->syncProductFromWarehouseAssignment(
+                    $product,
+                    $warehouseId ? (int) $warehouseId : null,
+                    $locationId ? (int) $locationId : null,
+                    $qty
+                );
+                $product->save();
+            }
+
+            return $product;
+        });
 
         return redirect()->route('products.index')
             ->with('success', 'Article créé avec succès.');
@@ -95,7 +146,7 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
-        $product->load(['variants', 'primarySupplier']);
+        $product->load(['variants', 'primarySupplier', 'warehouse', 'warehouseLocation', 'stocks.warehouse', 'stocks.location']);
 
         return view('products.show', compact('product'));
     }
@@ -117,10 +168,56 @@ class ProductController extends Controller
             $validated['image'] = $request->file('image')->store('products', 'public');
         }
 
-        $product->update($validated);
+        $warehouseId = $validated['warehouse_id'] ?? null;
+        $locationId = $validated['warehouse_location_id'] ?? null;
+        $qty = array_key_exists('stock_quantity', $validated) ? (int) $validated['stock_quantity'] : null;
+
+        DB::transaction(function () use ($product, $validated, $warehouseId, $locationId, $qty) {
+            $previousWarehouseId = $product->warehouse_id ? (int) $product->warehouse_id : null;
+            $previousLocationId = $product->warehouse_location_id ? (int) $product->warehouse_location_id : null;
+
+            $product->fill($validated);
+            if ($product->tracksStock()) {
+                $this->stockMovement->syncProductFromWarehouseAssignment(
+                    $product,
+                    $warehouseId ? (int) $warehouseId : null,
+                    $locationId ? (int) $locationId : null,
+                    $qty,
+                    $previousWarehouseId,
+                    $previousLocationId
+                );
+            }
+            $product->save();
+        });
 
         return redirect()->route('products.index')
             ->with('success', 'Article mis à jour avec succès.');
+    }
+
+    public function categories()
+    {
+        return view('products.categories', [
+            'productTypeCategories' => implode("\n", Setting::getList('product_type_categories', ['Électronique', 'Textile', 'Alimentaire', 'Service'])),
+            'serviceCategories' => implode("\n", Setting::getList('service_categories', [
+                'Installation', 'Montage', 'Lavage', 'Livraison', 'Diagnostic', 'Main d\'œuvre',
+            ])),
+        ]);
+    }
+
+    public function updateCategories(Request $request)
+    {
+        $request->validate([
+            'product_type_categories' => 'nullable|string',
+            'service_categories' => 'nullable|string',
+        ]);
+
+        $productCats = preg_split('/\r\n|\r|\n/', (string) $request->input('product_type_categories', '')) ?: [];
+        $serviceCats = preg_split('/\r\n|\r|\n/', (string) $request->input('service_categories', '')) ?: [];
+        Setting::setList('product_type_categories', $productCats, 'Catégories de type produit');
+        Setting::setList('service_categories', $serviceCats, 'Catégories de services');
+
+        return redirect()->route('products.categories')
+            ->with('success', 'Catégories mises à jour.');
     }
 
     public function destroy(Product $product)
@@ -292,9 +389,21 @@ class ProductController extends Controller
         $this->applyTableFilter($query, $request, 'product_type_category', 'category');
         $this->applyTableFilter($query, $request, 'product_category', 'subcategory');
         $this->applyTableFilter($query, $request, 'service_category', 'service_category');
-        $this->applyTableFilter($query, $request, 'primary_supplier_id', 'supplier_id');
-        $this->applyTableFilter($query, $request, 'depot', 'depot');
-        $this->applyTableFilter($query, $request, 'location', 'location');
+        if ($request->filled('supplier_id')) {
+            $this->purchaseHistoryService->constrainProductsBoughtFromSupplier(
+                $query,
+                (int) $request->input('supplier_id')
+            );
+        }
+        $this->applyTableFilter($query, $request, 'warehouse_id', 'warehouse_id');
+        $this->applyTableFilter($query, $request, 'warehouse_location_id', 'warehouse_location_id');
+        // Legacy free-text fallback
+        if ($request->filled('depot') && ! $request->filled('warehouse_id')) {
+            $this->applyTableFilter($query, $request, 'depot', 'depot');
+        }
+        if ($request->filled('location') && ! $request->filled('warehouse_location_id')) {
+            $this->applyTableFilter($query, $request, 'location', 'location');
+        }
         $this->applyTableFilter($query, $request, 'vat_category', 'vat_category');
         $this->applyTableDateRange($query, $request, 'created_at', 'date_from', 'date_to');
 
@@ -367,24 +476,20 @@ class ProductController extends Controller
                 ->orderBy('service_category')
                 ->pluck('service_category', 'service_category')
                 ->all(),
-            'depots' => Product::query()
-                ->whereNotNull('depot')
-                ->where('depot', '!=', '')
-                ->distinct()
-                ->orderBy('depot')
-                ->pluck('depot', 'depot')
+            'depots' => Warehouse::query()->active()->orderByDesc('is_primary')->orderBy('name')->pluck('name', 'id')->all(),
+            'locations' => WarehouseLocation::query()
+                ->active()
+                ->when(request()->filled('warehouse_id'), fn ($q) => $q->where('warehouse_id', request()->integer('warehouse_id')))
+                ->orderBy('code')
+                ->get()
+                ->mapWithKeys(fn (WarehouseLocation $loc) => [$loc->id => $loc->displayLabel()])
                 ->all(),
-            'locations' => Product::query()
-                ->whereNotNull('location')
-                ->where('location', '!=', '')
-                ->distinct()
-                ->orderBy('location')
-                ->pluck('location', 'location')
-                ->all(),
+            'warehouses' => Warehouse::query()->active()->with(['locations' => fn ($q) => $q->active()])->orderByDesc('is_primary')->orderBy('name')->get(),
             'vatCategories' => VatCategoryHelper::all(),
             'suppliers' => Supplier::query()->orderBy('name')->pluck('name', 'id')->all(),
             'stockStatuses' => Product::STOCK_STATUSES,
             'itemKinds' => Product::ITEM_KINDS,
+            'lowStockThreshold' => StockSettings::lowThreshold(),
         ];
     }
 
@@ -405,6 +510,8 @@ class ProductController extends Controller
      */
     protected function formData(): array
     {
+        $warehouses = Warehouse::query()->active()->with(['locations' => fn ($q) => $q->active()])->orderByDesc('is_primary')->orderBy('name')->get();
+
         return [
             'vatCategories' => VatCategoryHelper::all(),
             'productTypeCategories' => Setting::getList('product_type_categories', ['Électronique', 'Textile', 'Alimentaire', 'Service']),
@@ -419,6 +526,9 @@ class ProductController extends Controller
             'billingUnits' => Product::BILLING_UNITS,
             'itemKinds' => Product::ITEM_KINDS,
             'suppliers' => Supplier::query()->orderBy('name')->get(['id', 'name']),
+            'warehouses' => $warehouses,
+            'lowStockThreshold' => StockSettings::lowThreshold(),
+            'defaultMinimumStock' => StockSettings::minimumDefault(),
         ];
     }
 
@@ -447,6 +557,23 @@ class ProductController extends Controller
             'maximum_stock' => 'nullable|integer|min:0',
             'stock_quantity' => 'nullable|integer|min:0',
             'stock_reserved' => 'nullable|integer|min:0',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'warehouse_location_id' => [
+                'nullable',
+                'exists:warehouse_locations,id',
+                function ($attribute, $value, $fail) use ($request) {
+                    if (! $value || ! $request->filled('warehouse_id')) {
+                        return;
+                    }
+                    $belongs = WarehouseLocation::query()
+                        ->where('id', $value)
+                        ->where('warehouse_id', $request->input('warehouse_id'))
+                        ->exists();
+                    if (! $belongs) {
+                        $fail('L’emplacement doit appartenir au dépôt sélectionné.');
+                    }
+                },
+            ],
             'location' => 'nullable|string|max:255',
             'depot' => 'nullable|string|max:255',
             'primary_supplier_id' => 'nullable|exists:suppliers,id',
@@ -485,6 +612,16 @@ class ProductController extends Controller
                 $validated['stock_magasin'] = $qty;
             }
 
+            // Sync free-text labels from related models when IDs are provided
+            if (! empty($validated['warehouse_id'])) {
+                $wh = Warehouse::find($validated['warehouse_id']);
+                $validated['depot'] = $wh?->name;
+            }
+            if (! empty($validated['warehouse_location_id'])) {
+                $loc = WarehouseLocation::find($validated['warehouse_location_id']);
+                $validated['location'] = $loc?->code;
+            }
+
             $validated['service_category'] = null;
             $validated['estimated_duration'] = null;
             $validated['billing_unit'] = null;
@@ -502,6 +639,8 @@ class ProductController extends Controller
         $validated['maximum_stock'] = null;
         $validated['location'] = null;
         $validated['depot'] = null;
+        $validated['warehouse_id'] = null;
+        $validated['warehouse_location_id'] = null;
 
         if ($kind === Product::KIND_SERVICE) {
             $validated['barcode'] = null;

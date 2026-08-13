@@ -367,10 +367,16 @@ class ShopifyApiClient
     }
 
     /**
+     * Last webhook registration error (human-readable), if any.
+     */
+    public ?string $lastWebhookError = null;
+
+    /**
      * Register a webhook in Shopify
      */
     public function createWebhook(string $topic, string $address): ?array
     {
+        $this->lastWebhookError = null;
         $accessToken = $this->integration->oauth_access_token ?? $this->integration->api_access_token;
 
         if (! $this->integration->shop_name || ! $accessToken) {
@@ -398,6 +404,12 @@ class ShopifyApiClient
                 ]);
 
             if ($response->failed()) {
+                $body = $response->json() ?? [];
+                $topicErrors = data_get($body, 'errors.topic');
+                $this->lastWebhookError = is_array($topicErrors)
+                    ? implode(' ', $topicErrors)
+                    : ($response->body() ?: 'HTTP '.$response->status());
+
                 Log::error('Shopify webhook registration failed', [
                     'status' => $response->status(),
                     'topic' => $topic,
@@ -409,6 +421,7 @@ class ShopifyApiClient
 
             return $response->json()['webhook'] ?? null;
         } catch (\Exception $e) {
+            $this->lastWebhookError = $e->getMessage();
             Log::error('Shopify webhook registration exception', [
                 'message' => $e->getMessage(),
                 'topic' => $topic,

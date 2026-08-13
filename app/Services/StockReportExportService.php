@@ -39,16 +39,7 @@ class StockReportExportService
         $this->applyTableSearch($query, $request, ['name', 'ref', 'barcode']);
 
         if ($request->get('filter') === 'low') {
-            $query->where(function ($q) use ($stockField) {
-                $q->where(function ($q2) use ($stockField) {
-                    $q2->whereNotNull('minimum_alert_stock')
-                        ->whereColumn($stockField, '<=', 'minimum_alert_stock');
-                })->orWhere(function ($q2) use ($stockField) {
-                    $q2->whereNull('minimum_alert_stock')
-                        ->whereNotNull('minimum_safety_stock')
-                        ->whereColumn($stockField, '<=', 'minimum_safety_stock');
-                });
-            });
+            $query->tracksStock()->lowStock();
         }
 
         if ($request->filled('ids')) {
@@ -136,16 +127,19 @@ class StockReportExportService
 
     protected function stockStateLabel(Product $product, string $stockField): string
     {
-        $qty = (int) ($product->{$stockField} ?? 0);
-        if ($qty <= 0) {
-            return 'Rupture';
-        }
-        $alert = $product->minimum_alert_stock ?? $product->minimum_safety_stock;
-        if ($alert !== null && $qty <= $alert) {
-            return 'Sous seuil';
+        if (! $product->tracksStock()) {
+            return 'Sans gestion de stock';
         }
 
-        return 'OK';
+        $qty = (int) ($product->{$stockField} ?? $product->availableStock());
+        if ($qty <= 0) {
+            return 'Rupture de stock';
+        }
+        if ($qty <= $product->alertThreshold()) {
+            return 'Stock faible';
+        }
+
+        return 'En stock';
     }
 
     protected function filterSummary(Request $request): string

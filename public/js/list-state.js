@@ -157,6 +157,10 @@
         if (!link || link.hasAttribute('data-list-reset') || link.hasAttribute('download')) {
             return;
         }
+        // Module tabs are intentional destinations (e.g. Liste des produits vs Services).
+        if (link.closest('#app-module-tabs')) {
+            return;
+        }
         var href = link.getAttribute('href');
         if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
             return;

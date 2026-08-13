@@ -194,37 +194,35 @@
                             <h2 class="text-lg font-semibold text-gray-900 mb-4">Gestion des stocks</h2>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <span class="text-sm text-gray-500">Quantité en stock</span>
-                                    <p class="mt-1 text-lg font-semibold {{ $product->isOutOfStock() ? 'text-red-600' : ($product->isStockLow() ? 'text-orange-600' : 'text-gray-900') }}">{{ $product->stock_quantity }}</p>
+                                    <span class="text-sm text-gray-500">Type</span>
+                                    <p class="mt-1 text-gray-900 font-medium">Produit stocké</p>
                                 </div>
-                                @if($product->minimum_safety_stock !== null)
-                                    <div>
-                                        <span class="text-sm text-gray-500">Stock minimum</span>
-                                        <p class="mt-1 text-lg font-semibold text-gray-900">{{ $product->minimum_safety_stock }}</p>
-                                    </div>
-                                @endif
-
-                                @if($product->minimum_alert_stock !== null)
-                                    <div>
-                                        <span class="text-sm text-gray-500">Stock d'alerte</span>
-                                        <p class="mt-1 text-lg font-semibold text-orange-600">{{ $product->minimum_alert_stock }}</p>
-                                    </div>
-                                @endif
-
-                                @if($product->maximum_stock !== null)
-                                    <div>
-                                        <span class="text-sm text-gray-500">Stock maximum</span>
-                                        <p class="mt-1 text-lg font-semibold text-gray-900">{{ $product->maximum_stock }}</p>
-                                    </div>
-                                @endif
-
-                                @if($product->location)
-                                    <div>
-                                        <span class="text-sm text-gray-500">Emplacement</span>
-                                        <p class="mt-1 text-gray-900">{{ $product->location }}</p>
-                                    </div>
-                                @endif
-
+                                <div>
+                                    <span class="text-sm text-gray-500">État du stock</span>
+                                    <p class="mt-1">
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-semibold
+                                            {{ $product->isOutOfStock() ? 'bg-red-100 text-red-800' : ($product->isStockLow() ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800') }}">
+                                            {{ $product->stock_status_label }}
+                                        </span>
+                                    </p>
+                                </div>
+                                <div>
+                                    <span class="text-sm text-gray-500">Quantité disponible</span>
+                                    <p class="mt-1 text-lg font-semibold {{ $product->isOutOfStock() ? 'text-red-600' : ($product->isStockLow() ? 'text-orange-600' : 'text-gray-900') }}">{{ $product->available_stock }}</p>
+                                    <p class="text-xs text-gray-500">Physique: {{ $product->stock_quantity }} · Réservé: {{ (int) ($product->stock_reserved ?? 0) }}</p>
+                                </div>
+                                <div>
+                                    <span class="text-sm text-gray-500">Seuil d'alerte</span>
+                                    <p class="mt-1 text-lg font-semibold text-orange-600">{{ $product->alertThreshold() }}</p>
+                                </div>
+                                <div>
+                                    <span class="text-sm text-gray-500">Dépôt</span>
+                                    <p class="mt-1 text-gray-900">{{ $product->warehouse?->displayLabel() ?: ($product->depot ?: '—') }}</p>
+                                </div>
+                                <div>
+                                    <span class="text-sm text-gray-500">Emplacement</span>
+                                    <p class="mt-1 text-gray-900">{{ $product->warehouseLocation?->displayLabel() ?: ($product->location ?: '—') }}</p>
+                                </div>
                                 @if($product->primarySupplier)
                                     <div>
                                         <span class="text-sm text-gray-500">Fournisseur principal</span>
@@ -232,6 +230,32 @@
                                     </div>
                                 @endif
                             </div>
+
+                            @if($product->stocks->isNotEmpty())
+                                <div class="mt-6 overflow-x-auto">
+                                    <h3 class="text-sm font-semibold text-gray-800 mb-2">Répartition multi-dépôts</h3>
+                                    <table class="min-w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                                        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                                            <tr>
+                                                <th class="px-3 py-2 text-left">Dépôt</th>
+                                                <th class="px-3 py-2 text-left">Emplacement</th>
+                                                <th class="px-3 py-2 text-right">Quantité</th>
+                                                <th class="px-3 py-2 text-right">Disponible</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y">
+                                            @foreach($product->stocks as $slot)
+                                                <tr>
+                                                    <td class="px-3 py-2">{{ $slot->warehouse?->name }}</td>
+                                                    <td class="px-3 py-2">{{ $slot->location?->code ?: '—' }}</td>
+                                                    <td class="px-3 py-2 text-right">{{ $slot->quantity }}</td>
+                                                    <td class="px-3 py-2 text-right">{{ $slot->available() }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
                         </div>
                         @elseif($product->isService())
                         <div class="bg-white rounded-lg shadow p-6">

@@ -38,6 +38,7 @@ use App\Http\Controllers\SupplierInvoicePaymentController;
 use App\Http\Controllers\SupplierPurchaseOrderController;
 use App\Http\Controllers\TableBulkDestroyController;
 use App\Http\Controllers\TableExportController;
+use App\Http\Controllers\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -53,6 +54,10 @@ Route::post('/api/webhooks/shopify/orders/create', [ShopifyWebhookController::cl
     ->name('webhooks.shopify.orders.create');
 Route::post('/api/webhooks/shopify/orders/updated', [ShopifyWebhookController::class, 'ordersUpdated'])
     ->name('webhooks.shopify.orders.updated');
+Route::post('/api/webhooks/shopify/orders/fulfilled', [ShopifyWebhookController::class, 'ordersUpdated'])
+    ->name('webhooks.shopify.orders.fulfilled');
+Route::post('/api/webhooks/shopify/orders/partially-fulfilled', [ShopifyWebhookController::class, 'ordersUpdated'])
+    ->name('webhooks.shopify.orders.partially_fulfilled');
 Route::post('/api/webhooks/shopify/fulfillments/create', [ShopifyWebhookController::class, 'fulfillmentsCreate'])
     ->name('webhooks.shopify.fulfillments.create');
 Route::post('/api/webhooks/shopify/fulfillments/update', [ShopifyWebhookController::class, 'fulfillmentsUpdate'])
@@ -100,13 +105,23 @@ Route::middleware('auth')->group(function () {
     Route::post('/document-files/{type}/{id}', [DocumentFileController::class, 'store'])->name('document-files.store');
 
     Route::resource('products', ProductController::class);
+    Route::get('/products-categories', [ProductController::class, 'categories'])->name('products.categories');
+    Route::put('/products-categories', [ProductController::class, 'updateCategories'])->name('products.categories.update');
     Route::post('/products/sync-shopify', [ProductController::class, 'syncShopify'])->name('products.sync-shopify');
+    Route::get('/products/{product}/purchase-history', [ProductController::class, 'purchaseHistory'])->name('products.purchase-history');
     Route::post('/products/{product}/duplicate-to-manual', [ProductController::class, 'duplicateToManual'])->name('products.duplicate-to-manual');
     Route::post('/products/{product}/duplicate', [ProductController::class, 'duplicate'])->name('products.duplicate');
     Route::post('/products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])->name('products.toggle-status');
     Route::post('/products/{product}/archive', [ProductController::class, 'archive'])->name('products.archive');
 
     Route::prefix('stock')->group(function () {
+        Route::get('/', [StockController::class, 'index'])->name('stock.index');
+        Route::get('/inventory', [StockController::class, 'inventory'])->name('stock.inventory.index');
+        Route::get('/alerts', [StockController::class, 'alerts'])->name('stock.alerts.index');
+        Route::get('/movements', [StockController::class, 'movements'])->name('stock.movements.index');
+        Route::get('/transfer', [StockController::class, 'transferForm'])->name('stock.transfer.create');
+        Route::post('/transfer', [StockController::class, 'transferStore'])->name('stock.transfer.store');
+
         Route::get('/enligne', [StockController::class, 'indexEnligne'])->name('stock.enligne.index');
         Route::get('/enligne/export/{format}', [StockReportController::class, 'exportEnligne'])->name('stock.enligne.export');
         Route::get('/enligne/{product}/edit', [StockController::class, 'editEnligne'])->name('stock.enligne.edit');
@@ -117,6 +132,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/magasin/{product}/edit', [StockController::class, 'editMagasin'])->name('stock.magasin.edit');
         Route::patch('/magasin/{product}', [StockController::class, 'updateMagasin'])->name('stock.magasin.update');
     });
+
+    Route::get('/api/warehouse-locations', [WarehouseController::class, 'locationsJson'])->name('warehouses.locations.json');
+    Route::post('/warehouses', [WarehouseController::class, 'store'])->name('warehouses.store');
+    Route::put('/warehouses/{warehouse}', [WarehouseController::class, 'update'])->name('warehouses.update');
+    Route::delete('/warehouses/{warehouse}', [WarehouseController::class, 'destroy'])->name('warehouses.destroy');
+    Route::post('/warehouse-locations', [WarehouseController::class, 'storeLocation'])->name('warehouse-locations.store');
+    Route::put('/warehouse-locations/{location}', [WarehouseController::class, 'updateLocation'])->name('warehouse-locations.update');
+    Route::delete('/warehouse-locations/{location}', [WarehouseController::class, 'destroyLocation'])->name('warehouse-locations.destroy');
 
     Route::prefix('crm')->group(function () {
         Route::get('clients/import/template', [CrmImportController::class, 'clientTemplate'])->name('clients.import.template');
@@ -231,6 +254,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/integrations/shopify', [ShopifyIntegrationController::class, 'destroy'])->name('integrations.shopify.destroy');
     Route::get('/integrations/shopify/install', [ShopifyIntegrationController::class, 'install'])->name('integrations.shopify.install');
     Route::get('/integrations/shopify/callback', [ShopifyIntegrationController::class, 'callback'])->name('integrations.shopify.callback');
+    Route::get('/integrations/shopify/request-optional-scopes', [ShopifyIntegrationController::class, 'requestOptionalScopes'])->name('integrations.shopify.request-optional-scopes');
+    Route::post('/integrations/shopify/refresh-scopes', [ShopifyIntegrationController::class, 'refreshScopes'])->name('integrations.shopify.refresh-scopes');
 
     Route::get('/integrations/jumia', [JumiaIntegrationController::class, 'edit'])->name('integrations.jumia.edit');
     Route::put('/integrations/jumia', [JumiaIntegrationController::class, 'update'])->name('integrations.jumia.update');
@@ -246,6 +271,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings/catalogue', [SettingsController::class, 'catalogue'])->name('settings.catalogue');
     Route::get('/settings/fiscalite', [SettingsController::class, 'fiscalite'])->name('settings.fiscalite');
     Route::get('/settings/depenses', [SettingsController::class, 'depenses'])->name('settings.depenses');
+    Route::get('/settings/stock', [SettingsController::class, 'stock'])->name('settings.stock');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
 
     Route::post('/export/table-destroy', TableBulkDestroyController::class)->name('table.bulk-destroy');

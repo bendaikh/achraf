@@ -110,19 +110,32 @@
                         </button>
                     </form>
                 </div>
+                @endif
 
-                <!-- OAuth Installation (Primary Method) -->
+                <!-- OAuth Installation / Reconnect -->
                 @if($integration && $integration->oauth_client_id && $integration->oauth_client_secret)
-                <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8">
+                <div class="bg-white rounded-xl border {{ $integration->oauth_access_token ? 'border-gray-200' : 'border-amber-300' }} shadow-sm p-6 sm:p-8">
                     <div class="flex items-start mb-4">
-                        <svg class="w-6 h-6 text-green-600 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-6 h-6 {{ $integration->oauth_access_token ? 'text-green-600' : 'text-amber-600' }} mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                         </svg>
                         <div>
-                            <h2 class="text-lg font-semibold text-gray-900">Step 2: Install App on Shopify</h2>
-                            <p class="text-sm text-gray-600 mt-1">Connect your store using OAuth (one-click installation)</p>
+                            <h2 class="text-lg font-semibold text-gray-900">
+                                {{ $integration->oauth_access_token ? 'Reconnect Shopify (new permissions)' : 'Step 2: Install App on Shopify' }}
+                            </h2>
+                            <p class="text-sm text-gray-600 mt-1">
+                                {{ $integration->oauth_access_token
+                                    ? 'Re-authorize to apply new scopes (e.g. read_fulfillments) or refresh an expired token.'
+                                    : 'Connect your store using OAuth (one-click installation)' }}
+                            </p>
                         </div>
                     </div>
+
+                    @if(! $integration->oauth_access_token)
+                        <div class="mb-4 rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-900">
+                            Connection required. Click Install below and approve permissions on Shopify.
+                        </div>
+                    @endif
 
                     <form action="{{ route('integrations.shopify.install') }}" method="GET" class="space-y-4">
                         <div>
@@ -138,18 +151,17 @@
                             <p class="text-sm font-medium text-blue-900 mb-2">Important: Configure Redirect URL First</p>
                             <p class="text-xs text-blue-800 mb-2">In your Shopify app settings, add this OAuth redirect URL:</p>
                             <code class="block bg-blue-100 px-3 py-2 rounded text-xs break-all">{{ route('integrations.shopify.callback') }}</code>
-                            <p class="text-xs text-blue-800 mt-2">Also ensure your app has these scopes: <code class="bg-blue-100 px-1 py-0.5 rounded">read_orders, read_products, read_customers</code></p>
+                            <p class="text-xs text-blue-800 mt-2">Required scopes include: <code class="bg-blue-100 px-1 py-0.5 rounded">read_orders, write_orders, read_products, write_products, write_inventory, read_fulfillments</code></p>
                         </div>
 
                         <button type="submit" class="inline-flex items-center px-6 py-3 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition shadow-sm">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                             </svg>
-                            Install App on Shopify
+                            {{ $integration->oauth_access_token ? 'Reconnect App on Shopify' : 'Install App on Shopify' }}
                         </button>
                     </form>
                 </div>
-                @endif
                 @endif
 
                 <!-- Integration Settings (After OAuth or Manual) -->
@@ -188,6 +200,39 @@
                                 </div>
                             </div>
 
+                            @php
+                                $hasFulfillmentsScope = str_contains(strtolower((string) $integration->oauth_scope), 'read_fulfillments');
+                            @endphp
+                            @unless($hasFulfillmentsScope)
+                                <div class="rounded-lg bg-amber-50 border border-amber-300 p-4 space-y-3">
+                                    <p class="text-sm font-medium text-amber-900">Fulfillment permission still missing</p>
+                                    <p class="text-xs text-amber-800">
+                                        In Shopify, <code class="bg-amber-100 px-1 rounded">read_fulfillments</code> is an <strong>optional</strong> scope.
+                                        Installing the app does not grant it — you must approve it separately.
+                                    </p>
+                                    <div class="flex flex-wrap gap-2">
+                                        <a href="{{ route('integrations.shopify.request-optional-scopes') }}"
+                                           class="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition">
+                                            Grant fulfillment permissions
+                                        </a>
+                                        <button type="submit" form="shopify-refresh-scopes"
+                                                class="inline-flex items-center px-4 py-2 bg-white border border-amber-400 text-amber-900 text-sm font-medium rounded-lg hover:bg-amber-100 transition">
+                                            Refresh scopes
+                                        </button>
+                                    </div>
+                                </div>
+                            @endunless
+
+                            <div>
+                                <label for="oauth_client_secret_update" class="block text-sm font-medium text-gray-700 mb-1">Client Secret</label>
+                                <input type="password" name="oauth_client_secret" id="oauth_client_secret_update" autocomplete="off"
+                                    placeholder="•••••••• (leave blank to keep current)"
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#96BF48] focus:ring-[#96BF48] font-mono text-sm">
+                                <p class="mt-1 text-xs text-gray-500">
+                                    Must match Shopify app <strong>Secret</strong> (Identifiants). If webhooks return Unauthorized / HMAC errors, paste the current secret and click Update Integration.
+                                </p>
+                            </div>
+
                             <input type="hidden" name="shop_name" value="{{ $integration->shop_name }}">
                         @else
                             <!-- Manual Configuration Fields -->
@@ -222,9 +267,10 @@
                             <p class="text-sm font-medium text-blue-900 mb-2">Required API Scopes</p>
                             <p class="text-xs text-blue-800 mb-2">When creating your custom app, make sure to grant these permissions:</p>
                             <ul class="text-xs text-blue-800 space-y-1 list-disc list-inside ml-2">
-                                <li><code class="bg-blue-100 px-1 py-0.5 rounded">read_orders</code> - To fetch order data</li>
-                                <li><code class="bg-blue-100 px-1 py-0.5 rounded">read_products</code> - To match products (optional)</li>
-                                <li><code class="bg-blue-100 px-1 py-0.5 rounded">read_customers</code> - To sync customer info (optional)</li>
+                                <li><code class="bg-blue-100 px-1 py-0.5 rounded">read_orders</code> / <code class="bg-blue-100 px-1 py-0.5 rounded">write_orders</code> - Orders</li>
+                                <li><code class="bg-blue-100 px-1 py-0.5 rounded">read_products</code> / <code class="bg-blue-100 px-1 py-0.5 rounded">write_products</code> - Products</li>
+                                <li><code class="bg-blue-100 px-1 py-0.5 rounded">write_inventory</code> - Inventory sync</li>
+                                <li><code class="bg-blue-100 px-1 py-0.5 rounded">read_fulfillments</code> - Tracking / fulfillments webhooks</li>
                             </ul>
                         </div>
 
@@ -245,6 +291,12 @@
                     @php
                         $hasToken = $integration && ($integration->oauth_access_token || $integration->api_access_token);
                     @endphp
+
+                    @if($integration && $integration->oauth_access_token)
+                        <form id="shopify-refresh-scopes" action="{{ route('integrations.shopify.refresh-scopes') }}" method="POST" class="hidden">
+                            @csrf
+                        </form>
+                    @endif
 
                     @if($integration && $integration->enabled && $hasToken)
                         <form action="{{ route('integrations.shopify.sync') }}" method="POST" class="mt-6 pt-6 border-t border-gray-100">

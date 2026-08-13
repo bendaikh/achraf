@@ -9,6 +9,21 @@
 <div
     x-data="{
         itemKind: @js($defaultKind),
+        warehouseId: @js((string) old('warehouse_id', $isEdit ? ($product->warehouse_id ?? '') : (($warehouses ?? collect())->firstWhere('is_primary')?->id ?? ($warehouses ?? collect())->first()?->id ?? ''))),
+        locationId: @js((string) old('warehouse_location_id', $isEdit ? ($product->warehouse_location_id ?? '') : '')),
+        allLocations: @js(($warehouses ?? collect())->flatMap(fn ($w) => $w->locations->map(fn ($l) => [
+            'id' => (string) $l->id,
+            'warehouse_id' => (string) $w->id,
+            'label' => $l->displayLabel(),
+        ]))->values()),
+        get filteredLocations() {
+            if (!this.warehouseId) return this.allLocations;
+            return this.allLocations.filter(l => String(l.warehouse_id) === String(this.warehouseId));
+        },
+        onWarehouseChange() {
+            const stillValid = this.filteredLocations.some(l => String(l.id) === String(this.locationId));
+            if (!stillValid) this.locationId = '';
+        },
         isStocked() { return this.itemKind === 'stocked'; },
         isService() { return this.itemKind === 'service'; },
         isNonStocked() { return this.itemKind === 'non_stocked'; },
@@ -280,9 +295,9 @@
                                     class="{{ $field }}" :disabled="!tracksStock()">
                             </div>
                             <div>
-                                <label for="minimum_alert_stock" class="{{ $label }}">Stock d’alerte</label>
+                                <label for="minimum_alert_stock" class="{{ $label }}">Stock d’alerte <span class="text-slate-400 font-normal">(défaut {{ $lowStockThreshold ?? 3 }})</span></label>
                                 <input type="number" name="minimum_alert_stock" id="minimum_alert_stock" min="0"
-                                    value="{{ old('minimum_alert_stock', $isEdit ? $product->minimum_alert_stock : '') }}"
+                                    value="{{ old('minimum_alert_stock', $isEdit ? $product->minimum_alert_stock : ($lowStockThreshold ?? 3)) }}"
                                     class="{{ $field }} border-amber-200" :disabled="!tracksStock()">
                             </div>
                             <div>
@@ -292,18 +307,28 @@
                                     class="{{ $field }}" :disabled="!tracksStock()">
                             </div>
                             <div>
-                                <label for="depot" class="{{ $label }}">Dépôt</label>
-                                <input type="text" name="depot" id="depot"
-                                    value="{{ old('depot', $isEdit ? $product->depot : '') }}"
-                                    placeholder="Ex: Magasin principal"
-                                    class="{{ $field }}" :disabled="!tracksStock()">
+                                <label for="warehouse_id" class="{{ $label }}">Dépôt</label>
+                                <select name="warehouse_id" id="warehouse_id" class="{{ $field }}" :disabled="!tracksStock()"
+                                    x-model="warehouseId" @change="onWarehouseChange()">
+                                    <option value="">Sélectionner…</option>
+                                    @foreach(($warehouses ?? []) as $warehouse)
+                                        <option value="{{ $warehouse->id }}"
+                                            @selected((string) old('warehouse_id', $isEdit ? $product->warehouse_id : ($warehouse->is_primary ? $warehouse->id : '')) === (string) $warehouse->id)>
+                                            {{ $warehouse->displayLabel() }}
+                                        </option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div>
-                                <label for="location" class="{{ $label }}">Emplacement</label>
-                                <input type="text" name="location" id="location"
-                                    value="{{ old('location', $isEdit ? $product->location : '') }}"
-                                    placeholder="Ex: Rayon A"
-                                    class="{{ $field }}" :disabled="!tracksStock()">
+                                <label for="warehouse_location_id" class="{{ $label }}">Emplacement</label>
+                                <select name="warehouse_location_id" id="warehouse_location_id" class="{{ $field }}" :disabled="!tracksStock() || !warehouseId"
+                                    x-model="locationId">
+                                    <option value="">Sélectionner…</option>
+                                    <template x-for="loc in filteredLocations" :key="loc.id">
+                                        <option :value="loc.id" x-text="loc.label" :selected="String(loc.id) === String(locationId)"></option>
+                                    </template>
+                                </select>
+                                <p class="mt-1 text-xs text-slate-500">Uniquement les emplacements du dépôt sélectionné.</p>
                             </div>
                             <div>
                                 <label for="primary_supplier_id" class="{{ $label }}">Fournisseur principal</label>

@@ -96,22 +96,16 @@ class Navigation
                 'key' => 'products',
                 'soft_nav' => true,
                 'active' => ['products.*'],
+                'active_paths' => ['stock/*'],
                 'icon' => ['M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
                 'children' => [
-                    ['label' => 'Liste des produits', 'route' => 'products.index', 'active' => ['products.index', 'products.show', 'products.edit']],
+                    ['label' => 'Liste des produits', 'route' => 'products.index', 'list_reset' => true, 'active' => ['products.index', 'products.show', 'products.edit']],
                     ['label' => 'Ajouter un produit / service', 'route' => 'products.create', 'active' => ['products.create']],
-                ],
-            ],
-            [
-                'label' => 'Gestion stock',
-                'route' => 'stock.enligne.index',
-                'key' => 'stock',
-                'soft_nav' => true,
-                'active_paths' => ['stock/*'],
-                'icon' => ['M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4'],
-                'children' => [
-                    ['label' => 'Stock Enligne', 'route' => 'stock.enligne.index', 'active' => ['stock.enligne.*']],
-                    ['label' => 'Stock Magasin', 'route' => 'stock.magasin.index', 'active' => ['stock.magasin.*']],
+                    ['label' => 'Services', 'route' => 'products.index', 'route_params' => ['item_kind' => 'service'], 'active' => ['products.index']],
+                    ['label' => 'Catégories', 'route' => 'products.categories', 'active' => ['products.categories']],
+                    ['label' => 'Inventaire', 'route' => 'stock.inventory.index', 'active' => ['stock.inventory.*', 'stock.magasin.*', 'stock.enligne.*']],
+                    ['label' => 'Alertes stock', 'route' => 'stock.alerts.index', 'active' => ['stock.alerts.*']],
+                    ['label' => 'Mouvements de stock', 'route' => 'stock.movements.index', 'active' => ['stock.movements.*', 'stock.transfer.*']],
                 ],
             ],
             [
@@ -159,6 +153,7 @@ class Navigation
                     ['label' => 'Catalogue', 'route' => 'settings.catalogue', 'active' => ['settings.catalogue']],
                     ['label' => 'Fiscalité', 'route' => 'settings.fiscalite', 'active' => ['settings.fiscalite']],
                     ['label' => 'Dépenses', 'route' => 'settings.depenses', 'active' => ['settings.depenses']],
+                    ['label' => 'Stock & Logistique', 'route' => 'settings.stock', 'active' => ['settings.stock', 'warehouses.*']],
                 ],
             ],
         ];
@@ -224,8 +219,17 @@ class Navigation
             && ($item['route'] ?? null) === 'products.index'
             && empty($item['route_params'])
         ) {
-            if ($request->filled('item_kind') || $request->filled('stock_status')) {
-                return false;
+            // "Liste des produits" stays active for type/source filters,
+            // except the dedicated "Services" nav tab (item_kind=service only).
+            if ((string) $request->query('item_kind') === 'service'
+                && ! $request->filled('stock_status')
+                && count(array_filter($request->query())) <= 2
+            ) {
+                // Allow Services sibling to win when only item_kind=service is set.
+                $otherQuery = collect($request->query())->except(['item_kind', 'page'])->filter(fn ($v) => $v !== null && $v !== '');
+                if ($otherQuery->isEmpty()) {
+                    return false;
+                }
             }
         }
 

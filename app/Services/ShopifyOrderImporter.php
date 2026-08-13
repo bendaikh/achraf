@@ -27,10 +27,11 @@ class ShopifyOrderImporter
                 throw new \InvalidArgumentException('Missing Shopify order id.');
             }
 
-            // Extract Shopify statuses
+            // Extract Shopify statuses (fulfillment_status is null when unfulfilled)
             $paymentStatus = strtolower((string) ($order['financial_status'] ?? 'pending'));
-            $fulfillmentStatus = $order['fulfillment_status'] 
-                ? strtolower((string) $order['fulfillment_status']) 
+            $rawFulfillment = $order['fulfillment_status'] ?? null;
+            $fulfillmentStatus = $rawFulfillment
+                ? strtolower((string) $rawFulfillment)
                 : 'unfulfilled';
 
             $existing = PosSale::query()

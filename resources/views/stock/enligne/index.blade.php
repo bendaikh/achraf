@@ -87,32 +87,33 @@
                                                 <div class="text-xs text-gray-500">{{ $product->product_category }}</div>
                                             @endif
                                         </td>
-                                        @php $qty = (int) ($product->stock_enligne ?? 0); @endphp
+                                        @php
+                                            $qty = (int) ($product->stock_enligne ?? $product->stock_quantity ?? 0);
+                                            $threshold = $product->alertThreshold();
+                                        @endphp
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             @if($qty <= 0)
                                                 <span class="text-sm font-bold text-red-600">{{ $qty }}</span>
-                                            @elseif($product->minimum_alert_stock !== null && $qty <= $product->minimum_alert_stock)
+                                            @elseif($qty <= $threshold)
                                                 <span class="text-sm font-bold text-orange-600">{{ $qty }}</span>
                                             @else
                                                 <span class="text-sm text-gray-900">{{ $qty }}</span>
                                             @endif
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                            @if($product->minimum_alert_stock !== null || $product->minimum_safety_stock !== null)
-                                                <span>Alerte : {{ $product->minimum_alert_stock ?? '—' }}</span>
+                                            <span>Alerte : {{ $product->alertThreshold() }}</span>
+                                            @if($product->minimum_safety_stock !== null)
                                                 <span class="mx-1 text-gray-300">|</span>
-                                                <span>Sécurité : {{ $product->minimum_safety_stock ?? '—' }}</span>
-                                            @else
-                                                <span class="text-gray-400">Non défini</span>
+                                                <span>Sécurité : {{ $product->minimum_safety_stock }}</span>
                                             @endif
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             @if($qty <= 0)
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Rupture</span>
-                                            @elseif($product->minimum_alert_stock !== null && $qty <= $product->minimum_alert_stock)
-                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">Sous seuil</span>
+                                            @elseif($qty <= $threshold)
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">Stock faible</span>
                                             @else
-                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">OK</span>
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">En stock</span>
                                             @endif
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm">

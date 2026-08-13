@@ -68,8 +68,12 @@ class RegisterShopifyWebhooks extends Command
         $webhooksToRegister = [
             'orders/create' => "{$baseUrl}/api/webhooks/shopify/orders/create",
             'orders/updated' => "{$baseUrl}/api/webhooks/shopify/orders/updated",
+            // Preferred when read_fulfillments is granted
             'fulfillments/create' => "{$baseUrl}/api/webhooks/shopify/fulfillments/create",
             'fulfillments/update' => "{$baseUrl}/api/webhooks/shopify/fulfillments/update",
+            // Fallback tracking sync (works with orders scopes only)
+            'orders/fulfilled' => "{$baseUrl}/api/webhooks/shopify/orders/fulfilled",
+            'orders/partially_fulfilled' => "{$baseUrl}/api/webhooks/shopify/orders/partially-fulfilled",
             'products/create' => "{$baseUrl}/api/webhooks/shopify/products/create",
             'products/update' => "{$baseUrl}/api/webhooks/shopify/products/update",
             'products/delete' => "{$baseUrl}/api/webhooks/shopify/products/delete",
@@ -98,10 +102,16 @@ class RegisterShopifyWebhooks extends Command
         $this->info('Registering webhooks...');
         $this->newLine();
 
+        $optionalTopics = [
+            'fulfillments/create',
+            'fulfillments/update',
+        ];
+
         $registered = 0;
         $updated = 0;
         $skipped = 0;
         $failed = 0;
+        $optionalFailed = 0;
 
         foreach ($webhooksToRegister as $topic => $address) {
             $existing = $existingByTopic[$topic] ?? null;
@@ -132,8 +142,17 @@ class RegisterShopifyWebhooks extends Command
                     $registered++;
                 }
             } else {
-                $this->error("  ✗ Failed: {$topic}");
-                $failed++;
+                $isOptional = in_array($topic, $optionalTopics, true);
+                if ($isOptional) {
+                    $this->warn("  ⚠ Optional skipped: {$topic}");
+                    $optionalFailed++;
+                } else {
+                    $this->error("  ✗ Failed: {$topic}");
+                    $failed++;
+                }
+                if ($client->lastWebhookError) {
+                    $this->line('     '.$client->lastWebhookError);
+                }
             }
         }
 
@@ -142,17 +161,35 @@ class RegisterShopifyWebhooks extends Command
         $this->line("  Registered: {$registered}");
         $this->line("  Updated: {$updated}");
         $this->line("  Skipped: {$skipped}");
+        if ($optionalFailed > 0) {
+            $this->line("  Optional unavailable: {$optionalFailed}");
+        }
         if ($failed > 0) {
             $this->line("  Failed: {$failed}");
         }
         $this->info('═══════════════════════════════════════');
 
+        if ($optionalFailed > 0) {
+            $this->newLine();
+            $this->warn('Fulfillment webhooks need read_fulfillments on the Shopify app, then OAuth reconnect.');
+            $this->line('Tracking still syncs via orders/updated, orders/fulfilled, and orders/partially_fulfilled.');
+        }
+
         if ($failed > 0) {
             $this->newLine();
             $this->warn('Some webhooks failed to register. Make sure:');
             $this->line('  1. Your APP_URL is publicly accessible (not localhost)');
-            $this->line('  2. Your Shopify app has the required permissions (read_fulfillments, etc.)');
+            $this->line('  2. Shopify app scopes include read_fulfillments (then re-authorize OAuth)');
             $this->line('  3. The webhook endpoints are not blocked by CSRF protection');
+
+            $granted = (string) ($integration->oauth_scope ?? '');
+            if ($granted !== '' && ! str_contains($granted, 'read_fulfillments')) {
+                $this->newLine();
+                $this->error('Current token is missing read_fulfillments.');
+                $this->line('Granted scopes: '.$granted);
+                $this->line('Fix: enable Read fulfillments in the Shopify app Admin API scopes,');
+                $this->line('update SHOPIFY_SCOPES, then reconnect OAuth and re-run this command.');
+            }
         }
 
         if ($registered > 0 || $updated > 0 || $skipped > 0) {

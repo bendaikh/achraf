@@ -126,6 +126,7 @@
                 @foreach($kindTabs as $kindKey => $tab)
                     @php $active = (string) $currentKind === (string) $kindKey; @endphp
                     <a href="{{ $filterUrl(['item_kind' => $kindKey ?: null, 'stock_status' => null]) }}"
+                       @if($kindKey === '') data-list-reset @endif
                        class="inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition {{ $active ? 'border-[#0a5d8a] text-[#0a5d8a]' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300' }}">
                         @if($tab['icon'] === 'box')
                             <span class="h-5 w-5 rounded bg-blue-100 text-blue-600 flex items-center justify-center">
@@ -155,6 +156,7 @@
             @foreach($sourceFilters as $sourceKey => $sourceLabel)
                 @php $active = (string) $currentSource === (string) $sourceKey; @endphp
                 <a href="{{ $filterUrl(['source' => $sourceKey ?: null]) }}"
+                   @if($sourceKey === '') data-list-reset @endif
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition {{ $active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300' }}">
                     @if($sourceKey === 'shopify')
                         <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.88 9.1A4 4 0 0 1 16 17H5a5 5 0 0 1-1-9.9V7a3 3 0 0 1 4.52-2.59A4.98 4.98 0 0 1 17 8c0 .38-.04.74-.12 1.1z"/></svg>
@@ -290,23 +292,43 @@
                             @endforeach
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Dépôt</label>
-                        <select name="depot" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
-                            <option value="">Tous</option>
-                            @foreach($depots as $value => $label)
-                                <option value="{{ $value }}" @selected(request('depot') == $value)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Emplacement</label>
-                        <select name="location" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
-                            <option value="">Tous</option>
-                            @foreach($locations as $value => $label)
-                                <option value="{{ $value }}" @selected(request('location') == $value)>{{ $label }}</option>
-                            @endforeach
-                        </select>
+                    <div x-data="{
+                        warehouseId: @js((string) request('warehouse_id', '')),
+                        locationId: @js((string) request('warehouse_location_id', '')),
+                        allLocations: @js(($warehouses ?? collect())->flatMap(fn ($w) => $w->locations->map(fn ($l) => [
+                            'id' => (string) $l->id,
+                            'warehouse_id' => (string) $w->id,
+                            'label' => $l->displayLabel(),
+                        ]))->values()),
+                        get filteredLocations() {
+                            if (!this.warehouseId) return this.allLocations;
+                            return this.allLocations.filter(l => String(l.warehouse_id) === String(this.warehouseId));
+                        },
+                        onWarehouseChange() {
+                            const ok = this.filteredLocations.some(l => String(l.id) === String(this.locationId));
+                            if (!ok) this.locationId = '';
+                        }
+                    }">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:col-span-2">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Dépôt</label>
+                                <select name="warehouse_id" x-model="warehouseId" @change="onWarehouseChange()" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                                    <option value="">Tous</option>
+                                    @foreach(($warehouses ?? []) as $warehouse)
+                                        <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Emplacement</label>
+                                <select name="warehouse_location_id" x-model="locationId" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                                    <option value="">Tous</option>
+                                    <template x-for="loc in filteredLocations" :key="loc.id">
+                                        <option :value="loc.id" x-text="loc.label"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">Statut</label>
@@ -508,7 +530,7 @@
                                 <td class="px-3 py-3 whitespace-nowrap text-slate-600">
                                     @if($product->tracksStock())
                                         <div>Min: {{ $product->minimum_safety_stock ?? '—' }}</div>
-                                        <div class="text-xs text-orange-600">Alerte: {{ $product->minimum_alert_stock ?? '—' }}</div>
+                                        <div class="text-xs text-orange-600">Alerte: {{ $product->alertThreshold() }}</div>
                                     @else
                                         <span class="text-slate-400">—</span>
                                     @endif
@@ -517,8 +539,8 @@
                                 {{-- Depot / location --}}
                                 <td class="px-3 py-3 whitespace-nowrap">
                                     @if($product->tracksStock())
-                                        <div class="text-slate-800">{{ $product->depot ?: '—' }}</div>
-                                        <div class="text-xs text-slate-500">{{ $product->location ?: '—' }}</div>
+                                        <div class="text-slate-800">{{ $product->warehouse?->name ?: ($product->depot ?: '—') }}</div>
+                                        <div class="text-xs text-slate-500">{{ $product->warehouseLocation?->code ?: ($product->location ?: '—') }}</div>
                                     @elseif($product->isNonStocked())
                                         <span class="text-xs text-amber-700">Sur demande</span>
                                     @else
@@ -526,12 +548,24 @@
                                     @endif
                                 </td>
 
-                                {{-- Supplier --}}
+                                {{-- Supplier (dernier fournisseur d'achat) --}}
                                 <td class="px-3 py-3 whitespace-nowrap text-slate-700">
                                     @if($product->isService())
                                         <span class="text-slate-400">—</span>
+                                    @elseif($product->last_purchase_supplier_name)
+                                        <button type="button"
+                                                class="group inline-flex items-center gap-1 max-w-[11rem] text-left text-[#0a5d8a] hover:text-[#074866] font-medium"
+                                                title="Voir l'historique fournisseurs / achats"
+                                                onclick="openPurchaseHistoryModal({{ $product->id }})">
+                                            <span class="truncate underline decoration-slate-300 underline-offset-2 group-hover:decoration-[#0a5d8a]">
+                                                {{ $product->last_purchase_supplier_name }}
+                                            </span>
+                                            <svg class="h-3.5 w-3.5 shrink-0 opacity-60 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                            </svg>
+                                        </button>
                                     @else
-                                        {{ $product->primarySupplier?->name ?? '—' }}
+                                        <span class="text-slate-400">—</span>
                                     @endif
                                 </td>
 
@@ -570,7 +604,7 @@
                                             @if($product->tracksStock())
                                                 <div class="border-t border-slate-100 my-1"></div>
                                                 <a href="{{ route('stock.magasin.edit', $product) }}" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Ajuster le stock</a>
-                                                <a href="{{ route('stock.magasin.index', ['search' => $product->ref]) }}" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Voir les mouvements</a>
+                                                <a href="{{ route('stock.movements.index', ['product_id' => $product->id, 'search' => $product->ref]) }}" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Voir les mouvements</a>
                                             @endif
                                             @if($product->isShopifyProduct() && $product->shopify_url)
                                                 <div class="border-t border-slate-100 my-1"></div>
@@ -637,22 +671,171 @@
     </div>
 </div>
 
+{{-- Modal historique fournisseurs / achats --}}
+<div id="purchaseHistoryModal" class="fixed inset-0 bg-slate-900/40 hidden overflow-y-auto h-full w-full z-50" role="dialog" aria-modal="true" aria-labelledby="purchaseHistoryTitle">
+    <div class="relative top-10 sm:top-16 mx-auto mb-10 w-[min(56rem,calc(100%-1.5rem))] border border-slate-200 shadow-xl rounded-xl bg-white">
+        <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100">
+            <div class="min-w-0">
+                <h3 id="purchaseHistoryTitle" class="text-lg font-semibold text-slate-900">Historique fournisseurs / achats</h3>
+                <p class="text-sm text-slate-500 mt-0.5 truncate" id="purchaseHistoryProduct"></p>
+            </div>
+            <button type="button" onclick="closePurchaseHistoryModal()" class="text-slate-400 hover:text-slate-600 shrink-0" aria-label="Fermer">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="px-5 py-4">
+            <div id="purchaseHistoryLoading" class="py-10 text-center text-sm text-slate-500 hidden">Chargement…</div>
+            <div id="purchaseHistoryError" class="py-10 text-center text-sm text-red-600 hidden"></div>
+            <div id="purchaseHistoryEmpty" class="py-10 text-center text-sm text-slate-500 hidden">Aucun achat trouvé pour ce produit.</div>
+            <div id="purchaseHistoryTableWrap" class="overflow-x-auto hidden">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Fournisseur</th>
+                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Quantité</th>
+                            <th class="px-3 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Prix d’achat unitaire</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Document</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchaseHistoryBody" class="divide-y divide-slate-100 bg-white"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 function openDuplicateModal(productId, productName, productRef) {
-    document.getElementById('duplicateModal').classList.remove('hidden');
+    var modal = document.getElementById('duplicateModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
     document.getElementById('duplicateProductName').textContent = productName;
     document.getElementById('duplicateProductRef').textContent = 'Réf: ' + productRef;
     document.getElementById('duplicateForm').action = '/products/' + productId + '/duplicate-to-manual';
     document.getElementById('initial_stock').value = 0;
 }
 function closeDuplicateModal() {
-    document.getElementById('duplicateModal').classList.add('hidden');
+    var modal = document.getElementById('duplicateModal');
+    if (modal) modal.classList.add('hidden');
 }
-document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') closeDuplicateModal();
-});
-document.getElementById('duplicateModal').addEventListener('click', function (e) {
-    if (e.target === this) closeDuplicateModal();
-});
+
+function purchaseHistoryUrl(productId) {
+    return @json(url('/products')).replace(/\/$/, '') + '/' + productId + '/purchase-history';
+}
+
+function setPurchaseHistoryState(state) {
+    ['purchaseHistoryLoading', 'purchaseHistoryError', 'purchaseHistoryEmpty', 'purchaseHistoryTableWrap']
+        .forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+        });
+    if (state) {
+        var active = document.getElementById(state);
+        if (active) active.classList.remove('hidden');
+    }
+}
+
+function openPurchaseHistoryModal(productId) {
+    var modal = document.getElementById('purchaseHistoryModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    var productEl = document.getElementById('purchaseHistoryProduct');
+    var body = document.getElementById('purchaseHistoryBody');
+    if (productEl) productEl.textContent = '';
+    if (body) body.innerHTML = '';
+    setPurchaseHistoryState('purchaseHistoryLoading');
+
+    fetch(purchaseHistoryUrl(productId), {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    })
+        .then(function (res) {
+            if (!res.ok) throw new Error('Impossible de charger l’historique.');
+            return res.json();
+        })
+        .then(function (data) {
+            var productLabel = (data.product && data.product.name) ? data.product.name : '';
+            if (data.product && data.product.ref) {
+                productLabel += (productLabel ? ' · ' : '') + 'Réf. ' + data.product.ref;
+            }
+            if (productEl) productEl.textContent = productLabel;
+
+            var history = data.history || [];
+            if (!history.length) {
+                setPurchaseHistoryState('purchaseHistoryEmpty');
+                return;
+            }
+
+            if (!body) return;
+            body.innerHTML = history.map(function (row) {
+                var docCell = row.document_url
+                    ? '<a href="' + row.document_url + '" class="text-[#0a5d8a] hover:underline font-medium" target="_blank" rel="noopener">' +
+                        escapeHtml(row.document_number) + '</a>'
+                    : escapeHtml(row.document_number || '—');
+                return '<tr class="hover:bg-slate-50/80">' +
+                    '<td class="px-3 py-2.5 whitespace-nowrap text-slate-700">' + escapeHtml(row.date_formatted || '—') + '</td>' +
+                    '<td class="px-3 py-2.5 text-slate-800 font-medium">' + escapeHtml(row.supplier_name || '—') + '</td>' +
+                    '<td class="px-3 py-2.5 whitespace-nowrap text-right text-slate-700">' + escapeHtml(String(row.quantity ?? '—')) + '</td>' +
+                    '<td class="px-3 py-2.5 whitespace-nowrap text-right text-slate-700">' + escapeHtml(row.unit_price_formatted || '—') + '</td>' +
+                    '<td class="px-3 py-2.5 whitespace-nowrap">' + docCell + '</td>' +
+                    '</tr>';
+            }).join('');
+            setPurchaseHistoryState('purchaseHistoryTableWrap');
+        })
+        .catch(function (err) {
+            var errorEl = document.getElementById('purchaseHistoryError');
+            if (errorEl) errorEl.textContent = err.message || 'Erreur de chargement.';
+            setPurchaseHistoryState('purchaseHistoryError');
+        });
+}
+
+function closePurchaseHistoryModal() {
+    var modal = document.getElementById('purchaseHistoryModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function bindProductListModals() {
+    var duplicateModal = document.getElementById('duplicateModal');
+    var purchaseHistoryModal = document.getElementById('purchaseHistoryModal');
+
+    if (duplicateModal && !duplicateModal.dataset.bound) {
+        duplicateModal.dataset.bound = '1';
+        duplicateModal.addEventListener('click', function (e) {
+            if (e.target === this) closeDuplicateModal();
+        });
+    }
+
+    if (purchaseHistoryModal && !purchaseHistoryModal.dataset.bound) {
+        purchaseHistoryModal.dataset.bound = '1';
+        purchaseHistoryModal.addEventListener('click', function (e) {
+            if (e.target === this) closePurchaseHistoryModal();
+        });
+    }
+}
+
+if (!window.__productListEscapeBound) {
+    window.__productListEscapeBound = true;
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeDuplicateModal();
+            closePurchaseHistoryModal();
+        }
+    });
+}
+
+if (window.SoftNav && typeof SoftNav.whenReady === 'function') {
+    SoftNav.whenReady(bindProductListModals);
+} else {
+    bindProductListModals();
+}
 </script>
 @endsection

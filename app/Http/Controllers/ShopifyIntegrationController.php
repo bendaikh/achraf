@@ -68,8 +68,8 @@ class ShopifyIntegrationController extends Controller
             'https://%s/admin/oauth/authorize?client_id=%s&scope=%s&redirect_uri=%s&state=%s',
             $shop,
             $clientId,
-            $scopes,
-            urlencode($redirectUri),
+            rawurlencode($scopes),
+            rawurlencode($redirectUri),
             $state
         );
 
@@ -166,6 +166,13 @@ class ShopifyIntegrationController extends Controller
                 Log::warning('Shopify webhook auto-registration after OAuth failed: '.$e->getMessage());
             }
 
+            $granted = strtolower((string) $scope);
+            if (! str_contains($granted, 'read_fulfillments')) {
+                return redirect()
+                    ->route('integrations.shopify.request-optional-scopes')
+                    ->with('success', 'Connected to Shopify. Next: approve optional fulfillment permissions.');
+            }
+
             return redirect()
                 ->route('integrations.shopify.edit')
                 ->with('success', 'Successfully connected to Shopify! Your store is now integrated.');
@@ -178,6 +185,99 @@ class ShopifyIntegrationController extends Controller
             return redirect()
                 ->route('integrations.shopify.edit')
                 ->with('error', 'An error occurred during OAuth: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Request optional scopes (e.g. read_fulfillments) after install.
+     * Required because managed-install apps only grant "Champs d'accès" on install;
+     * optional scopes must be requested separately.
+     */
+    public function requestOptionalScopes(): RedirectResponse
+    {
+        $integration = ShopifyIntegration::query()->first();
+        $clientId = $integration?->oauth_client_id ?? config('services.shopify.client_id');
+        $shopName = $integration?->shop_name;
+
+        if (! $clientId || ! $shopName) {
+            return redirect()
+                ->route('integrations.shopify.edit')
+                ->with('error', 'Connect Shopify first, then request fulfillment permissions.');
+        }
+
+        $optionalScopes = 'read_fulfillments,write_fulfillments';
+        $url = sprintf(
+            'https://admin.shopify.com/store/%s/oauth/install?client_id=%s&optional_scopes=%s',
+            rawurlencode($shopName),
+            rawurlencode($clientId),
+            rawurlencode($optionalScopes)
+        );
+
+        return redirect()->away($url);
+    }
+
+    /**
+     * Re-read granted scopes from Shopify and register webhooks.
+     */
+    public function refreshScopes(): RedirectResponse
+    {
+        $integration = ShopifyIntegration::query()->first();
+        $token = $integration?->oauth_access_token ?? $integration?->api_access_token;
+
+        if (! $integration || ! $token || ! $integration->shop_name) {
+            return redirect()
+                ->route('integrations.shopify.edit')
+                ->with('error', 'Shopify is not connected.');
+        }
+
+        try {
+            $version = $integration->api_version ?: '2024-01';
+            $response = Http::withHeaders([
+                'X-Shopify-Access-Token' => $token,
+                'Content-Type' => 'application/json',
+            ])->post("https://{$integration->shop_name}.myshopify.com/admin/api/{$version}/graphql.json", [
+                'query' => '{ currentAppInstallation { accessScopes { handle } } }',
+            ]);
+
+            if ($response->failed()) {
+                return redirect()
+                    ->route('integrations.shopify.edit')
+                    ->with('error', 'Failed to read scopes from Shopify (HTTP '.$response->status().').');
+            }
+
+            $handles = collect(data_get($response->json(), 'data.currentAppInstallation.accessScopes', []))
+                ->pluck('handle')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values();
+
+            $integration->oauth_scope = $handles->implode(',');
+            $integration->save();
+
+            $webhookNote = '';
+            try {
+                Artisan::call('shopify:register-webhooks');
+                $webhookNote = ' Webhooks refreshed.';
+            } catch (\Throwable $e) {
+                Log::warning('Shopify webhook registration after scope refresh failed: '.$e->getMessage());
+                $webhookNote = ' Webhooks not fully refreshed.';
+            }
+
+            $hasFulfillments = $handles->contains('read_fulfillments');
+
+            return redirect()
+                ->route('integrations.shopify.edit')
+                ->with(
+                    $hasFulfillments ? 'success' : 'error',
+                    $hasFulfillments
+                        ? 'Scopes updated (includes read_fulfillments).'.$webhookNote
+                        : 'Still missing read_fulfillments. Click “Grant fulfillment permissions”, approve on Shopify, then refresh scopes again.'.$webhookNote
+                );
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('integrations.shopify.edit')
+                ->with('error', 'Scope refresh failed: '.$e->getMessage());
         }
     }
 

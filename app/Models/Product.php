@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\StockSettings;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -61,6 +62,8 @@ class Product extends Model
         'stock_enligne',
         'location',
         'depot',
+        'warehouse_id',
+        'warehouse_location_id',
         'primary_supplier_id',
         'barcode',
         'vat_category',
@@ -105,6 +108,26 @@ class Product extends Model
     public function primarySupplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class, 'primary_supplier_id');
+    }
+
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    public function warehouseLocation(): BelongsTo
+    {
+        return $this->belongsTo(WarehouseLocation::class, 'warehouse_location_id');
+    }
+
+    public function stocks(): HasMany
+    {
+        return $this->hasMany(ProductStock::class);
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class)->orderByDesc('moved_at');
     }
 
     public function isStocked(): bool
@@ -162,9 +185,12 @@ class Product extends Model
     }
 
     /**
-     * Seuil d’alerte effectif (alerte prioritaire, sinon stock minimum).
+     * Seuil d’alerte effectif.
+     * Priorité : stock d’alerte produit → stock minimum produit → seuil global (défaut 3).
+     *
+     * Règle : disponible > seuil = En stock ; 1..seuil = Stock faible ; 0 = Rupture.
      */
-    public function alertThreshold(): ?int
+    public function alertThreshold(): int
     {
         if ($this->minimum_alert_stock !== null) {
             return (int) $this->minimum_alert_stock;
@@ -174,7 +200,7 @@ class Product extends Model
             return (int) $this->minimum_safety_stock;
         }
 
-        return null;
+        return StockSettings::lowThreshold();
     }
 
     /**
@@ -192,8 +218,7 @@ class Product extends Model
             return self::STOCK_STATUS_OUT;
         }
 
-        $threshold = $this->alertThreshold();
-        if ($threshold !== null && $available <= $threshold) {
+        if ($available <= $this->alertThreshold()) {
             return self::STOCK_STATUS_LOW;
         }
 
@@ -273,43 +298,33 @@ class Product extends Model
         return 'GREATEST(0, COALESCE(stock_quantity, 0) - COALESCE(stock_reserved, 0))';
     }
 
+    /**
+     * SQL expression for effective alert threshold (product override or global default).
+     */
+    public static function alertThresholdSql(): string
+    {
+        $fallback = (int) StockSettings::lowThreshold();
+
+        return 'COALESCE(minimum_alert_stock, minimum_safety_stock, '.$fallback.')';
+    }
+
     public function scopeInStock($query)
     {
         $available = self::availableStockSql();
+        $threshold = self::alertThresholdSql();
 
         return $query->where('item_kind', self::KIND_STOCKED)
-            ->whereRaw("{$available} > 0")
-            ->where(function ($q) use ($available) {
-                $q->where(function ($q2) use ($available) {
-                    $q2->whereNotNull('minimum_alert_stock')
-                        ->whereRaw("{$available} > minimum_alert_stock");
-                })->orWhere(function ($q2) use ($available) {
-                    $q2->whereNull('minimum_alert_stock')
-                        ->whereNotNull('minimum_safety_stock')
-                        ->whereRaw("{$available} > minimum_safety_stock");
-                })->orWhere(function ($q2) {
-                    $q2->whereNull('minimum_alert_stock')
-                        ->whereNull('minimum_safety_stock');
-                });
-            });
+            ->whereRaw("{$available} > {$threshold}");
     }
 
     public function scopeLowStock($query)
     {
         $available = self::availableStockSql();
+        $threshold = self::alertThresholdSql();
 
         return $query->where('item_kind', self::KIND_STOCKED)
             ->whereRaw("{$available} > 0")
-            ->where(function ($q) use ($available) {
-                $q->where(function ($q2) use ($available) {
-                    $q2->whereNotNull('minimum_alert_stock')
-                        ->whereRaw("{$available} <= minimum_alert_stock");
-                })->orWhere(function ($q2) use ($available) {
-                    $q2->whereNull('minimum_alert_stock')
-                        ->whereNotNull('minimum_safety_stock')
-                        ->whereRaw("{$available} <= minimum_safety_stock");
-                });
-            });
+            ->whereRaw("{$available} <= {$threshold}");
     }
 
     public function scopeOutOfStock($query)
