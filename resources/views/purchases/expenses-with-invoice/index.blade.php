@@ -25,9 +25,18 @@
 
             <x-table-filters
                 :action="route('expenses-with-invoice.index')"
-                search-placeholder="Désignation, référence, fournisseur..."
+                search-placeholder="Désignation, N° facture, fournisseur..."
                 grid-cols="md:grid-cols-5"
             />
+
+            <div class="mb-5 flex flex-wrap gap-2">
+                @foreach(['' => 'Toutes', 'yes' => 'Récurrentes', 'no' => 'Non récurrentes'] as $value => $label)
+                    <a href="{{ route('expenses-with-invoice.index', array_merge(request()->except(['page', 'recurring']), $value ? ['recurring' => $value] : [])) }}"
+                       class="px-3 py-1.5 rounded-lg text-sm font-medium {{ request('recurring', '') === $value ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50' }}">
+                        {{ $label }}
+                    </a>
+                @endforeach
+            </div>
 
             <x-table-bulk-bar export-type="expenses-with-invoice" item-label="dépense(s)" />
 
@@ -37,11 +46,14 @@
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <x-table-checkbox-header export-type="expenses-with-invoice" />
+                                <x-table-sort-header column="reference" label="N° facture" default-direction="asc" />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                                 <x-table-sort-header column="expense_date" label="Date" :default="true" default-direction="desc" />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Document importé</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Document</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Récurrence</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
@@ -49,6 +61,7 @@
                             @forelse($expenses as $expense)
                                 <tr class="hover:bg-gray-50">
                                     <x-table-checkbox-cell export-type="expenses-with-invoice" :id="$expense->id" />
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ $expense->reference ?: '—' }}</td>
                                     <td class="px-6 py-4">
                                         <x-table-show-link :href="route('expenses-with-invoice.show', $expense)" :label="$expense->designation" />
                                     </td>
@@ -56,11 +69,31 @@
                                     <td class="px-6 py-4 font-semibold">{{ number_format($expense->amount, 2) }} {{ $expense->currency }}</td>
                                     <td class="px-6 py-4">{{ $expense->expense_category ?? '-' }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <x-document-import-status :imported="(bool) $expense->invoice_file_path" />
+                                        <x-managed-document-actions type="expenses-with-invoice" :id="$expense->id" />
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        @if($expense->is_recurring)
+                                            <span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800">↻ Récurrente</span>
+                                            @if($expense->isRecurrenceTemplate() && $expense->next_due_date)
+                                                <div class="mt-1 text-xs text-gray-500">Prochaine : {{ $expense->next_due_date->format('d/m/Y') }}</div>
+                                            @endif
+                                        @else
+                                            <span class="text-gray-400">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        @if($expense->isPendingPayment())
+                                            <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">À payer</span>
+                                            <form action="{{ route('expenses.mark-paid', $expense) }}" method="POST" class="mt-2">
+                                                @csrf
+                                                <button class="text-xs font-medium text-green-700 hover:text-green-900">Enregistrer le paiement</button>
+                                            </form>
+                                        @else
+                                            <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">Payée</span>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="flex items-center gap-3">
-                                            <x-document-import-action type="expenses-with-invoice" :id="$expense->id" />
                                             <a href="{{ route('expenses-with-invoice.show', $expense) }}" class="text-blue-600 hover:text-blue-900 transition duration-150" title="Voir">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -86,7 +119,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-6 py-12 text-center text-gray-500">Aucune dépense trouvée</td>
+                                    <td colspan="10" class="px-6 py-12 text-center text-gray-500">Aucune dépense trouvée</td>
                                 </tr>
                             @endforelse
                         </tbody>

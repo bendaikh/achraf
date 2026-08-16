@@ -135,6 +135,25 @@ class ClientController extends Controller
 
     public function quickStore(Request $request)
     {
+        $existing = null;
+        if ($request->filled('email')) {
+            $existing = Client::query()
+                ->where('email', trim((string) $request->input('email')))
+                ->first();
+        } elseif ($request->filled('phone')) {
+            $existing = Client::query()
+                ->where('phone', trim((string) $request->input('phone')))
+                ->first();
+        }
+
+        if ($existing) {
+            return response()->json([
+                'id' => $existing->id,
+                'text' => $existing->selectLabel(),
+                'reused' => true,
+            ]);
+        }
+
         $validated = $this->validatedClientPayload($request, quick: true);
         $validated['code'] = $this->generateClientCode();
         $validated['status'] = $validated['status'] ?? 'actif';
@@ -269,12 +288,24 @@ class ClientController extends Controller
             });
         }
 
-        $paginator = $query->paginate($perPage, ['id', 'name', 'email'], 'page', $page);
+        $paginator = $query->paginate(
+            $perPage,
+            ['id', 'name', 'email', 'phone', 'address', 'city', 'postal_code', 'country'],
+            'page',
+            $page
+        );
 
         return response()->json([
             'results' => $paginator->getCollection()->map(fn (Client $client) => [
                 'id' => $client->id,
                 'text' => $client->selectLabel(),
+                'name' => $client->name,
+                'email' => $client->email,
+                'phone' => $client->phone,
+                'address' => $client->address,
+                'city' => $client->city,
+                'postal_code' => $client->postal_code,
+                'country' => $client->country,
             ])->values(),
             'pagination' => [
                 'more' => $paginator->hasMorePages(),

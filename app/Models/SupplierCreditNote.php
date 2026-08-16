@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasManagedDocuments;
 use Illuminate\Database\Eloquent\Model;
 
 class SupplierCreditNote extends Model
 {
+    use HasManagedDocuments;
+
     protected $fillable = [
         'credit_note_number', 'supplier_id', 'supplier_invoice_id', 'credit_note_date',
         'invoice', 'currency', 'stock_location', 'model', 'remarks',

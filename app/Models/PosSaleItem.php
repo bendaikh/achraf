@@ -10,8 +10,11 @@ class PosSaleItem extends Model
     protected $fillable = [
         'pos_sale_id',
         'product_id',
+        'product_variant_id',
         'ref',
         'designation',
+        'variant_title',
+        'shopify_variant_id',
         'quantity',
         'unit_price',
         'tax_rate',
@@ -35,5 +38,10 @@ class PosSaleItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
     }
 }

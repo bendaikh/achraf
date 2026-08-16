@@ -484,7 +484,14 @@ class FinancialManagementService
             ->sum('amount');
 
         $expenses = (float) Expense::query()
-            ->whereBetween('expense_date', [$dateFrom, $dateTo])
+            ->paid()
+            ->where(function ($query) use ($dateFrom, $dateTo) {
+                $query->whereBetween('paid_at', [$dateFrom, $dateTo])
+                    ->orWhere(function ($legacy) use ($dateFrom, $dateTo) {
+                        $legacy->whereNull('paid_at')
+                            ->whereBetween('expense_date', [$dateFrom, $dateTo]);
+                    });
+            })
             ->sum('amount');
 
         $encaissements = $posStandalone + $posInvoicedWithoutPayments + $clientPayments;
@@ -559,6 +566,7 @@ class FinancialManagementService
             });
 
         Expense::query()
+            ->paid()
             ->get(['amount', 'account', 'payment_method'])
             ->each(function (Expense $expense) use ($add) {
                 $add(
@@ -983,7 +991,13 @@ class FinancialManagementService
                 'reference' => $sale->ticket_number,
                 'party' => $sale->client?->name ?? 'Comptoir',
                 'total' => (float) $sale->total,
-                'status' => 'paid',
+                'status' => match ($sale->payment_status) {
+                    'paid' => 'paid',
+                    'partial', 'partially_paid' => 'partial',
+                    default => ($sale->payment_status === null || $sale->payment_status === '')
+                        ? 'paid'
+                        : 'unpaid',
+                },
                 'url' => route('pos.sales.show', $sale),
             ])
             ->all();

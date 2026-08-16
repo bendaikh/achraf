@@ -2,16 +2,28 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasManagedDocuments;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SupplierInvoicePayment extends Model
 {
+    use HasManagedDocuments;
+
     public const SOURCE_MANUAL = 'manual';
 
     public const SOURCE_BULK = 'bulk';
 
     public const SOURCE_IMPORT = 'import';
+
+    public const CHEQUE_STATUSES = [
+        'prepared' => 'Préparé',
+        'handed' => 'Remis',
+        'in_circulation' => 'En circulation',
+        'cashed' => 'Encaissé',
+        'rejected' => 'Rejeté',
+        'cancelled' => 'Annulé',
+    ];
 
     protected $fillable = [
         'supplier_invoice_id',
@@ -19,6 +31,12 @@ class SupplierInvoicePayment extends Model
         'amount',
         'payment_method',
         'payment_reference',
+        'cheque_number',
+        'cheque_bank',
+        'cheque_date',
+        'cheque_due_date',
+        'cheque_beneficiary',
+        'cheque_status',
         'payment_file_path',
         'notes',
         'source',
@@ -32,6 +50,8 @@ class SupplierInvoicePayment extends Model
 
     protected $casts = [
         'payment_date' => 'date',
+        'cheque_date' => 'date',
+        'cheque_due_date' => 'date',
         'amount' => 'decimal:2',
         'allow_overpayment' => 'boolean',
     ];

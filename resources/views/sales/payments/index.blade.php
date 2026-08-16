@@ -75,6 +75,7 @@
                 <label for="payment_status" class="block text-sm font-medium text-gray-700 mb-1">Statut paiement</label>
                 <select name="payment_status" id="payment_status" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
                     <option value="">Tous</option>
+                    <option value="open" @selected(request('payment_status') === 'open')>Non soldé (impayé + partiel)</option>
                     <option value="unpaid" @selected(request('payment_status') === 'unpaid')>Non payé</option>
                     <option value="partial" @selected(request('payment_status') === 'partial')>Partiellement payé</option>
                     <option value="paid" @selected(request('payment_status') === 'paid')>Payé</option>

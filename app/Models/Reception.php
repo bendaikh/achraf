@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasManagedDocuments;
 use Illuminate\Database\Eloquent\Model;
 
 class Reception extends Model
 {
+    use HasManagedDocuments;
+
     protected $fillable = [
         'reception_number', 'supplier_id', 'converted_supplier_invoice_id', 'converted_at',
         'reference', 'reception_date', 'delivery_date',

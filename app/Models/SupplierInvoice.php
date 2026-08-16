@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasManagedDocuments;
 use Illuminate\Database\Eloquent\Model;
 
 class SupplierInvoice extends Model
 {
+    use HasManagedDocuments;
+
     protected $fillable = [
         'invoice_number', 'supplier_id', 'invoice_date', 'due_date', 'reference_invoice',
         'currency', 'stock_location', 'commercial_contact', 'model', 'matricule', 'remarks', 'conditions',

@@ -9,6 +9,7 @@ use App\Models\PosSale;
 use App\Models\SupplierInvoicePayment;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 
 class FinancialMovementService
 {
@@ -52,8 +53,14 @@ class FinancialMovementService
         ]);
     }
 
-    public function syncFromExpense(Expense $expense): FinancialMovement
+    public function syncFromExpense(Expense $expense): ?FinancialMovement
     {
+        if ($expense->payment_status !== Expense::PAYMENT_PAID) {
+            $this->deleteForSource($expense);
+
+            return null;
+        }
+
         $expense->loadMissing(['supplier', 'client']);
 
         $origin = $this->originFromExpenseCategory($expense);
@@ -61,7 +68,7 @@ class FinancialMovementService
         $kind = $expense->expense_type === 'with_invoice' ? 'Dépense avec facture' : 'Dépense sans facture';
 
         return $this->upsertFromSource($expense, [
-            'movement_date' => $expense->expense_date,
+            'movement_date' => $expense->paid_at?->toDateString() ?? $expense->expense_date,
             'origin' => $origin,
             'type' => FinancialMovement::TYPE_SORTIE,
             'label' => $kind.' — '.($expense->designation ?: ($expense->reference ?: 'Dépense')),
@@ -264,8 +271,8 @@ class FinancialMovementService
     /**
      * Running balances for a filtered set of movements (oldest first).
      *
-     * @param  \Illuminate\Support\Collection<int, FinancialMovement>  $movements
-     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     * @param  Collection<int, FinancialMovement>  $movements
+     * @return Collection<int, array<string, mixed>>
      */
     public function withRunningBalances($movements, float $openingBalance = 0.0)
     {

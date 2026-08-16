@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasManagedDocuments;
 use Illuminate\Database\Eloquent\Model;
 
 class DeliveryNote extends Model
 {
+    use HasManagedDocuments;
+
     protected $fillable = [
         'delivery_number', 'client_id', 'delivery_date', 'shipping_date',
         'reference', 'currency', 'status', 'stock_location', 'model', 'matricule',

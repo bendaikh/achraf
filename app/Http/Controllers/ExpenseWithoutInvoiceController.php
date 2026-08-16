@@ -3,14 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\HandlesExpenseRecurrence;
 use App\Http\Controllers\Concerns\LoadsExpenseFormOptions;
 use App\Models\Expense;
+use App\Services\RecurringExpenseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class ExpenseWithoutInvoiceController extends Controller
 {
-    use FiltersIndexTables, LoadsExpenseFormOptions;
+    use FiltersIndexTables, HandlesExpenseRecurrence, LoadsExpenseFormOptions;
 
     public function index(Request $request)
     {
@@ -18,6 +20,7 @@ class ExpenseWithoutInvoiceController extends Controller
 
         $this->applyTableSearch($query, $request, ['designation', 'reference', 'client.name']);
         $this->applyTableDateRange($query, $request, 'expense_date');
+        $this->applyRecurringFilter($query, $request);
         $this->applyTableSort($query, $request, [
             'expense_date' => 'expense_date',
         ], 'expense_date', 'desc');
@@ -34,7 +37,7 @@ class ExpenseWithoutInvoiceController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $validated = $request->validate(array_merge([
             'designation' => 'required|string',
             'expense_category' => 'nullable|string',
             'expense_date' => 'required|date',
@@ -45,9 +48,10 @@ class ExpenseWithoutInvoiceController extends Controller
             'payment_method' => 'nullable|string',
             'account' => 'nullable|string',
             'tax_type' => 'required|string',
-        ]);
+        ], $this->recurrenceRules()));
 
         $validated['expense_type'] = 'without_invoice';
+        $validated = $this->prepareRecurrence($request, $validated);
 
         Expense::create($validated);
 
@@ -56,7 +60,8 @@ class ExpenseWithoutInvoiceController extends Controller
 
     public function show(Expense $expenseWithoutInvoice)
     {
-        $expenseWithoutInvoice->load('client');
+        $this->ensureExpenseType($expenseWithoutInvoice, 'without_invoice');
+        $expenseWithoutInvoice->load(['client', 'recurrenceParent']);
 
         return view('purchases.expenses-without-invoice.show', [
             'expense' => $expenseWithoutInvoice,
@@ -65,6 +70,7 @@ class ExpenseWithoutInvoiceController extends Controller
 
     public function edit(Expense $expenseWithoutInvoice)
     {
+        $this->ensureExpenseType($expenseWithoutInvoice, 'without_invoice');
         $expenseWithoutInvoice->load('client');
 
         return view('purchases.expenses-without-invoice.edit', array_merge(
@@ -73,9 +79,14 @@ class ExpenseWithoutInvoiceController extends Controller
         ));
     }
 
-    public function update(Request $request, Expense $expenseWithoutInvoice)
-    {
-        $validated = $request->validate([
+    public function update(
+        Request $request,
+        Expense $expenseWithoutInvoice,
+        RecurringExpenseService $recurringExpenses
+    ) {
+        $this->ensureExpenseType($expenseWithoutInvoice, 'without_invoice');
+
+        $rules = [
             'designation' => 'required|string',
             'expense_category' => 'nullable|string',
             'expense_date' => 'required|date',
@@ -86,7 +97,36 @@ class ExpenseWithoutInvoiceController extends Controller
             'payment_method' => 'nullable|string',
             'account' => 'nullable|string',
             'tax_type' => 'required|string',
-        ]);
+        ];
+
+        if ($expenseWithoutInvoice->recurrence_parent_id === null) {
+            $rules = array_merge($rules, $this->recurrenceRules());
+        }
+
+        $validated = $request->validate($rules);
+
+        if ($expenseWithoutInvoice->isRecurrenceTemplate()) {
+            if (! $request->boolean('is_recurring')) {
+                $expenseWithoutInvoice->update([
+                    'recurrence_status' => Expense::RECURRENCE_STOPPED,
+                    'next_due_date' => null,
+                ]);
+
+                return redirect()->route('expenses-without-invoice.index')
+                    ->with('success', 'Récurrence arrêtée. L’historique reste inchangé.');
+            }
+
+            $validated['expense_type'] = 'without_invoice';
+            $validated = $this->prepareRecurrence($request, $validated);
+            $this->createFutureRecurrenceVersion($expenseWithoutInvoice, $validated, $recurringExpenses);
+
+            return redirect()->route('expenses-without-invoice.index')
+                ->with('success', 'La modification s’appliquera aux prochaines échéances. L’historique reste inchangé.');
+        }
+
+        if ($expenseWithoutInvoice->recurrence_parent_id === null) {
+            $validated = $this->prepareRecurrence($request, $validated);
+        }
 
         $expenseWithoutInvoice->update($validated);
 
@@ -95,6 +135,8 @@ class ExpenseWithoutInvoiceController extends Controller
 
     public function destroy(Expense $expenseWithoutInvoice)
     {
+        $this->ensureExpenseType($expenseWithoutInvoice, 'without_invoice');
+
         if ($expenseWithoutInvoice->invoice_file_path) {
             Storage::disk('public')->delete($expenseWithoutInvoice->invoice_file_path);
         }

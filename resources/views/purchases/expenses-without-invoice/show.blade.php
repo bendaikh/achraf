@@ -76,6 +76,8 @@
                     </div>
                 </div>
 
+                @include('purchases.partials.expense-recurrence-details', ['expense' => $expense])
+
                 <div class="mt-6 pt-6 border-t border-gray-200">
                     <div class="flex justify-between items-center">
                         <div class="text-sm text-gray-500">

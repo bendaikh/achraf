@@ -79,6 +79,41 @@ class FinancialMovementServiceTest extends TestCase
         $this->assertEquals(FinancialMovement::ACCOUNT_CAISSE, $movement->account);
     }
 
+    public function test_pending_expense_only_impacts_treasury_after_payment(): void
+    {
+        $expense = Expense::create([
+            'designation' => 'Loyer à venir',
+            'expense_type' => 'with_invoice',
+            'expense_date' => '2026-09-01',
+            'amount' => 3500,
+            'currency' => 'dh - MAD',
+            'payment_status' => Expense::PAYMENT_PENDING,
+        ]);
+
+        $this->assertDatabaseMissing('financial_movements', [
+            'source_type' => Expense::class,
+            'source_id' => $expense->id,
+        ]);
+
+        $expense->update([
+            'payment_status' => Expense::PAYMENT_PAID,
+            'paid_at' => '2026-09-03 10:00:00',
+        ]);
+
+        $movement = FinancialMovement::query()
+            ->where('source_type', Expense::class)
+            ->where('source_id', $expense->id)
+            ->first();
+
+        $this->assertNotNull($movement);
+        $this->assertSame('2026-09-03', $movement->movement_date->format('Y-m-d'));
+        $this->assertEquals(3500, (float) $movement->amount_out);
+        $this->assertDatabaseHas('financial_movements', [
+            'source_type' => Expense::class,
+            'source_id' => $expense->id,
+        ]);
+    }
+
     public function test_pos_with_invoice_payments_is_not_duplicated(): void
     {
         $client = Client::create(['name' => 'POS Client']);

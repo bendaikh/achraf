@@ -261,6 +261,8 @@ class PurchasePaymentController extends Controller
             'partial' => $query->whereRaw("{$paidSubquery} > 0")
                 ->whereRaw("{$paidSubquery} < {$invoicesTable}.total"),
             'unpaid' => $query->whereRaw("{$paidSubquery} = 0"),
+            // « open » = non soldées : impayées + partiellement payées.
+            'open' => $query->whereRaw("{$paidSubquery} < {$invoicesTable}.total"),
             default => null,
         };
     }

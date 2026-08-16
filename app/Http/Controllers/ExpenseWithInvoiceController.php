@@ -3,14 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\HandlesExpenseRecurrence;
 use App\Http\Controllers\Concerns\LoadsExpenseFormOptions;
 use App\Models\Expense;
+use App\Services\RecurringExpenseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class ExpenseWithInvoiceController extends Controller
 {
-    use FiltersIndexTables, LoadsExpenseFormOptions;
+    use FiltersIndexTables, HandlesExpenseRecurrence, LoadsExpenseFormOptions;
 
     public function index(Request $request)
     {
@@ -18,8 +20,10 @@ class ExpenseWithInvoiceController extends Controller
 
         $this->applyTableSearch($query, $request, ['designation', 'reference', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'expense_date');
+        $this->applyRecurringFilter($query, $request);
         $this->applyTableSort($query, $request, [
             'expense_date' => 'expense_date',
+            'reference' => 'reference',
         ], 'expense_date', 'desc');
 
         $expenses = $this->paginateTable($query, $request);
@@ -34,7 +38,7 @@ class ExpenseWithInvoiceController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $validated = $request->validate(array_merge([
             'designation' => 'required|string',
             'expense_category' => 'nullable|string',
             'expense_date' => 'required|date',
@@ -46,9 +50,10 @@ class ExpenseWithInvoiceController extends Controller
             'account' => 'nullable|string',
             'tax_type' => 'required|string',
             'invoice_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
-        ]);
+        ], $this->recurrenceRules()));
 
         $validated['expense_type'] = 'with_invoice';
+        $validated = $this->prepareRecurrence($request, $validated);
 
         if ($request->hasFile('invoice_file')) {
             $validated['invoice_file_path'] = $request->file('invoice_file')->store('expenses/invoices', 'public');
@@ -61,7 +66,8 @@ class ExpenseWithInvoiceController extends Controller
 
     public function show(Expense $expenseWithInvoice)
     {
-        $expenseWithInvoice->load('supplier');
+        $this->ensureExpenseType($expenseWithInvoice, 'with_invoice');
+        $expenseWithInvoice->load(['supplier', 'recurrenceParent']);
 
         return view('purchases.expenses-with-invoice.show', [
             'expense' => $expenseWithInvoice,
@@ -70,15 +76,22 @@ class ExpenseWithInvoiceController extends Controller
 
     public function edit(Expense $expenseWithInvoice)
     {
+        $this->ensureExpenseType($expenseWithInvoice, 'with_invoice');
+
         return view('purchases.expenses-with-invoice.edit', array_merge(
             ['expense' => $expenseWithInvoice],
             $this->expenseFormOptions()
         ));
     }
 
-    public function update(Request $request, Expense $expenseWithInvoice)
-    {
-        $validated = $request->validate([
+    public function update(
+        Request $request,
+        Expense $expenseWithInvoice,
+        RecurringExpenseService $recurringExpenses
+    ) {
+        $this->ensureExpenseType($expenseWithInvoice, 'with_invoice');
+
+        $rules = [
             'designation' => 'required|string',
             'expense_category' => 'nullable|string',
             'expense_date' => 'required|date',
@@ -90,13 +103,42 @@ class ExpenseWithInvoiceController extends Controller
             'account' => 'nullable|string',
             'tax_type' => 'required|string',
             'invoice_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
-        ]);
+        ];
 
-        if ($request->hasFile('invoice_file')) {
-            if ($expenseWithInvoice->invoice_file_path) {
+        if ($expenseWithInvoice->recurrence_parent_id === null) {
+            $rules = array_merge($rules, $this->recurrenceRules());
+        }
+
+        $validated = $request->validate($rules);
+
+        if ($request->hasFile('invoice_file') && ! ($expenseWithInvoice->isRecurrenceTemplate() && ! $request->boolean('is_recurring'))) {
+            if (! $expenseWithInvoice->isRecurrenceTemplate() && $expenseWithInvoice->invoice_file_path) {
                 Storage::disk('public')->delete($expenseWithInvoice->invoice_file_path);
             }
             $validated['invoice_file_path'] = $request->file('invoice_file')->store('expenses/invoices', 'public');
+        }
+
+        if ($expenseWithInvoice->isRecurrenceTemplate()) {
+            if (! $request->boolean('is_recurring')) {
+                $expenseWithInvoice->update([
+                    'recurrence_status' => Expense::RECURRENCE_STOPPED,
+                    'next_due_date' => null,
+                ]);
+
+                return redirect()->route('expenses-with-invoice.index')
+                    ->with('success', 'Récurrence arrêtée. L’historique reste inchangé.');
+            }
+
+            $validated['expense_type'] = 'with_invoice';
+            $validated = $this->prepareRecurrence($request, $validated);
+            $this->createFutureRecurrenceVersion($expenseWithInvoice, $validated, $recurringExpenses);
+
+            return redirect()->route('expenses-with-invoice.index')
+                ->with('success', 'La modification s’appliquera aux prochaines échéances. L’historique reste inchangé.');
+        }
+
+        if ($expenseWithInvoice->recurrence_parent_id === null) {
+            $validated = $this->prepareRecurrence($request, $validated);
         }
 
         $expenseWithInvoice->update($validated);
@@ -106,6 +148,8 @@ class ExpenseWithInvoiceController extends Controller
 
     public function destroy(Expense $expenseWithInvoice)
     {
+        $this->ensureExpenseType($expenseWithInvoice, 'with_invoice');
+
         if ($expenseWithInvoice->invoice_file_path) {
             Storage::disk('public')->delete($expenseWithInvoice->invoice_file_path);
         }

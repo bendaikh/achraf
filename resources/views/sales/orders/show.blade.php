@@ -26,6 +26,10 @@
                         </svg>
                         Jumia
                     </span>
+                    @elseif($order->source === 'libromart')
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        Libromart
+                    </span>
                     @else
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                         <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -37,6 +41,14 @@
                 </div>
             </div>
             <div class="flex gap-2">
+                @if($order->source === 'libromart' && !$order->shopify_order_id)
+                <form method="POST" action="{{ route('orders.sync-shopify', $order) }}">
+                    @csrf
+                    <button type="submit" class="px-4 py-2 bg-green-600 rounded-lg text-sm font-medium text-white hover:bg-green-700">
+                        {{ $order->sync_status === 'error' ? 'Relancer Shopify' : 'Synchroniser Shopify' }}
+                    </button>
+                </form>
+                @endif
                 <button type="button" onclick="window.print()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Imprimer
                 </button>
@@ -48,6 +60,12 @@
     </header>
 
     <div class="p-4 sm:p-6 lg:px-8 max-w-4xl mx-auto">
+        @if(session('success'))
+            <div class="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{{ session('error') }}</div>
+        @endif
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <!-- Order Header -->
             <div class="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-6 text-white">
@@ -71,10 +89,39 @@
                         @endif
                     </div>
                 </div>
+
             </div>
 
             <!-- Order Details -->
             <div class="px-6 py-6 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                        <h3 class="text-sm font-semibold text-blue-950">Attribution et traçabilité</h3>
+                        <dl class="mt-3 space-y-2 text-sm">
+                            <div class="flex justify-between gap-4"><dt class="text-blue-700">Créé par</dt><dd class="font-medium text-blue-950">{{ $order->creator?->name ?? 'Import externe' }} @if($order->created_by_user_id) (#{{ $order->created_by_user_id }}) @endif</dd></div>
+                            <div class="flex justify-between gap-4"><dt class="text-blue-700">Commercial attribué</dt><dd class="font-medium text-blue-950">{{ $order->assignedUser?->name ?? $order->user?->name ?? 'Non attribué' }} @if($order->assigned_user_id) (#{{ $order->assigned_user_id }}) @endif</dd></div>
+                        </dl>
+                    </div>
+                    <div class="rounded-lg border p-4 {{ $order->sync_status === 'error' ? 'border-red-200 bg-red-50' : ($order->sync_status === 'synced' ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50') }}">
+                        <h3 class="text-sm font-semibold text-gray-900">Synchronisation Shopify</h3>
+                        @php($syncLabels = ['not_synced' => 'Non synchronisée', 'in_progress' => 'En cours', 'synced' => 'Synchronisée', 'error' => 'Erreur'])
+                        <p class="mt-2 text-sm font-medium">{{ $syncLabels[$order->sync_status] ?? ucfirst($order->sync_status ?? 'Non synchronisée') }}</p>
+                        @if($order->shopify_order_number)<p class="mt-1 text-xs">Commande Shopify : {{ $order->shopify_order_number }}</p>@endif
+                        @if($order->shopify_order_id)<p class="mt-1 text-xs font-mono">ID : {{ $order->shopify_order_id }}</p>@endif
+                        @if($order->shopify_synced_at)<p class="mt-1 text-xs">Synchronisée le {{ $order->shopify_synced_at->format('d/m/Y H:i') }}</p>@endif
+                        @if($order->sync_error)<p class="mt-2 text-xs text-red-700">{{ $order->sync_error }}</p>@endif
+                    </div>
+                </div>
+
+                @if($order->shipping_address || $order->shipping_city || $order->delivery_note)
+                <div class="rounded-lg border border-gray-200 p-4">
+                    <h3 class="text-sm font-semibold text-gray-900">Livraison</h3>
+                    <p class="mt-2 text-sm text-gray-700">{{ collect([$order->shipping_address, $order->shipping_city, $order->shipping_postal_code, $order->shipping_country])->filter()->join(', ') }}</p>
+                    @if($order->shipping_method)<p class="mt-1 text-sm text-gray-600">Mode : {{ $order->shipping_method }}</p>@endif
+                    @if($order->delivery_note)<p class="mt-2 rounded bg-gray-50 p-2 text-sm text-gray-600">{{ $order->delivery_note }}</p>@endif
+                </div>
+                @endif
+
                 <!-- Customer & Payment Info -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
@@ -238,6 +285,9 @@
                                 <tr>
                                     <td class="px-4 py-3">
                                         <div class="text-sm font-medium text-gray-900">{{ $item->designation }}</div>
+                                        @if($item->variant_title)
+                                        <div class="text-xs text-gray-600">{{ $item->variant_title }}</div>
+                                        @endif
                                         @if($item->ref)
                                         <div class="text-xs text-gray-500 font-mono">Réf: {{ $item->ref }}</div>
                                         @endif
@@ -275,6 +325,12 @@
                             <span class="font-mono">− {{ number_format($order->discount, 2) }} DH</span>
                         </div>
                         @endif
+                        @if($order->shipping_amount > 0)
+                        <div class="flex justify-between text-gray-700">
+                            <span>Livraison:</span>
+                            <span class="font-mono">{{ number_format($order->shipping_amount, 2) }} DH</span>
+                        </div>
+                        @endif
                         <div class="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t border-gray-200">
                             <span>Total TTC:</span>
                             <span class="font-mono text-blue-600">{{ number_format($order->total, 2) }} {{ $order->currency ?? 'DH' }}</span>
@@ -287,6 +343,38 @@
                 <div class="border-t border-gray-200 pt-4">
                     <h3 class="text-sm font-semibold text-gray-900 mb-2">Notes</h3>
                     <p class="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{{ $order->notes }}</p>
+                </div>
+                @endif
+
+                @if($order->internal_note)
+                <div class="border-t border-gray-200 pt-4">
+                    <h3 class="text-sm font-semibold text-gray-900 mb-2">Note interne</h3>
+                    <p class="text-sm text-gray-600 bg-amber-50 rounded-lg p-3">{{ $order->internal_note }}</p>
+                </div>
+                @endif
+
+                @if($order->tags)
+                <div class="flex flex-wrap gap-2">
+                    @foreach($order->tags as $tag)
+                        <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800">{{ $tag }}</span>
+                    @endforeach
+                </div>
+                @endif
+
+                @if($order->activities->isNotEmpty())
+                <div class="border-t border-gray-200 pt-4">
+                    <h3 class="text-sm font-semibold text-gray-900 mb-3">Historique de la commande</h3>
+                    <ol class="space-y-3">
+                        @foreach($order->activities as $activity)
+                            <li class="flex gap-3 text-sm">
+                                <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500"></span>
+                                <div>
+                                    <p class="text-gray-900">{{ $activity->description }}</p>
+                                    <p class="text-xs text-gray-500">{{ $activity->occurred_at->format('d/m/Y H:i') }}@if($activity->actor) · {{ $activity->actor->name }}@endif</p>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ol>
                 </div>
                 @endif
             </div>

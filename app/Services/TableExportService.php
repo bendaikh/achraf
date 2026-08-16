@@ -104,6 +104,7 @@ class TableExportService
                 'query' => fn (Builder $q) => $q->with('supplier')->where('expense_type', 'with_invoice'),
                 'columns' => [
                     'designation' => 'Désignation',
+                    'reference' => 'N° facture',
                     'expense_category' => 'Catégorie',
                     'expense_date' => 'Date',
                     'amount' => 'Montant',

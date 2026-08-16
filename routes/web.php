@@ -6,9 +6,12 @@ use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\CrmImportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryNoteController;
+use App\Http\Controllers\DocumentArchiveExportController;
 use App\Http\Controllers\DocumentFileController;
 use App\Http\Controllers\DocumentImportController;
+use App\Http\Controllers\ManagedDocumentController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpenseRecurrenceController;
 use App\Http\Controllers\ExpenseWithInvoiceController;
 use App\Http\Controllers\ExpenseWithoutInvoiceController;
 use App\Http\Controllers\FinancialManagementController;
@@ -103,6 +106,12 @@ Route::middleware('auth')->group(function () {
     Route::delete('/financial/mouvements/{mouvement}', [FinancialMovementController::class, 'destroy'])->name('financial.mouvements.destroy');
     Route::post('/financial/mouvements/{mouvement}/point', [FinancialMovementController::class, 'point'])->name('financial.mouvements.point');
     Route::post('/document-files/{type}/{id}', [DocumentFileController::class, 'store'])->name('document-files.store');
+    Route::post('/managed-documents/{managedDocument}/replace', [ManagedDocumentController::class, 'replace'])->name('managed-documents.replace');
+    Route::get('/managed-documents/{managedDocument}', [ManagedDocumentController::class, 'show'])->name('managed-documents.show');
+    Route::get('/managed-documents/{managedDocument}/download', [ManagedDocumentController::class, 'download'])->name('managed-documents.download');
+    Route::get('/managed-documents/{managedDocument}/history', [ManagedDocumentController::class, 'history'])->name('managed-documents.history');
+    Route::get('/documents/archive', [DocumentArchiveExportController::class, 'index'])->name('documents.archive.index');
+    Route::post('/documents/archive/export', [DocumentArchiveExportController::class, 'export'])->name('documents.archive.export');
 
     Route::resource('products', ProductController::class);
     Route::get('/products-categories', [ProductController::class, 'categories'])->name('products.categories');
@@ -157,6 +166,10 @@ Route::middleware('auth')->group(function () {
 
     Route::prefix('sales')->group(function () {
         Route::get('orders', [OrderController::class, 'index'])->name('orders.index');
+        Route::get('orders/create', [OrderController::class, 'create'])->name('orders.create');
+        Route::get('orders-products/search', [OrderController::class, 'searchProducts'])->name('orders.products.search');
+        Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
+        Route::post('orders/{order}/sync-shopify', [OrderController::class, 'sync'])->name('orders.sync-shopify');
         Route::get('orders/{order}', [OrderController::class, 'show'])->name('orders.show');
         Route::post('orders/bulk-convert', [OrderController::class, 'bulkConvert'])->name('orders.bulk-convert');
         Route::get('invoices/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'invoices')->name('invoices.import.template');
@@ -201,6 +214,10 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::prefix('purchases')->group(function () {
+        Route::post('expense-occurrences/{expense}/mark-paid', [ExpenseRecurrenceController::class, 'markPaid'])->name('expenses.mark-paid');
+        Route::post('expense-recurrences/{expense}/suspend', [ExpenseRecurrenceController::class, 'suspend'])->name('expenses.recurrence.suspend');
+        Route::post('expense-recurrences/{expense}/resume', [ExpenseRecurrenceController::class, 'resume'])->name('expenses.recurrence.resume');
+        Route::post('expense-recurrences/{expense}/stop', [ExpenseRecurrenceController::class, 'stop'])->name('expenses.recurrence.stop');
         Route::get('payments', [PurchasePaymentController::class, 'index'])->name('purchases.payments.index');
         Route::post('payments/manual', [PurchasePaymentController::class, 'storeManual'])->name('purchases.payments.manual');
         Route::get('payments/bulk', [PurchasePaymentController::class, 'bulkForm'])->name('purchases.payments.bulk');

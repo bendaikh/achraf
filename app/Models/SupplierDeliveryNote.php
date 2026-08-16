@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasManagedDocuments;
 use Illuminate\Database\Eloquent\Model;
 
 class SupplierDeliveryNote extends Model
 {
+    use HasManagedDocuments;
+
     protected $fillable = [
         'delivery_number', 'supplier_id', 'converted_supplier_invoice_id', 'converted_at',
         'delivery_date', 'expected_reception_date',

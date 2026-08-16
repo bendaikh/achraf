@@ -103,7 +103,7 @@
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($supplierInvoice->total, 2) }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <x-document-import-status :imported="(bool) $supplierInvoice->invoice_file_path" />
+                                        <x-managed-document-actions type="supplier-invoices" :id="$supplierInvoice->id" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div class="flex items-center space-x-2">
@@ -123,7 +123,6 @@
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                                 </svg>
                                             </a>
-                                            <x-document-import-action type="supplier-invoices" :id="$supplierInvoice->id" />
                                             <a href="{{ route('supplier-invoices.payments.index', $supplierInvoice) }}" class="text-indigo-600 hover:text-indigo-900" title="Règlement de paiement">
                                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>

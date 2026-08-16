@@ -41,6 +41,35 @@ class ShopifyApiClient
         return $response['order'] ?? null;
     }
 
+    public function createOrder(array $order): array
+    {
+        $response = $this->makeRequest('POST', 'orders.json', ['order' => $order]);
+
+        if (! isset($response['order']) || ! is_array($response['order'])) {
+            throw new \RuntimeException('Shopify did not return the created order.');
+        }
+
+        return $response['order'];
+    }
+
+    public function findOrderByNoteAttribute(string $attribute, string $value): ?array
+    {
+        $createdAtMin = now()->subDays(30)->toIso8601String();
+
+        foreach ($this->getAllOrders(['created_at_min' => $createdAtMin, 'status' => 'any']) as $orders) {
+            foreach ($orders as $order) {
+                foreach ($order['note_attributes'] ?? [] as $noteAttribute) {
+                    if (($noteAttribute['name'] ?? null) === $attribute
+                        && (string) ($noteAttribute['value'] ?? '') === $value) {
+                        return $order;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
     public function getOrdersSince(string $sinceId, int $limit = 250): array
     {
         return $this->getOrders([

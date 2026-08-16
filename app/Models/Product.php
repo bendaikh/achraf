@@ -6,6 +6,7 @@ use App\Support\StockSettings;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class Product extends Model
 {
@@ -295,7 +296,10 @@ class Product extends Model
      */
     public static function availableStockSql(): string
     {
-        return 'GREATEST(0, COALESCE(stock_quantity, 0) - COALESCE(stock_reserved, 0))';
+        // SQLite has no GREATEST(); its variadic MAX() is the portable equivalent.
+        $greatest = DB::connection()->getDriverName() === 'sqlite' ? 'MAX' : 'GREATEST';
+
+        return $greatest.'(0, COALESCE(stock_quantity, 0) - COALESCE(stock_reserved, 0))';
     }
 
     /**

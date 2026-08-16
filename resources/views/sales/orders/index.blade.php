@@ -13,6 +13,9 @@
                 <p class="text-sm text-gray-600 mt-0.5">Commandes POS, Shopify et Jumia — synchronisation automatique</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ route('orders.create') }}" class="inline-flex items-center px-4 py-2 rounded-lg bg-[#fdb819] text-white font-semibold hover:bg-[#e5a617] shadow-sm transition">
+                    <span class="text-lg leading-none mr-2">+</span> Créer une commande
+                </a>
                 @if($shopifyIntegration?->enabled && ($shopifyIntegration->oauth_access_token || $shopifyIntegration->api_access_token))
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         Shopify
@@ -51,7 +54,7 @@
 
     <div class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         <!-- Stats Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4 mb-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4 mb-6">
             <div class="bg-white rounded-lg border border-gray-200 p-4 min-w-0">
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0 flex-1">
@@ -92,6 +95,17 @@
                         @endif
                     </div>
                     <div class="h-11 w-11 shrink-0 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600 font-bold text-lg">J</div>
+                </div>
+            </a>
+
+            <a href="{{ route('orders.index', ['source' => 'libromart']) }}"
+                class="bg-white rounded-lg border border-gray-200 p-4 block min-w-0 hover:border-blue-300 hover:shadow-sm transition {{ request('source') === 'libromart' ? 'ring-2 ring-blue-400' : '' }}">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm text-gray-600">Libromart</p>
+                        <p class="text-xl sm:text-2xl font-bold text-blue-600 mt-1 tabular-nums">{{ number_format($totalLibromartOrders) }}</p>
+                    </div>
+                    <div class="h-11 w-11 shrink-0 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700 font-bold">L</div>
                 </div>
             </a>
 
@@ -196,6 +210,7 @@
                         <option value="">Toutes</option>
                         <option value="shopify" {{ request('source') === 'shopify' ? 'selected' : '' }}>Shopify</option>
                         <option value="jumia" {{ request('source') === 'jumia' ? 'selected' : '' }}>Jumia</option>
+                        <option value="libromart" {{ request('source') === 'libromart' ? 'selected' : '' }}>Libromart</option>
                         <option value="pos" {{ request('source') === 'pos' ? 'selected' : '' }}>Point de Vente</option>
                     </select>
                 </div>
@@ -355,6 +370,10 @@
                                     </svg>
                                     Jumia
                                 </span>
+                                @elseif($order->source === 'libromart')
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    Libromart
+                                </span>
                                 @else
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                                     <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -380,7 +399,7 @@
                                 <div class="text-sm font-medium text-gray-900">{{ number_format($order->total, 2) }} {{ $order->currency ?? 'DH' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap column-paiement">
-                                @if(in_array($order->source, ['shopify', 'jumia']) && $order->payment_status)
+                                @if(in_array($order->source, ['shopify', 'jumia', 'libromart']) && $order->payment_status)
                                     @if($order->payment_status === 'paid')
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                         <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -419,7 +438,7 @@
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap column-livraison">
-                                @if(in_array($order->source, ['shopify', 'jumia']) && $order->fulfillment_status)
+                                @if(in_array($order->source, ['shopify', 'jumia', 'libromart']) && $order->fulfillment_status)
                                     @php
                                         $fulfillmentLabels = [
                                             'fulfilled' => 'Traité',
@@ -466,9 +485,9 @@
                                         </svg>
                                     </a>
                                     
-                                    @if($order->source === 'shopify' && $order->external_id)
+                                    @if($order->shopify_order_id || ($order->source === 'shopify' && $order->external_id))
                                     <!-- Voir sur Shopify -->
-                                    <a href="https://admin.shopify.com/store/bi0iar-p0/orders/{{ $order->external_id }}" 
+                                    <a href="https://{{ $shopifyIntegration?->shop_name }}.myshopify.com/admin/orders/{{ $order->shopify_order_id ?: $order->external_id }}"
                                        target="_blank"
                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-green-600 hover:bg-green-50 transition-colors"
                                        title="Voir sur Shopify">

@@ -43,3 +43,7 @@ Schedule::command('exports:process --max=2')
     ->everyMinute()
     ->withoutOverlapping();
 
+Schedule::command('expenses:generate-recurring')
+    ->dailyAt('00:05')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/recurring-expenses.log'));

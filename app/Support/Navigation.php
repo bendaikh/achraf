@@ -53,7 +53,7 @@ class Navigation
                 'route' => 'expenses-with-invoice.index',
                 'key' => 'purchases',
                 'soft_nav' => true,
-                'active_paths' => ['purchases/*'],
+                'active_paths' => ['purchases/*', 'documents/archive*'],
                 'icon' => ['M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z'],
                 'children' => [
                     ['label' => 'Dépense avec facture', 'route' => 'expenses-with-invoice.index', 'active' => ['expenses-with-invoice.*']],
@@ -64,6 +64,7 @@ class Navigation
                     ['label' => 'Factures fournisseur', 'route' => 'supplier-invoices.index', 'active' => ['supplier-invoices.*']],
                     ['label' => 'Avoirs fournisseur', 'route' => 'supplier-credit-notes.index', 'active' => ['supplier-credit-notes.*']],
                     ['label' => 'Gestion Paiement', 'route' => 'purchases.payments.index', 'active' => ['purchases.payments.*', 'supplier-invoices.payments.*']],
+                    ['label' => 'Export documents comptable', 'route' => 'documents.archive.index', 'active' => ['documents.archive.*']],
                 ],
             ],
             [

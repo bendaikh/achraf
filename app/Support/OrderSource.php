@@ -8,11 +8,14 @@ class OrderSource
 
     public const JUMIA = 'jumia';
 
+    public const LIBROMART = 'libromart';
+
     public static function labels(): array
     {
         return [
             self::SHOPIFY => 'Shopify',
             self::JUMIA => 'Jumia',
+            self::LIBROMART => 'Libromart',
             'pos' => 'Point de Vente',
         ];
     }

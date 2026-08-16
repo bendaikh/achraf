@@ -130,5 +130,6 @@
 </head>
 <body class="bg-gray-50">
     @yield('content')
+    <x-managed-scan-modal />
 </body>
 </html>
