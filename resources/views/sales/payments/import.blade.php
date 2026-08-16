@@ -27,11 +27,14 @@
                 <div class="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-900 mb-6">
                     <p class="font-medium mb-2">Colonnes reconnues (en-têtes flexibles) :</p>
                     <ul class="list-disc pl-5 space-y-1">
-                        <li><strong>tracking</strong> / n° suivi (prioritaire)</li>
+                        <li><strong>Code d'envoi</strong> / tracking / n° suivi (prioritaire)</li>
                         <li><strong>commande</strong> / order (ex. EGRFTC11470 → FTC11470)</li>
-                        <li><strong>montant</strong> / amount</li>
+                        <li><strong>Crbt</strong> (montant client) / montant / amount</li>
+                        <li><strong>Frais</strong> et <strong>Total</strong> (affichés pour contrôle)</li>
+                        <li><strong>Status</strong>, ville, dates de ramassage et de livraison</li>
                         <li>facture, référence (optionnels)</li>
                     </ul>
+                    <p class="mt-3">Les lignes livrées avec un CRBT positif sont proposées à la validation. Les retours, remboursements et montants nuls sont conservés dans le contrôle mais automatiquement exclus.</p>
                     <p class="mt-3">Aucun paiement ni mouvement de trésorerie ne sera créé avant votre validation finale.</p>
                 </div>
                 <button type="submit" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-medium">

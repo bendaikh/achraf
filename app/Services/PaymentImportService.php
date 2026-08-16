@@ -79,6 +79,7 @@ class PaymentImportService
         $expected = round($invoice->remaining_balance, 2);
         $amount = $line->file_amount !== null ? round((float) $line->file_amount, 2) : $expected;
         [$amountStatus, $diff] = $this->compareAmounts($amount, $expected);
+        $exclusionReason = $this->carrierExclusionReason($line->file_raw ?? [], $amount);
 
         $line->update([
             'invoice_id' => $invoice->id,
@@ -90,9 +91,9 @@ class PaymentImportService
             'amount_variance' => $diff,
             'amount_status' => $amountStatus,
             'candidate_matches' => null,
-            'include_in_validation' => true,
-            'exclude' => false,
-            'notes' => 'Rattaché manuellement',
+            'include_in_validation' => $exclusionReason === null,
+            'exclude' => $exclusionReason !== null,
+            'notes' => $exclusionReason ?? 'Rattaché manuellement',
         ]);
 
         $this->refreshCounts($line->import);
@@ -151,6 +152,7 @@ class PaymentImportService
             foreach ($lines as $line) {
                 if ($line->exclude || $line->include_in_validation === false || $line->match_status === PaymentImportLine::MATCH_DUPLICATE) {
                     $skipped++;
+
                     continue;
                 }
 
@@ -163,6 +165,16 @@ class PaymentImportService
                 $amount = $line->file_amount !== null
                     ? round((float) $line->file_amount, 2)
                     : round((float) $line->expected_amount, 2);
+
+                if ($amount <= 0 || $this->carrierExclusionReason($line->file_raw ?? [], $amount) !== null) {
+                    $line->update([
+                        'exclude' => true,
+                        'include_in_validation' => false,
+                    ]);
+                    $skipped++;
+
+                    continue;
+                }
 
                 if ($import->scope === PaymentImport::SCOPE_SALES) {
                     $invoice = $line->invoice;
@@ -186,6 +198,7 @@ class PaymentImportService
                     if ($dedupeKey && InvoicePayment::query()->where('dedupe_key', $dedupeKey)->exists()) {
                         $line->update(['match_status' => PaymentImportLine::MATCH_DUPLICATE, 'exclude' => true]);
                         $skipped++;
+
                         continue;
                     }
 
@@ -225,6 +238,7 @@ class PaymentImportService
                     if ($dedupeKey && SupplierInvoicePayment::query()->where('dedupe_key', $dedupeKey)->exists()) {
                         $line->update(['match_status' => PaymentImportLine::MATCH_DUPLICATE, 'exclude' => true]);
                         $skipped++;
+
                         continue;
                     }
 
@@ -261,14 +275,20 @@ class PaymentImportService
 
     protected function createMatchedLine(PaymentImport $import, int $lineNumber, array $row, string $scope): PaymentImportLine
     {
-        $tracking = $this->pickField($row, ['tracking', 'tracking_number', 'n_suivi', 'numero_suivi', 'suivi', 'tracking number', 'n° suivi', 'no_suivi']);
+        $tracking = $this->pickField($row, [
+            'code_d_envoi', 'code_envoi', 'code d’envoi', 'code d\'envoi',
+            'tracking', 'tracking_number', 'n_suivi', 'numero_suivi', 'suivi',
+            'tracking number', 'n° suivi', 'no_suivi',
+        ]);
         $orderRef = $this->pickField($row, ['order', 'commande', 'order_number', 'n_commande', 'numero_commande', 'shopify', 'reference_commande']);
         $invoiceRef = $this->pickField($row, ['invoice', 'facture', 'invoice_number', 'n_facture', 'numero_facture']);
         $reference = $this->pickField($row, ['reference', 'ref', 'libelle', 'label', 'description', 'motif'])
             ?? $tracking
             ?? $orderRef
             ?? $invoiceRef;
-        $amount = $this->parseAmount($this->pickField($row, ['amount', 'montant', 'montant_ttc', 'solde', 'paiement', 'encaisse', 'règlement', 'reglement']));
+        // CRBT is the gross customer payment. "Total" is the carrier's net
+        // remittance after fees and must not leave the invoice partially paid.
+        $amount = $this->extractPaymentAmount($row);
 
         $line = PaymentImportLine::create([
             'payment_import_id' => $import->id,
@@ -290,7 +310,51 @@ class PaymentImportService
             $this->matchPurchaseLine($line, $invoiceRef, $reference, $amount, $import);
         }
 
+        if ($reason = $this->carrierExclusionReason($row, $amount)) {
+            $line->update([
+                'exclude' => true,
+                'include_in_validation' => false,
+                'notes' => $reason,
+            ]);
+        }
+
         return $line->fresh();
+    }
+
+    protected function carrierExclusionReason(array $row, ?float $amount): ?string
+    {
+        $status = $this->pickField($row, ['status', 'statut']);
+        if ($status !== null) {
+            $normalizedStatus = Str::of(Str::ascii($status))
+                ->lower()
+                ->replaceMatches('/[^a-z0-9]+/', '_')
+                ->trim('_')
+                ->toString();
+
+            if (in_array($normalizedStatus, ['rembourse', 'reimbursed', 'retourne', 'returned'], true)) {
+                return 'Ligne transporteur remboursée/retournée — aucun paiement client à créer';
+            }
+
+            if (! in_array($normalizedStatus, ['livre', 'delivered'], true)) {
+                return "Statut transporteur « {$status} » non éligible au règlement";
+            }
+        }
+
+        if ($amount !== null && $amount <= 0) {
+            return 'Montant CRBT nul ou négatif — ligne conservée pour contrôle uniquement';
+        }
+
+        return null;
+    }
+
+    protected function extractPaymentAmount(array $row): ?float
+    {
+        $amount = $this->parseAmount($this->pickField($row, ['crbt', 'contre_remboursement']));
+
+        return $amount ?? $this->parseAmount($this->pickField($row, [
+            'amount', 'montant', 'montant_ttc', 'solde', 'paiement',
+            'encaisse', 'règlement', 'reglement', 'total',
+        ]));
     }
 
     protected function matchSalesLine(
@@ -619,14 +683,7 @@ class PaymentImportService
             return [];
         }
 
-        $header = array_map(function ($h) {
-            return Str::of((string) $h)
-                ->lower()
-                ->replace(['é', 'è', 'ê', 'à', 'ô', 'û', 'ç'], ['e', 'e', 'e', 'a', 'o', 'u', 'c'])
-                ->replaceMatches('/[^a-z0-9]+/', '_')
-                ->trim('_')
-                ->toString();
-        }, $rows[0]);
+        $header = array_map(fn ($h) => $this->normalizeHeader((string) $h), $rows[0]);
 
         $out = [];
         for ($i = 1; $i < count($rows); $i++) {
@@ -661,12 +718,7 @@ class PaymentImportService
     protected function pickField(array $row, array $keys): ?string
     {
         foreach ($keys as $key) {
-            $normalized = Str::of($key)
-                ->lower()
-                ->replace(['é', 'è', 'ê', 'à'], ['e', 'e', 'e', 'a'])
-                ->replaceMatches('/[^a-z0-9]+/', '_')
-                ->trim('_')
-                ->toString();
+            $normalized = $this->normalizeHeader((string) $key);
 
             foreach ($row as $rowKey => $value) {
                 if ($rowKey === $normalized || str_contains((string) $rowKey, $normalized)) {
@@ -679,6 +731,17 @@ class PaymentImportService
         }
 
         return null;
+    }
+
+    protected function normalizeHeader(string $header): string
+    {
+        $header = preg_replace('/^\xEF\xBB\xBF/', '', trim($header)) ?? trim($header);
+
+        return Str::of(Str::ascii($header))
+            ->lower()
+            ->replaceMatches('/[^a-z0-9]+/', '_')
+            ->trim('_')
+            ->toString();
     }
 
     protected function parseAmount(mixed $value): ?float

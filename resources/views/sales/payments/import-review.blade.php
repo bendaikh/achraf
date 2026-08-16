@@ -54,6 +54,7 @@
                         <tr>
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tracking / réf. fichier</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transporteur</th>
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commande trouvée</th>
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
                             <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant fichier</th>
@@ -72,6 +73,12 @@
                                     'duplicate' => 'bg-gray-100',
                                     default => 'bg-red-50/60',
                                 };
+                                $carrierStatus = $line->file_raw['status'] ?? $line->file_raw['statut'] ?? null;
+                                $carrierCity = $line->file_raw['ville'] ?? null;
+                                $pickupDate = $line->file_raw['date_de_ramassage'] ?? null;
+                                $deliveryDate = $line->file_raw['date_de_livraison'] ?? null;
+                                $carrierFees = $line->file_raw['frais'] ?? null;
+                                $carrierTotal = $line->file_raw['total'] ?? null;
                             @endphp
                             <tr class="{{ $rowClass }} {{ $line->exclude ? 'opacity-50' : '' }}">
                                 <td class="px-3 py-3">{{ $line->line_number }}</td>
@@ -79,6 +86,17 @@
                                     <div class="font-mono">{{ $line->file_tracking ?? $line->file_reference ?? '—' }}</div>
                                     @if($line->file_order_ref)
                                         <div class="text-xs text-gray-500">{{ $line->file_order_ref }}</div>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-3">
+                                    <div class="font-medium">{{ $carrierStatus ?? '—' }}</div>
+                                    @if($carrierCity)
+                                        <div class="text-xs text-gray-500">{{ $carrierCity }}</div>
+                                    @endif
+                                    @if($pickupDate || $deliveryDate)
+                                        <div class="text-xs text-gray-500">
+                                            {{ $pickupDate ?: '—' }} → {{ $deliveryDate ?: '—' }}
+                                        </div>
                                     @endif
                                 </td>
                                 <td class="px-3 py-3">
@@ -90,7 +108,15 @@
                                     @endif
                                 </td>
                                 <td class="px-3 py-3">{{ $line->invoice?->client?->name ?? '—' }}</td>
-                                <td class="px-3 py-3 font-medium">{{ $line->file_amount !== null ? number_format($line->file_amount, 2) : '—' }}</td>
+                                <td class="px-3 py-3">
+                                    <div class="font-medium">{{ $line->file_amount !== null ? number_format($line->file_amount, 2) : '—' }}</div>
+                                    @if($carrierFees !== null || $carrierTotal !== null)
+                                        <div class="text-xs text-gray-500">
+                                            Frais: {{ $carrierFees !== null ? number_format((float) $carrierFees, 2) : '—' }}
+                                            · Net: {{ $carrierTotal !== null ? number_format((float) $carrierTotal, 2) : '—' }}
+                                        </div>
+                                    @endif
+                                </td>
                                 <td class="px-3 py-3">{{ $line->expected_amount !== null ? number_format($line->expected_amount, 2) : '—' }}</td>
                                 <td class="px-3 py-3">
                                     @if($line->amount_status === 'ok')
@@ -113,6 +139,9 @@
                                     @endif
                                     @if($line->amount_status === 'overpayment')
                                         <div class="text-xs text-amber-700 mt-1">Trop-perçu</div>
+                                    @endif
+                                    @if($line->match_notes)
+                                        <div class="text-xs text-gray-600 mt-1">{{ $line->match_notes }}</div>
                                     @endif
                                 </td>
                                 <td class="px-3 py-3 min-w-[220px]">
