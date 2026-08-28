@@ -22,11 +22,12 @@ class SoftNavigationSectionsTest extends TestCase
             'suppliers.index',
             'products.index',
             'stock.enligne.index',
-            'stock.magasin.index',
             'orders.index',
             'quotes.index',
             'invoices.index',
             'settings.entreprise',
+            'hr.dashboard',
+            'hr.employees.index',
             'expenses-with-invoice.index',
             'pos.sales.index',
         ];

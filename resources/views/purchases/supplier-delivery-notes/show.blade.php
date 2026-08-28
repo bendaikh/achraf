@@ -11,6 +11,10 @@
                 <p class="text-sm text-gray-600 mt-1">Détails du bon de livraison fournisseur</p>
             </div>
             <div class="flex gap-2">
+                <x-libromart-pdf-actions
+                    :print-route="route('supplier-delivery-notes.print', $supplierDeliveryNote)"
+                    :pdf-route="route('supplier-delivery-notes.pdf', $supplierDeliveryNote)"
+                />
                 <a href="{{ route('supplier-delivery-notes.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
                     Retour à la liste
                 </a>
@@ -106,6 +110,11 @@
             <p class="text-gray-700 whitespace-pre-wrap">{{ $supplierDeliveryNote->remarks }}</p>
         </div>
         @endif
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">Document importé / pièce jointe</h3>
+            <x-managed-document-actions type="supplier-delivery-notes" :id="$supplierDeliveryNote->id" />
+        </div>
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <x-document-tax-totals :document="$supplierDeliveryNote" :items="$supplierDeliveryNote->items" />

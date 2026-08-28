@@ -92,6 +92,27 @@ class Navigation
                 ],
             ],
             [
+                'label' => 'RH',
+                'route' => 'hr.dashboard',
+                'key' => 'hr',
+                'soft_nav' => true,
+                'active' => ['hr.*'],
+                'icon' => ['M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
+                'children' => [
+                    ['label' => 'Tableau de bord RH', 'route' => 'hr.dashboard', 'active' => ['hr.dashboard']],
+                    ['label' => 'Salariés', 'route' => 'hr.employees.index', 'active' => ['hr.employees.*']],
+                    ['label' => 'Contrats', 'route' => 'hr.contracts.index', 'active' => ['hr.contracts.*']],
+                    ['label' => 'Présences & Pointage', 'route' => 'hr.attendance.index', 'active' => ['hr.attendance.*']],
+                    ['label' => 'Congés & Absences', 'route' => 'hr.leaves.index', 'active' => ['hr.leaves.*']],
+                    ['label' => 'Rémunération / Paie', 'route' => 'hr.payroll.index', 'active' => ['hr.payroll.*'], 'hr_can' => 'view_salaries'],
+                    ['label' => 'Primes & Indemnités', 'route' => 'hr.compensations.index', 'active' => ['hr.compensations.*'], 'hr_can' => 'view_salaries'],
+                    ['label' => 'Documents RH', 'route' => 'hr.documents.index', 'active' => ['hr.documents.*'], 'hr_can' => 'view_hr_documents'],
+                    ['label' => 'Rapports RH', 'route' => 'hr.reports.index', 'active' => ['hr.reports.*']],
+                    ['label' => 'Historique RH', 'route' => 'hr.history.index', 'active' => ['hr.history.*']],
+                    ['label' => 'Paramètres RH', 'route' => 'hr.settings.index', 'active' => ['hr.settings.*'], 'hr_can' => 'manage_hr_settings'],
+                ],
+            ],
+            [
                 'label' => 'Gestion produits',
                 'route' => 'products.index',
                 'key' => 'products',
@@ -105,6 +126,8 @@ class Navigation
                     ['label' => 'Services', 'route' => 'products.index', 'route_params' => ['item_kind' => 'service'], 'active' => ['products.index']],
                     ['label' => 'Catégories', 'route' => 'products.categories', 'active' => ['products.categories']],
                     ['label' => 'Inventaire', 'route' => 'stock.inventory.index', 'active' => ['stock.inventory.*', 'stock.magasin.*', 'stock.enligne.*']],
+                    ['label' => 'Stock par emplacement', 'route' => 'stock.locations.index', 'active' => ['stock.locations.*']],
+                    ['label' => 'À approvisionner', 'route' => 'stock.replenishment.index', 'active' => ['stock.replenishment.*']],
                     ['label' => 'Alertes stock', 'route' => 'stock.alerts.index', 'active' => ['stock.alerts.*']],
                     ['label' => 'Mouvements de stock', 'route' => 'stock.movements.index', 'active' => ['stock.movements.*', 'stock.transfer.*']],
                 ],
@@ -272,6 +295,10 @@ class Navigation
         }
 
         if (isset($item['can']) && ! Gate::forUser($user)->allows($item['can'])) {
+            return false;
+        }
+
+        if (isset($item['hr_can']) && ! \App\Support\HrPermission::allows($user, $item['hr_can'])) {
             return false;
         }
 

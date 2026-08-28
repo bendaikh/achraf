@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('pos_sales', function (Blueprint $table) {
             $table->id();
-            $table->string('ticket_number')->unique();
+            $table->string('ticket_number')->index();
             $table->foreignId('client_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->dateTime('sold_at');

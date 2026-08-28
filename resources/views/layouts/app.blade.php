@@ -12,6 +12,10 @@
                     'sidebar-collapsed',
                     localStorage.getItem('sidebarCollapsed') === 'true'
                 );
+                var ua = navigator.userAgent || '';
+                var mobile = /Android|iPhone|iPad|iPod/i.test(ua)
+                    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                document.documentElement.classList.add(mobile ? 'lm-is-mobile' : 'lm-is-desktop');
             } catch (e) {}
         })();
     </script>
@@ -28,6 +32,9 @@
         [x-cloak] {
             display: none !important;
         }
+        html.lm-is-desktop .lm-scan-mobile-only { display: none !important; }
+        html.lm-is-mobile .lm-scan-desktop-only { display: none !important; }
+        html.lm-is-mobile .lm-scan-mobile-only { display: flex !important; }
         
         /* Select2 custom styling */
         .select2-container--default .select2-selection--single {
@@ -125,6 +132,25 @@
                 url: @json(route('suppliers.search')),
                 noResults: 'Aucun fournisseur trouvé'
             }, options));
+        };
+
+        window.initProductSelect2 = function (selector, options) {
+            options = options || {};
+            var $el = window.initPartySelect2(selector, Object.assign({
+                placeholder: 'Rechercher un produit...',
+                url: @json(route('catalog.products.search')),
+                noResults: 'Aucun produit trouvé',
+                width: options.width || '100%',
+                minimumInputLength: options.minimumInputLength ?? 0
+            }, options));
+
+            if (typeof options.onSelect === 'function') {
+                $el.off('select2:select.lmProduct').on('select2:select.lmProduct', function (event) {
+                    options.onSelect(event.params.data || {});
+                });
+            }
+
+            return $el;
         };
     </script>
 </head>

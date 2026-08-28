@@ -12,6 +12,7 @@ use App\Models\SupplierCreditNote;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierInvoicePayment;
 use App\Support\DocumentTaxBreakdown;
+use App\Support\IntelligentSearch;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -150,7 +151,7 @@ class FinancialManagementService
     public function getVatBreakdown(Carbon $dateFrom, Carbon $dateTo): array
     {
         $invoices = Invoice::query()
-            ->with('items')
+            ->with(['items', 'adjustments'])
             ->whereBetween('invoice_date', [$dateFrom, $dateTo])
             ->get();
 
@@ -176,7 +177,7 @@ class FinancialManagementService
         $collected = $collectedInvoices + $collectedPos - $collectedCreditNotes;
 
         $supplierInvoices = SupplierInvoice::query()
-            ->with('items')
+            ->with(['items', 'adjustments'])
             ->whereBetween('invoice_date', [$dateFrom, $dateTo])
             ->get();
 
@@ -279,8 +280,8 @@ class FinancialManagementService
         $allowedRates = [0.0, 7.0, 10.0, 14.0, 20.0];
 
         $documents = collect()
-            ->concat(Invoice::with('items')->whereBetween('invoice_date', [$dateFrom, $dateTo])->get())
-            ->concat(SupplierInvoice::with('items')->whereBetween('invoice_date', [$dateFrom, $dateTo])->get())
+            ->concat(Invoice::with(['items', 'adjustments'])->whereBetween('invoice_date', [$dateFrom, $dateTo])->get())
+            ->concat(SupplierInvoice::with(['items', 'adjustments'])->whereBetween('invoice_date', [$dateFrom, $dateTo])->get())
             ->concat(CreditNote::with('items')->whereBetween('credit_note_date', [$dateFrom, $dateTo])->get())
             ->concat(SupplierCreditNote::with('items')->whereBetween('credit_note_date', [$dateFrom, $dateTo])->get());
 
@@ -480,8 +481,12 @@ class FinancialManagementService
             ->sum('amount');
 
         $supplierPayments = (float) SupplierInvoicePayment::query()
+            ->where(fn ($q) => $q->where('is_cash_movement', true)->orWhereNull('is_cash_movement'))
             ->whereBetween('payment_date', [$dateFrom, $dateTo])
             ->sum('amount');
+        $supplierPayments += (float) \App\Models\SupplierPayment::query()
+            ->whereBetween('payment_date', [$dateFrom, $dateTo])
+            ->sum('unallocated_amount');
 
         $expenses = (float) Expense::query()
             ->paid()
@@ -560,9 +565,17 @@ class FinancialManagementService
             });
 
         SupplierInvoicePayment::query()
+            ->where(fn ($q) => $q->where('is_cash_movement', true)->orWhereNull('is_cash_movement'))
             ->get(['amount', 'payment_method'])
             ->each(function (SupplierInvoicePayment $payment) use ($add) {
                 $add($this->classifyDocumentPaymentMethod($payment->payment_method), -1 * (float) $payment->amount);
+            });
+
+        \App\Models\SupplierPayment::query()
+            ->where('unallocated_amount', '>', 0)
+            ->get(['unallocated_amount', 'payment_method'])
+            ->each(function ($payment) use ($add) {
+                $add($this->classifyDocumentPaymentMethod($payment->payment_method), -1 * (float) $payment->unallocated_amount);
             });
 
         Expense::query()
@@ -743,6 +756,7 @@ class FinancialManagementService
         if ($includeSupplier || $includeOut) {
             $transactions = $transactions->concat(
                 SupplierInvoicePayment::with('supplierInvoice.supplier')
+                    ->where(fn ($q) => $q->where('is_cash_movement', true)->orWhereNull('is_cash_movement'))
                     ->when($dateFrom && $dateTo, fn ($q) => $q->whereBetween('payment_date', [$dateFrom, $dateTo]))
                     ->latest('payment_date')
                     ->limit($limit * 2)
@@ -838,12 +852,7 @@ class FinancialManagementService
         }
 
         if ($search) {
-            $needle = '%'.trim($search).'%';
-            $query->where(function ($q) use ($needle) {
-                $q->where('reference', 'like', $needle)
-                    ->orWhere('label', 'like', $needle)
-                    ->orWhere('notes', 'like', $needle);
-            });
+            IntelligentSearch::constrain($query, ['reference', 'label', 'notes'], $search);
         }
 
         return $query
@@ -1099,8 +1108,8 @@ class FinancialManagementService
             }
 
             $breakdown = DocumentTaxBreakdown::fromDocument($document, $items);
-            $taxTotal += $breakdown['tax_total'];
-            $subtotalHt += $breakdown['subtotal_ht'];
+            $taxTotal += $breakdown['tax_total'] + ($breakdown['adjustment_tax_total'] ?? 0);
+            $subtotalHt += $breakdown['subtotal_ht'] + ($breakdown['adjustment_ht_total'] ?? 0);
         }
 
         return [
@@ -1126,6 +1135,21 @@ class FinancialManagementService
                 $rate = round((float) ($item->tax_rate ?? 0), 2);
                 if ($rate > 0) {
                     $rates[$rate] = $rate;
+                }
+            }
+
+            if (method_exists($document, 'adjustments')) {
+                $adjustments = $document->relationLoaded('adjustments')
+                    ? $document->adjustments
+                    : $document->adjustments()->get();
+                foreach ($adjustments as $adjustment) {
+                    if (! $adjustment->is_taxable) {
+                        continue;
+                    }
+                    $rate = round((float) $adjustment->tax_rate, 2);
+                    if ($rate > 0) {
+                        $rates[$rate] = $rate;
+                    }
                 }
             }
         }

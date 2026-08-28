@@ -11,6 +11,7 @@
                 <p class="text-sm text-gray-600 mt-1">Facture {{ $supplierInvoice->invoice_number }} - {{ $supplierInvoice->supplier->name }}</p>
             </div>
             <div class="flex gap-2">
+                <a href="{{ route('purchases.payments.settle', ['supplier' => $supplierInvoice->supplier_id, 'invoices' => $supplierInvoice->id]) }}" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg">Payer le compte</a>
                 <a href="{{ route('supplier-invoices.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">Retour à la liste</a>
                 <a href="{{ route('purchases.payments.index') }}" class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition duration-150">Gestion Paiement</a>
             </div>
@@ -24,18 +25,26 @@
             </div>
         @endif
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 class="text-sm font-medium text-gray-500 mb-2">Montant Total</h3>
-                <p class="text-3xl font-bold text-gray-900">{{ number_format($supplierInvoice->total, 2) }} {{ $supplierInvoice->currency }}</p>
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Montant facture</h3>
+                <p class="text-2xl font-bold text-gray-900">{{ number_format($trace['total'], 2) }} DH</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-emerald-200 p-6">
+                <h3 class="text-sm font-medium text-emerald-700 mb-2">Avoirs imputés</h3>
+                <p class="text-2xl font-bold text-emerald-700">- {{ number_format($trace['credits_applied'], 2) }} DH</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-emerald-100 p-6">
+                <h3 class="text-sm font-medium text-emerald-700 mb-2">Avoirs disponibles</h3>
+                <p class="text-2xl font-bold text-emerald-700">- {{ number_format($trace['available_credits'], 2) }} DH</p>
             </div>
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 class="text-sm font-medium text-gray-500 mb-2">Total Payé</h3>
-                <p class="text-3xl font-bold text-green-600">{{ number_format($supplierInvoice->total_paid, 2) }} {{ $supplierInvoice->currency }}</p>
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Déjà payé</h3>
+                <p class="text-2xl font-bold text-green-600">{{ number_format($trace['paid'], 2) }} DH</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 class="text-sm font-medium text-gray-500 mb-2">Solde Restant</h3>
-                <p class="text-3xl font-bold text-red-600">{{ number_format($supplierInvoice->remaining_balance, 2) }} {{ $supplierInvoice->currency }}</p>
+            <div class="bg-[#0a5d8a] rounded-xl p-6 text-white">
+                <h3 class="text-sm font-medium opacity-80 mb-2">NET À PAYER</h3>
+                <p class="text-2xl font-bold">{{ number_format($trace['net_to_pay'], 2) }} DH</p>
             </div>
         </div>
 
@@ -50,7 +59,8 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Montant *</label>
-                        <input type="number" step="0.01" name="amount" value="{{ old('amount') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="0.00">
+                        <input type="number" step="0.01" name="amount" value="{{ old('amount', number_format($trace['net_to_pay'], 2, '.', '')) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="0.00">
+                        <p class="text-xs text-gray-500 mt-1">Un surplus est conservé en avance fournisseur.</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Méthode de paiement *</label>
@@ -113,6 +123,13 @@
                 </div>
 
                 <div class="mt-4">
+                    <label class="inline-flex items-start gap-2 text-sm bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                        <input type="checkbox" name="use_credits" value="1" class="mt-0.5 rounded" @checked(old('use_credits', true))>
+                        <span><strong>Utiliser les avoirs disponibles</strong> ({{ number_format($trace['available_credits'], 2) }} DH)</span>
+                    </label>
+                </div>
+
+                <div class="mt-4">
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150">
                         Ajouter le paiement
                     </button>
@@ -122,7 +139,7 @@
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">Historique des paiements</h3>
+                <h3 class="text-lg font-semibold text-gray-900">Documents liés</h3>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full">
@@ -138,6 +155,19 @@
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
+                        @foreach($trace['credit_allocations'] as $allocation)
+                            <tr class="hover:bg-emerald-50">
+                                <td class="px-6 py-4 text-sm">{{ $allocation->created_at?->format('d/m/Y') }}</td>
+                                <td class="px-6 py-4 text-sm font-semibold text-emerald-700">- {{ number_format($allocation->amount, 2) }} {{ $supplierInvoice->currency }}</td>
+                                <td class="px-6 py-4 text-sm">Avoir</td>
+                                <td class="px-6 py-4 text-sm">
+                                    <a class="text-[#0a5d8a]" href="{{ route('supplier-credit-notes.show', $allocation->supplier_credit_note_id) }}">{{ $allocation->creditNote?->credit_note_number }}</a>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-500">Imputation</td>
+                                <td class="px-6 py-4 text-sm">Avoir affecté à cette facture</td>
+                                <td class="px-6 py-4">—</td>
+                            </tr>
+                        @endforeach
                         @forelse($supplierInvoice->payments as $payment)
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 text-sm">{{ $payment->payment_date->format('d/m/Y') }}</td>

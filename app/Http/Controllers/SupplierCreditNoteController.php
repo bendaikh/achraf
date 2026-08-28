@@ -3,18 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
+use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\SupplierCreditNote;
 use App\Services\StockMovementService;
+use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SupplierCreditNoteController extends Controller
 {
-    use FiltersIndexTables;
+    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function __construct(
         protected StockMovementService $stockMovement
@@ -38,7 +41,7 @@ class SupplierCreditNoteController extends Controller
     public function create()
     {
         $suppliers = Supplier::all();
-        $products = Product::all();
+        $products = collect();
         $creditNoteNumber = 'AVOIR-FOUR N°'.str_pad(SupplierCreditNote::count() + 1, 6, '0', STR_PAD_LEFT);
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
@@ -119,7 +122,7 @@ class SupplierCreditNoteController extends Controller
 
     public function show(SupplierCreditNote $supplierCreditNote)
     {
-        $supplierCreditNote->load(['supplier', 'items']);
+        $supplierCreditNote->load(['supplier', 'items', 'allocations.invoice']);
 
         return view('purchases.supplier-credit-notes.show', compact('supplierCreditNote'));
     }
@@ -129,5 +132,34 @@ class SupplierCreditNoteController extends Controller
         $supplierCreditNote->delete();
 
         return redirect()->route('supplier-credit-notes.index')->with('success', 'Avoir supprimé!');
+    }
+
+    public function print(SupplierCreditNote $supplierCreditNote)
+    {
+        $supplierCreditNote->load('supplier', 'supplierInvoice', 'items');
+        $printData = $this->printViewData($supplierCreditNote, $supplierCreditNote->items);
+
+        return view('purchases.supplier-credit-notes.print', array_merge(
+            CommercialDocumentView::forSupplierCreditNote($supplierCreditNote, $printData['taxes']),
+            $printData,
+            compact('supplierCreditNote'),
+            ['generatedBy' => auth()->user()?->name]
+        ));
+    }
+
+    public function downloadPdf(SupplierCreditNote $supplierCreditNote)
+    {
+        $supplierCreditNote->load('supplier', 'supplierInvoice', 'items');
+        $printData = $this->printViewData($supplierCreditNote, $supplierCreditNote->items);
+
+        return $this->downloadCommercialPdf(
+            array_merge(
+                CommercialDocumentView::forSupplierCreditNote($supplierCreditNote, $printData['taxes']),
+                $printData,
+                ['generatedBy' => auth()->user()?->name]
+            ),
+            'avoir-fournisseur',
+            $supplierCreditNote->credit_note_number
+        );
     }
 }

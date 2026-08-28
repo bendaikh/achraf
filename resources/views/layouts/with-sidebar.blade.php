@@ -153,7 +153,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
                     </svg>
                 </button>
-                <span id="app-page-title" class="font-semibold text-gray-900 truncate">@yield('sidebar_page_title', 'hsabati')</span>
+                <span id="app-page-title" class="font-semibold text-gray-900 truncate min-w-0">@yield('sidebar_page_title', 'hsabati')</span>
+                <div id="app-page-actions" class="ml-auto flex items-center shrink-0"></div>
             </header>
 
             <div id="app-module-tabs" @if ($moduleTabs === []) hidden @endif>

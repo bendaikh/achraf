@@ -3,12 +3,14 @@
 namespace App\Support;
 
 use App\Models\DeliveryNote;
+use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\Reception;
 use App\Models\SupplierCreditNote;
 use App\Models\SupplierDeliveryNote;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierInvoicePayment;
+use App\Models\SupplierPayment;
 use App\Models\SupplierPurchaseOrder;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -33,6 +35,7 @@ class DocumentAttachmentRegistry
                 'folder' => 'managed-documents/expenses-with-invoice',
                 'exportable' => true,
                 'allow_attach' => true,
+                'record_url' => fn (Expense $model) => route('expenses-with-invoice.show', $model),
                 'categories' => ['primary' => 'Facture / justificatif'],
             ],
             'expenses-without-invoice' => [
@@ -45,6 +48,7 @@ class DocumentAttachmentRegistry
                 'folder' => 'managed-documents/expenses-without-invoice',
                 'exportable' => true,
                 'allow_attach' => true,
+                'record_url' => fn (Expense $model) => route('expenses-without-invoice.show', $model),
                 'categories' => ['primary' => 'Justificatif'],
             ],
             'supplier-purchase-orders' => [
@@ -56,6 +60,7 @@ class DocumentAttachmentRegistry
                 'folder' => 'managed-documents/supplier-purchase-orders',
                 'exportable' => true,
                 'allow_attach' => true,
+                'record_url' => fn (SupplierPurchaseOrder $model) => route('supplier-purchase-orders.show', $model),
                 'categories' => ['primary' => 'Bon de commande'],
             ],
             'supplier-delivery-notes' => [
@@ -67,6 +72,7 @@ class DocumentAttachmentRegistry
                 'folder' => 'managed-documents/supplier-delivery-notes',
                 'exportable' => true,
                 'allow_attach' => true,
+                'record_url' => fn (SupplierDeliveryNote $model) => route('supplier-delivery-notes.show', $model),
                 'categories' => ['primary' => 'Bon de livraison'],
             ],
             'receptions' => [
@@ -78,6 +84,7 @@ class DocumentAttachmentRegistry
                 'folder' => 'managed-documents/receptions',
                 'exportable' => true,
                 'allow_attach' => true,
+                'record_url' => fn (Reception $model) => route('receptions.show', $model),
                 'categories' => ['primary' => 'Bon de réception'],
             ],
             'supplier-invoices' => [
@@ -89,6 +96,7 @@ class DocumentAttachmentRegistry
                 'folder' => 'managed-documents/supplier-invoices',
                 'exportable' => true,
                 'allow_attach' => true,
+                'record_url' => fn (SupplierInvoice $model) => route('supplier-invoices.show', $model),
                 'categories' => ['primary' => 'Facture fournisseur'],
             ],
             'supplier-credit-notes' => [
@@ -100,7 +108,24 @@ class DocumentAttachmentRegistry
                 'folder' => 'managed-documents/supplier-credit-notes',
                 'exportable' => true,
                 'allow_attach' => true,
+                'record_url' => fn (SupplierCreditNote $model) => route('supplier-credit-notes.show', $model),
                 'categories' => ['primary' => 'Avoir fournisseur'],
+            ],
+            'supplier-payment-headers' => [
+                'label' => 'Justificatifs de règlement fournisseur',
+                'model' => SupplierPayment::class,
+                'reference' => fn (SupplierPayment $model) => self::fallbackReference($model->payment_number ?: $model->payment_reference, 'REG', $model->id),
+                'document_date' => fn (SupplierPayment $model) => $model->payment_date,
+                'legacy_field' => 'payment_file_path',
+                'folder' => 'managed-documents/supplier-payments',
+                'exportable' => true,
+                'allow_attach' => true,
+                'record_url' => fn (SupplierPayment $model) => route('purchases.payments.show', $model),
+                'categories' => [
+                    'primary' => 'Justificatif de paiement',
+                    'transfer_proof' => 'Justificatif de virement',
+                    'cheque_scan' => 'Scan du chèque',
+                ],
             ],
             'supplier-payments' => [
                 'label' => 'Justificatifs de paiement',
@@ -121,10 +146,48 @@ class DocumentAttachmentRegistry
                 'folder' => 'managed-documents/supplier-payments',
                 'exportable' => true,
                 'allow_attach' => true,
+                'record_url' => function (SupplierInvoicePayment $model) {
+                    if ($model->supplier_payment_id) {
+                        return route('purchases.payments.show', $model->supplier_payment_id);
+                    }
+                    if ($model->supplier_invoice_id) {
+                        return route('supplier-invoices.payments.index', $model->supplier_invoice_id);
+                    }
+
+                    return $model->supplier_id
+                        ? route('purchases.payments.settle', $model->supplier_id)
+                        : route('purchases.payments.index');
+                },
                 'categories' => [
                     'primary' => 'Justificatif de paiement',
                     'transfer_proof' => 'Justificatif de virement',
                     'cheque_scan' => 'Scan du chèque',
+                ],
+            ],
+            'hr-employees' => [
+                'label' => 'Documents RH',
+                'model' => Employee::class,
+                'reference' => fn (Employee $model) => $model->matricule,
+                'document_date' => fn (Employee $model) => $model->hire_date,
+                'legacy_field' => null,
+                'folder' => 'managed-documents/hr-employees',
+                'exportable' => true,
+                'allow_attach' => true,
+                'record_url' => fn (Employee $model) => route('hr.employees.show', [$model, 'tab' => 'documents']),
+                'categories' => [
+                    'contrat' => 'Contrat de travail',
+                    'cin' => 'CIN',
+                    'administratif' => 'Document administratif',
+                    'rib' => 'RIB',
+                    'cnss' => 'Document CNSS',
+                    'certificat_medical' => 'Certificat médical',
+                    'permis' => 'Permis',
+                    'attestation' => 'Attestation',
+                    'absence' => 'Justificatif d\'absence',
+                    'conge' => 'Document de congé',
+                    'paie' => 'Document de paie',
+                    'sortie' => 'Document de sortie',
+                    'autre' => 'Autre document RH',
                 ],
             ],
             'delivery-notes' => [
@@ -136,6 +199,7 @@ class DocumentAttachmentRegistry
                 'folder' => 'managed-documents/delivery-notes-signed',
                 'exportable' => true,
                 'allow_attach' => true,
+                'record_url' => fn (DeliveryNote $model) => route('delivery-notes.show', $model),
                 'categories' => [
                     'signed' => 'BL signé / cacheté',
                     'primary' => 'Pièce jointe BL',
@@ -201,6 +265,22 @@ class DocumentAttachmentRegistry
         $date = ($config['document_date'])($record);
 
         return $date instanceof CarbonInterface ? $date : null;
+    }
+
+    public static function recordUrlFor(string $sectionKey, Model $record): ?string
+    {
+        $config = self::get($sectionKey);
+        $resolver = $config['record_url'] ?? null;
+
+        if (! is_callable($resolver)) {
+            return null;
+        }
+
+        try {
+            return (string) $resolver($record);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public static function typeLabelFor(string $sectionKey, string $category = 'primary'): string

@@ -31,7 +31,7 @@
                     </thead>
                     <tbody class="divide-y">
                         @foreach($invoices as $i => $invoice)
-                            @php $paid=(float)($invoice->payments_sum??0); $total=(float)$invoice->total; $bal=max(0,$total-$paid); @endphp
+                            @php $paid=(float)($invoice->payments_sum??0); $credits=(float)($invoice->credits_sum??0); $total=(float)$invoice->total; $bal=max(0,$total-$paid-$credits); @endphp
                             <tr>
                                 <td class="px-4 py-3">
                                     {{ $invoice->invoice_number }}

@@ -10,17 +10,18 @@ class SupplierDeliveryNote extends Model
     use HasManagedDocuments;
 
     protected $fillable = [
-        'delivery_number', 'supplier_id', 'converted_supplier_invoice_id', 'converted_at',
+        'delivery_number', 'supplier_id', 'supplier_purchase_order_id', 'converted_supplier_invoice_id', 'converted_at',
         'delivery_date', 'expected_reception_date',
-        'reference', 'currency', 'status', 'stock_location', 'model',
+        'reference', 'currency', 'status', 'stock_location', 'warehouse_id', 'model',
         'remarks', 'subtotal', 'discount', 'adjustment', 'total',
-        'document_file_path',
+        'document_file_path', 'stock_applied_at',
     ];
 
     protected $casts = [
         'delivery_date' => 'date',
         'expected_reception_date' => 'date',
         'converted_at' => 'datetime',
+        'stock_applied_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
         'adjustment' => 'decimal:2',
@@ -45,5 +46,20 @@ class SupplierDeliveryNote extends Model
     public function items()
     {
         return $this->morphMany(PurchaseItem::class, 'purchaseable');
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(SupplierPurchaseOrder::class, 'supplier_purchase_order_id');
+    }
+
+    public function stockAllocations()
+    {
+        return $this->morphMany(PurchaseStockAllocation::class, 'allocatable');
     }
 }

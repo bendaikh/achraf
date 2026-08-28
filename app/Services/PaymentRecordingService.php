@@ -12,6 +12,10 @@ use Illuminate\Validation\ValidationException;
 
 class PaymentRecordingService
 {
+    public function __construct(
+        protected SupplierAccountService $supplierAccounts
+    ) {}
+
     /**
      * @param  array{
      *   payment_date: string,
@@ -149,22 +153,10 @@ class PaymentRecordingService
     public function recordSupplierPayment(SupplierInvoice $invoice, array $data): SupplierInvoicePayment
     {
         $amount = round((float) $data['amount'], 2);
-        $allowOverpayment = (bool) ($data['allow_overpayment'] ?? false);
-        $remaining = max(0, round((float) $invoice->total - (float) $invoice->payments()->sum('amount'), 2));
 
         if ($amount <= 0) {
             throw ValidationException::withMessages([
                 'amount' => 'Le montant du paiement doit être supérieur à 0.',
-            ]);
-        }
-
-        if ($amount > $remaining + 0.009 && ! $allowOverpayment) {
-            throw ValidationException::withMessages([
-                'amount' => sprintf(
-                    'Le montant (%.2f) dépasse le solde restant (%.2f). Autorisez le trop-perçu pour continuer.',
-                    $amount,
-                    $remaining
-                ),
             ]);
         }
 
@@ -185,29 +177,19 @@ class PaymentRecordingService
             ]);
         }
 
-        return DB::transaction(function () use ($invoice, $data, $amount, $dedupeKey, $allowOverpayment) {
-            return $invoice->payments()->create([
-                'payment_date' => $data['payment_date'],
-                'amount' => $amount,
-                'payment_method' => $data['payment_method'],
-                'payment_reference' => $data['payment_reference'] ?? null,
-                'cheque_number' => $data['cheque_number'] ?? null,
-                'cheque_bank' => $data['cheque_bank'] ?? null,
-                'cheque_date' => $data['cheque_date'] ?? null,
-                'cheque_due_date' => $data['cheque_due_date'] ?? null,
-                'cheque_beneficiary' => $data['cheque_beneficiary'] ?? null,
-                'cheque_status' => $data['cheque_status'] ?? null,
-                'payment_file_path' => $data['payment_file_path'] ?? null,
-                'notes' => $data['notes'] ?? null,
-                'source' => $data['source'] ?? SupplierInvoicePayment::SOURCE_MANUAL,
-                'tracking_number' => $data['tracking_number'] ?? null,
-                'user_id' => $data['user_id'] ?? Auth::id(),
-                'payment_import_id' => $data['payment_import_id'] ?? null,
-                'payment_import_row_id' => $data['payment_import_line_id'] ?? $data['payment_import_row_id'] ?? null,
-                'dedupe_key' => $dedupeKey,
-                'allow_overpayment' => $allowOverpayment,
-            ]);
-        });
+        $header = $this->supplierAccounts->recordSettlement($invoice->supplier, array_merge($data, [
+            'amount' => $amount,
+            'invoice_ids' => [$invoice->id],
+            'use_credits' => (bool) ($data['use_credits'] ?? false),
+            'use_advances' => (bool) ($data['use_advances'] ?? true),
+            'dedupe_key' => $dedupeKey,
+        ]));
+
+        return $header->invoicePayments->first() ?? new SupplierInvoicePayment([
+            'supplier_payment_id' => $header->id,
+            'supplier_id' => $invoice->supplier_id,
+            'amount' => $header->unallocated_amount,
+        ]);
     }
 
     /**
@@ -219,22 +201,52 @@ class PaymentRecordingService
         $payments = [];
 
         DB::transaction(function () use ($lines, $shared, &$payments) {
-            foreach ($lines as $line) {
-                $invoice = SupplierInvoice::query()->findOrFail($line['supplier_invoice_id']);
-                $payments[] = $this->recordSupplierPayment($invoice, array_merge($shared, [
-                    'amount' => $line['amount'],
-                    'allow_overpayment' => (bool) ($line['allow_overpayment'] ?? false),
+            $invoices = SupplierInvoice::query()
+                ->whereIn('id', collect($lines)->pluck('supplier_invoice_id'))
+                ->get()
+                ->keyBy('id');
+
+            $groups = collect($lines)->groupBy(function (array $line) use ($invoices) {
+                $invoice = $invoices->get($line['supplier_invoice_id']);
+
+                return $invoice?->supplier_id ?: 0;
+            });
+
+            foreach ($groups as $supplierId => $group) {
+                $first = $invoices->get($group->first()['supplier_invoice_id']);
+                if (! $first) {
+                    continue;
+                }
+
+                $cashAllocations = [];
+                $total = 0.0;
+                foreach ($group as $line) {
+                    $amount = round((float) $line['amount'], 2);
+                    $cashAllocations[(int) $line['supplier_invoice_id']] = $amount;
+                    $total += $amount;
+                }
+
+                $header = $this->supplierAccounts->recordSettlement($first->supplier, array_merge($shared, [
+                    'amount' => round($total, 2),
+                    'invoice_ids' => $group->pluck('supplier_invoice_id')->map(fn ($id) => (int) $id)->all(),
+                    'cash_allocations' => $cashAllocations,
+                    'use_credits' => (bool) ($shared['use_credits'] ?? false),
+                    'use_advances' => (bool) ($shared['use_advances'] ?? true),
                     'source' => $shared['source'] ?? SupplierInvoicePayment::SOURCE_BULK,
                     'dedupe_key' => $this->buildDedupeKey([
                         'scope' => 'purchases',
-                        'invoice_id' => $invoice->id,
                         'reference' => $shared['payment_reference'] ?? null,
-                        'amount' => round((float) $line['amount'], 2),
+                        'amount' => round($total, 2),
                         'date' => $shared['payment_date'] ?? null,
                         'source' => 'bulk',
                         'bulk_batch' => $shared['bulk_batch'] ?? null,
+                        'supplier_id' => $supplierId,
                     ]),
                 ]));
+
+                foreach ($header->invoicePayments as $payment) {
+                    $payments[] = $payment;
+                }
             }
         });
 

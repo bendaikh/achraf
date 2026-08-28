@@ -60,7 +60,7 @@
                 </div>
             </div>
 
-            <form method="GET" action="{{ route('financial.index') }}" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end">
+            <form method="GET" action="{{ route('financial.index') }}" data-list-page class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end">
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">Date de début</label>
                     <input type="date" name="date_from" value="{{ $dateFrom }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">

@@ -43,6 +43,64 @@
         </div>
 
         <div class="space-y-6">
+            @isset($statement)
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-900">Situation financière</h2>
+                        <a href="{{ route('purchases.payments.settle', $supplier) }}" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm">Payer</a>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                        <div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Total achats / factures</p><p class="text-lg font-bold">{{ number_format($statement['total_invoices'], 2) }} DH</p></div>
+                        <div class="rounded-lg bg-emerald-50 p-3"><p class="text-xs text-emerald-700">Total avoirs</p><p class="text-lg font-bold text-emerald-700">- {{ number_format($statement['total_credits'], 2) }} DH</p></div>
+                        <div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Total règlements</p><p class="text-lg font-bold">{{ number_format($statement['total_payments'], 2) }} DH</p></div>
+                        <div class="rounded-lg bg-sky-50 p-3"><p class="text-xs text-sky-700">Avances</p><p class="text-lg font-bold text-sky-700">- {{ number_format($statement['total_advances'], 2) }} DH</p></div>
+                        <div class="rounded-lg bg-[#0a5d8a] p-3 text-white"><p class="text-xs opacity-80">Solde fournisseur</p><p class="text-lg font-bold">{{ number_format($statement['balance'], 2) }} DH</p></div>
+                    </div>
+                    <h3 class="text-sm font-semibold text-gray-800 mb-2">Historique du compte</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                                <tr>
+                                    <th class="px-3 py-2 text-left">Date</th>
+                                    <th class="px-3 py-2 text-left">Type</th>
+                                    <th class="px-3 py-2 text-left">Référence</th>
+                                    <th class="px-3 py-2 text-left">Description</th>
+                                    <th class="px-3 py-2 text-right">Débit (+)</th>
+                                    <th class="px-3 py-2 text-right">Crédit (-)</th>
+                                    <th class="px-3 py-2 text-right">Solde</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y">
+                                @forelse($statement['ledger'] as $entry)
+                                    <tr>
+                                        <td class="px-3 py-2">{{ $entry['date'] ? \Carbon\Carbon::parse($entry['date'])->format('d/m/Y') : '—' }}</td>
+                                        <td class="px-3 py-2">{{ $entry['type_label'] }}</td>
+                                        <td class="px-3 py-2">
+                                            @if($entry['url'])
+                                                <a href="{{ $entry['url'] }}" class="text-[#0a5d8a]">{{ $entry['reference'] }}</a>
+                                            @else
+                                                {{ $entry['reference'] }}
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-2 text-gray-600">{{ $entry['description'] }}</td>
+                                        <td class="px-3 py-2 text-right">{{ $entry['debit'] > 0 ? number_format($entry['debit'], 2) : '—' }}</td>
+                                        <td class="px-3 py-2 text-right text-emerald-700">{{ $entry['credit'] > 0 ? number_format($entry['credit'], 2) : '—' }}</td>
+                                        <td class="px-3 py-2 text-right font-semibold">{{ number_format($entry['balance'], 2) }}</td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="7" class="px-3 py-6 text-center text-gray-500">Aucun mouvement</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-3">Règle : Factures – Avoirs – Paiements – Avances = solde réel.</p>
+                </div>
+            </div>
+            @isset($paymentHistory)
+            @include('purchases.payments.partials.history-table', ['rows' => $paymentHistory, 'supplier' => $supplier])
+            @endisset
+            @endisset
             <div class="bg-white rounded-lg shadow overflow-hidden">
                 <div class="p-6">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4">Informations générales</h2>

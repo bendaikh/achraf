@@ -451,7 +451,6 @@ class ShopifyIntegrationController extends Controller
         try {
             Artisan::call('shopify:sync-orders', [
                 '--days' => 7,
-                '--limit' => 50,
             ]);
 
             $output = Artisan::output();

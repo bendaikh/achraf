@@ -11,6 +11,10 @@
                 <p class="text-sm text-gray-600 mt-1">Détails du bon de réception</p>
             </div>
             <div class="flex gap-2">
+                <x-libromart-pdf-actions
+                    :print-route="route('receptions.print', $reception)"
+                    :pdf-route="route('receptions.pdf', $reception)"
+                />
                 <a href="{{ route('receptions.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
                     Retour à la liste
                 </a>
@@ -68,11 +72,15 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-500 mb-1">Statut</label>
                     <p class="text-gray-900 font-medium">{{ $reception->status }}</p>
+                    @if($reception->stock_applied_at)
+                        <span class="mt-1 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Stock réceptionné ✓</span>
+                        <p class="text-xs text-gray-500 mt-1">{{ $reception->stock_applied_at->format('d/m/Y H:i') }}</p>
+                    @endif
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-500 mb-1">Emplacement du stock</label>
-                    <p class="text-gray-900 font-medium">{{ $reception->stock_location }}</p>
+                    <label class="block text-sm font-medium text-gray-500 mb-1">Dépôt / emplacement</label>
+                    <p class="text-gray-900 font-medium">{{ $reception->warehouse?->name ?: $reception->stock_location }}</p>
                 </div>
 
                 @if($reception->model)
@@ -83,6 +91,8 @@
                 @endif
             </div>
         </div>
+
+        @include('purchases.partials.document-chain')
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Articles</h3>
@@ -148,6 +158,10 @@
                     </div>
                 </div>
             </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">Document importé / pièce jointe</h3>
+            <x-managed-document-actions type="receptions" :id="$reception->id" />
         </div>
     </div>
 </main>

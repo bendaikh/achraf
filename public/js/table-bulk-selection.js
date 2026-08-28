@@ -373,7 +373,7 @@
         });
     };
 
-    var zipPdfTypes = ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'delivery-notes', 'supplier-invoices'];
+    var zipPdfTypes = ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'delivery-notes', 'supplier-invoices', 'supplier-delivery-notes', 'receptions', 'supplier-purchase-orders', 'supplier-credit-notes', 'expenses', 'expenses-with-invoice', 'expenses-without-invoice'];
 
     window.exportSelectedToZip = function (exportType) {
         if (zipPdfTypes.indexOf(exportType) === -1) {

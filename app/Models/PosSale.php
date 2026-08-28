@@ -55,6 +55,7 @@ class PosSale extends Model
         'status',
         'payment_status',
         'fulfillment_status',
+        'physical_stock_processed_at',
         'shopify_synced_at',
         'jumia_synced_at',
         'notes',
@@ -90,6 +91,7 @@ class PosSale extends Model
         'shopify_synced_at' => 'datetime',
         'jumia_synced_at' => 'datetime',
         'sync_attempted_at' => 'datetime',
+        'physical_stock_processed_at' => 'datetime',
         'tags' => 'array',
         'external_metadata' => 'array',
     ];

@@ -8,13 +8,16 @@
         <div class="px-8 py-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
                 <h2 class="text-2xl font-bold text-gray-900">Gestion Paiement</h2>
-                <p class="text-sm text-gray-600 mt-1">Paiements fournisseurs · import · trésorerie automatique</p>
+                <p class="text-sm text-gray-600 mt-1">Compte fournisseur · factures · avoirs · chèques · avances</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 <button type="button" onclick="document.getElementById('manualPaymentModal').classList.remove('hidden')"
                     class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg hover:bg-[#084a6e] transition text-sm font-medium">
                     + Paiement manuel
                 </button>
+                <a href="{{ route('purchases.payments.history') }}" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium">
+                    Historique des règlements
+                </a>
                 <a href="{{ route('purchases.payments.import') }}"
                     class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium">
                     Importer un fichier de règlement
@@ -50,6 +53,45 @@
                 <p class="text-3xl font-bold text-red-600">{{ number_format($stats['total_remaining'], 2) }} DH</p>
             </div>
         </div>
+
+        @if(($supplierAccounts ?? collect())->isNotEmpty())
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+            <div class="px-6 py-4 border-b"><h3 class="font-semibold text-gray-900">Soldes fournisseurs</h3></div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                        <tr>
+                            <th class="px-4 py-3 text-left">Fournisseur</th>
+                            <th class="px-4 py-3 text-right">Factures</th>
+                            <th class="px-4 py-3 text-right">Avoirs</th>
+                            <th class="px-4 py-3 text-right">Règlements</th>
+                            <th class="px-4 py-3 text-right">Avances</th>
+                            <th class="px-4 py-3 text-right">Solde</th>
+                            <th class="px-4 py-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        @foreach($supplierAccounts as $row)
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-3 font-medium">{{ $row['supplier']->name }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($row['total_invoices'], 2) }}</td>
+                                <td class="px-4 py-3 text-right text-emerald-700">- {{ number_format($row['total_credits'], 2) }}</td>
+                                <td class="px-4 py-3 text-right">
+                                    <a href="{{ route('purchases.payments.settle', $row['supplier']) }}" class="text-[#0a5d8a] font-medium" title="Historique des règlements">{{ number_format($row['total_payments'], 2) }}</a>
+                                </td>
+                                <td class="px-4 py-3 text-right text-sky-700">- {{ number_format($row['total_advances'], 2) }}</td>
+                                <td class="px-4 py-3 text-right font-bold {{ $row['balance'] > 0.009 ? 'text-red-600' : 'text-green-700' }}">{{ number_format($row['balance'], 2) }} DH</td>
+                                <td class="px-4 py-3 text-right whitespace-nowrap">
+                                    <a href="{{ route('purchases.payments.settle', $row['supplier']) }}" class="text-[#0a5d8a] font-medium">Payer</a>
+                                    <a href="{{ route('purchases.payments.settle', $row['supplier']) }}" class="ml-2 text-gray-600" title="Historique">👁️</a>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @endif
 
         <x-table-filters :action="route('purchases.payments.index')" search-placeholder="N° facture, fournisseur..." grid-cols="md:grid-cols-5">
             <div>
@@ -105,9 +147,10 @@
                         @forelse($invoices as $supplierInvoice)
                             @php
                                 $totalPaid = (float) ($supplierInvoice->payments_sum ?? 0);
+                                $credits = (float) ($supplierInvoice->credits_sum ?? 0);
                                 $invoiceTotal = (float) $supplierInvoice->total;
-                                $remaining = max(0, $invoiceTotal - $totalPaid);
-                                $status = $totalPaid <= 0 ? 'unpaid' : ($totalPaid >= $invoiceTotal ? 'paid' : 'partial');
+                                $remaining = max(0, $invoiceTotal - $totalPaid - $credits);
+                                $status = ($totalPaid + $credits) <= 0 ? 'unpaid' : (($totalPaid + $credits) >= $invoiceTotal ? 'paid' : 'partial');
                             @endphp
                             <tr class="hover:bg-gray-50">
                                 <x-table-checkbox-cell export-type="purchase-payments" :id="$supplierInvoice->id" />
@@ -128,7 +171,7 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-4">
-                                    <a href="{{ route('supplier-invoices.payments.index', $supplierInvoice) }}" class="text-indigo-600 text-sm">Paiements</a>
+                                    <a href="{{ route('purchases.payments.settle', ['supplier' => $supplierInvoice->supplier_id, 'invoices' => $supplierInvoice->id]) }}" class="text-indigo-600 text-sm font-medium">Payer</a>
                                 </td>
                             </tr>
                         @empty
@@ -154,7 +197,7 @@
                             <select name="supplier_invoice_id" required class="w-full rounded-lg border-gray-300" id="manual_invoice_id" onchange="updateManual()">
                                 <option value="">Sélectionner…</option>
                                 @foreach($openInvoices as $inv)
-                                    @php $bal = max(0, (float)$inv->total - (float)($inv->payments_sum ?? 0)); @endphp
+                                    @php $bal = max(0, (float)$inv->total - (float)($inv->payments_sum ?? 0) - (float)($inv->credits_sum ?? 0)); @endphp
                                     <option value="{{ $inv->id }}" data-total="{{ $inv->total }}" data-paid="{{ $inv->payments_sum ?? 0 }}" data-balance="{{ $bal }}">
                                         {{ $inv->invoice_number }} — {{ $inv->supplier->name ?? '' }} (solde {{ number_format($bal, 2) }})
                                     </option>

@@ -2,13 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\AttachesManagedDocuments;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
+use App\Http\Controllers\Concerns\SyncsDocumentAdjustments;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\Product;
+use App\Models\SupplierPurchaseOrder;
+use App\Models\Warehouse;
 use App\Services\ProductPurchasePriceService;
+use App\Services\PurchaseReceiptService;
+use App\Services\PurchaseStockReceiptService;
 use App\Services\StockMovementService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
@@ -19,16 +25,18 @@ use Illuminate\Support\Facades\Storage;
 
 class SupplierInvoiceController extends Controller
 {
-    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+    use AttachesManagedDocuments, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView, SyncsDocumentAdjustments;
 
     public function __construct(
         protected StockMovementService $stockMovement,
         protected ProductPurchasePriceService $purchasePriceSync,
+        protected PurchaseStockReceiptService $purchaseStockReceipt,
+        protected PurchaseReceiptService $purchaseReceipts,
     ) {}
 
     public function index(Request $request)
     {
-        $query = SupplierInvoice::with('supplier');
+        $query = SupplierInvoice::with(['supplier', 'adjustments']);
 
         $this->applyTableSearch($query, $request, ['invoice_number', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'invoice_date');
@@ -59,12 +67,14 @@ class SupplierInvoiceController extends Controller
     public function create()
     {
         $suppliers = Supplier::all();
-        $products = Product::all();
+        $products = collect();
         $invoiceNumber = 'FSI-' . date('Y') . '/' . str_pad(SupplierInvoice::whereYear('created_at', date('Y'))->count() + 1, 6, '0', STR_PAD_LEFT);
         
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
+        $purchaseOrders = SupplierPurchaseOrder::query()->with('supplier')->orderByDesc('order_date')->limit(200)->get();
 
-        return view('purchases.supplier-invoices.create', compact('suppliers', 'products', 'invoiceNumber', 'pricesAreTtc'));
+        return view('purchases.supplier-invoices.create', compact('suppliers', 'products', 'invoiceNumber', 'pricesAreTtc', 'warehouses', 'purchaseOrders'));
     }
 
     public function store(Request $request)
@@ -75,7 +85,7 @@ class SupplierInvoiceController extends Controller
             'invoice_date' => 'required|date',
             'due_date' => 'nullable|date',
             'currency' => 'required|string',
-            'stock_location' => 'required|string',
+            'stock_location' => 'nullable|string',
             'commercial_contact' => 'nullable|string',
             'model' => 'nullable|string',
             'remarks' => 'nullable|string',
@@ -92,27 +102,36 @@ class SupplierInvoiceController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ]);
+        ] + $this->purchaseStockReceipt->validationRules() + $this->adjustmentValidationRules());
+
+        $warehouse = $this->purchaseStockReceipt->resolveDefaultWarehouse(
+            isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null,
+            $validated['stock_location'] ?? null
+        );
 
         DB::beginTransaction();
         try {
-            $invoiceFilePath = null;
-            if ($request->hasFile('invoice_file')) {
-                $invoiceFilePath = $request->file('invoice_file')->store('supplier_invoices', 'public');
+            if (! empty($validated['supplier_purchase_order_id'])) {
+                $this->purchaseReceipts->assertNotOverReceiving(
+                    SupplierPurchaseOrder::findOrFail($validated['supplier_purchase_order_id']),
+                    $validated['items']
+                );
             }
 
             $invoice = SupplierInvoice::create([
                 'invoice_number' => $validated['invoice_number'],
                 'supplier_id' => $validated['supplier_id'],
+                'supplier_purchase_order_id' => $validated['supplier_purchase_order_id'] ?? null,
                 'invoice_date' => $validated['invoice_date'],
                 'due_date' => $validated['due_date'] ?? null,
                 'currency' => $validated['currency'],
-                'stock_location' => $validated['stock_location'],
+                'stock_location' => $warehouse->name,
+                'warehouse_id' => $warehouse->id,
                 'commercial_contact' => $validated['commercial_contact'] ?? null,
                 'model' => $validated['model'] ?? null,
                 'remarks' => $validated['remarks'] ?? null,
                 'conditions' => $validated['conditions'] ?? null,
-                'invoice_file_path' => $invoiceFilePath,
+                'invoice_file_path' => null,
                 'subtotal' => 0,
                 'discount' => 0,
                 'adjustment' => 0,
@@ -140,20 +159,18 @@ class SupplierInvoiceController extends Controller
                 $subtotal += $computed['line_total'];
             }
 
-            $invoice->update([
-                'subtotal' => $subtotal,
-                'total' => $subtotal + ($request->adjustment ?? 0),
-            ]);
+            $this->persistDocumentTotals($invoice, $subtotal, $validated['adjustments'] ?? []);
 
-            $invoice->load('items');
+            $invoice->load('items', 'supplier', 'adjustments');
             $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
-            $this->stockMovement->increaseFromItems(
-                $invoice->items,
-                $validated['stock_location']
-            );
+            // Pas d'entrée de stock automatique à la création de facture.
+            // Si un BR a déjà réceptionné : stock_applied_at sera posé à la conversion.
+            // Sinon : action manuelle « Réceptionner / Entrer en stock » (une seule fois).
 
             DB::commit();
-            return redirect()->route('supplier-invoices.index')->with('success', 'Facture fournisseur créée avec succès!');
+            $this->attachManagedDocument('supplier-invoices', $invoice, $request->file('invoice_file'));
+
+            return redirect()->route('supplier-invoices.show', $invoice)->with('success', 'Facture fournisseur créée. Utilisez « Réceptionner / Entrer en stock » si aucun BR n’a encore alimenté le stock.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->withInput()->with('error', 'Erreur lors de la création de la Facture fournisseur: ' . $e->getMessage());
@@ -162,15 +179,69 @@ class SupplierInvoiceController extends Controller
 
     public function show(SupplierInvoice $supplierInvoice)
     {
-        $supplierInvoice->load('supplier', 'items');
-        return view('purchases.supplier-invoices.show', compact('supplierInvoice'));
+        $supplierInvoice->load(['supplier', 'items', 'adjustments', 'payments.supplierPayment', 'creditNoteAllocations.creditNote', 'warehouse', 'stockAllocations.warehouse', 'stockAllocations.location']);
+        $trace = app(\App\Services\SupplierAccountService::class)->invoiceTrace($supplierInvoice);
+        $documentChain = app(\App\Services\PurchaseDocumentChainService::class)->forInvoice($supplierInvoice);
+        $warehouses = Warehouse::query()->active()->with('locations')->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
+
+        return view('purchases.supplier-invoices.show', compact('supplierInvoice', 'trace', 'documentChain', 'warehouses'));
+    }
+
+    /**
+     * Entrée en stock unique pour une facture créée sans BR.
+     */
+    public function receiveStock(Request $request, SupplierInvoice $supplierInvoice)
+    {
+        if ($supplierInvoice->stock_applied_at) {
+            return back()->with('error', 'Le stock de cette facture a déjà été réceptionné.');
+        }
+
+        $validated = $request->validate([
+            'items' => 'required|array',
+            'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.warehouse_id' => 'nullable|exists:warehouses,id',
+            'items.*.warehouse_location_id' => 'nullable|exists:warehouse_locations,id',
+            'items.*.allocations' => 'nullable|array',
+            'items.*.allocations.*.warehouse_id' => 'nullable|exists:warehouses,id',
+            'items.*.allocations.*.warehouse_location_id' => 'nullable|exists:warehouse_locations,id',
+            'items.*.allocations.*.quantity' => 'nullable|integer|min:0',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
+        ] + $this->purchaseStockReceipt->validationRules());
+
+        $warehouse = $this->purchaseStockReceipt->resolveDefaultWarehouse(
+            isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : ($supplierInvoice->warehouse_id ? (int) $supplierInvoice->warehouse_id : null),
+            $supplierInvoice->stock_location
+        );
+
+        DB::beginTransaction();
+        try {
+            if ($supplierInvoice->supplier_purchase_order_id) {
+                $this->purchaseReceipts->assertNotOverReceiving(
+                    SupplierPurchaseOrder::findOrFail($supplierInvoice->supplier_purchase_order_id),
+                    $validated['items']
+                );
+            }
+
+            $supplierInvoice->load('supplier');
+            $this->purchaseStockReceipt->applyIfNeeded($supplierInvoice, $validated['items'], $warehouse);
+
+            DB::commit();
+
+            return redirect()->route('supplier-invoices.show', $supplierInvoice)
+                ->with('success', 'Stock réceptionné ✓ — entrée unique enregistrée.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return back()->withInput()->with('error', 'Erreur: '.$e->getMessage());
+        }
     }
 
     public function edit(SupplierInvoice $supplierInvoice)
     {
-        $supplierInvoice->load('supplier', 'items');
+        $supplierInvoice->load('supplier', 'items', 'adjustments');
         $suppliers = Supplier::all();
-        $products = Product::all();
+        $products = collect();
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
         return view('purchases.supplier-invoices.edit', compact('supplierInvoice', 'suppliers', 'products', 'pricesAreTtc'));
@@ -201,15 +272,12 @@ class SupplierInvoiceController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ]);
+        ] + $this->adjustmentValidationRules());
 
         DB::beginTransaction();
         try {
             if ($request->hasFile('invoice_file')) {
-                if ($supplierInvoice->invoice_file_path) {
-                    Storage::disk('public')->delete($supplierInvoice->invoice_file_path);
-                }
-                $validated['invoice_file_path'] = $request->file('invoice_file')->store('supplier_invoices', 'public');
+                $this->attachManagedDocument('supplier-invoices', $supplierInvoice, $request->file('invoice_file'));
             }
 
             $supplierInvoice->update([
@@ -223,7 +291,6 @@ class SupplierInvoiceController extends Controller
                 'model' => $validated['model'] ?? null,
                 'remarks' => $validated['remarks'] ?? null,
                 'conditions' => $validated['conditions'] ?? null,
-                'invoice_file_path' => $validated['invoice_file_path'] ?? $supplierInvoice->invoice_file_path,
             ]);
 
             $supplierInvoice->items()->delete();
@@ -249,10 +316,7 @@ class SupplierInvoiceController extends Controller
                 $subtotal += $computed['line_total'];
             }
 
-            $supplierInvoice->update([
-                'subtotal' => $subtotal,
-                'total' => $subtotal + ($request->adjustment ?? 0),
-            ]);
+            $this->persistDocumentTotals($supplierInvoice, $subtotal, $validated['adjustments'] ?? []);
 
             $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
 
@@ -266,16 +330,7 @@ class SupplierInvoiceController extends Controller
 
     public function print(SupplierInvoice $supplierInvoice)
     {
-        if ($supplierInvoice->invoice_file_path && Storage::disk('public')->exists($supplierInvoice->invoice_file_path)) {
-            $path = Storage::disk('public')->path($supplierInvoice->invoice_file_path);
-            $filename = $supplierInvoice->invoice_number . '.' . pathinfo($path, PATHINFO_EXTENSION);
-
-            return response()->file($path, [
-                'Content-Disposition' => 'inline; filename="' . $filename . '"',
-            ]);
-        }
-
-        $supplierInvoice->load('supplier', 'items');
+        $supplierInvoice->load('supplier', 'items', 'adjustments');
         $printData = $this->printViewData($supplierInvoice, $supplierInvoice->items);
 
         return view('purchases.supplier-invoices.print', array_merge(
@@ -288,14 +343,7 @@ class SupplierInvoiceController extends Controller
 
     public function downloadPdf(SupplierInvoice $supplierInvoice)
     {
-        if ($supplierInvoice->invoice_file_path && Storage::disk('public')->exists($supplierInvoice->invoice_file_path)) {
-            $path = Storage::disk('public')->path($supplierInvoice->invoice_file_path);
-            $filename = $supplierInvoice->invoice_number.'.'.pathinfo($path, PATHINFO_EXTENSION);
-
-            return response()->download($path, $filename);
-        }
-
-        $supplierInvoice->load('supplier', 'items');
+        $supplierInvoice->load('supplier', 'items', 'adjustments');
         $printData = $this->printViewData($supplierInvoice, $supplierInvoice->items);
 
         return $this->downloadCommercialPdf(

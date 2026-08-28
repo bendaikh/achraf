@@ -1,180 +1,117 @@
-<div id="managed-scan-modal" class="hidden fixed inset-0 z-[80]">
-    <div class="absolute inset-0 bg-black/40" data-scan-close></div>
-    <div class="relative mx-auto mt-16 w-full max-w-3xl rounded-xl bg-white shadow-2xl">
-        <div class="flex items-center justify-between border-b px-6 py-4">
-            <div>
-                <h3 class="text-lg font-semibold text-gray-900">Scanner en PDF</h3>
-                <p class="text-sm text-gray-500">Aperçu → Valider → Enregistrer</p>
-            </div>
-            <button type="button" class="text-gray-400 hover:text-gray-600" data-scan-close>&times;</button>
+@php
+    $scanScript = public_path('js/mobile-document-scanner.js');
+    $scanVersion = is_readable($scanScript) ? filemtime($scanScript) : time();
+@endphp
+
+<style>
+    html.lm-is-desktop .lm-scan-mobile-only { display: none !important; }
+    html.lm-is-mobile .lm-scan-desktop-only { display: none !important; }
+    html.lm-is-mobile .lm-scan-mobile-only { display: flex !important; }
+    body.lm-scanner-open { overflow: hidden; }
+    #lm-scan-status[data-kind="error"] { background: #fef2f2; color: #991b1b; }
+    #lm-scan-status[data-kind="ok"] { background: #ecfdf5; color: #065f46; }
+    .lm-scan-shell { background: #0b1220; color: #fff; }
+    .lm-scan-video-wrap { position: relative; background: #000; }
+    .lm-scan-video-wrap video,
+    .lm-scan-video-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .lm-scan-shutter {
+        width: 4.25rem; height: 4.25rem; border-radius: 9999px;
+        border: 4px solid #fff; background: #2563eb; box-shadow: 0 0 0 6px rgba(37,99,235,.25);
+    }
+    .lm-scan-thumb {
+        background: #111827; border: 1px solid #1f2937; border-radius: 0.85rem; overflow: hidden;
+    }
+    .lm-scan-thumb img { width: 100%; height: 9rem; object-fit: cover; display: block; }
+    .lm-scan-thumb-meta { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.65rem; font-size: 0.75rem; }
+    .lm-scan-thumb-actions { display: flex; gap: 0.35rem; }
+    .lm-scan-thumb-actions button,
+    .lm-scan-icon-btn {
+        min-width: 2rem; min-height: 2rem; border-radius: 0.5rem; background: #1f2937; color: #fff;
+    }
+    .lm-scan-add-page {
+        min-height: 9rem; border: 2px dashed #374151; border-radius: 0.85rem; color: #93c5fd; font-weight: 600;
+    }
+    .lm-scan-filter.is-active { background: #2563eb; color: #fff; border-color: #2563eb; }
+    #lm-scan-crop-canvas, #lm-scan-enhance-canvas { touch-action: none; max-width: 100%; border-radius: 0.75rem; }
+    #lm-mobile-scanner [data-scan-step] { display: none; flex-direction: column; flex: 1; min-height: 0; }
+    #lm-mobile-scanner [data-scan-step]:not(.hidden) { display: flex; }
+    #lm-mobile-scanner [data-scan-step].hidden { display: none !important; }
+</style>
+
+<div id="lm-mobile-scanner" class="hidden fixed inset-0 z-[120] lm-scan-shell">
+    <div class="flex h-full flex-col">
+        <div class="flex items-center justify-between px-4 py-3">
+            <button type="button" class="text-sm text-gray-300" data-scan-close>Fermer</button>
+            <h3 class="text-sm font-semibold">Scanner un document</h3>
+            <span class="w-12"></span>
         </div>
-        <div class="space-y-4 px-6 py-5">
-            <div id="managed-scan-status" class="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                Recherche d’un scanner connecté…
+
+        <p id="lm-scan-status" class="hidden mx-4 mb-2 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900"></p>
+
+        <div data-scan-step="capture" class="flex min-h-0 flex-1 flex-col">
+            <div class="lm-scan-video-wrap relative mx-4 flex-1 overflow-hidden rounded-2xl">
+                <video id="lm-scan-video" autoplay muted playsinline></video>
+                <canvas id="lm-scan-live-overlay"></canvas>
             </div>
-            <div class="grid gap-4 md:grid-cols-2">
-                <div class="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 min-h-[220px] flex items-center justify-center">
-                    <iframe id="managed-scan-preview" class="hidden h-56 w-full rounded border bg-white"></iframe>
-                    <p id="managed-scan-placeholder" class="text-sm text-gray-500 text-center">Aucun aperçu pour le moment</p>
-                </div>
-                <div class="space-y-3 text-sm">
-                    <div>
-                        <label class="block font-medium text-gray-700 mb-1">Scanner détecté</label>
-                        <input id="managed-scan-device" type="text" readonly class="w-full rounded-lg border-gray-300 bg-gray-100" value="Non détecté">
-                    </div>
-                    <div>
-                        <label class="block font-medium text-gray-700 mb-1">Format</label>
-                        <input type="text" readonly class="w-full rounded-lg border-gray-300 bg-gray-100" value="A4">
-                    </div>
-                    <div>
-                        <label class="block font-medium text-gray-700 mb-1">Mode</label>
-                        <input type="text" readonly class="w-full rounded-lg border-gray-300 bg-gray-100" value="Noir et blanc / Couleur selon le scanner">
-                    </div>
-                    <div>
-                        <label class="block font-medium text-gray-700 mb-1">Importer le PDF du scanner</label>
-                        <input id="managed-scan-file" type="file" accept="application/pdf,.pdf,image/*" class="block w-full text-sm">
-                    </div>
-                </div>
+            <div class="flex items-center justify-between px-8 py-6">
+                <button type="button" class="lm-scan-icon-btn px-3 text-xs" data-scan-gallery>Galerie</button>
+                <button type="button" class="lm-scan-shutter" data-scan-shutter aria-label="Prendre la photo"></button>
+                <span class="w-12"></span>
             </div>
         </div>
-        <div class="flex items-center justify-end gap-2 border-t px-6 py-4">
-            <button type="button" class="rounded-lg border px-4 py-2 text-sm" data-scan-close>Annuler</button>
-            <button type="button" id="managed-scan-save" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" disabled>
-                Enregistrer le document
-            </button>
+
+        <div data-scan-step="crop" class="hidden flex min-h-0 flex-1 flex-col">
+            <div class="flex flex-1 items-center justify-center px-4">
+                <canvas id="lm-scan-crop-canvas" class="max-h-full"></canvas>
+            </div>
+            <div class="grid grid-cols-4 gap-2 px-4 pb-3 text-center text-xs text-gray-300">
+                <span>Recadrer</span>
+                <button type="button" data-scan-rotate-capture>Pivoter</button>
+                <button type="button" data-scan-retake>Refaire</button>
+                <span>Coins</span>
+            </div>
+            <div class="px-4 pb-5">
+                <button type="button" class="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold" data-scan-accept-crop>Valider</button>
+            </div>
+        </div>
+
+        <div data-scan-step="pages" class="hidden flex min-h-0 flex-1 flex-col">
+            <div id="lm-scan-pages-list" class="grid flex-1 grid-cols-2 content-start gap-3 overflow-auto px-4 pb-4"></div>
+            <div class="px-4 pb-5">
+                <button type="button" class="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold" data-scan-pages-next>Suivant</button>
+            </div>
+        </div>
+
+        <div data-scan-step="enhance" class="hidden flex min-h-0 flex-1 flex-col">
+            <div class="flex items-center justify-between px-4 text-sm">
+                <button type="button" data-scan-enhance-prev>←</button>
+                <span id="lm-scan-enhance-label">Page 1</span>
+                <button type="button" data-scan-enhance-next>→</button>
+            </div>
+            <div class="flex flex-1 items-center justify-center px-4 py-3">
+                <canvas id="lm-scan-enhance-canvas" class="max-h-full"></canvas>
+            </div>
+            <div class="grid grid-cols-4 gap-2 px-4 text-xs">
+                <button type="button" class="lm-scan-filter rounded-lg border border-gray-600 py-2" data-scan-filter="original">Original</button>
+                <button type="button" class="lm-scan-filter rounded-lg border border-gray-600 py-2" data-scan-filter="color">Couleur</button>
+                <button type="button" class="lm-scan-filter rounded-lg border border-gray-600 py-2" data-scan-filter="gray">Niveaux de gris</button>
+                <button type="button" class="lm-scan-filter rounded-lg border border-gray-600 py-2" data-scan-filter="bw">Noir & blanc</button>
+            </div>
+            <label class="mx-4 mt-3 mb-4 text-xs text-gray-300">
+                Luminosité
+                <input id="lm-scan-brightness" type="range" min="20" max="80" value="55" class="mt-1 w-full">
+            </label>
+            <div class="px-4 pb-5">
+                <button type="button" class="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold" data-scan-save>Créer le PDF et enregistrer</button>
+            </div>
+        </div>
+
+        <div data-scan-step="saving" class="hidden flex flex-1 flex-col items-center justify-center px-8 text-center">
+            <div class="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600"></div>
+            <p class="text-sm text-gray-200">Création du PDF et rattachement à l’élément…</p>
         </div>
     </div>
+    <input id="lm-scan-gallery" type="file" accept="image/*" class="hidden">
 </div>
 
-<script>
-(function () {
-    const modal = document.getElementById('managed-scan-modal');
-    if (!modal || modal.dataset.bound === '1') return;
-    modal.dataset.bound = '1';
-
-    const statusEl = document.getElementById('managed-scan-status');
-    const deviceEl = document.getElementById('managed-scan-device');
-    const fileEl = document.getElementById('managed-scan-file');
-    const preview = document.getElementById('managed-scan-preview');
-    const placeholder = document.getElementById('managed-scan-placeholder');
-    const saveBtn = document.getElementById('managed-scan-save');
-    let current = null;
-    let selectedFile = null;
-    let previewUrl = null;
-
-    function csrfToken() {
-        const meta = document.querySelector('meta[name="csrf-token"]');
-        return meta ? meta.getAttribute('content') : '';
-    }
-
-    function openModal(trigger) {
-        current = {
-            type: trigger.dataset.scanType,
-            id: trigger.dataset.scanId,
-            category: trigger.dataset.scanCategory || 'primary',
-            url: trigger.dataset.scanUrl,
-            bridge: trigger.dataset.scanBridge,
-        };
-        selectedFile = null;
-        saveBtn.disabled = true;
-        fileEl.value = '';
-        preview.classList.add('hidden');
-        placeholder.classList.remove('hidden');
-        deviceEl.value = 'Non détecté';
-        statusEl.textContent = 'Recherche d’un scanner connecté…';
-        statusEl.className = 'rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800';
-        modal.classList.remove('hidden');
-        tryBridge();
-    }
-
-    function closeModal() {
-        modal.classList.add('hidden');
-        if (previewUrl) {
-            URL.revokeObjectURL(previewUrl);
-            previewUrl = null;
-        }
-    }
-
-    async function tryBridge() {
-        if (!current?.bridge) {
-            fallbackMessage();
-            return;
-        }
-        try {
-            const response = await fetch(current.bridge, {
-                method: 'POST',
-                headers: { 'Accept': 'application/pdf, application/json' },
-                body: JSON.stringify({ format: 'A4', mode: 'color' }),
-            });
-            if (!response.ok) throw new Error('bridge unavailable');
-            const blob = await response.blob();
-            const file = new File([blob], 'scan.pdf', { type: blob.type || 'application/pdf' });
-            setPreview(file);
-            deviceEl.value = 'Scanner local (pont détecté)';
-            statusEl.textContent = 'Scan reçu depuis le pont local. Vérifiez l’aperçu puis enregistrez.';
-            statusEl.className = 'rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800';
-        } catch (e) {
-            fallbackMessage();
-        }
-    }
-
-    function fallbackMessage() {
-        statusEl.textContent = 'Aucun pont scanner navigateur détecté. Utilisez le logiciel de votre scanner pour produire un PDF, puis importez-le ici. Un pont local configurable (MANAGED_DOCUMENT_SCANNER_BRIDGE_URL) pourra lancer le scan automatiquement.';
-        statusEl.className = 'rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800';
-    }
-
-    function setPreview(file) {
-        selectedFile = file;
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        previewUrl = URL.createObjectURL(file);
-        preview.src = previewUrl;
-        preview.classList.remove('hidden');
-        placeholder.classList.add('hidden');
-        saveBtn.disabled = false;
-    }
-
-    async function saveScan() {
-        if (!selectedFile || !current) return;
-        saveBtn.disabled = true;
-        saveBtn.textContent = 'Enregistrement…';
-        const form = new FormData();
-        form.append('document_file', selectedFile, selectedFile.name || 'scan.pdf');
-        form.append('category', current.category);
-        form.append('source', 'scan');
-        form.append('_token', csrfToken());
-        try {
-            const response = await fetch(current.url, {
-                method: 'POST',
-                body: form,
-                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' },
-                redirect: 'follow',
-            });
-            if (!response.ok) throw new Error('save failed');
-            window.location.reload();
-        } catch (e) {
-            statusEl.textContent = 'Échec de l’enregistrement du scan. Réessayez.';
-            statusEl.className = 'rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800';
-            saveBtn.disabled = false;
-            saveBtn.textContent = 'Enregistrer le document';
-        }
-    }
-
-    document.addEventListener('click', function (event) {
-        const trigger = event.target.closest('[data-managed-scan]');
-        if (trigger) {
-            event.preventDefault();
-            openModal(trigger);
-            return;
-        }
-        if (event.target.closest('[data-scan-close]')) {
-            closeModal();
-        }
-    });
-
-    fileEl?.addEventListener('change', function () {
-        const file = fileEl.files && fileEl.files[0];
-        if (file) setPreview(file);
-    });
-    saveBtn?.addEventListener('click', saveScan);
-})();
-</script>
+<script src="{{ asset('js/mobile-document-scanner.js') }}?v={{ $scanVersion }}"></script>

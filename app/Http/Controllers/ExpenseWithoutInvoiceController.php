@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\AttachesManagedDocuments;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\HandlesExpenseRecurrence;
 use App\Http\Controllers\Concerns\LoadsExpenseFormOptions;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 
 class ExpenseWithoutInvoiceController extends Controller
 {
-    use FiltersIndexTables, HandlesExpenseRecurrence, LoadsExpenseFormOptions;
+    use AttachesManagedDocuments, FiltersIndexTables, HandlesExpenseRecurrence, LoadsExpenseFormOptions;
 
     public function index(Request $request)
     {
@@ -48,12 +49,15 @@ class ExpenseWithoutInvoiceController extends Controller
             'payment_method' => 'nullable|string',
             'account' => 'nullable|string',
             'tax_type' => 'required|string',
+            'invoice_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ], $this->recurrenceRules()));
 
         $validated['expense_type'] = 'without_invoice';
         $validated = $this->prepareRecurrence($request, $validated);
+        unset($validated['invoice_file']);
 
-        Expense::create($validated);
+        $expense = Expense::create($validated);
+        $this->attachManagedDocument('expenses-without-invoice', $expense, $request->file('invoice_file'));
 
         return redirect()->route('expenses-without-invoice.index')->with('success', 'Dépense sans facture créée avec succès!');
     }
@@ -97,6 +101,7 @@ class ExpenseWithoutInvoiceController extends Controller
             'payment_method' => 'nullable|string',
             'account' => 'nullable|string',
             'tax_type' => 'required|string',
+            'invoice_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ];
 
         if ($expenseWithoutInvoice->recurrence_parent_id === null) {
@@ -104,6 +109,8 @@ class ExpenseWithoutInvoiceController extends Controller
         }
 
         $validated = $request->validate($rules);
+        $justificatif = $request->file('invoice_file');
+        unset($validated['invoice_file']);
 
         if ($expenseWithoutInvoice->isRecurrenceTemplate()) {
             if (! $request->boolean('is_recurring')) {
@@ -129,6 +136,9 @@ class ExpenseWithoutInvoiceController extends Controller
         }
 
         $expenseWithoutInvoice->update($validated);
+        if (! $expenseWithoutInvoice->isRecurrenceTemplate()) {
+            $this->attachManagedDocument('expenses-without-invoice', $expenseWithoutInvoice, $justificatif);
+        }
 
         return redirect()->route('expenses-without-invoice.index')->with('success', 'Dépense sans facture modifiée avec succès!');
     }

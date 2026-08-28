@@ -6,6 +6,7 @@ use App\Models\SupplierInvoice;
 use App\Models\SupplierInvoicePayment;
 use App\Services\Documents\DocumentAttachmentService;
 use App\Services\PaymentRecordingService;
+use App\Services\SupplierAccountService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -14,15 +15,17 @@ class SupplierInvoicePaymentController extends Controller
 {
     public function __construct(
         protected PaymentRecordingService $recorder,
-        protected DocumentAttachmentService $attachments
+        protected DocumentAttachmentService $attachments,
+        protected SupplierAccountService $accounts
     ) {}
 
     public function index(SupplierInvoice $supplierInvoice)
     {
-        $supplierInvoice->load(['supplier', 'payments.user', 'payments.paymentImport', 'payments.managedDocuments.currentVersion']);
+        $supplierInvoice->load(['supplier', 'payments.user', 'payments.paymentImport', 'payments.managedDocuments.currentVersion', 'creditNoteAllocations.creditNote']);
 
         return view('purchases.supplier-invoices.payments.index', [
             'supplierInvoice' => $supplierInvoice,
+            'trace' => $this->accounts->invoiceTrace($supplierInvoice),
             'chequeStatuses' => SupplierInvoicePayment::CHEQUE_STATUSES,
         ]);
     }
@@ -66,11 +69,25 @@ class SupplierInvoicePaymentController extends Controller
             'cheque_beneficiary' => $validated['cheque_beneficiary'] ?? ($supplierInvoice->supplier?->name),
             'cheque_status' => $validated['cheque_status'] ?? null,
             'notes' => $validated['notes'] ?? null,
-            'allow_overpayment' => (bool) ($validated['allow_overpayment'] ?? false),
+            'allow_overpayment' => true,
+            'use_credits' => $request->boolean('use_credits'),
+            'use_advances' => true,
             'source' => 'manual',
         ]);
 
-        if ($request->hasFile('payment_file')) {
+        if ($request->hasFile('payment_file') && $payment->supplierPayment) {
+            $header = $payment->supplierPayment;
+            $category = $validated['payment_method'] === 'Chèque'
+                ? 'cheque_scan'
+                : ($validated['payment_method'] === 'Virement bancaire' ? 'transfer_proof' : 'primary');
+
+            $this->attachments->store('supplier-payment-headers', $header, $request->file('payment_file'), [
+                'category' => $category,
+                'source' => $validated['payment_method'] === 'Chèque' ? 'scan' : 'upload',
+                'reference' => $header->payment_number,
+                'user_id' => $request->user()?->id,
+            ]);
+        } elseif ($request->hasFile('payment_file') && $payment->exists) {
             $category = $validated['payment_method'] === 'Chèque'
                 ? 'cheque_scan'
                 : ($validated['payment_method'] === 'Virement bancaire' ? 'transfer_proof' : 'primary');
@@ -90,11 +107,20 @@ class SupplierInvoicePaymentController extends Controller
 
     public function destroy(SupplierInvoice $supplierInvoice, SupplierInvoicePayment $payment)
     {
-        if ($payment->payment_file_path) {
-            Storage::disk('public')->delete($payment->payment_file_path);
+        if ($payment->supplier_payment_id) {
+            $header = $payment->supplierPayment;
+            if ($header && ! $header->isCancelled()) {
+                $this->accounts->cancelPayment($header, 'Annulation depuis la fiche facture');
+            } elseif (! $header) {
+                $payment->delete();
+            }
+        } else {
+            if ($payment->payment_file_path) {
+                Storage::disk('public')->delete($payment->payment_file_path);
+            }
+            $payment->delete();
         }
-        $payment->delete();
 
-        return redirect()->route('supplier-invoices.payments.index', $supplierInvoice)->with('success', 'Paiement supprimé avec succès!');
+        return redirect()->route('supplier-invoices.payments.index', $supplierInvoice)->with('success', 'Règlement annulé. Les soldes ont été recalculés. Le règlement reste consultable dans l’historique.');
     }
 }

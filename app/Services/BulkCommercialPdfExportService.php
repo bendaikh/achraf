@@ -5,10 +5,15 @@ namespace App\Services;
 use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\CreditNote;
 use App\Models\DeliveryNote;
+use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quote;
+use App\Models\Reception;
+use App\Models\SupplierCreditNote;
+use App\Models\SupplierDeliveryNote;
 use App\Models\SupplierInvoice;
+use App\Models\SupplierPurchaseOrder;
 use App\Support\CommercialDocumentView;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
@@ -37,6 +42,13 @@ class BulkCommercialPdfExportService
             'credit-notes',
             'delivery-notes',
             'supplier-invoices',
+            'supplier-delivery-notes',
+            'receptions',
+            'supplier-purchase-orders',
+            'supplier-credit-notes',
+            'expenses',
+            'expenses-with-invoice',
+            'expenses-without-invoice',
         ];
     }
 
@@ -134,47 +146,82 @@ class BulkCommercialPdfExportService
             'credit-notes' => CreditNote::with('client', 'invoice', 'items')->whereIn('id', $ids)->get(),
             'delivery-notes' => DeliveryNote::with('client', 'items')->whereIn('id', $ids)->get(),
             'supplier-invoices' => SupplierInvoice::with('supplier', 'items')->whereIn('id', $ids)->get(),
+            'supplier-delivery-notes' => SupplierDeliveryNote::with('supplier', 'items')->whereIn('id', $ids)->get(),
+            'receptions' => Reception::with('supplier', 'items')->whereIn('id', $ids)->get(),
+            'supplier-purchase-orders' => SupplierPurchaseOrder::with('supplier', 'items')->whereIn('id', $ids)->get(),
+            'supplier-credit-notes' => SupplierCreditNote::with('supplier', 'supplierInvoice', 'items')->whereIn('id', $ids)->get(),
+            'expenses', 'expenses-with-invoice', 'expenses-without-invoice' => Expense::with('supplier', 'client')->whereIn('id', $ids)->get(),
             default => collect(),
         };
     }
 
     protected function renderPdfContent(string $type, $record): string
     {
-        $printData = $this->printViewData($record, $record->items);
+        if (in_array($type, ['expenses', 'expenses-with-invoice', 'expenses-without-invoice'], true)) {
+            $preview = CommercialDocumentView::forExpense($record, []);
+            $printData = $this->printViewData($record, $preview['doc']['items']);
+            $viewData = array_merge(
+                CommercialDocumentView::forExpense($record, $printData['taxes']),
+                $printData,
+                ['generatedBy' => auth()->user()?->name]
+            );
+        } else {
+            $printData = $this->printViewData($record, $record->items);
 
-        $viewData = match ($type) {
-            'invoices' => array_merge(
-                CommercialDocumentView::forInvoice($record, $printData['taxes']),
-                $printData,
-                ['generatedBy' => auth()->user()?->name]
-            ),
-            'quotes' => array_merge(
-                CommercialDocumentView::forQuote($record, $printData['taxes']),
-                $printData,
-                ['generatedBy' => auth()->user()?->name]
-            ),
-            'purchase-orders' => array_merge(
-                CommercialDocumentView::forPurchaseOrder($record, $printData['taxes']),
-                $printData,
-                ['generatedBy' => auth()->user()?->name]
-            ),
-            'credit-notes' => array_merge(
-                CommercialDocumentView::forCreditNote($record, $printData['taxes']),
-                $printData,
-                ['generatedBy' => auth()->user()?->name]
-            ),
-            'delivery-notes' => array_merge(
-                CommercialDocumentView::forDeliveryNote($record, $printData['taxes']),
-                $printData,
-                ['generatedBy' => auth()->user()?->name]
-            ),
-            'supplier-invoices' => array_merge(
-                CommercialDocumentView::forSupplierInvoice($record, $printData['taxes']),
-                $printData,
-                ['generatedBy' => auth()->user()?->name]
-            ),
-            default => [],
-        };
+            $viewData = match ($type) {
+                'invoices' => array_merge(
+                    CommercialDocumentView::forInvoice($record, $printData['taxes']),
+                    $printData,
+                    ['generatedBy' => auth()->user()?->name]
+                ),
+                'quotes' => array_merge(
+                    CommercialDocumentView::forQuote($record, $printData['taxes']),
+                    $printData,
+                    ['generatedBy' => auth()->user()?->name]
+                ),
+                'purchase-orders' => array_merge(
+                    CommercialDocumentView::forPurchaseOrder($record, $printData['taxes']),
+                    $printData,
+                    ['generatedBy' => auth()->user()?->name]
+                ),
+                'credit-notes' => array_merge(
+                    CommercialDocumentView::forCreditNote($record, $printData['taxes']),
+                    $printData,
+                    ['generatedBy' => auth()->user()?->name]
+                ),
+                'delivery-notes' => array_merge(
+                    CommercialDocumentView::forDeliveryNote($record, $printData['taxes']),
+                    $printData,
+                    ['generatedBy' => auth()->user()?->name]
+                ),
+                'supplier-invoices' => array_merge(
+                    CommercialDocumentView::forSupplierInvoice($record, $printData['taxes']),
+                    $printData,
+                    ['generatedBy' => auth()->user()?->name]
+                ),
+                'supplier-delivery-notes' => array_merge(
+                    CommercialDocumentView::forSupplierDeliveryNote($record, $printData['taxes']),
+                    $printData,
+                    ['generatedBy' => auth()->user()?->name]
+                ),
+                'receptions' => array_merge(
+                    CommercialDocumentView::forReception($record, $printData['taxes']),
+                    $printData,
+                    ['generatedBy' => auth()->user()?->name]
+                ),
+                'supplier-purchase-orders' => array_merge(
+                    CommercialDocumentView::forSupplierPurchaseOrder($record, $printData['taxes']),
+                    $printData,
+                    ['generatedBy' => auth()->user()?->name]
+                ),
+                'supplier-credit-notes' => array_merge(
+                    CommercialDocumentView::forSupplierCreditNote($record, $printData['taxes']),
+                    $printData,
+                    ['generatedBy' => auth()->user()?->name]
+                ),
+                default => [],
+            };
+        }
 
         $pdf = Pdf::loadView('documents.pdf', $viewData);
         $pdf->setPaper('a4', 'portrait');
@@ -191,6 +238,11 @@ class BulkCommercialPdfExportService
             'credit-notes' => $record->credit_note_number,
             'delivery-notes' => $record->delivery_number,
             'supplier-invoices' => $record->invoice_number,
+            'supplier-delivery-notes' => $record->delivery_number,
+            'receptions' => $record->reception_number,
+            'supplier-purchase-orders' => $record->order_number,
+            'supplier-credit-notes' => $record->credit_note_number,
+            'expenses', 'expenses-with-invoice', 'expenses-without-invoice' => $record->reference ?: 'DEP-'.$record->id,
             default => (string) $record->id,
         };
 
@@ -201,6 +253,11 @@ class BulkCommercialPdfExportService
             'credit-notes' => 'avoir',
             'delivery-notes' => 'bl',
             'supplier-invoices' => 'facture-fournisseur',
+            'supplier-delivery-notes' => 'bl-fournisseur',
+            'receptions' => 'bon-reception',
+            'supplier-purchase-orders' => 'bc-fournisseur',
+            'supplier-credit-notes' => 'avoir-fournisseur',
+            'expenses', 'expenses-with-invoice', 'expenses-without-invoice' => 'depense',
             default => 'document',
         };
 

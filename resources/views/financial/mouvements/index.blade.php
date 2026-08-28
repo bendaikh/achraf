@@ -55,7 +55,7 @@
             </div>
         </div>
 
-        <form method="GET" action="{{ route('financial.mouvements.index') }}"
+        <form method="GET" action="{{ route('financial.mouvements.index') }}" data-list-page
               class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 items-end">
             <div>
                 <label class="block text-[11px] text-slate-500 mb-1">De</label>

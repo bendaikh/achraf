@@ -3,28 +3,41 @@
     $dataUrl = $dataUrl ?? route('dashboard.data');
     $bootstrap = $bootstrap ?? null;
 
-    // Menu « + Nouveau » : uniquement des routes existantes. Lorsqu'aucune action
-    // de création dédiée n'existe, on pointe vers l'écran métier concerné.
+    // Menu « + Nouveau » : uniquement des routes existantes. Libellés métier complets
+    // (éviter « BC client » / « BL client », mal interprétés par la traduction auto).
+    $createQuickAction = [
+        'label' => 'Créer une commande',
+        'hint' => 'Créer une commande et synchroniser vers Shopify',
+        'url' => route('orders.create'),
+    ];
+
     $createMenu = [
         [
-            'label' => 'VENTES',
+            'key' => 'sales',
+            'label' => 'Ventes',
+            'tone' => 'emerald',
+            'icon' => 'M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z',
             'items' => [
-                ['label' => 'Commande / POS', 'url' => route('pos.index')],
+                ['label' => 'Créer une commande', 'url' => route('orders.create'), 'badge' => 'Nouveau'],
                 ['label' => 'Devis', 'url' => route('quotes.create')],
-                ['label' => 'BC client', 'url' => route('purchase-orders.create')],
-                ['label' => 'BL client', 'url' => route('delivery-notes.create')],
+                ['label' => 'Bon de commande client (BC)', 'url' => route('purchase-orders.create')],
+                ['label' => 'Bon de livraison client (BL)', 'url' => route('delivery-notes.create')],
                 ['label' => 'Facture', 'url' => route('invoices.create')],
                 ['label' => 'Avoir', 'url' => route('credit-notes.create')],
                 ['label' => 'Paiement client', 'url' => route('sales.payments.index')],
+                ['label' => 'Caisse (POS)', 'url' => route('pos.index')],
             ],
         ],
         [
-            'label' => 'ACHATS',
+            'key' => 'purchases',
+            'label' => 'Achats',
+            'tone' => 'sky',
+            'icon' => 'M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9',
             'items' => [
                 ['label' => 'Dépense avec facture', 'url' => route('expenses-with-invoice.create')],
                 ['label' => 'Dépense sans facture', 'url' => route('expenses-without-invoice.create')],
-                ['label' => 'BC fournisseur', 'url' => route('supplier-purchase-orders.create')],
-                ['label' => 'BL fournisseur', 'url' => route('supplier-delivery-notes.create')],
+                ['label' => 'Bon de commande fournisseur (BC)', 'url' => route('supplier-purchase-orders.create')],
+                ['label' => 'Bon de livraison fournisseur (BL)', 'url' => route('supplier-delivery-notes.create')],
                 ['label' => 'Bon de réception', 'url' => route('receptions.create')],
                 ['label' => 'Facture fournisseur', 'url' => route('supplier-invoices.create')],
                 ['label' => 'Avoir fournisseur', 'url' => route('supplier-credit-notes.create')],
@@ -32,7 +45,10 @@
             ],
         ],
         [
-            'label' => 'PRODUITS / STOCK',
+            'key' => 'stock',
+            'label' => 'Produits / Stock',
+            'tone' => 'amber',
+            'icon' => 'M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z M6 6h.008v.008H6V6z',
             'items' => [
                 ['label' => 'Ajouter un produit', 'url' => route('products.create')],
                 ['label' => 'Mouvements de stock', 'url' => route('stock.movements.index')],
@@ -43,14 +59,32 @@
             ],
         ],
         [
-            'label' => 'CRM',
+            'key' => 'hr',
+            'label' => 'RH',
+            'tone' => 'violet',
+            'icon' => 'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z',
             'items' => [
-                ['label' => 'Client', 'url' => route('clients.create')],
-                ['label' => 'Fournisseur', 'url' => route('suppliers.create')],
+                ['label' => 'Nouveau salarié', 'url' => route('hr.employees.create')],
+                ['label' => 'Contrats', 'url' => route('hr.contracts.index')],
+                ['label' => 'Congés & absences', 'url' => route('hr.leaves.index')],
+                ['label' => 'Présences & pointage', 'url' => route('hr.attendance.index')],
             ],
         ],
         [
-            'label' => 'FINANCE',
+            'key' => 'crm',
+            'label' => 'CRM',
+            'tone' => 'teal',
+            'icon' => 'M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z',
+            'items' => [
+                ['label' => 'Nouveau client', 'url' => route('clients.create')],
+                ['label' => 'Nouveau fournisseur', 'url' => route('suppliers.create')],
+            ],
+        ],
+        [
+            'key' => 'finance',
+            'label' => 'Finance',
+            'tone' => 'slate',
+            'icon' => 'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
             'items' => [
                 ['label' => 'Encaissement', 'url' => route('financial.mouvements.create', ['type' => 'entree'])],
                 ['label' => 'Décaissement', 'url' => route('financial.mouvements.create', ['type' => 'sortie'])],
@@ -60,6 +94,15 @@
                 ['label' => 'Rapprochement', 'url' => route('financial.mouvements.reconcile')],
             ],
         ],
+    ];
+
+    $createMenuTones = [
+        'emerald' => ['btn' => 'bg-emerald-50 text-emerald-700', 'item' => 'text-emerald-600'],
+        'sky' => ['btn' => 'bg-sky-50 text-sky-700', 'item' => 'text-sky-600'],
+        'amber' => ['btn' => 'bg-amber-50 text-amber-700', 'item' => 'text-amber-600'],
+        'violet' => ['btn' => 'bg-violet-50 text-violet-700', 'item' => 'text-violet-600'],
+        'teal' => ['btn' => 'bg-teal-50 text-teal-700', 'item' => 'text-teal-600'],
+        'slate' => ['btn' => 'bg-slate-100 text-slate-700', 'item' => 'text-slate-500'],
     ];
 
     $quickPeriods = [
@@ -76,8 +119,8 @@
     x-init="init()"
     x-cloak
 >
-    {{-- 1. En-tête : période, dates, actualiser, + Nouveau --}}
-    <header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+    {{-- 1. En-tête : vue globale, filtres — le titre « Tableau de bord » reste uniquement dans la barre supérieure. --}}
+    <header class="bg-white border-b border-gray-200">
         <div class="px-4 sm:px-6 py-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div class="flex items-center justify-between gap-3 xl:contents">
                 <div class="min-w-0 xl:order-1">
@@ -90,11 +133,16 @@
                     </p>
                 </div>
 
-                <div class="relative shrink-0 xl:order-3" x-data="{ open: false }" @keydown.escape.window="open = false">
+                <div
+                    data-page-actions
+                    class="relative shrink-0 xl:order-3"
+                    x-data="{ open: false, expanded: null }"
+                    @keydown.escape.window="open = false; expanded = null"
+                    @click.outside="open = false; expanded = null"
+                >
                     <button
                         type="button"
-                        @click="open = !open"
-                        @click.outside="open = false"
+                        @click="open = !open; if (!open) expanded = null"
                         class="inline-flex items-center gap-1.5 px-3 py-2 bg-[#fdb819] text-[#083c58] rounded-lg text-xs font-bold hover:bg-[#e5a617] transition"
                         :aria-expanded="open"
                     >
@@ -110,20 +158,95 @@
                         x-show="open"
                         x-transition.opacity
                         x-cloak
-                        class="absolute right-0 mt-2 w-[min(92vw,58rem)] rounded-xl border border-gray-200 bg-white shadow-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 z-30"
+                        translate="no"
+                        lang="fr"
+                        class="absolute right-0 mt-2 w-[min(92vw,22rem)] lg:w-[min(92vw,58rem)] max-h-[min(78vh,40rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl z-30"
                     >
-                        @foreach ($createMenu as $group)
-                            <div>
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">{{ $group['label'] }}</p>
-                                <ul class="space-y-0.5">
-                                    @foreach ($group['items'] as $item)
-                                        <li>
-                                            <a href="{{ $item['url'] }}" class="block px-2 py-1.5 rounded-md text-xs text-gray-700 hover:bg-gray-100 hover:text-[#0a5d8a] transition">{{ $item['label'] }}</a>
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            </div>
-                        @endforeach
+                        <div class="px-3 pt-3 pb-2 border-b border-gray-100 bg-gray-50/80 rounded-t-xl">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Actions rapides</p>
+                            <a
+                                href="{{ $createQuickAction['url'] }}"
+                                class="flex items-center gap-3 rounded-xl border border-violet-100 bg-white px-2.5 py-2 hover:bg-violet-50/70 transition"
+                            >
+                                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                                    </svg>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-sm font-semibold text-gray-900">{{ $createQuickAction['label'] }}</span>
+                                    <span class="block text-[11px] text-gray-500 leading-snug">{{ $createQuickAction['hint'] }}</span>
+                                </span>
+                                <svg class="h-4 w-4 shrink-0 text-amber-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                            </a>
+                        </div>
+
+                        {{-- Mobile / tablette : une seule catégorie ouverte à la fois --}}
+                        <div class="lg:hidden p-2 space-y-1">
+                            @foreach ($createMenu as $group)
+                                @php $tone = $createMenuTones[$group['tone']] ?? $createMenuTones['slate']; @endphp
+                                <div class="rounded-xl border border-gray-100 overflow-hidden">
+                                    <button
+                                        type="button"
+                                        class="w-full flex items-center gap-2.5 px-2.5 py-2.5 text-left hover:bg-gray-50 transition"
+                                        @click.stop="expanded = expanded === '{{ $group['key'] }}' ? null : '{{ $group['key'] }}'"
+                                        :aria-expanded="expanded === '{{ $group['key'] }}'"
+                                    >
+                                        <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg {{ $tone['btn'] }}">
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="{{ $group['icon'] }}" />
+                                            </svg>
+                                        </span>
+                                        <span class="flex-1 text-sm font-semibold text-gray-800">{{ $group['label'] }}</span>
+                                        <svg class="h-4 w-4 text-gray-400 transition-transform" :class="expanded === '{{ $group['key'] }}' ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                        </svg>
+                                    </button>
+                                    <ul
+                                        x-show="expanded === '{{ $group['key'] }}'"
+                                        x-cloak
+                                        class="border-t border-gray-100 bg-white pb-1"
+                                    >
+                                        @foreach ($group['items'] as $item)
+                                            <li>
+                                                <a href="{{ $item['url'] }}" class="flex items-center gap-2 px-3 py-2 text-[13px] text-gray-700 hover:bg-gray-50 hover:text-[#0a5d8a] transition">
+                                                    <svg class="h-4 w-4 shrink-0 {{ $tone['item'] }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                                    </svg>
+                                                    <span class="flex-1">{{ $item['label'] }}</span>
+                                                    @if (! empty($item['badge']))
+                                                        <span class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">{{ $item['badge'] }}</span>
+                                                    @endif
+                                                </a>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        {{-- Grand écran : colonnes, toutes les actions visibles --}}
+                        <div class="hidden lg:grid grid-cols-3 xl:grid-cols-6 gap-4 p-4">
+                            @foreach ($createMenu as $group)
+                                <div>
+                                    <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">{{ $group['label'] }}</p>
+                                    <ul class="space-y-0.5">
+                                        @foreach ($group['items'] as $item)
+                                            <li>
+                                                <a href="{{ $item['url'] }}" class="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs text-gray-700 hover:bg-gray-100 hover:text-[#0a5d8a] transition">
+                                                    <span class="flex-1">{{ $item['label'] }}</span>
+                                                    @if (! empty($item['badge']))
+                                                        <span class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">{{ $item['badge'] }}</span>
+                                                    @endif
+                                                </a>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endforeach
+                        </div>
                     </div>
                 </div>
             </div>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\AttachesManagedDocuments;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\HandlesExpenseRecurrence;
 use App\Http\Controllers\Concerns\LoadsExpenseFormOptions;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 
 class ExpenseWithInvoiceController extends Controller
 {
-    use FiltersIndexTables, HandlesExpenseRecurrence, LoadsExpenseFormOptions;
+    use AttachesManagedDocuments, FiltersIndexTables, HandlesExpenseRecurrence, LoadsExpenseFormOptions;
 
     public function index(Request $request)
     {
@@ -54,12 +55,10 @@ class ExpenseWithInvoiceController extends Controller
 
         $validated['expense_type'] = 'with_invoice';
         $validated = $this->prepareRecurrence($request, $validated);
+        unset($validated['invoice_file']);
 
-        if ($request->hasFile('invoice_file')) {
-            $validated['invoice_file_path'] = $request->file('invoice_file')->store('expenses/invoices', 'public');
-        }
-
-        Expense::create($validated);
+        $expense = Expense::create($validated);
+        $this->attachManagedDocument('expenses-with-invoice', $expense, $request->file('invoice_file'));
 
         return redirect()->route('expenses-with-invoice.index')->with('success', 'Dépense avec facture créée avec succès!');
     }
@@ -110,13 +109,8 @@ class ExpenseWithInvoiceController extends Controller
         }
 
         $validated = $request->validate($rules);
-
-        if ($request->hasFile('invoice_file') && ! ($expenseWithInvoice->isRecurrenceTemplate() && ! $request->boolean('is_recurring'))) {
-            if (! $expenseWithInvoice->isRecurrenceTemplate() && $expenseWithInvoice->invoice_file_path) {
-                Storage::disk('public')->delete($expenseWithInvoice->invoice_file_path);
-            }
-            $validated['invoice_file_path'] = $request->file('invoice_file')->store('expenses/invoices', 'public');
-        }
+        $invoiceFile = $request->file('invoice_file');
+        unset($validated['invoice_file']);
 
         if ($expenseWithInvoice->isRecurrenceTemplate()) {
             if (! $request->boolean('is_recurring')) {
@@ -142,6 +136,9 @@ class ExpenseWithInvoiceController extends Controller
         }
 
         $expenseWithInvoice->update($validated);
+        if (! $expenseWithInvoice->isRecurrenceTemplate()) {
+            $this->attachManagedDocument('expenses-with-invoice', $expenseWithInvoice, $invoiceFile);
+        }
 
         return redirect()->route('expenses-with-invoice.index')->with('success', 'Dépense avec facture modifiée avec succès!');
     }

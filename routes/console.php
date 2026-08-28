@@ -12,12 +12,14 @@ Artisan::command('inspire', function () {
 Schedule::command('shopify:sync-orders')
     ->everyFiveMinutes()
     ->withoutOverlapping(10)
-    ->runInBackground();
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/shopify-sync.log'));
 
 Schedule::command('shopify:sync-products')
     ->everyFiveMinutes()
     ->withoutOverlapping(10)
-    ->runInBackground();
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/shopify-products-sync.log'));
 
 // Keep Shopify webhooks registered (adds missing topics like fulfillments/tracking).
 // No --force: skips already-correct webhooks; updates only missing/outdated ones.

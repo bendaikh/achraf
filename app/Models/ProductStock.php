@@ -9,6 +9,7 @@ class ProductStock extends Model
 {
     protected $fillable = [
         'product_id',
+        'product_variant_id',
         'warehouse_id',
         'warehouse_location_id',
         'quantity',
@@ -23,6 +24,11 @@ class ProductStock extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
     }
 
     public function warehouse(): BelongsTo

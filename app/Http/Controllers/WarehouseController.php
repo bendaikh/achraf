@@ -19,13 +19,19 @@ class WarehouseController extends Controller
             'city' => 'nullable|string|max:100',
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'is_primary' => 'nullable|boolean',
+            'kind' => ['nullable', Rule::in(['physical', 'online'])],
             'comment' => 'nullable|string|max:1000',
         ]);
 
         $validated['is_primary'] = $request->boolean('is_primary');
+        $validated['is_fulfillment_default'] = $request->boolean('is_fulfillment_default');
+        $validated['kind'] = $validated['kind'] ?? 'physical';
 
         if ($validated['is_primary']) {
             Warehouse::query()->update(['is_primary' => false]);
+        }
+        if ($validated['is_fulfillment_default']) {
+            Warehouse::query()->update(['is_fulfillment_default' => false]);
         }
 
         Warehouse::create($validated);
@@ -47,9 +53,13 @@ class WarehouseController extends Controller
         ]);
 
         $validated['is_primary'] = $request->boolean('is_primary');
+        $validated['is_fulfillment_default'] = $request->boolean('is_fulfillment_default');
 
         if ($validated['is_primary']) {
             Warehouse::query()->where('id', '!=', $warehouse->id)->update(['is_primary' => false]);
+        }
+        if ($validated['is_fulfillment_default']) {
+            Warehouse::query()->where('id', '!=', $warehouse->id)->update(['is_fulfillment_default' => false]);
         }
 
         $warehouse->update($validated);

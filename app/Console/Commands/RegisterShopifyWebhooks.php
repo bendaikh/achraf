@@ -68,6 +68,8 @@ class RegisterShopifyWebhooks extends Command
         $webhooksToRegister = [
             'orders/create' => "{$baseUrl}/api/webhooks/shopify/orders/create",
             'orders/updated' => "{$baseUrl}/api/webhooks/shopify/orders/updated",
+            // Refunds change current_total_price / current_quantity — re-import the order
+            'refunds/create' => "{$baseUrl}/api/webhooks/shopify/refunds/create",
             // Preferred when read_fulfillments is granted
             'fulfillments/create' => "{$baseUrl}/api/webhooks/shopify/fulfillments/create",
             'fulfillments/update' => "{$baseUrl}/api/webhooks/shopify/fulfillments/update",

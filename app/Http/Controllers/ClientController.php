@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Client;
 use App\Models\ClientDocument;
+use App\Support\IntelligentSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -277,16 +278,15 @@ class ClientController extends Controller
         $page = max(1, (int) $request->input('page', 1));
         $perPage = 20;
 
-        $query = Client::query()->orderBy('name');
+        $query = Client::query();
 
         if ($term !== '') {
-            $query->where(function ($builder) use ($term) {
-                $builder->where('name', 'like', "%{$term}%")
-                    ->orWhere('email', 'like', "%{$term}%")
-                    ->orWhere('phone', 'like', "%{$term}%")
-                    ->orWhere('code', 'like', "%{$term}%");
-            });
+            IntelligentSearch::constrain($query, [
+                'name', 'email', 'phone', 'code', 'ice', 'ville', 'city', 'first_name', 'last_name', 'cin',
+            ], $term);
         }
+
+        $query->orderBy('name');
 
         $paginator = $query->paginate(
             $perPage,

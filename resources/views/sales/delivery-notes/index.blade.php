@@ -99,8 +99,10 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="flex items-center gap-2">
-                                            <a href="{{ route('delivery-notes.pdf', $deliveryNote) }}" class="text-gray-800 hover:text-gray-950" title="PDF généré">⬇️</a>
-                                            <a href="{{ route('delivery-notes.print', $deliveryNote) }}?no_print=1" target="_blank" class="text-green-600 hover:text-green-900" title="Imprimer">🖨️</a>
+                                            <x-libromart-pdf-actions
+                                                :print-route="route('delivery-notes.print', $deliveryNote)"
+                                                :pdf-route="route('delivery-notes.pdf', $deliveryNote)"
+                                            />
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">

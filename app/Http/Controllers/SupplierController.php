@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\SupplierAccountService;
+use App\Support\IntelligentSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -76,19 +78,15 @@ class SupplierController extends Controller
         $page = max(1, (int) $request->input('page', 1));
         $perPage = 20;
 
-        $query = Supplier::query()->orderBy('name');
+        $query = Supplier::query();
 
         if ($term !== '') {
-            $query->where(function ($builder) use ($term) {
-                $builder->where('name', 'like', "%{$term}%")
-                    ->orWhere('email', 'like', "%{$term}%")
-                    ->orWhere('phone', 'like', "%{$term}%")
-                    ->orWhere('code', 'like', "%{$term}%")
-                    ->orWhere('ice', 'like', "%{$term}%")
-                    ->orWhere('legal_name', 'like', "%{$term}%")
-                    ->orWhere('trade_name', 'like', "%{$term}%");
-            });
+            IntelligentSearch::constrain($query, [
+                'name', 'email', 'phone', 'code', 'ice', 'ville', 'city', 'legal_name', 'trade_name', 'rc',
+            ], $term);
         }
+
+        $query->orderBy('name');
 
         $paginator = $query->paginate($perPage, ['id', 'name', 'email'], 'page', $page);
 
@@ -106,8 +104,10 @@ class SupplierController extends Controller
     public function show(Supplier $supplier)
     {
         $supplier->load('internalOwner');
+        $statement = app(SupplierAccountService::class)->statement($supplier);
+        $paymentHistory = app(SupplierAccountService::class)->paymentHistory($supplier);
 
-        return view('suppliers.show', compact('supplier'));
+        return view('suppliers.show', compact('supplier', 'statement', 'paymentHistory'));
     }
 
     public function edit(Supplier $supplier)

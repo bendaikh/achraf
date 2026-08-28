@@ -160,7 +160,6 @@ window.commercialDocConfig = {
 @include('partials.commercial-document-form-script')
 <script>
 var itemIndex = 0;
-var products = commercialDocConfig.products;
 
 function addItem() {
     const tbody = document.getElementById('itemsBody');
@@ -168,10 +167,7 @@ function addItem() {
     row.className = 'border-b border-gray-200';
     row.innerHTML = `
         <td class="px-4 py-3">
-            <select name="items[${itemIndex}][product_id]" onchange="fillCommercialProductDetails(this, ${itemIndex})" class="product-select w-full px-2 py-1 border border-gray-300 rounded text-sm" id="product_select_${itemIndex}">
-                <option value="">Rechercher un produit...</option>
-                ${products.map(p => `<option value="${p.id}" data-ref="${p.ref || ''}" data-name="${p.name}" data-price-ht="${p.cost_price_ht || p.sale_price_ht || 0}" data-price-ttc="${p.sale_price || 0}" data-cost-ht="${p.cost_price_ht || 0}" data-cost-ttc="${p.cost_price_ttc || 0}" data-last-purchase="${p.last_purchase_price || ''}">${p.name} ${p.ref ? '(' + p.ref + ')' : ''}</option>`).join('')}
-            </select>
+            ${window.commercialProductSelectHtml(itemIndex)}
         </td>
         <td class="px-4 py-3">
             <input type="text" name="items[${itemIndex}][ref]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" id="ref_${itemIndex}">
@@ -201,22 +197,7 @@ function addItem() {
     `;
     tbody.insertBefore(row, tbody.firstChild);
     
-    // Initialize Select2 on the newly added dropdown (if jQuery is loaded)
-    if (typeof $ !== 'undefined' && $.fn.select2) {
-        $('#product_select_' + itemIndex).select2({
-            placeholder: 'Rechercher un produit...',
-            allowClear: true,
-            width: '15rem',
-            language: {
-                noResults: function() {
-                    return "Aucun produit trouvé";
-                },
-                searching: function() {
-                    return "Recherche...";
-                }
-            }
-        });
-    }
+    window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex);
     
     itemIndex++;
     calculateCommercialTotal();

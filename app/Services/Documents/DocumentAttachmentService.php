@@ -50,7 +50,8 @@ class DocumentAttachmentService
             $reference,
             $documentDate,
             $sequence,
-            $displayName
+            $displayName,
+            $options
         ) {
             $document = ManagedDocument::create([
                 'documentable_type' => $record->getMorphClass(),
@@ -60,6 +61,7 @@ class DocumentAttachmentService
                 'document_type_label' => DocumentAttachmentRegistry::typeLabelFor($sectionKey, $category),
                 'reference' => $reference,
                 'document_date' => $documentDate,
+                'expires_at' => $options['expires_at'] ?? null,
                 'display_name' => $displayName,
                 'sequence' => $sequence,
                 'source' => $source,
@@ -106,6 +108,81 @@ class DocumentAttachmentService
 
             return $document->fresh(['currentVersion', 'versions', 'uploader']);
         });
+    }
+
+    /**
+     * Retire la pièce jointe sélectionnée sans supprimer l’enregistrement métier.
+     * Le fichier et ses versions restent consultables dans l’historique.
+     */
+    public function deactivate(ManagedDocument $document, array $options = []): ManagedDocument
+    {
+        if (! $document->is_active) {
+            return $document;
+        }
+
+        $userId = $options['user_id'] ?? auth()->id();
+
+        return DB::transaction(function () use ($document, $userId) {
+            $current = $document->currentVersion;
+            $nextVersion = ((int) $document->versions()->max('version_number')) + 1;
+
+            if ($current) {
+                ManagedDocumentVersion::create([
+                    'managed_document_id' => $document->id,
+                    'version_number' => $nextVersion,
+                    'disk' => $current->disk,
+                    'path' => $current->path,
+                    'original_name' => $current->original_name,
+                    'mime_type' => $current->mime_type,
+                    'size' => $current->size,
+                    'checksum' => $current->checksum,
+                    'source' => 'deletion',
+                    'uploaded_by' => $userId,
+                ]);
+            }
+
+            $document->update([
+                'is_active' => false,
+                'deleted_at' => now(),
+                'deleted_by' => $userId,
+            ]);
+
+            $this->resyncLegacyField($document);
+
+            return $document->fresh(['currentVersion', 'versions', 'uploader', 'deletedBy']);
+        });
+    }
+
+    public function ingestLegacyIfNeeded(string $sectionKey, Model $record): ?ManagedDocument
+    {
+        $existing = $this->listFor($sectionKey, $record);
+        if ($existing->isNotEmpty()) {
+            return $existing->first();
+        }
+
+        $config = DocumentAttachmentRegistry::get($sectionKey);
+        $legacyField = $config['legacy_field'] ?? null;
+        if (! $legacyField) {
+            return null;
+        }
+
+        $path = $record->getAttribute($legacyField);
+        if (! is_string($path) || $path === '' || ! Storage::disk('public')->exists($path)) {
+            return null;
+        }
+
+        $absolute = Storage::disk('public')->path($path);
+        $uploaded = new UploadedFile(
+            $absolute,
+            basename($path),
+            mime_content_type($absolute) ?: null,
+            null,
+            true
+        );
+
+        return $this->store($sectionKey, $record, $uploaded, [
+            'source' => 'upload',
+        ]);
     }
 
     public function latestFor(string $sectionKey, Model $record, string $category = 'primary'): ?ManagedDocument
@@ -197,5 +274,30 @@ class DocumentAttachmentService
         }
 
         $record->update([$legacyField => $mirrorRelative]);
+    }
+
+    protected function resyncLegacyField(ManagedDocument $document): void
+    {
+        $config = DocumentAttachmentRegistry::get($document->section_key);
+        $legacyField = $config['legacy_field'] ?? null;
+        $record = $document->documentable;
+
+        if (! $legacyField || ! $record instanceof Model || ! in_array($legacyField, $record->getFillable(), true)) {
+            return;
+        }
+
+        $remaining = $this->latestFor($document->section_key, $record, $document->category);
+        if ($remaining?->currentVersion) {
+            $this->syncLegacyField($record, $legacyField, $remaining->currentVersion);
+
+            return;
+        }
+
+        $old = $record->getAttribute($legacyField);
+        if ($old) {
+            Storage::disk('public')->delete($old);
+        }
+
+        $record->update([$legacyField => null]);
     }
 }

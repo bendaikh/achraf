@@ -6,6 +6,7 @@ use App\Models\Expense;
 use App\Models\InvoicePayment;
 use App\Models\PosSale;
 use App\Models\SupplierInvoicePayment;
+use App\Models\SupplierPayment;
 use App\Observers\FinancialSourceObserver;
 use Illuminate\Support\ServiceProvider;
 
@@ -26,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
     {
         InvoicePayment::observe(FinancialSourceObserver::class);
         SupplierInvoicePayment::observe(FinancialSourceObserver::class);
+        SupplierPayment::observe(FinancialSourceObserver::class);
         Expense::observe(FinancialSourceObserver::class);
         PosSale::observe(FinancialSourceObserver::class);
     }

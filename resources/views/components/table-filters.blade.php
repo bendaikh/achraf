@@ -24,6 +24,8 @@
                     id="search"
                     value="{{ request('search') }}"
                     placeholder="{{ $searchPlaceholder }}"
+                    autocomplete="off"
+                    spellcheck="false"
                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]"
                 >
             </div>

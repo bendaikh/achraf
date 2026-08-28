@@ -9,8 +9,12 @@ use App\Models\Supplier;
 use App\Models\Reception;
 use App\Models\Product;
 use App\Models\SupplierInvoice;
+use App\Models\SupplierPurchaseOrder;
+use App\Models\Warehouse;
 use App\Services\DocumentNumberService;
 use App\Services\ProductPurchasePriceService;
+use App\Services\PurchaseReceiptService;
+use App\Services\PurchaseStockReceiptService;
 use App\Services\StockMovementService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
@@ -26,6 +30,8 @@ class ReceptionController extends Controller
     public function __construct(
         protected StockMovementService $stockMovement,
         protected ProductPurchasePriceService $purchasePriceSync,
+        protected PurchaseReceiptService $purchaseReceipts,
+        protected PurchaseStockReceiptService $purchaseStockReceipt,
     ) {}
 
     public function index(Request $request)
@@ -48,11 +54,13 @@ class ReceptionController extends Controller
     public function create()
     {
         $suppliers = Supplier::all();
-        $products = Product::all();
+        $products = collect();
         $receptionNumber = DocumentNumberService::preview('bon_reception');
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->with('locations')->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
+        $purchaseOrders = SupplierPurchaseOrder::query()->with('supplier')->orderByDesc('order_date')->limit(200)->get();
 
-        return view('purchases.receptions.create', compact('suppliers', 'products', 'receptionNumber', 'pricesAreTtc'));
+        return view('purchases.receptions.create', compact('suppliers', 'products', 'receptionNumber', 'pricesAreTtc', 'warehouses', 'purchaseOrders'));
     }
 
     public function store(Request $request)
@@ -65,7 +73,9 @@ class ReceptionController extends Controller
             'reference' => 'nullable|string',
             'currency' => 'required|string',
             'status' => 'required|string',
-            'stock_location' => 'required|string',
+            'stock_location' => 'nullable|string',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'supplier_purchase_order_id' => 'nullable|exists:supplier_purchase_orders,id',
             'model' => 'nullable|string',
             'remarks' => 'nullable|string',
             'items' => 'required|array',
@@ -77,19 +87,31 @@ class ReceptionController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ]);
+        ] + $this->purchaseStockReceipt->validationRules());
+
+        $warehouse = $this->purchaseStockReceipt->resolveDefaultWarehouse(
+            isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null,
+            $validated['stock_location'] ?? null
+        );
 
         DB::beginTransaction();
         try {
+            if (! empty($validated['supplier_purchase_order_id'])) {
+                $po = SupplierPurchaseOrder::findOrFail($validated['supplier_purchase_order_id']);
+                $this->purchaseReceipts->assertNotOverReceiving($po, $validated['items']);
+            }
+
             $reception = Reception::create([
                 'reception_number' => $validated['reception_number'],
                 'supplier_id' => $validated['supplier_id'],
+                'supplier_purchase_order_id' => $validated['supplier_purchase_order_id'] ?? null,
                 'reception_date' => $validated['reception_date'],
                 'delivery_date' => $validated['delivery_date'] ?? null,
                 'reference' => $validated['reference'] ?? null,
                 'currency' => $validated['currency'],
                 'status' => $validated['status'],
-                'stock_location' => $validated['stock_location'],
+                'stock_location' => $warehouse->name,
+                'warehouse_id' => $warehouse->id,
                 'model' => $validated['model'] ?? null,
                 'remarks' => $validated['remarks'] ?? null,
                 'total' => 0,
@@ -116,18 +138,14 @@ class ReceptionController extends Controller
             $reception->update(['subtotal' => $subtotal, 'total' => $subtotal]);
 
             $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
-
-            $reception->load('items');
-            $this->stockMovement->increaseFromItems(
-                $reception->items,
-                $validated['stock_location']
-            );
+            $reception->load('supplier');
+            $this->purchaseStockReceipt->applyIfNeeded($reception, $validated['items'], $warehouse);
 
             DB::commit();
 
             DocumentNumberService::advanceAfterUse('bon_reception', $validated['reception_number']);
 
-            return redirect()->route('receptions.index')->with('success', 'Bon de réception créé avec succès!');
+            return redirect()->route('receptions.index')->with('success', 'Bon de réception créé — Stock réceptionné ✓ (entrée unique, sans double comptabilisation à la conversion).');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->withInput()->with('error', 'Erreur: ' . $e->getMessage());
@@ -136,14 +154,16 @@ class ReceptionController extends Controller
 
     public function show(Reception $reception)
     {
-        $reception->load('supplier', 'items');
-        return view('purchases.receptions.show', compact('reception'));
+        $reception->load(['supplier', 'items', 'warehouse', 'purchaseOrder', 'convertedSupplierInvoice', 'stockAllocations.warehouse', 'stockAllocations.location']);
+        $documentChain = app(\App\Services\PurchaseDocumentChainService::class)->forReception($reception);
+
+        return view('purchases.receptions.show', compact('reception', 'documentChain'));
     }
 
     public function edit(Reception $reception)
     {
         $suppliers = Supplier::all();
-        $products = Product::all();
+        $products = collect();
         $reception->load('items');
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
@@ -233,15 +253,6 @@ class ReceptionController extends Controller
 
     public function print(Reception $reception)
     {
-        if ($reception->document_file_path && Storage::disk('public')->exists($reception->document_file_path)) {
-            $path = Storage::disk('public')->path($reception->document_file_path);
-            $filename = $reception->reception_number.'.'.pathinfo($path, PATHINFO_EXTENSION);
-
-            return response()->file($path, [
-                'Content-Disposition' => 'inline; filename="'.$filename.'"',
-            ]);
-        }
-
         $reception->load('supplier', 'items');
         $printData = $this->printViewData($reception, $reception->items);
 
@@ -255,13 +266,6 @@ class ReceptionController extends Controller
 
     public function downloadPdf(Reception $reception)
     {
-        if ($reception->document_file_path && Storage::disk('public')->exists($reception->document_file_path)) {
-            $path = Storage::disk('public')->path($reception->document_file_path);
-            $filename = $reception->reception_number.'.'.pathinfo($path, PATHINFO_EXTENSION);
-
-            return response()->download($path, $filename);
-        }
-
         $reception->load('supplier', 'items');
         $printData = $this->printViewData($reception, $reception->items);
 
@@ -331,11 +335,13 @@ class ReceptionController extends Controller
         $invoice = SupplierInvoice::create([
             'invoice_number' => $this->nextSupplierInvoiceNumber(),
             'supplier_id' => $first->supplier_id,
+            'supplier_purchase_order_id' => $first->supplier_purchase_order_id,
             'invoice_date' => now()->toDateString(),
             'due_date' => null,
             'reference_invoice' => $referenceInvoice,
             'currency' => $first->currency,
             'stock_location' => $first->stock_location,
+            'warehouse_id' => $first->warehouse_id,
             'model' => $first->model,
             'remarks' => 'Générée depuis Bon(s) de Réception: '.$originLabels->implode(', '),
             'conditions' => null,
@@ -381,6 +387,8 @@ class ReceptionController extends Controller
                 'converted_at' => now(),
             ]);
         }
+
+        $this->purchaseStockReceipt->attachConvertedDocument($receptions, $invoice);
 
         return $invoice;
     }

@@ -11,6 +11,10 @@
                 <p class="text-sm text-gray-600 mt-1">Détails de l'avoir fournisseur</p>
             </div>
             <div class="flex gap-2">
+                <x-libromart-pdf-actions
+                    :print-route="route('supplier-credit-notes.print', $supplierCreditNote)"
+                    :pdf-route="route('supplier-credit-notes.pdf', $supplierCreditNote)"
+                />
                 <a href="{{ route('supplier-credit-notes.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
                     Retour à la liste
                 </a>
@@ -70,7 +74,25 @@
         </div>
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Articles</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">Affectation de l'avoir</h3>
+            <div class="grid sm:grid-cols-3 gap-4 text-sm mb-4">
+                <div><p class="text-gray-500">Montant avoir</p><p class="font-semibold">{{ number_format($supplierCreditNote->total, 2) }} DH</p></div>
+                <div><p class="text-gray-500">Affecté</p><p class="font-semibold">{{ number_format($supplierCreditNote->amount_applied, 2) }} DH</p></div>
+                <div><p class="text-gray-500">Disponible</p><p class="font-semibold text-emerald-700">{{ number_format($supplierCreditNote->amount_available, 2) }} DH</p></div>
+            </div>
+            @if($supplierCreditNote->allocations->isNotEmpty())
+                <ul class="text-sm space-y-1">
+                    @foreach($supplierCreditNote->allocations as $allocation)
+                        <li>→ Affecté à facture
+                            <a class="text-[#0a5d8a]" href="{{ route('supplier-invoices.show', $allocation->supplier_invoice_id) }}">{{ $allocation->invoice?->invoice_number }}</a>
+                            : {{ number_format($allocation->amount, 2) }} DH
+                        </li>
+                    @endforeach
+                </ul>
+            @else
+                <p class="text-sm text-gray-500">Cet avoir est disponible sur le compte fournisseur et sera consommé lors du prochain règlement.</p>
+            @endif
+        </div>
             <div class="overflow-x-auto">
                 <table class="w-full">
                     <thead class="bg-gray-50">
@@ -138,6 +160,10 @@
                     </div>
                 </div>
             </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">Document importé / pièce jointe</h3>
+            <x-managed-document-actions type="supplier-credit-notes" :id="$supplierCreditNote->id" />
         </div>
     </div>
 </main>

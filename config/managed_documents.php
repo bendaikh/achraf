@@ -3,15 +3,14 @@
 return [
     /*
     |--------------------------------------------------------------------------
-    | Local scanner bridge
+    | Mobile camera scanner
     |--------------------------------------------------------------------------
     |
-    | Browsers cannot drive USB scanners (TWAIN/WIA) directly. When a local
-    | scan helper is installed, Libromart can call this endpoint. Otherwise the
-    | UI falls back to importing the PDF produced by the scanner software.
+    | Document scanning is handled in the browser on iPhone/Android (camera,
+    | crop, multi-page PDF). Desktop keeps file import only. No local TWAIN
+    | bridge is used.
     |
     */
-    'scanner_bridge_url' => env('MANAGED_DOCUMENT_SCANNER_BRIDGE_URL', 'http://127.0.0.1:18765/scan'),
 
     'disk' => env('MANAGED_DOCUMENT_DISK', 'local'),
 

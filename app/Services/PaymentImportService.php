@@ -255,7 +255,9 @@ class PaymentImportService
                         'allow_overpayment' => $line->allow_overpayment,
                     ]);
 
-                    $line->update(['supplier_invoice_payment_id' => $payment->id]);
+                    if ($payment->exists) {
+                        $line->update(['supplier_invoice_payment_id' => $payment->id]);
+                    }
                 }
 
                 $created++;

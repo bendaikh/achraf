@@ -104,11 +104,16 @@
 
     @if($showInvoiceFile)
     <div class="md:col-span-2">
-        <label class="block text-sm font-medium text-gray-700 mb-2">Facture (PDF, JPG, PNG)</label>
-        <input type="file" name="invoice_file" accept=".pdf,.jpg,.jpeg,.png" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-        @if($expense?->invoice_file_path)
-            <p class="text-xs text-gray-500 mt-1">Fichier actuel : {{ basename($expense->invoice_file_path) }}</p>
+        <label class="block text-sm font-medium text-gray-700 mb-2">Documents</label>
+        @if($expense)
+            <x-managed-document-actions
+                :type="$expense->expense_type === 'without_invoice' ? 'expenses-without-invoice' : 'expenses-with-invoice'"
+                :id="$expense->id"
+            />
+            <p class="mt-2 text-xs text-gray-500">Vous pouvez aussi joindre un fichier supplémentaire ci-dessous.</p>
         @endif
+        <input type="file" name="invoice_file" accept=".pdf,.jpg,.jpeg,.png" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+        <p class="mt-1 text-xs text-gray-500">⬆️ Téléverser un fichier (PDF, JPG, PNG). Après enregistrement, 🖨️ Scanner en PDF est disponible dans la liste.</p>
     </div>
     @endif
 </div>

@@ -220,6 +220,21 @@ class TableExportService
                     'minimum_alert_stock' => 'Stock alerte',
                 ],
             ],
+            'employees' => [
+                'model' => \App\Models\Employee::class,
+                'query' => fn (Builder $q) => $q->with('department'),
+                'columns' => [
+                    'matricule' => 'Matricule',
+                    'last_name' => 'Nom',
+                    'first_name' => 'Prénom',
+                    'hire_date' => 'Date d\'entrée',
+                    'job_title' => 'Fonction',
+                    'department.name' => 'Service',
+                    'status' => 'Statut',
+                    'phone' => 'Téléphone',
+                    'email' => 'Email',
+                ],
+            ],
         ];
     }
 

@@ -92,9 +92,18 @@ class DashboardService
 
     public function getSupplierPayments(Carbon $dateFrom, Carbon $dateTo): float
     {
-        return round((float) SupplierInvoicePayment::query()
-            ->tap(fn (Builder $q) => $this->betweenDates($q, 'payment_date', $dateFrom, $dateTo))
-            ->sum('amount'), 2);
+        return round(
+            (float) SupplierInvoicePayment::query()
+                ->where(function ($q) {
+                    $q->where('is_cash_movement', true)->orWhereNull('is_cash_movement');
+                })
+                ->tap(fn (Builder $q) => $this->betweenDates($q, 'payment_date', $dateFrom, $dateTo))
+                ->sum('amount')
+            + (float) \App\Models\SupplierPayment::query()
+                ->tap(fn (Builder $q) => $this->betweenDates($q, 'payment_date', $dateFrom, $dateTo))
+                ->sum('unallocated_amount'),
+            2
+        );
     }
 
     public function getExpenses(Carbon $dateFrom, Carbon $dateTo): float
@@ -729,18 +738,21 @@ class DashboardService
         $rows = SupplierInvoice::query()
             ->with('supplier')
             ->withSum('payments as payments_sum', 'amount')
+            ->withSum('creditNoteAllocations as credit_note_allocations_sum_amount', 'amount')
             ->orderByDesc('invoice_date')
             ->get()
             ->map(function (SupplierInvoice $invoice) {
                 $total = (float) $invoice->total;
                 $paid = (float) ($invoice->payments_sum ?? 0);
+                $credits = (float) ($invoice->credit_note_allocations_sum_amount ?? 0);
+                $remaining = round(max(0, $total - $paid - $credits), 2);
 
                 return [
                     'number' => $invoice->invoice_number,
                     'party' => $invoice->supplier?->name ?? '—',
                     'total' => round($total, 2),
-                    'paid' => round($paid, 2),
-                    'remaining' => round(max(0, $total - $paid), 2),
+                    'paid' => round($paid + $credits, 2),
+                    'remaining' => $remaining,
                     'status' => $this->balanceStatus($paid, $total),
                     'date' => $invoice->invoice_date?->format('d/m/Y'),
                     'due_date' => $invoice->due_date?->format('d/m/Y'),
@@ -910,10 +922,20 @@ class DashboardService
      */
     private function openBalances(Builder $query): array
     {
+        $query->withSum('payments as payments_sum', 'amount');
+
+        if ($query->getModel() instanceof SupplierInvoice) {
+            $query->withSum('creditNoteAllocations as credit_note_allocations_sum_amount', 'amount');
+        }
+
         $rows = $query
-            ->withSum('payments as payments_sum', 'amount')
             ->get()
-            ->map(fn ($invoice) => max(0, (float) $invoice->total - (float) ($invoice->payments_sum ?? 0)))
+            ->map(fn ($invoice) => max(
+                0,
+                (float) $invoice->total
+                - (float) ($invoice->payments_sum ?? 0)
+                - (float) ($invoice->credit_note_allocations_sum_amount ?? 0)
+            ))
             ->filter(fn (float $remaining) => $remaining > 0.009);
 
         return [

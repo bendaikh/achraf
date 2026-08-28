@@ -15,7 +15,7 @@ class PosSaleController extends Controller
         $query = PosSale::with(['client', 'user'])
             ->where('status', PosSale::STATUS_COMPLETED);
 
-        $this->applyTableSearch($query, $request, ['ticket_number', 'client.name']);
+        $this->applyTableSearch($query, $request, ['ticket_number', 'external_id', 'client.name', 'fulfillments.tracking_number', 'trackings.tracking_number']);
         $this->applyTableDateRange($query, $request, 'sold_at', 'date_from', 'date_to');
         $this->applyTableFilter($query, $request, 'payment_method', 'payment_method');
         $this->applyTableSort($query, $request, [

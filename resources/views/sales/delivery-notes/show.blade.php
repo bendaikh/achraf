@@ -11,12 +11,10 @@
                 <p class="text-sm text-gray-600 mt-1">Détails du bon de livraison</p>
             </div>
             <div class="flex items-center space-x-3">
-                <a href="{{ route('delivery-notes.print', $deliveryNote) }}" target="_blank" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150 flex items-center">
-                    <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-                    </svg>
-                    Imprimer
-                </a>
+                <x-libromart-pdf-actions
+                    :print-route="route('delivery-notes.print', $deliveryNote)"
+                    :pdf-route="route('delivery-notes.pdf', $deliveryNote)"
+                />
                 <a href="{{ route('delivery-notes.edit', $deliveryNote) }}" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150">
                     Modifier
                 </a>
@@ -127,6 +125,11 @@
                 </div>
             </div>
             @endif
+
+            <div class="p-6 border-t border-gray-200">
+                <h3 class="text-sm font-semibold text-gray-900 mb-3">Document importé / pièce jointe</h3>
+                <x-managed-document-actions type="delivery-notes" :id="$deliveryNote->id" category="signed" label="BL signé" />
+            </div>
         </div>
     </div>
 </main>

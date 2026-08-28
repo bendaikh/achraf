@@ -3,13 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
+use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Client;
 use App\Models\Expense;
+use App\Support\CommercialDocumentView;
 use Illuminate\Http\Request;
 
 class ExpenseController extends Controller
 {
-    use FiltersIndexTables;
+    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function index(Request $request)
     {
@@ -93,5 +96,39 @@ class ExpenseController extends Controller
         $expense->delete();
 
         return redirect()->route('expenses.index')->with('success', 'Dépense supprimée avec succès!');
+    }
+
+    public function print(Expense $expense)
+    {
+        $expense->load('supplier', 'client');
+        $view = CommercialDocumentView::forExpense($expense, []);
+        $printData = $this->printViewData($expense, $view['doc']['items']);
+        $view = CommercialDocumentView::forExpense($expense, $printData['taxes']);
+
+        return view('purchases.expenses.print', array_merge(
+            $view,
+            $printData,
+            compact('expense'),
+            ['generatedBy' => auth()->user()?->name]
+        ));
+    }
+
+    public function downloadPdf(Expense $expense)
+    {
+        $expense->load('supplier', 'client');
+        $view = CommercialDocumentView::forExpense($expense, []);
+        $printData = $this->printViewData($expense, $view['doc']['items']);
+        $view = CommercialDocumentView::forExpense($expense, $printData['taxes']);
+        $number = $view['doc']['number'];
+
+        return $this->downloadCommercialPdf(
+            array_merge(
+                $view,
+                $printData,
+                ['generatedBy' => auth()->user()?->name]
+            ),
+            'depense',
+            $number
+        );
     }
 }

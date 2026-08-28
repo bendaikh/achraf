@@ -7,6 +7,7 @@ use App\Models\FinancialPiece;
 use App\Services\FinancialDeclarationService;
 use App\Services\FinancialManagementService;
 use App\Services\FinancialMovementService;
+use App\Support\IntelligentSearch;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -36,12 +37,7 @@ class FinancialMovementController extends Controller
             ->when($request->filled('account') && $request->account !== 'all', fn ($q) => $q->where('account', $request->account))
             ->when($request->filled('status') && $request->status !== 'all', fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('q'), function ($q) use ($request) {
-                $needle = '%'.$request->q.'%';
-                $q->where(function ($inner) use ($needle) {
-                    $inner->where('reference', 'like', $needle)
-                        ->orWhere('label', 'like', $needle)
-                        ->orWhere('notes', 'like', $needle);
-                });
+                IntelligentSearch::constrain($q, ['reference', 'label', 'notes'], (string) $request->q);
             })
             ->orderBy('movement_date')
             ->orderBy('id');

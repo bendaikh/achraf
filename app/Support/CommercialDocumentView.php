@@ -4,11 +4,14 @@ namespace App\Support;
 
 use App\Models\CreditNote;
 use App\Models\DeliveryNote;
+use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quote;
 use App\Models\Reception;
 use App\Models\Supplier;
+use App\Models\SupplierCreditNote;
+use App\Models\SupplierPurchaseOrder;
 use App\Models\SupplierDeliveryNote;
 use App\Models\SupplierInvoice;
 use App\Models\Client;
@@ -262,6 +265,131 @@ class CommercialDocumentView
         $payload['doc']['source_document_dates'] = self::supplierInvoiceSourceDates($invoice);
 
         return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function forSupplierPurchaseOrder(SupplierPurchaseOrder $order, array $taxes): array
+    {
+        $order->loadMissing('supplier', 'items');
+
+        $lines = self::supplierLines($order->supplier);
+        $lines[] = ['label' => 'DEVISE', 'value' => $order->currency ?? 'MAD'];
+        $lines[] = ['label' => 'STOCK', 'value' => $order->stock_location];
+        if ($order->reference_invoice) {
+            $lines[] = ['label' => 'RÉFÉRENCE', 'value' => $order->reference_invoice];
+        }
+
+        return self::base(
+            title: 'BON DE COMMANDE FOURNISSEUR',
+            number: $order->order_number,
+            dates: array_filter([
+                ['label' => 'DATE', 'value' => $order->order_date->format('d/m/Y')],
+                $order->due_date ? ['label' => 'ÉCHÉANCE', 'value' => $order->due_date->format('d/m/Y')] : null,
+            ]),
+            partyTab: 'Informations fournisseur',
+            partyName: $order->supplier->name,
+            partyLines: $lines,
+            partyLegal: self::supplierLegal($order->supplier),
+            items: $order->items,
+            taxes: $taxes,
+            currency: $order->currency ?? 'dh - MAD',
+            remarks: trim(collect([$order->remarks, $order->conditions])->filter()->implode("\n\n")) ?: null,
+            priceMode: LineItemCalculator::priceModeForDocument($order),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function forSupplierCreditNote(SupplierCreditNote $creditNote, array $taxes): array
+    {
+        $creditNote->loadMissing('supplier', 'supplierInvoice', 'items');
+
+        $lines = self::supplierLines($creditNote->supplier);
+        $lines[] = ['label' => 'DEVISE', 'value' => $creditNote->currency];
+        $lines[] = ['label' => 'STOCK', 'value' => $creditNote->stock_location];
+        if ($creditNote->supplierInvoice) {
+            $lines[] = ['label' => 'FACTURE LIÉE', 'value' => $creditNote->supplierInvoice->invoice_number];
+        }
+
+        return self::base(
+            title: 'AVOIR FOURNISSEUR',
+            number: $creditNote->credit_note_number,
+            dates: [
+                ['label' => 'DATE', 'value' => $creditNote->credit_note_date->format('d/m/Y')],
+            ],
+            partyTab: 'Informations fournisseur',
+            partyName: $creditNote->supplier->name,
+            partyLines: $lines,
+            partyLegal: self::supplierLegal($creditNote->supplier),
+            items: $creditNote->items,
+            taxes: $taxes,
+            currency: $creditNote->currency,
+            remarks: $creditNote->remarks,
+            priceMode: LineItemCalculator::priceModeForDocument($creditNote),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function forExpense(Expense $expense, array $taxes): array
+    {
+        $expense->loadMissing('supplier', 'client');
+
+        $taxRate = preg_match('/(\d+(?:[.,]\d+)?)/', (string) $expense->tax_type, $matches)
+            ? (float) str_replace(',', '.', $matches[1])
+            : 0.0;
+
+        $items = collect([(object) [
+            'ref' => $expense->reference,
+            'designation' => $expense->designation,
+            'quantity' => 1,
+            'unit_price' => (float) $expense->amount,
+            'tax_rate' => $taxRate,
+            'discount' => 0,
+            'discount_type' => 'fixed',
+            'line_total' => (float) $expense->amount,
+        ]]);
+
+        $title = $expense->expense_type === 'without_invoice'
+            ? 'DÉPENSE SANS FACTURE'
+            : 'DÉPENSE AVEC FACTURE';
+
+        $party = $expense->supplier ?? $expense->client;
+        $partyName = $party?->name ?? $expense->designation;
+        $partyLines = $expense->supplier
+            ? self::supplierLines($expense->supplier)
+            : ($expense->client ? self::clientLines($expense->client) : []);
+        $partyLines[] = ['label' => 'DEVISE', 'value' => $expense->currency];
+        if ($expense->payment_method) {
+            $partyLines[] = ['label' => 'PAIEMENT', 'value' => $expense->payment_method];
+        }
+        if ($expense->expense_category) {
+            $partyLines[] = ['label' => 'CATÉGORIE', 'value' => $expense->expense_category];
+        }
+
+        $number = $expense->reference
+            ?: sprintf('%s-%d', $expense->expense_type === 'without_invoice' ? 'DSN' : 'DEP', $expense->id);
+
+        return self::base(
+            title: $title,
+            number: $number,
+            dates: [
+                ['label' => 'DATE', 'value' => $expense->expense_date->format('d/m/Y')],
+            ],
+            partyTab: $expense->supplier ? 'Informations fournisseur' : 'Informations',
+            partyName: $partyName,
+            partyLines: $partyLines,
+            partyLegal: $expense->supplier ? self::supplierLegal($expense->supplier) : ($expense->client ? self::clientLegal($expense->client) : []),
+            items: $items,
+            taxes: $taxes,
+            currency: $expense->currency,
+            remarks: $expense->tax_type ? 'Fiscalité : '.$expense->tax_type : null,
+            priceMode: LineItemCalculator::priceModeForDocument($expense),
+        );
     }
 
     /**

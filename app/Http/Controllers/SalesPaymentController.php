@@ -261,18 +261,15 @@ class SalesPaymentController extends Controller
 
     protected function applySearch(Builder $query, Request $request): void
     {
-        if (! $request->filled('search')) {
-            return;
-        }
-
-        $search = '%'.$request->input('search').'%';
-
-        $query->where(function (Builder $q) use ($search) {
-            $q->where('invoice_number', 'like', $search)
-                ->orWhereHas('client', fn (Builder $cq) => $cq->where('name', 'like', $search))
-                ->orWhereHas('posSale', fn (Builder $pq) => $pq->where('ticket_number', 'like', $search))
-                ->orWhereHas('posSale.fulfillments', fn (Builder $fq) => $fq->where('tracking_number', 'like', $search));
-        });
+        $this->applyTableSearch($query, $request, [
+            'invoice_number',
+            'client.name',
+            'posSale.ticket_number',
+            'posSale.external_id',
+            'posSale.fulfillments.tracking_number',
+            'posSale.trackings.tracking_number',
+            'payments.tracking_number',
+        ]);
     }
 
     protected function applyFulfillmentStatusFilter(Builder $query, Request $request): void

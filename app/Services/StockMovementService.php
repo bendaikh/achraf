@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\ProductStock;
+use App\Models\ProductVariant;
 use App\Models\Setting;
 use App\Models\StockMovement;
 use App\Models\Warehouse;
@@ -40,7 +41,7 @@ class StockMovementService
     }
 
     /**
-     * @param  iterable<int, array{product_id?: int|null, quantity: int}>  $items
+     * @param  iterable<int, array{product_id?: int|null, product_variant_id?: int|null, quantity: int}>  $items
      * @return list<string>
      */
     public function decreaseForSale(iterable $items, ?string $stockLocation, bool $strict = true, ?string $documentType = null, ?int $documentId = null, ?string $documentReference = null): array
@@ -76,7 +77,12 @@ class StockMovementService
                 StockMovement::TYPE_SALE,
                 $documentType,
                 $documentId,
-                $documentReference
+                $documentReference,
+                null,
+                null,
+                null,
+                null,
+                isset($item['product_variant_id']) ? (int) $item['product_variant_id'] : null
             );
             if ($warning !== null) {
                 $warnings[] = $warning;
@@ -87,16 +93,28 @@ class StockMovementService
     }
 
     /**
-     * @param  iterable<int, array{product_id?: int|null, quantity: int}>  $items
+     * @param  iterable<int, array{product_id?: int|null, product_variant_id?: int|null, quantity: int}>  $items
      */
-    public function increaseForPurchase(iterable $items, ?string $stockLocation, ?string $documentType = null, ?int $documentId = null, ?string $documentReference = null): void
-    {
+    public function increaseForPurchase(
+        iterable $items,
+        ?string $stockLocation,
+        ?string $documentType = null,
+        ?int $documentId = null,
+        ?string $documentReference = null,
+        ?int $warehouseId = null
+    ): void {
         if (! $this->isStockControlEnabled()) {
             return;
         }
 
         foreach ($items as $item) {
-            $productId = $item['product_id'] ?? null;
+            $row = is_array($item) ? $item : [
+                'product_id' => $item->product_id ?? null,
+                'product_variant_id' => $item->product_variant_id ?? null,
+                'quantity' => $item->quantity ?? 0,
+                'warehouse_id' => $item->warehouse_id ?? null,
+            ];
+            $productId = $row['product_id'] ?? null;
             if (! $productId) {
                 continue;
             }
@@ -106,10 +124,17 @@ class StockMovementService
                 continue;
             }
 
-            $qty = (int) ($item['quantity'] ?? 0);
+            $qty = (int) ($row['quantity'] ?? 0);
             if ($qty <= 0) {
                 continue;
             }
+
+            $itemWarehouseId = isset($row['warehouse_id']) && $row['warehouse_id']
+                ? (int) $row['warehouse_id']
+                : $warehouseId;
+            $itemLocationId = isset($row['warehouse_location_id']) && $row['warehouse_location_id']
+                ? (int) $row['warehouse_location_id']
+                : (isset($row['location_id']) && $row['location_id'] ? (int) $row['location_id'] : null);
 
             $this->increase(
                 $product,
@@ -119,9 +144,134 @@ class StockMovementService
                 StockMovement::TYPE_PURCHASE,
                 $documentType,
                 $documentId,
-                $documentReference
+                $documentReference,
+                $itemWarehouseId,
+                $itemLocationId,
+                $row['notes'] ?? null,
+                null,
+                isset($row['product_variant_id']) ? (int) $row['product_variant_id'] : null
             );
         }
+    }
+
+    /**
+     * Align the online (Shopify) warehouse slot with an external absolute quantity.
+     * Does not push back to Shopify (avoids webhook loops).
+     */
+    public function syncOnlineWarehouseFromExternal(Product $product, int $available, ?string $notes = null, ?int $variantId = null): void
+    {
+        if (! $product->tracksStock()) {
+            return;
+        }
+
+        $warehouse = Warehouse::onlineWarehouse();
+        if (! $warehouse) {
+            if ($variantId) {
+                return;
+            }
+
+            $product->stock_enligne = max(0, $available);
+            $product->stock_quantity = max(0, $available);
+            $product->save();
+
+            return;
+        }
+
+        $available = max(0, $available);
+        $resolvedVariantId = $this->resolveVariantIdForProduct($product, $variantId, false);
+        $slot = $this->findOrCreateSlot($product->id, (int) $warehouse->id, null, true, $resolvedVariantId);
+        $before = (int) $slot->quantity;
+        $delta = $available - $before;
+
+        if ($delta === 0) {
+            $this->syncProductAggregateFromSlots($product);
+            if (! $product->warehouse_id) {
+                $product->warehouse_id = $warehouse->id;
+            }
+            $product->save();
+
+            return;
+        }
+
+        $slot->quantity = $available;
+        $slot->save();
+
+        if (! $product->warehouse_id) {
+            $product->warehouse_id = $warehouse->id;
+        }
+
+        $this->syncProductAggregateFromSlots($product);
+        $product->save();
+
+        $this->recordMovement(
+            $product,
+            $delta,
+            StockMovement::TYPE_INVENTORY_ADJUSTMENT,
+            (int) $warehouse->id,
+            null,
+            'shopify',
+            null,
+            null,
+            $notes ?: 'Sync inventaire Shopify',
+            null,
+            $before,
+            $available,
+            $notes ?: 'Sync inventaire Shopify',
+            $resolvedVariantId
+        );
+    }
+
+    public function syncVariantOnlineWarehouseFromExternal(ProductVariant $variant, int $available, ?string $notes = null): void
+    {
+        $product = $variant->product;
+        if (! $product) {
+            return;
+        }
+
+        $this->syncOnlineWarehouseFromExternal($product, $available, $notes, $variant->id);
+        $variant->inventory_quantity = max(0, $available);
+        $variant->save();
+    }
+
+    /**
+     * Ensure a Shopify product is attached to the existing SHOPIFY online warehouse
+     * and that product_stocks matches stock_enligne (without creating a new depot).
+     */
+    public function ensureShopifyProductOnOnlineWarehouse(Product $product): void
+    {
+        if (! $product->isShopifyProduct() || ! $product->tracksStock()) {
+            return;
+        }
+
+        $warehouse = Warehouse::onlineWarehouse();
+        if (! $warehouse) {
+            return;
+        }
+
+        if ((int) $product->warehouse_id !== (int) $warehouse->id) {
+            $product->warehouse_id = $warehouse->id;
+        }
+
+        $qty = max(0, (int) $product->stock_enligne);
+        if ($product->hasVariants()) {
+            foreach ($product->variants as $variant) {
+                $variantQty = max(0, (int) $variant->inventory_quantity);
+                $slot = $this->findOrCreateSlot($product->id, (int) $warehouse->id, null, true, $variant->id);
+                if ((int) $slot->quantity !== $variantQty) {
+                    $slot->quantity = $variantQty;
+                    $slot->save();
+                }
+            }
+        } else {
+            $slot = $this->findOrCreateSlot($product->id, (int) $warehouse->id, null, true);
+            if ((int) $slot->quantity !== $qty) {
+                $slot->quantity = $qty;
+                $slot->save();
+            }
+        }
+
+        $this->syncProductAggregateFromSlots($product);
+        $product->save();
     }
 
     /**
@@ -133,7 +283,11 @@ class StockMovementService
     {
         $rows = [];
         foreach ($items as $item) {
-            $rows[] = ['product_id' => $item->product_id ?? null, 'quantity' => (int) $item->quantity];
+            $rows[] = [
+                'product_id' => $item->product_id ?? null,
+                'product_variant_id' => $item->product_variant_id ?? null,
+                'quantity' => (int) $item->quantity,
+            ];
         }
 
         if (! $this->isStockControlEnabled()) {
@@ -156,7 +310,12 @@ class StockMovementService
                 StockMovement::TYPE_CUSTOMER_RETURN,
                 $documentType,
                 $documentId,
-                $documentReference
+                $documentReference,
+                null,
+                null,
+                null,
+                null,
+                $row['product_variant_id'] ?? null
             );
         }
     }
@@ -170,7 +329,11 @@ class StockMovementService
     {
         $rows = [];
         foreach ($items as $item) {
-            $rows[] = ['product_id' => $item->product_id ?? null, 'quantity' => (int) $item->quantity];
+            $rows[] = [
+                'product_id' => $item->product_id ?? null,
+                'product_variant_id' => $item->product_variant_id ?? null,
+                'quantity' => (int) $item->quantity,
+            ];
         }
         $this->decreaseForSale($rows, $stockLocation, true, $documentType ?? 'supplier_credit_note', $documentId, $documentReference);
         // Re-tag type as supplier return when possible — decreaseForSale uses sale; override by dedicated loop if needed.
@@ -190,36 +353,52 @@ class StockMovementService
         ?int $warehouseId = null,
         ?int $locationId = null,
         ?string $notes = null,
-        ?int $transferGroupId = null
+        ?int $transferGroupId = null,
+        ?int $variantId = null
     ): ?string {
         if (! $product->tracksStock()) {
             return null;
         }
 
-        $field = $this->stockFieldForProduct($product, $channel);
-        $current = (int) ($product->{$field} ?? 0);
+        $resolvedVariantId = $this->resolveVariantIdForProduct($product, $variantId);
+
+        $warehouse = $this->resolveTargetWarehouse($product, $channel, $warehouseId);
+        $warehouseId = $warehouse?->id;
+        $locationId = $locationId ?? $product->warehouse_location_id;
+        $field = $this->stockFieldForWarehouse($warehouse, $product, $channel);
+
+        $slotQty = $warehouseId
+            ? (int) $this->findOrCreateSlot($product->id, $warehouseId, $locationId, false, $resolvedVariantId)->quantity
+            : (int) ($product->{$field} ?? 0);
         $warning = null;
         $allowNegative = StockSettings::allowNegative();
 
-        if ($current < $quantity && ! $allowNegative) {
-            $warning = 'Stock insuffisant pour « '.$product->name.' » (disponible: '.$current.', demandé: '.$quantity.').';
+        if ($slotQty < $quantity && ! $allowNegative) {
+            $label = $this->stockLabel($product, $resolvedVariantId);
+            $warning = 'Stock insuffisant pour « '.$label.' » (disponible: '.$slotQty.', demandé: '.$quantity.').';
 
             if ($strict) {
                 throw new RuntimeException($warning);
             }
         }
 
-        $product->{$field} = $current - $quantity;
-        $this->syncAggregateStock($product, $field);
-        $product->save();
-
-        $warehouseId = $warehouseId ?? $product->warehouse_id ?? Warehouse::primary()?->id;
-        $locationId = $locationId ?? $product->warehouse_location_id;
-        $this->adjustProductStockSlot($product, $warehouseId, $locationId, -$quantity);
-        $this->recordMovement($product, -$quantity, $movementType, $warehouseId, $locationId, $documentType, $documentId, $documentReference, $notes, $transferGroupId);
+        $this->applyDelta(
+            $product,
+            -$quantity,
+            $field,
+            $warehouseId,
+            $locationId,
+            $movementType,
+            $documentType,
+            $documentId,
+            $documentReference,
+            $notes,
+            $transferGroupId,
+            $resolvedVariantId
+        );
 
         $this->pushEnligneStockToJumia($product, $field);
-        $this->pushEnligneStockToShopify($product, $field, $syncShopify);
+        $this->pushEnligneStockToShopify($product, $field, $syncShopify, $resolvedVariantId);
 
         return $warning;
     }
@@ -236,24 +415,37 @@ class StockMovementService
         ?int $warehouseId = null,
         ?int $locationId = null,
         ?string $notes = null,
-        ?int $transferGroupId = null
+        ?int $transferGroupId = null,
+        ?int $variantId = null
     ): void {
         if (! $product->tracksStock()) {
             return;
         }
 
-        $field = $this->stockFieldForProduct($product, $channel);
-        $product->{$field} = (int) ($product->{$field} ?? 0) + $quantity;
-        $this->syncAggregateStock($product, $field);
-        $product->save();
+        $resolvedVariantId = $this->resolveVariantIdForProduct($product, $variantId);
 
-        $warehouseId = $warehouseId ?? $product->warehouse_id ?? Warehouse::primary()?->id;
+        $warehouse = $this->resolveTargetWarehouse($product, $channel, $warehouseId);
+        $warehouseId = $warehouse?->id;
         $locationId = $locationId ?? $product->warehouse_location_id;
-        $this->adjustProductStockSlot($product, $warehouseId, $locationId, $quantity);
-        $this->recordMovement($product, $quantity, $movementType, $warehouseId, $locationId, $documentType, $documentId, $documentReference, $notes, $transferGroupId);
+        $field = $this->stockFieldForWarehouse($warehouse, $product, $channel);
+
+        $this->applyDelta(
+            $product,
+            $quantity,
+            $field,
+            $warehouseId,
+            $locationId,
+            $movementType,
+            $documentType,
+            $documentId,
+            $documentReference,
+            $notes,
+            $transferGroupId,
+            $resolvedVariantId
+        );
 
         $this->pushEnligneStockToJumia($product, $field);
-        $this->pushEnligneStockToShopify($product, $field, $syncShopify);
+        $this->pushEnligneStockToShopify($product, $field, $syncShopify, $resolvedVariantId);
     }
 
     /**
@@ -265,16 +457,19 @@ class StockMovementService
         ?int $warehouseId = null,
         ?int $locationId = null,
         ?string $notes = null,
-        string $channel = 'default'
+        string $channel = 'default',
+        ?int $variantId = null
     ): void {
         if (! $product->tracksStock()) {
             return;
         }
 
+        $resolvedVariantId = $this->resolveVariantIdForProduct($product, $variantId);
+
         $warehouseId = $warehouseId ?? $product->warehouse_id ?? Warehouse::primary()?->id;
         $locationId = $locationId ?? $product->warehouse_location_id;
 
-        $slot = $this->findOrCreateSlot($product->id, $warehouseId, $locationId);
+        $slot = $this->findOrCreateSlot($product->id, $warehouseId, $locationId, false, $resolvedVariantId);
         $delta = $newQuantity - (int) $slot->quantity;
 
         if ($delta === 0) {
@@ -284,9 +479,11 @@ class StockMovementService
         $slot->quantity = $newQuantity;
         $slot->save();
 
-        $field = $this->stockFieldForProduct($product, $channel);
-        $product->{$field} = (int) ($product->{$field} ?? 0) + $delta;
-        $this->syncAggregateStock($product, $field);
+        $field = $this->stockFieldForWarehouse(Warehouse::find($warehouseId), $product, $channel);
+        $before = (int) $slot->quantity;
+        $slot->quantity = $newQuantity;
+        $slot->save();
+
         $this->syncProductAggregateFromSlots($product);
         $product->save();
 
@@ -299,11 +496,16 @@ class StockMovementService
             'inventory',
             null,
             null,
-            $notes
+            $notes,
+            null,
+            $before,
+            $newQuantity,
+            $notes ?: 'Ajustement inventaire',
+            $resolvedVariantId
         );
 
         $this->pushEnligneStockToJumia($product, $field);
-        $this->pushEnligneStockToShopify($product, $field, true);
+        $this->pushEnligneStockToShopify($product, $field, true, $resolvedVariantId);
     }
 
     /**
@@ -316,7 +518,8 @@ class StockMovementService
         ?int $fromLocationId,
         int $toWarehouseId,
         ?int $toLocationId,
-        ?string $notes = null
+        ?string $notes = null,
+        ?int $variantId = null
     ): int {
         if (! $product->tracksStock()) {
             throw new RuntimeException('Ce produit ne gère pas de stock.');
@@ -330,9 +533,10 @@ class StockMovementService
 
         $groupId = (int) (DB::table('stock_movements')->max('id') + 1);
 
-        return DB::transaction(function () use ($product, $quantity, $fromWarehouseId, $fromLocationId, $toWarehouseId, $toLocationId, $notes, $groupId) {
+        return DB::transaction(function () use ($product, $quantity, $fromWarehouseId, $fromLocationId, $toWarehouseId, $toLocationId, $notes, $groupId, $variantId) {
             $product = Product::query()->lockForUpdate()->findOrFail($product->id);
-            $fromSlot = $this->findOrCreateSlot($product->id, $fromWarehouseId, $fromLocationId, true);
+            $resolvedVariantId = $this->resolveVariantIdForProduct($product, $variantId);
+            $fromSlot = $this->findOrCreateSlot($product->id, $fromWarehouseId, $fromLocationId, true, $resolvedVariantId);
 
             if ((int) $fromSlot->quantity < $quantity && ! StockSettings::allowNegative()) {
                 throw new RuntimeException('Stock insuffisant sur l’emplacement source (disponible: '.$fromSlot->quantity.').');
@@ -341,9 +545,12 @@ class StockMovementService
             $fromSlot->quantity = (int) $fromSlot->quantity - $quantity;
             $fromSlot->save();
 
-            $toSlot = $this->findOrCreateSlot($product->id, $toWarehouseId, $toLocationId, true);
+            $toSlot = $this->findOrCreateSlot($product->id, $toWarehouseId, $toLocationId, true, $resolvedVariantId);
             $toSlot->quantity = (int) $toSlot->quantity + $quantity;
             $toSlot->save();
+
+            $fromBefore = (int) $fromSlot->quantity + $quantity;
+            $toBefore = (int) $toSlot->quantity - $quantity;
 
             $this->syncProductAggregateFromSlots($product);
             $product->save();
@@ -358,7 +565,11 @@ class StockMovementService
                 null,
                 null,
                 $notes,
-                $groupId
+                $groupId,
+                $fromBefore,
+                (int) $fromSlot->quantity,
+                'Transfert de stock',
+                $resolvedVariantId
             );
             $this->recordMovement(
                 $product,
@@ -370,8 +581,22 @@ class StockMovementService
                 null,
                 null,
                 $notes,
-                $groupId
+                $groupId,
+                $toBefore,
+                (int) $toSlot->quantity,
+                'Transfert de stock',
+                $resolvedVariantId
             );
+
+            // Shopify ne change que si SHOPIFY STOCK EN LIGNE est source ou destination.
+            $onlineId = Warehouse::onlineWarehouse()?->id;
+            $touchesOnline = $onlineId
+                && ((int) $fromWarehouseId === (int) $onlineId || (int) $toWarehouseId === (int) $onlineId);
+
+            if ($touchesOnline) {
+                $this->pushEnligneStockToJumia($product, 'stock_enligne');
+                $this->pushEnligneStockToShopify($product, 'stock_enligne', true, $resolvedVariantId);
+            }
 
             return $groupId;
         });
@@ -471,19 +696,186 @@ class StockMovementService
         $this->syncProductAggregateFromSlots($product);
     }
 
-    protected function adjustProductStockSlot(Product $product, ?int $warehouseId, ?int $locationId, int $delta): void
+    public function quantityAtWarehouse(Product $product, int $warehouseId, ?int $locationId = null): int
     {
-        if (! $warehouseId || $delta === 0) {
+        return $this->slotQuantity($product->id, $warehouseId, $locationId);
+    }
+
+    /**
+     * @return list<array{warehouse_id:int, name:string, kind:string, quantity:int, is_online:bool}>
+     */
+    public function locationBreakdown(Product $product): array
+    {
+        $warehouses = Warehouse::query()->active()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
+        $slots = ProductStock::query()->where('product_id', $product->id)->get()->groupBy('warehouse_id');
+
+        $rows = [];
+        foreach ($warehouses as $warehouse) {
+            $qty = (int) ($slots->get($warehouse->id)?->sum('quantity') ?? 0);
+            $rows[] = [
+                'warehouse_id' => (int) $warehouse->id,
+                'name' => $warehouse->name,
+                'code' => $warehouse->code,
+                'kind' => $warehouse->kind ?? Warehouse::KIND_PHYSICAL,
+                'quantity' => $qty,
+                'is_online' => $warehouse->isOnline(),
+            ];
+        }
+
+        return $rows;
+    }
+
+    public function physicalTotal(Product $product): int
+    {
+        $onlineIds = Warehouse::query()->online()->pluck('id');
+
+        return (int) ProductStock::query()
+            ->where('product_id', $product->id)
+            ->when($onlineIds->isNotEmpty(), fn ($q) => $q->whereNotIn('warehouse_id', $onlineIds))
+            ->sum('quantity');
+    }
+
+    /**
+     * @return list<array{
+     *     variant_id: int,
+     *     variant_title: string,
+     *     sku: ?string,
+     *     barcode: ?string,
+     *     total_stock: int,
+     *     locations: list<array{warehouse_id:int, name:string, quantity:int, is_online:bool}>
+     * }>
+     */
+    public function variantLocationBreakdown(Product $product): array
+    {
+        if (! $product->hasVariants()) {
+            return [];
+        }
+
+        $warehouses = Warehouse::query()->active()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
+        $slots = ProductStock::query()
+            ->where('product_id', $product->id)
+            ->whereNotNull('product_variant_id')
+            ->get()
+            ->groupBy('product_variant_id');
+
+        return $product->variants->map(function (ProductVariant $variant) use ($warehouses, $slots) {
+            $variantSlots = $slots->get($variant->id, collect());
+            $locations = [];
+
+            foreach ($warehouses as $warehouse) {
+                $qty = (int) $variantSlots->where('warehouse_id', $warehouse->id)->sum('quantity');
+                $locations[] = [
+                    'warehouse_id' => (int) $warehouse->id,
+                    'name' => $warehouse->name,
+                    'quantity' => $qty,
+                    'is_online' => $warehouse->isOnline(),
+                ];
+            }
+
+            return [
+                'variant_id' => $variant->id,
+                'variant_title' => $variant->full_title,
+                'sku' => $variant->sku,
+                'barcode' => $variant->barcode,
+                'price' => $variant->price,
+                'total_stock' => (int) $variantSlots->sum('quantity'),
+                'locations' => $locations,
+            ];
+        })->values()->all();
+    }
+
+    protected function applyDelta(
+        Product $product,
+        int $delta,
+        string $field,
+        ?int $warehouseId,
+        ?int $locationId,
+        string $movementType,
+        ?string $documentType,
+        ?int $documentId,
+        ?string $documentReference,
+        ?string $notes,
+        ?int $transferGroupId,
+        ?int $variantId = null
+    ): void {
+        if ($delta === 0) {
             return;
         }
 
-        $slot = $this->findOrCreateSlot($product->id, $warehouseId, $locationId);
-        $slot->quantity = (int) $slot->quantity + $delta;
-        $slot->save();
+        $resolvedVariantId = $this->resolveVariantIdForProduct($product, $variantId);
+
+        $before = 0;
+        if ($warehouseId) {
+            $slot = $this->findOrCreateSlot($product->id, $warehouseId, $locationId, false, $resolvedVariantId);
+            $before = (int) $slot->quantity;
+            $slot->quantity = $before + $delta;
+            $slot->save();
+            $after = (int) $slot->quantity;
+        } else {
+            $before = (int) ($product->{$field} ?? 0);
+            $after = $before + $delta;
+        }
+
         $this->syncProductAggregateFromSlots($product);
+        $product->save();
+
+        $this->recordMovement(
+            $product,
+            $delta,
+            $movementType,
+            $warehouseId,
+            $locationId,
+            $documentType,
+            $documentId,
+            $documentReference,
+            $notes,
+            $transferGroupId,
+            $before,
+            $after,
+            $notes,
+            $resolvedVariantId
+        );
     }
 
-    protected function findOrCreateSlot(int $productId, ?int $warehouseId, ?int $locationId, bool $lock = false): ProductStock
+    protected function slotQuantity(int $productId, int $warehouseId, ?int $locationId = null): int
+    {
+        $query = ProductStock::query()
+            ->where('product_id', $productId)
+            ->where('warehouse_id', $warehouseId);
+
+        if ($locationId) {
+            $query->where('warehouse_location_id', $locationId);
+        }
+
+        return (int) $query->sum('quantity');
+    }
+
+    protected function resolveTargetWarehouse(Product $product, string $channel, ?int $warehouseId): ?Warehouse
+    {
+        if ($warehouseId) {
+            return Warehouse::query()->find($warehouseId);
+        }
+
+        $field = $this->stockFieldForProduct($product, $channel);
+        if ($field === 'stock_enligne') {
+            return Warehouse::onlineWarehouse() ?? Warehouse::primary();
+        }
+
+        return Warehouse::fulfillmentWarehouse()
+            ?? ($product->warehouse_id ? Warehouse::find($product->warehouse_id) : null)
+            ?? Warehouse::primary();
+    }
+
+    protected function stockFieldForWarehouse(?Warehouse $warehouse, Product $product, string $channel): string
+    {
+        if ($warehouse) {
+            return $warehouse->isOnline() ? 'stock_enligne' : 'stock_magasin';
+        }
+
+        return $this->stockFieldForProduct($product, $channel);
+    }
+
+    protected function findOrCreateSlot(int $productId, ?int $warehouseId, ?int $locationId, bool $lock = false, ?int $variantId = null): ProductStock
     {
         if (! $warehouseId) {
             throw new RuntimeException('Dépôt requis pour le stock.');
@@ -498,6 +890,13 @@ class StockMovementService
                 } else {
                     $q->whereNull('warehouse_location_id');
                 }
+            })
+            ->where(function ($q) use ($variantId) {
+                if ($variantId) {
+                    $q->where('product_variant_id', $variantId);
+                } else {
+                    $q->whereNull('product_variant_id');
+                }
             });
 
         if ($lock) {
@@ -509,27 +908,51 @@ class StockMovementService
             return $slot;
         }
 
-        return ProductStock::create([
+        $slot = ProductStock::create([
             'product_id' => $productId,
+            'product_variant_id' => $variantId,
             'warehouse_id' => $warehouseId,
             'warehouse_location_id' => $locationId,
             'quantity' => 0,
             'reserved' => 0,
         ]);
+
+        $product = Product::query()->find($productId);
+        $warehouse = Warehouse::query()->find($warehouseId);
+        $hasOtherSlots = ProductStock::query()
+            ->where('product_id', $productId)
+            ->where('id', '!=', $slot->id)
+            ->exists();
+        if ($product && $warehouse && ! $hasOtherSlots && ! $product->hasVariants()) {
+            $legacy = $warehouse->isOnline()
+                ? (int) ($product->stock_enligne ?? 0)
+                : (int) ($product->isShopifyProduct() ? 0 : ($product->stock_magasin ?? $product->stock_quantity ?? 0));
+            if ($legacy !== 0) {
+                $slot->quantity = $legacy;
+                $slot->save();
+            }
+        }
+
+        return $slot;
     }
 
     protected function syncProductAggregateFromSlots(Product $product): void
     {
-        $sum = (int) ProductStock::query()->where('product_id', $product->id)->sum('quantity');
+        $onlineIds = Warehouse::query()->online()->pluck('id');
+        $enligne = (int) ProductStock::query()
+            ->where('product_id', $product->id)
+            ->when($onlineIds->isNotEmpty(), fn ($q) => $q->whereIn('warehouse_id', $onlineIds), fn ($q) => $q->whereRaw('1 = 0'))
+            ->sum('quantity');
+        $magasin = (int) ProductStock::query()
+            ->where('product_id', $product->id)
+            ->when($onlineIds->isNotEmpty(), fn ($q) => $q->whereNotIn('warehouse_id', $onlineIds))
+            ->sum('quantity');
         $reserved = (int) ProductStock::query()->where('product_id', $product->id)->sum('reserved');
-        $product->stock_quantity = $sum;
-        $product->stock_reserved = $reserved;
 
-        if ($product->isShopifyProduct()) {
-            $product->stock_enligne = $sum;
-        } else {
-            $product->stock_magasin = $sum;
-        }
+        $product->stock_enligne = $enligne;
+        $product->stock_magasin = $magasin;
+        $product->stock_reserved = $reserved;
+        $product->stock_quantity = $product->isShopifyProduct() ? $enligne : $magasin;
     }
 
     protected function recordMovement(
@@ -542,7 +965,11 @@ class StockMovementService
         ?int $documentId = null,
         ?string $documentReference = null,
         ?string $notes = null,
-        ?int $transferGroupId = null
+        ?int $transferGroupId = null,
+        ?int $quantityBefore = null,
+        ?int $quantityAfter = null,
+        ?string $reason = null,
+        ?int $variantId = null
     ): void {
         if ($quantity === 0) {
             return;
@@ -550,9 +977,12 @@ class StockMovementService
 
         StockMovement::create([
             'product_id' => $product->id,
+            'product_variant_id' => $variantId,
             'warehouse_id' => $warehouseId,
             'warehouse_location_id' => $locationId,
             'quantity' => $quantity,
+            'quantity_before' => $quantityBefore,
+            'quantity_after' => $quantityAfter,
             'type' => $type,
             'moved_at' => now(),
             'document_type' => $documentType,
@@ -561,6 +991,7 @@ class StockMovementService
             'user_id' => Auth::id(),
             'transfer_group_id' => $transferGroupId,
             'notes' => $notes,
+            'reason' => $reason ?? $notes,
         ]);
     }
 
@@ -581,29 +1012,70 @@ class StockMovementService
         }
     }
 
-    protected function pushEnligneStockToShopify(Product $product, string $field, bool $enabled): void
+    protected function pushEnligneStockToShopify(Product $product, string $field, bool $enabled, ?int $variantId = null): void
     {
         if (! $enabled || $field !== 'stock_enligne' || ! $product->isShopifyProduct()) {
             return;
         }
 
         $productId = $product->id;
+        $resolvedVariantId = $variantId;
 
-        DB::afterCommit(function () use ($productId): void {
+        DB::afterCommit(function () use ($productId, $resolvedVariantId): void {
             try {
                 $fresh = Product::query()->find($productId);
                 if (! $fresh) {
                     return;
                 }
 
-                app(ShopifyInventorySyncService::class)->pushProductStock($fresh);
+                app(ShopifyInventorySyncService::class)->pushProductStock($fresh, $resolvedVariantId);
             } catch (\Throwable $e) {
                 Log::warning('Shopify stock push after local stock change failed', [
                     'product_id' => $productId,
+                    'variant_id' => $resolvedVariantId,
                     'message' => $e->getMessage(),
                 ]);
             }
         });
+    }
+
+    protected function resolveVariantIdForProduct(Product $product, ?int $variantId, bool $required = true): ?int
+    {
+        if (! $product->hasVariants()) {
+            return null;
+        }
+
+        if (! $variantId) {
+            if ($required) {
+                throw new RuntimeException('Une variante doit être sélectionnée pour « '.$product->name.' ».');
+            }
+
+            return null;
+        }
+
+        $exists = ProductVariant::query()
+            ->where('id', $variantId)
+            ->where('product_id', $product->id)
+            ->exists();
+
+        if (! $exists) {
+            throw new RuntimeException('Variante invalide pour « '.$product->name.' ».');
+        }
+
+        return $variantId;
+    }
+
+    protected function stockLabel(Product $product, ?int $variantId): string
+    {
+        if (! $variantId) {
+            return (string) $product->name;
+        }
+
+        $variant = ProductVariant::query()->find($variantId);
+
+        return $variant
+            ? $product->name.' – '.$variant->full_title
+            : (string) $product->name;
     }
 
     protected function stockFieldForProduct(Product $product, string $channel): string

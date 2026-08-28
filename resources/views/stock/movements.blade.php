@@ -20,7 +20,7 @@
             <div class="mb-4 bg-green-50 border-l-4 border-green-500 p-4 rounded text-green-700">{{ session('success') }}</div>
         @endif
 
-        <form method="GET" class="mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 bg-white border border-slate-200 rounded-xl p-4">
+        <form method="GET" class="mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 bg-white border border-slate-200 rounded-xl p-4" data-list-page>
             <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Recherche</label>
                 <input type="text" name="search" value="{{ request('search') }}" class="w-full rounded-lg border-slate-300 text-sm">
@@ -65,8 +65,10 @@
                             <th class="px-4 py-3 text-left">Produit</th>
                             <th class="px-4 py-3 text-left">Type</th>
                             <th class="px-4 py-3 text-right">Qté</th>
+                            <th class="px-4 py-3 text-right">Avant</th>
+                            <th class="px-4 py-3 text-right">Après</th>
                             <th class="px-4 py-3 text-left">Dépôt</th>
-                            <th class="px-4 py-3 text-left">Emplacement</th>
+                            <th class="px-4 py-3 text-left">Motif</th>
                             <th class="px-4 py-3 text-left">Document</th>
                             <th class="px-4 py-3 text-left">Utilisateur</th>
                         </tr>
@@ -83,13 +85,31 @@
                                 <td class="px-4 py-3 text-right font-semibold {{ $movement->quantity > 0 ? 'text-green-700' : 'text-red-700' }}">
                                     {{ $movement->quantity > 0 ? '+' : '' }}{{ $movement->quantity }}
                                 </td>
+                                <td class="px-4 py-3 text-right text-slate-500">{{ $movement->quantity_before ?? '—' }}</td>
+                                <td class="px-4 py-3 text-right">{{ $movement->quantity_after ?? '—' }}</td>
                                 <td class="px-4 py-3">{{ $movement->warehouse?->name ?: '—' }}</td>
-                                <td class="px-4 py-3">{{ $movement->location?->code ?: '—' }}</td>
-                                <td class="px-4 py-3 text-xs">{{ $movement->document_reference ?: ($movement->document_type ?: '—') }}</td>
+                                <td class="px-4 py-3 text-xs">{{ $movement->reason ?: $movement->notes ?: '—' }}</td>
+                                <td class="px-4 py-3 text-xs">
+                                    <div class="space-y-0.5">
+                                        @forelse($movement->documents as $doc)
+                                            @if($doc->url())
+                                                <a href="{{ $doc->url() }}" class="text-[#0a5d8a] hover:underline">{{ $doc->label() }}</a>
+                                            @else
+                                                <span>{{ $doc->label() }}</span>
+                                            @endif
+                                            @if(! $loop->last)<span class="text-slate-400">·</span>@endif
+                                        @empty
+                                            {{ $movement->document_reference ?: ($movement->document_type ?: '—') }}
+                                        @endforelse
+                                    </div>
+                                    @if($movement->notes)
+                                        <div class="text-slate-500 mt-0.5">{{ $movement->notes }}</div>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3">{{ $movement->user?->name ?: '—' }}</td>
                             </tr>
                         @empty
-                            <tr><td colspan="8" class="px-4 py-10 text-center text-slate-500">Aucun mouvement</td></tr>
+                            <tr><td colspan="10" class="px-4 py-10 text-center text-slate-500">Aucun mouvement</td></tr>
                         @endforelse
                     </tbody>
                 </table>

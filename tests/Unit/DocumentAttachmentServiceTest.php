@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\Expense;
 use App\Models\ManagedDocument;
 use App\Models\SupplierInvoice;
+use App\Models\User;
 use App\Services\Documents\DocumentArchiveExportService;
 use App\Services\Documents\DocumentAttachmentService;
 use App\Services\Documents\DocumentNamingService;
@@ -176,5 +177,66 @@ class DocumentAttachmentServiceTest extends TestCase
         $this->assertSame('FSI-2026-000125.jpg', $document->display_name);
         $this->assertInstanceOf(ManagedDocument::class, $document);
         $this->assertTrue(class_exists(DocumentPdfMergeService::class));
+    }
+
+    public function test_legacy_file_is_ingested_into_managed_documents(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+
+        $path = UploadedFile::fake()->create('old.pdf', 15, 'application/pdf')->store('expenses/invoices', 'public');
+
+        $expense = Expense::create([
+            'designation' => 'Ancien',
+            'expense_type' => 'with_invoice',
+            'expense_date' => '2026-08-12',
+            'amount' => 50,
+            'currency' => 'dh - MAD',
+            'reference' => 'DEP-LEGACY',
+            'invoice_file_path' => $path,
+        ]);
+
+        $document = app(DocumentAttachmentService::class)->ingestLegacyIfNeeded('expenses-with-invoice', $expense);
+
+        $this->assertNotNull($document);
+        $this->assertSame('DEP-LEGACY.pdf', $document->display_name);
+    }
+
+    public function test_deactivate_hides_attachment_without_deleting_record(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+
+        $invoice = SupplierInvoice::create([
+            'invoice_number' => 'FA2026-0118',
+            'supplier_id' => \App\Models\Supplier::create([
+                'name' => 'SODIREP',
+                'email' => 'sodirep@example.com',
+            ])->id,
+            'invoice_date' => '2026-08-05',
+            'currency' => 'MAD',
+            'subtotal' => 100,
+            'discount' => 0,
+            'adjustment' => 0,
+            'total' => 100,
+        ]);
+
+        $service = app(DocumentAttachmentService::class);
+        $first = $service->store('supplier-invoices', $invoice, UploadedFile::fake()->create('a.pdf', 10, 'application/pdf'));
+        $second = $service->store('supplier-invoices', $invoice, UploadedFile::fake()->create('b.pdf', 10, 'application/pdf'));
+
+        $this->assertSame('FA2026-0118.pdf', $first->display_name);
+        $this->assertSame('FA2026-0118_02.pdf', $second->display_name);
+
+        $user = User::factory()->create();
+        $service->deactivate($second, ['user_id' => $user->id]);
+
+        $this->assertDatabaseHas('supplier_invoices', ['id' => $invoice->id]);
+        $this->assertFalse($second->fresh()->is_active);
+        $this->assertNotNull($second->fresh()->deleted_at);
+        $this->assertCount(1, $service->listFor('supplier-invoices', $invoice));
+        $this->assertTrue($service->listFor('supplier-invoices', $invoice)->first()->is($first->fresh()));
+        $this->assertTrue($second->fresh()->versions()->where('source', 'deletion')->exists());
+        Storage::disk('local')->assertExists($second->currentVersion->path);
     }
 }

@@ -11,6 +11,7 @@ use App\Models\Setting;
 use App\Services\DocumentNumberService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
+use App\Support\LineItemPersistence;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -37,7 +38,7 @@ class QuoteController extends Controller
 
     public function create()
     {
-        $products = Product::all();
+        $products = collect();
         $quoteNumber = DocumentNumberService::preview('devis');
 
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
@@ -96,7 +97,7 @@ class QuoteController extends Controller
     public function edit(Quote $quote)
     {
         $quote->load('client', 'items');
-        $products = Product::all();
+        $products = collect();
         $existingItems = $quote->items->map(fn ($item) => [
             'product_id' => $item->product_id,
             'ref' => $item->ref,
@@ -216,21 +217,7 @@ class QuoteController extends Controller
         $subtotal = 0;
 
         foreach ($items as $item) {
-            $computed = LineItemCalculator::compute($item);
-
-            $quote->items()->create([
-                'product_id' => $item['product_id'] ?? null,
-                'ref' => $item['ref'] ?? null,
-                'designation' => $item['designation'],
-                'description' => $item['description'] ?? null,
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['unit_price'],
-                'tax_rate' => $item['tax_rate'],
-                'discount' => $computed['discount'],
-                'discount_type' => $computed['discount_type'],
-                'line_total' => $computed['line_total'],
-            ]);
-
+            $computed = LineItemPersistence::createInvoiceItem($quote, $item);
             $subtotal += $computed['line_total'];
         }
 

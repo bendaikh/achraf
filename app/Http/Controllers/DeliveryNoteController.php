@@ -39,7 +39,7 @@ class DeliveryNoteController extends Controller
 
     public function create()
     {
-        $products = Product::all();
+        $products = collect();
         $deliveryNumber = DocumentNumberService::preview('bon_livraison');
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
@@ -97,7 +97,7 @@ class DeliveryNoteController extends Controller
     public function edit(DeliveryNote $deliveryNote)
     {
         $deliveryNote->load('client', 'items');
-        $products = Product::all();
+        $products = collect();
         $existingItems = $deliveryNote->items->map(fn ($item) => [
             'product_id' => $item->product_id,
             'ref' => $item->ref,
@@ -163,15 +163,6 @@ class DeliveryNoteController extends Controller
 
     public function print(DeliveryNote $deliveryNote)
     {
-        if ($deliveryNote->document_file_path && Storage::disk('public')->exists($deliveryNote->document_file_path)) {
-            $path = Storage::disk('public')->path($deliveryNote->document_file_path);
-            $filename = $deliveryNote->delivery_number.'.'.pathinfo($path, PATHINFO_EXTENSION);
-
-            return response()->file($path, [
-                'Content-Disposition' => 'inline; filename="'.$filename.'"',
-            ]);
-        }
-
         $deliveryNote->load('client', 'items');
         $printData = $this->printViewData($deliveryNote, $deliveryNote->items);
 
@@ -185,13 +176,6 @@ class DeliveryNoteController extends Controller
 
     public function downloadPdf(DeliveryNote $deliveryNote)
     {
-        if ($deliveryNote->document_file_path && Storage::disk('public')->exists($deliveryNote->document_file_path)) {
-            $path = Storage::disk('public')->path($deliveryNote->document_file_path);
-            $filename = $deliveryNote->delivery_number.'.'.pathinfo($path, PATHINFO_EXTENSION);
-
-            return response()->download($path, $filename);
-        }
-
         $deliveryNote->load('client', 'items');
         $printData = $this->printViewData($deliveryNote, $deliveryNote->items);
 

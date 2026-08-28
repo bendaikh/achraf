@@ -54,8 +54,16 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Emplacement du stock</label>
-                            <input type="text" name="stock_location" value="DEPOT" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Dépôt destination (défaut)</label>
+                            <select name="warehouse_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">— Choisir —</option>
+                                @foreach($warehouses as $warehouse)
+                                    <option value="{{ $warehouse->id }}" @selected(old('warehouse_id', $warehouse->is_fulfillment_default) == $warehouse->id)>
+                                        {{ $warehouse->isOnline() ? '🟢 ' : '' }}{{ $warehouse->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">Surchargeable par ligne. SHOPIFY STOCK EN LIGNE synchronise Shopify.</p>
                         </div>
 
                         <div>
@@ -96,8 +104,9 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire (TTC)</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe (%)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix d'achat</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">TVA (%)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dépôt / Emplacement</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remise</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
@@ -150,6 +159,7 @@
     </main>
 
 @push('scripts')
+@include('purchases.partials.line-stock-allocations')
 <script>
 window.commercialDocConfig = {
     pricesAreTtc: @json($pricesAreTtc ?? false),
@@ -160,7 +170,6 @@ window.commercialDocConfig = {
 @include('partials.commercial-document-form-script')
 <script>
 var itemIndex = 0;
-var products = commercialDocConfig.products;
 
 function addItem() {
     const tbody = document.getElementById('itemsBody');
@@ -168,10 +177,7 @@ function addItem() {
     row.className = 'border-b border-gray-200';
     row.innerHTML = `
         <td class="px-4 py-3">
-            <select name="items[${itemIndex}][product_id]" onchange="fillCommercialProductDetails(this, ${itemIndex})" class="product-select w-full px-2 py-1 border border-gray-300 rounded text-sm" id="product_select_${itemIndex}">
-                <option value="">Rechercher un produit...</option>
-                ${products.map(p => `<option value="${p.id}" data-ref="${p.ref || ''}" data-name="${p.name}" data-price-ht="${p.cost_price_ht || p.sale_price_ht || 0}" data-price-ttc="${p.sale_price || 0}" data-cost-ht="${p.cost_price_ht || 0}" data-cost-ttc="${p.cost_price_ttc || 0}" data-last-purchase="${p.last_purchase_price || ''}">${p.name} ${p.ref ? '(' + p.ref + ')' : ''}</option>`).join('')}
-            </select>
+            ${window.commercialProductSelectHtml(itemIndex)}
         </td>
         <td class="px-4 py-3">
             <input type="text" name="items[${itemIndex}][ref]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" id="ref_${itemIndex}">
@@ -189,6 +195,9 @@ function addItem() {
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
         <td class="px-4 py-3">
+            ${window.purchaseLineStockHtml(itemIndex)}
+        </td>
+        <td class="px-4 py-3">
             ${window.discountRowHtml(itemIndex)}
         </td>
         <td class="px-4 py-3">
@@ -200,24 +209,17 @@ function addItem() {
         </td>
     `;
     tbody.insertBefore(row, tbody.firstChild);
-    
-    // Initialize Select2 on the newly added dropdown (if jQuery is loaded)
-    if (typeof $ !== 'undefined' && $.fn.select2) {
-        $('#product_select_' + itemIndex).select2({
-            placeholder: 'Rechercher un produit...',
-            allowClear: true,
-            width: '15rem',
-            language: {
-                noResults: function() {
-                    return "Aucun produit trouvé";
-                },
-                searching: function() {
-                    return "Recherche...";
-                }
-            }
-        });
+
+    window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex);
+    var defaultWarehouse = document.querySelector('select[name="warehouse_id"]');
+    if (defaultWarehouse && defaultWarehouse.value) {
+        var lineWh = row.querySelector('.purchase-line-warehouse');
+        if (lineWh) {
+            lineWh.value = defaultWarehouse.value;
+            window.purchaseLineWarehouseChanged(itemIndex);
+        }
     }
-    
+
     itemIndex++;
     calculateCommercialTotal();
 }

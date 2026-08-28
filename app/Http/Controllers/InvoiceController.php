@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
+use App\Http\Controllers\Concerns\SyncsDocumentAdjustments;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Product;
@@ -18,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
-    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView, SyncsDocumentAdjustments;
 
     public function __construct(
         protected StockMovementService $stockMovement
@@ -26,9 +27,17 @@ class InvoiceController extends Controller
 
     public function index(Request $request)
     {
-        $query = Invoice::with(['client', 'posSale', 'items']);
+        $query = Invoice::with(['client', 'posSale', 'items', 'adjustments']);
 
-        $this->applyTableSearch($query, $request, ['invoice_number', 'client.name', 'posSale.ticket_number']);
+        $this->applyTableSearch($query, $request, [
+            'invoice_number',
+            'client.name',
+            'posSale.ticket_number',
+            'posSale.external_id',
+            'posSale.fulfillments.tracking_number',
+            'posSale.trackings.tracking_number',
+            'payments.tracking_number',
+        ]);
         $this->applyTableDateRange($query, $request, 'invoice_date');
         $this->applyTableSort($query, $request, [
             'invoice_date' => 'invoice_date',
@@ -42,7 +51,7 @@ class InvoiceController extends Controller
 
     public function create()
     {
-        $products = Product::all();
+        $products = collect();
         $invoiceNumber = DocumentNumberService::preview('facture');
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
@@ -86,7 +95,7 @@ class InvoiceController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ]);
+        ] + $this->adjustmentValidationRules());
 
         DB::beginTransaction();
         try {
@@ -129,10 +138,7 @@ class InvoiceController extends Controller
                 $subtotal += $computed['line_total'];
             }
 
-            $invoice->update([
-                'subtotal' => $subtotal,
-                'total' => $subtotal + ($request->adjustment ?? 0),
-            ]);
+            $this->persistDocumentTotals($invoice, $subtotal, $validated['adjustments'] ?? []);
 
             $stockWarnings = $this->stockMovement->decreaseForSale(
                 $validated['items'],
@@ -162,15 +168,15 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load('client', 'items', 'posSale', 'payments');
+        $invoice->load('client', 'items', 'posSale', 'payments', 'adjustments');
 
         return view('sales.invoices.show', compact('invoice'));
     }
 
     public function edit(Invoice $invoice)
     {
-        $invoice->load('client', 'items');
-        $products = Product::all();
+        $invoice->load('client', 'items', 'adjustments');
+        $products = collect();
         $existingItems = $invoice->items->map(fn ($item) => [
             'product_id' => $item->product_id,
             'ref' => $item->ref,
@@ -210,7 +216,7 @@ class InvoiceController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ]);
+        ] + $this->adjustmentValidationRules());
 
         DB::beginTransaction();
         try {
@@ -249,10 +255,7 @@ class InvoiceController extends Controller
                 $subtotal += $computed['line_total'];
             }
 
-            $invoice->update([
-                'subtotal' => $subtotal,
-                'total' => $subtotal + ($request->adjustment ?? 0),
-            ]);
+            $this->persistDocumentTotals($invoice, $subtotal, $validated['adjustments'] ?? []);
 
             DB::commit();
 
@@ -268,7 +271,7 @@ class InvoiceController extends Controller
 
     public function print(Invoice $invoice)
     {
-        $invoice->load('client', 'items');
+        $invoice->load('client', 'items', 'adjustments');
         $printData = $this->printViewData($invoice, $invoice->items);
 
         return view('sales.invoices.print', array_merge(
@@ -280,7 +283,7 @@ class InvoiceController extends Controller
 
     public function downloadPdf(Invoice $invoice)
     {
-        $invoice->load('client', 'items');
+        $invoice->load('client', 'items', 'adjustments');
         $printData = $this->printViewData($invoice, $invoice->items);
 
         return $this->downloadCommercialPdf(

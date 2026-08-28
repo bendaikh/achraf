@@ -26,6 +26,8 @@ class SupplierInvoicePayment extends Model
     ];
 
     protected $fillable = [
+        'supplier_id',
+        'supplier_payment_id',
         'supplier_invoice_id',
         'payment_date',
         'amount',
@@ -46,6 +48,7 @@ class SupplierInvoicePayment extends Model
         'payment_import_row_id',
         'dedupe_key',
         'allow_overpayment',
+        'is_cash_movement',
     ];
 
     protected $casts = [
@@ -54,11 +57,22 @@ class SupplierInvoicePayment extends Model
         'cheque_due_date' => 'date',
         'amount' => 'decimal:2',
         'allow_overpayment' => 'boolean',
+        'is_cash_movement' => 'boolean',
     ];
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
 
     public function supplierInvoice(): BelongsTo
     {
         return $this->belongsTo(SupplierInvoice::class);
+    }
+
+    public function supplierPayment(): BelongsTo
+    {
+        return $this->belongsTo(SupplierPayment::class);
     }
 
     public function user(): BelongsTo

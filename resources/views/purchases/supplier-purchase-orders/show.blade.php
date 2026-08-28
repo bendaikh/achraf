@@ -11,6 +11,10 @@
                 <p class="text-sm text-gray-600 mt-1">Détails du bon de commande fournisseur</p>
             </div>
             <div class="flex items-center space-x-3">
+                <x-libromart-pdf-actions
+                    :print-route="route('supplier-purchase-orders.print', $supplierPurchaseOrder)"
+                    :pdf-route="route('supplier-purchase-orders.pdf', $supplierPurchaseOrder)"
+                />
                 <a href="{{ route('supplier-purchase-orders.edit', $supplierPurchaseOrder) }}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150 flex items-center">
                     <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
@@ -77,6 +81,8 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantité</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Reçu</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Reste</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Prix unitaire (TTC)</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">TVA (%)</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
@@ -84,10 +90,13 @@
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             @foreach($supplierPurchaseOrder->items as $item)
+                            @php $progress = ($receiptProgress ?? collect())->firstWhere('product_id', (int) $item->product_id); @endphp
                             <tr>
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->ref ?? '-' }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->designation }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $item->quantity }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $progress['received'] ?? 0 }}</td>
+                                <td class="px-4 py-3 text-sm font-semibold text-right {{ ($progress['remaining'] ?? $item->quantity) > 0 ? 'text-amber-700' : 'text-emerald-700' }}">{{ $progress['remaining'] ?? $item->quantity }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->display_unit_price_ttc, 2) }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $item->tax_rate }}%</td>
                                 <td class="px-4 py-3 text-sm font-semibold text-gray-900 text-right">{{ number_format($item->line_total, 2) }}</td>
@@ -131,6 +140,11 @@
                 <p class="text-sm text-gray-600 whitespace-pre-line">{{ $supplierPurchaseOrder->remarks }}</p>
             </div>
             @endif
+        </div>
+
+        <div class="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">Document importé / pièce jointe</h3>
+            <x-managed-document-actions type="supplier-purchase-orders" :id="$supplierPurchaseOrder->id" />
         </div>
     </div>
 </main>

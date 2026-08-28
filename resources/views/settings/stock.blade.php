@@ -130,6 +130,17 @@
                                     <input type="checkbox" name="is_primary" value="1" class="rounded text-[#0a5d8a]">
                                     Dépôt principal
                                 </label>
+                                <label class="flex items-center gap-2 text-sm text-gray-700">
+                                    <input type="checkbox" name="is_fulfillment_default" value="1" class="rounded text-[#0a5d8a]">
+                                    Préparation des commandes (Belvédère)
+                                </label>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Type</label>
+                                    <select name="kind" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                                        <option value="physical">Physique (magasin / dépôt)</option>
+                                        <option value="online">En ligne (Shopify)</option>
+                                    </select>
+                                </div>
                                 <div>
                                     <label class="block text-xs font-medium text-gray-600 mb-1">Commentaire</label>
                                     <textarea name="comment" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></textarea>

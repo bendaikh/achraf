@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductVariant extends Model
 {
@@ -36,6 +37,39 @@ class ProductVariant extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function stocks(): HasMany
+    {
+        return $this->hasMany(ProductStock::class);
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
+    }
+
+    public function totalStock(): int
+    {
+        return (int) $this->stocks()->sum('quantity');
+    }
+
+    public function onlineStock(): int
+    {
+        $onlineIds = Warehouse::query()->online()->pluck('id');
+
+        return (int) $this->stocks()
+            ->when($onlineIds->isNotEmpty(), fn ($query) => $query->whereIn('warehouse_id', $onlineIds), fn ($query) => $query->whereRaw('1 = 0'))
+            ->sum('quantity');
+    }
+
+    public function physicalStock(): int
+    {
+        $onlineIds = Warehouse::query()->online()->pluck('id');
+
+        return (int) $this->stocks()
+            ->when($onlineIds->isNotEmpty(), fn ($query) => $query->whereNotIn('warehouse_id', $onlineIds))
+            ->sum('quantity');
     }
 
     public function getFullTitleAttribute(): string

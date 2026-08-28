@@ -23,7 +23,7 @@
             <div class="mb-4 bg-green-50 border-l-4 border-green-500 p-4 rounded text-green-700">{{ session('success') }}</div>
         @endif
 
-        <form method="GET" class="mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-white border border-slate-200 rounded-xl p-4">
+        <form method="GET" class="mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-white border border-slate-200 rounded-xl p-4" data-list-page>
             <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Recherche</label>
                 <input type="text" name="search" value="{{ request('search') }}" class="w-full rounded-lg border-slate-300 text-sm" placeholder="Nom, réf…">

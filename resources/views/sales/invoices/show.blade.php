@@ -152,13 +152,43 @@
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->discount, 2) }}</td>
                                 <td class="px-4 py-3 text-sm font-semibold text-gray-900 text-right">{{ number_format($item->display_line_total, 2) }}</td>
                             </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
+        </div>
 
-            <!-- Totals -->
+        @if($invoice->adjustments->isNotEmpty())
+        <div class="p-6 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Frais / Ajustements</h3>
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Libellé</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Montant</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">TVA</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    @foreach($invoice->adjustments as $adjustment)
+                    <tr>
+                        <td class="px-4 py-3 text-sm">{{ $adjustment->label }}</td>
+                        <td class="px-4 py-3 text-sm">{{ $adjustment->type === 'deduct' ? '− Déduire du total' : '+ Ajouter au total' }}</td>
+                        <td class="px-4 py-3 text-sm text-right">{{ number_format($adjustment->amount, 2) }}</td>
+                        <td class="px-4 py-3 text-sm">{{ $adjustment->is_taxable ? 'Oui ('.$adjustment->tax_rate.'%)' : 'Non' }}</td>
+                        <td class="px-4 py-3 text-sm text-right {{ $adjustment->type === 'deduct' ? 'text-red-600' : 'text-emerald-700' }}">
+                            {{ $adjustment->type === 'deduct' ? '-' : '+' }}{{ number_format($adjustment->line_total, 2) }}
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @endif
+
+        <!-- Totals -->
             <div class="p-6 bg-gray-50">
                 <x-document-tax-totals :document="$invoice" :items="$invoice->items" />
             </div>

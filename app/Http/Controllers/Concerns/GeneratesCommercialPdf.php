@@ -8,6 +8,9 @@ use Illuminate\Support\Str;
 trait GeneratesCommercialPdf
 {
     /**
+     * Always generate the Libromart PDF from recorded data.
+     * Never serve an imported / scanned attachment from these methods.
+     *
      * @param  array<string, mixed>  $viewData
      */
     protected function downloadCommercialPdf(array $viewData, string $filenamePrefix, string $documentNumber)

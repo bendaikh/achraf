@@ -94,6 +94,10 @@
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                                                 </svg>
                                             </a>
+                                            <x-libromart-pdf-actions
+                                                :print-route="route('supplier-credit-notes.print', $supplierCreditNote)"
+                                                :pdf-route="route('supplier-credit-notes.pdf', $supplierCreditNote)"
+                                            />
                                             <form action="{{ route('supplier-credit-notes.destroy', $supplierCreditNote) }}" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cet avoir?')">
                                                 @csrf
                                                 @method('DELETE')

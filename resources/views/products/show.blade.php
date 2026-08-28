@@ -72,10 +72,15 @@
 
                                 <div>
                                     <span class="text-sm text-gray-500">Référence</span>
-                                    <p class="mt-1 text-lg font-semibold text-gray-900">{{ $product->ref }}</p>
+                                    @if($product->hasVariants())
+                                        <p class="mt-1 text-lg font-semibold text-gray-900">{{ $product->ref ?: '—' }}</p>
+                                        <p class="mt-1 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1 inline-block">Produit à variantes — le stock est géré par variante (voir tableau ci-dessous)</p>
+                                    @else
+                                        <p class="mt-1 text-lg font-semibold text-gray-900">{{ $product->ref }}</p>
+                                    @endif
                                 </div>
 
-                                @if($product->barcode)
+                                @if($product->barcode && ! $product->hasVariants())
                                     <div>
                                         <span class="text-sm text-gray-500">Code-Barres</span>
                                         <p class="mt-1 text-gray-900">{{ $product->barcode }}</p>
@@ -232,28 +237,27 @@
                             </div>
 
                             @if($product->stocks->isNotEmpty())
-                                <div class="mt-6 overflow-x-auto">
-                                    <h3 class="text-sm font-semibold text-gray-800 mb-2">Répartition multi-dépôts</h3>
-                                    <table class="min-w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-                                        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
-                                            <tr>
-                                                <th class="px-3 py-2 text-left">Dépôt</th>
-                                                <th class="px-3 py-2 text-left">Emplacement</th>
-                                                <th class="px-3 py-2 text-right">Quantité</th>
-                                                <th class="px-3 py-2 text-right">Disponible</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="divide-y">
-                                            @foreach($product->stocks as $slot)
-                                                <tr>
-                                                    <td class="px-3 py-2">{{ $slot->warehouse?->name }}</td>
-                                                    <td class="px-3 py-2">{{ $slot->location?->code ?: '—' }}</td>
-                                                    <td class="px-3 py-2 text-right">{{ $slot->quantity }}</td>
-                                                    <td class="px-3 py-2 text-right">{{ $slot->available() }}</td>
-                                                </tr>
-                                            @endforeach
-                                        </tbody>
-                                    </table>
+                                <div class="mt-6">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <h3 class="text-sm font-semibold text-gray-800">STOCK</h3>
+                                        <a href="{{ route('stock.transfer.create', ['product_id' => $product->id]) }}" class="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800">
+                                            Dispatcher / Transférer
+                                        </a>
+                                    </div>
+                                    <ul class="space-y-2">
+                                        @foreach($product->stocks->groupBy('warehouse_id') as $wid => $slots)
+                                            @php
+                                                $wh = $slots->first()->warehouse;
+                                                if (! $wh) continue;
+                                                $qty = (int) $slots->sum('quantity');
+                                                $dot = $wh->isOnline() ? '🟢' : ($loop->index === 1 ? '🔵' : '🟣');
+                                            @endphp
+                                            <li class="flex items-center justify-between rounded-lg px-3 py-2 text-sm {{ $wh->isOnline() ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-50 text-slate-800' }}">
+                                                <span>{{ $dot }} {{ $wh->name }}@if($slots->first()->location) / {{ $slots->first()->location->code }}@endif</span>
+                                                <strong>{{ $qty }}</strong>
+                                            </li>
+                                        @endforeach
+                                    </ul>
                                 </div>
                             @endif
                         </div>
@@ -314,25 +318,45 @@
                                 Variantes du produit
                                 <span class="ml-2 text-sm font-normal text-gray-500">({{ $product->variants->count() }} variante{{ $product->variants->count() > 1 ? 's' : '' }})</span>
                             </h2>
+                            @if($product->hasVariants())
+                                <p class="mb-4 text-sm text-gray-600">Chaque variante est un article stockable indépendant. Le stock total du produit parent est un récapitulatif.</p>
+                            @endif
                             <div class="overflow-x-auto">
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variante</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code-barres</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock total</th>
+                                            @if($product->hasVariants() && !empty($variantStockBreakdown))
+                                                @foreach(($variantStockBreakdown[0]['locations'] ?? []) as $location)
+                                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ $location['name'] }}</th>
+                                                @endforeach
+                                            @else
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                                            @endif
                                         </tr>
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
+                                        @php
+                                            $breakdownByVariant = collect($variantStockBreakdown ?? [])->keyBy('variant_id');
+                                        @endphp
                                         @foreach($product->variants as $variant)
+                                        @php
+                                            $row = $breakdownByVariant->get($variant->id);
+                                            $totalStock = $row['total_stock'] ?? $variant->totalStock();
+                                        @endphp
                                         <tr class="hover:bg-gray-50">
                                             <td class="px-4 py-3 whitespace-nowrap">
                                                 <span class="text-sm font-medium text-gray-900">{{ $variant->full_title }}</span>
                                             </td>
                                             <td class="px-4 py-3 whitespace-nowrap">
-                                                <span class="text-sm text-gray-600">{{ $variant->sku ?? '-' }}</span>
+                                                <span class="text-sm text-gray-600 font-mono">{{ $variant->sku ?? '-' }}</span>
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <span class="text-sm text-gray-600">{{ $variant->barcode ?? '-' }}</span>
                                             </td>
                                             <td class="px-4 py-3 whitespace-nowrap">
                                                 <span class="text-sm text-gray-900">{{ number_format($variant->price ?? 0, 2) }} DHS</span>
@@ -341,17 +365,30 @@
                                                 @endif
                                             </td>
                                             <td class="px-4 py-3 whitespace-nowrap">
-                                                @if($variant->inventory_quantity <= 0)
-                                                    <span class="text-sm font-semibold text-red-600">{{ $variant->inventory_quantity }}</span>
-                                                @elseif($variant->inventory_quantity <= 5)
-                                                    <span class="text-sm font-semibold text-orange-600">{{ $variant->inventory_quantity }}</span>
+                                                @if($totalStock <= 0)
+                                                    <span class="text-sm font-semibold text-red-600">{{ $totalStock }}</span>
+                                                @elseif($totalStock <= 5)
+                                                    <span class="text-sm font-semibold text-orange-600">{{ $totalStock }}</span>
                                                 @else
-                                                    <span class="text-sm text-gray-900">{{ $variant->inventory_quantity }}</span>
+                                                    <span class="text-sm text-gray-900">{{ $totalStock }}</span>
                                                 @endif
                                             </td>
-                                            <td class="px-4 py-3 whitespace-nowrap">
-                                                <span class="text-sm text-gray-600">{{ $variant->barcode ?? '-' }}</span>
-                                            </td>
+                                            @if($product->hasVariants() && $row)
+                                                @foreach($row['locations'] as $location)
+                                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{{ $location['quantity'] }}</td>
+                                                @endforeach
+                                            @else
+                                                <td class="px-4 py-3 whitespace-nowrap">
+                                                    @php $qty = $variant->inventory_quantity; @endphp
+                                                    @if($qty <= 0)
+                                                        <span class="text-sm font-semibold text-red-600">{{ $qty }}</span>
+                                                    @elseif($qty <= 5)
+                                                        <span class="text-sm font-semibold text-orange-600">{{ $qty }}</span>
+                                                    @else
+                                                        <span class="text-sm text-gray-900">{{ $qty }}</span>
+                                                    @endif
+                                                </td>
+                                            @endif
                                         </tr>
                                         @endforeach
                                     </tbody>

@@ -27,6 +27,7 @@ class DocumentFileController extends Controller
             'document_file' => 'required|file|mimes:'.implode(',', config('managed_documents.allowed_mimes')).'|max:'.config('managed_documents.max_kilobytes'),
             'category' => 'nullable|string|max:64',
             'source' => 'nullable|in:upload,scan',
+            'expires_at' => 'nullable|date',
         ]);
 
         $record = DocumentAttachmentRegistry::resolveRecord($type, $id);
@@ -36,6 +37,7 @@ class DocumentFileController extends Controller
             'category' => $category,
             'source' => $request->input('source', 'upload'),
             'user_id' => $request->user()?->id,
+            'expires_at' => $request->input('expires_at'),
         ]);
 
         return redirect()

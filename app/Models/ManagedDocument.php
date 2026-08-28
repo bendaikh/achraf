@@ -25,11 +25,16 @@ class ManagedDocument extends Model
         'uploaded_by',
         'imported_at',
         'is_active',
+        'expires_at',
+        'deleted_at',
+        'deleted_by',
     ];
 
     protected $casts = [
         'document_date' => 'date',
+        'expires_at' => 'date',
         'imported_at' => 'datetime',
+        'deleted_at' => 'datetime',
         'is_active' => 'boolean',
         'sequence' => 'integer',
     ];
@@ -52,6 +57,11 @@ class ManagedDocument extends Model
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    public function deletedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deleted_by');
     }
 
     public function absolutePath(): ?string

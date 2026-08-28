@@ -251,8 +251,9 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                     <div class="sm:col-span-2">
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Recherche</label>
-                        <input type="text" name="search" value="{{ request('search') }}"
+                        <label for="product-list-search" class="block text-xs font-medium text-slate-600 mb-1">Recherche</label>
+                        <input type="search" name="search" id="product-list-search" value="{{ request('search') }}"
+                               autocomplete="off" spellcheck="false"
                                placeholder="Nom, référence SKU, code-barres…"
                                class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
                     </div>
@@ -518,6 +519,31 @@
                                             <div><span class="inline-flex mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">En stock</span></div>
                                         @endif
                                         <div class="text-[10px] text-slate-400 mt-0.5">Physique: {{ $product->stock_quantity }}</div>
+                                        @if($product->relationLoaded('stocks'))
+                                            <div class="mt-1.5 flex flex-wrap gap-1">
+                                                @foreach($product->stocks->groupBy('warehouse_id') as $wid => $slots)
+                                                    @php
+                                                        $wh = $slots->first()->warehouse;
+                                                        $qty = (int) $slots->sum('quantity');
+                                                        if (! $wh) continue;
+                                                        $cls = $wh->isOnline()
+                                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                                            : 'border-sky-200 bg-sky-50 text-sky-800';
+                                                        $dot = $wh->isOnline() ? '🟢' : '🔵';
+                                                    @endphp
+                                                    <button type="button"
+                                                            class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border {{ $cls }}"
+                                                            onclick="openLocationStockModal({{ $product->id }})">
+                                                        {{ $dot }} {{ $wh->isOnline() ? 'Shopify Stock en ligne' : $wh->name }} : {{ $qty }}
+                                                    </button>
+                                                @endforeach
+                                                <button type="button"
+                                                        class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border border-slate-300 bg-white text-slate-700"
+                                                        onclick="openLocationStockModal({{ $product->id }})">
+                                                    Dispatcher / Transférer
+                                                </button>
+                                            </div>
+                                        @endif
                                     @endif
                                 </td>
 
@@ -705,6 +731,37 @@
     </div>
 </div>
 
+{{-- Modal stocks par emplacement --}}
+<div id="locationStockModal" class="fixed inset-0 bg-slate-900/40 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-16 mx-auto mb-10 w-[min(32rem,calc(100%-1.5rem))] border border-slate-200 shadow-xl rounded-xl bg-white p-5">
+        <div class="flex justify-between items-start gap-3 mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-slate-900" id="locationStockTitle">Stocks par emplacement</h3>
+                <p class="text-sm text-slate-500" id="locationStockSku"></p>
+            </div>
+            <button type="button" onclick="closeLocationStockModal()" class="text-slate-400 hover:text-slate-600">×</button>
+        </div>
+        <div id="locationStockBody" class="space-y-2 text-sm"></div>
+        <p class="mt-3 text-sm font-semibold text-slate-800">Stock physique total : <span id="locationStockPhysical">0</span> <span class="text-xs font-normal text-slate-500">(hors Shopify)</span></p>
+        <form id="locationTransferForm" method="POST" class="mt-4 space-y-3 border-t pt-4 hidden">
+            @csrf
+            <input type="hidden" name="product_id" id="locationTransferProductId">
+            <p class="text-xs font-semibold uppercase text-slate-500">Transférer du stock</p>
+            <div class="grid grid-cols-2 gap-2">
+                <select name="from_warehouse_id" id="locationTransferFrom" required class="rounded-lg border-slate-300 text-sm"></select>
+                <select name="to_warehouse_id" id="locationTransferTo" required class="rounded-lg border-slate-300 text-sm"></select>
+            </div>
+            <input type="number" name="quantity" min="1" value="1" required class="w-full rounded-lg border-slate-300 text-sm" placeholder="Quantité">
+            <button class="w-full px-3 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-semibold">Confirmer le transfert</button>
+        </form>
+        <div class="mt-4 flex flex-wrap gap-2">
+            <a id="locationStockMovements" href="#" class="px-3 py-2 border rounded-lg text-sm">Voir les mouvements</a>
+            <button type="button" onclick="document.getElementById('locationTransferForm').classList.toggle('hidden')" class="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm">Dispatcher / Transférer</button>
+            <button type="button" onclick="closeLocationStockModal()" class="px-3 py-2 border rounded-lg text-sm">Fermer</button>
+        </div>
+    </div>
+</div>
+
 <script>
 function openDuplicateModal(productId, productName, productRef) {
     var modal = document.getElementById('duplicateModal');
@@ -794,6 +851,40 @@ function closePurchaseHistoryModal() {
     if (modal) modal.classList.add('hidden');
 }
 
+function closeLocationStockModal() {
+    var modal = document.getElementById('locationStockModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function openLocationStockModal(productId) {
+    var modal = document.getElementById('locationStockModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    fetch(@json(url('/products')) + '/' + productId + '/location-stocks', {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            document.getElementById('locationStockTitle').textContent = data.product.name;
+            document.getElementById('locationStockSku').textContent = data.product.sku || '';
+            document.getElementById('locationStockPhysical').textContent = data.physical_total;
+            document.getElementById('locationStockMovements').href = data.movements_url;
+            document.getElementById('locationTransferForm').action = data.transfer_url;
+            document.getElementById('locationTransferProductId').value = data.product.id;
+            var body = document.getElementById('locationStockBody');
+            body.innerHTML = (data.locations || []).map(function (loc) {
+                var cls = loc.is_online ? 'bg-emerald-50 text-emerald-900' : 'bg-sky-50 text-sky-900';
+                var dot = loc.is_online ? '🟢 ' : '🔵 ';
+                return '<div class="flex justify-between rounded-lg px-3 py-2 ' + cls + '"><span>' + dot + escapeHtml(loc.name) + '</span><strong>' + loc.quantity + '</strong></div>';
+            }).join('');
+            var opts = (data.warehouses || []).map(function (w) {
+                return '<option value="' + w.id + '">' + escapeHtml(w.name) + '</option>';
+            }).join('');
+            document.getElementById('locationTransferFrom').innerHTML = opts;
+            document.getElementById('locationTransferTo').innerHTML = opts;
+        });
+}
+
 function escapeHtml(value) {
     return String(value)
         .replace(/&/g, '&amp;')
@@ -828,6 +919,7 @@ if (!window.__productListEscapeBound) {
         if (e.key === 'Escape') {
             closeDuplicateModal();
             closePurchaseHistoryModal();
+            closeLocationStockModal();
         }
     });
 }

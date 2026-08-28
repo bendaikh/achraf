@@ -28,7 +28,7 @@ class CreditNoteController extends Controller
     {
         $query = CreditNote::with('client', 'invoice');
 
-        $this->applyTableSearch($query, $request, ['credit_note_number', 'client.name']);
+        $this->applyTableSearch($query, $request, ['credit_note_number', 'client.name', 'invoice.invoice_number']);
         $this->applyTableDateRange($query, $request, 'credit_note_date');
         $this->applyTableSort($query, $request, [
             'credit_note_date' => 'credit_note_date',
@@ -41,7 +41,7 @@ class CreditNoteController extends Controller
 
     public function create()
     {
-        $products = Product::all();
+        $products = collect();
         $creditNoteNumber = DocumentNumberService::preview('avoir');
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
@@ -102,7 +102,7 @@ class CreditNoteController extends Controller
     public function edit(CreditNote $creditNote)
     {
         $creditNote->load('client', 'invoice', 'items');
-        $products = Product::all();
+        $products = collect();
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
         $existingItems = $creditNote->items->map(fn ($item) => [
             'product_id' => $item->product_id,

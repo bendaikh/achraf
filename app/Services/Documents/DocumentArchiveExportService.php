@@ -21,6 +21,11 @@ class DocumentArchiveExportService
         protected DocumentPdfMergeService $pdfMerge
     ) {}
 
+    protected function attachments(): DocumentAttachmentService
+    {
+        return app(DocumentAttachmentService::class);
+    }
+
     /**
      * @param  list<string>  $sectionKeys
      * @return array{
@@ -56,6 +61,8 @@ class DocumentArchiveExportService
             $records = $query->get();
 
             foreach ($records as $record) {
+                $this->attachments()->ingestLegacyIfNeeded($sectionKey, $record);
+
                 $reference = DocumentAttachmentRegistry::referenceFor($sectionKey, $record);
                 $documentDate = DocumentAttachmentRegistry::documentDateFor($sectionKey, $record);
                 $docs = ManagedDocument::query()
@@ -75,6 +82,7 @@ class DocumentArchiveExportService
                     'document_date' => $documentDate?->format('Y-m-d'),
                     'document_date_display' => $documentDate?->format('d/m/Y'),
                     'has_document' => $docs->isNotEmpty(),
+                    'attach_url' => DocumentAttachmentRegistry::recordUrlFor($sectionKey, $record),
                 ]);
 
                 foreach ($docs as $doc) {

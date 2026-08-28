@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 class ShopifyInventorySyncService
 {
-    public function pushProductStock(Product $product): void
+    public function pushProductStock(Product $product, ?int $variantId = null): void
     {
         if (! $product->isShopifyProduct() || ! $product->tracksStock()) {
             return;
@@ -20,31 +20,55 @@ class ShopifyInventorySyncService
             return;
         }
 
-        $variant = $this->singleVariant($product);
-        if (! $variant || ! filled($variant->inventory_item_id)) {
-            return;
-        }
-
         $locationId = $this->resolveLocationId($integration);
         if ($locationId === null) {
             return;
         }
 
-        $available = max(0, (int) $product->stock_enligne);
+        if ($product->hasVariants()) {
+            $variants = $product->variants()
+                ->when($variantId, fn ($query) => $query->where('id', $variantId))
+                ->get();
+
+            foreach ($variants as $variant) {
+                $this->pushVariantStock($product, $variant, $locationId);
+            }
+
+            return;
+        }
+
+        $variant = $this->singleVariant($product);
+        if ($variant) {
+            $this->pushVariantStock($product, $variant, $locationId);
+        }
+    }
+
+    protected function pushVariantStock(Product $product, ProductVariant $variant, string $locationId): void
+    {
+        if (! filled($variant->inventory_item_id)) {
+            return;
+        }
+
+        $available = max(0, $variant->onlineStock());
 
         try {
-            $client = new ShopifyApiClient($integration);
+            $client = new ShopifyApiClient(ShopifyIntegration::query()->where('enabled', true)->first());
             $this->setLevel($client, (string) $variant->inventory_item_id, $locationId, $available);
+
+            $variant->inventory_quantity = $available;
+            $variant->save();
 
             Log::info('Shopify inventory pushed', [
                 'product_id' => $product->id,
-                'sku' => $product->ref,
+                'variant_id' => $variant->id,
+                'sku' => $variant->sku ?: $product->ref,
                 'available' => $available,
             ]);
         } catch (\Throwable $e) {
             Log::warning('Shopify inventory push failed', [
                 'product_id' => $product->id,
-                'sku' => $product->ref,
+                'variant_id' => $variant->id,
+                'sku' => $variant->sku ?: $product->ref,
                 'message' => $e->getMessage(),
             ]);
         }
@@ -72,20 +96,17 @@ class ShopifyInventorySyncService
         $product = $variant->product;
 
         if ((int) $variant->inventory_quantity === $available) {
-            $total = (int) $product->variants->sum('inventory_quantity');
-            if ((int) $product->stock_enligne === $total) {
+            $currentSlotQty = $variant->onlineStock();
+            if ($currentSlotQty === $available) {
                 return null;
             }
         }
 
-        $variant->inventory_quantity = $available;
-        $variant->save();
-
-        $product->unsetRelation('variants');
-        $total = max(0, (int) $product->variants()->sum('inventory_quantity'));
-        $product->stock_enligne = $total;
-        $product->stock_quantity = $total;
-        $product->save();
+        app(StockMovementService::class)->syncVariantOnlineWarehouseFromExternal(
+            $variant,
+            $available,
+            'Webhook inventaire Shopify'
+        );
 
         return $product->fresh();
     }
@@ -144,11 +165,6 @@ class ShopifyInventorySyncService
         $integration = ShopifyIntegration::query()->where('enabled', true)->first();
 
         if (! $integration) {
-            return null;
-        }
-
-        $token = $integration->oauth_access_token ?? $integration->api_access_token;
-        if (! $integration->shop_name || ! $token) {
             return null;
         }
 

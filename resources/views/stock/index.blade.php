@@ -32,7 +32,7 @@
                         <p class="mt-1 text-2xl font-bold {{ $lowStockCount > 0 ? 'text-orange-600' : 'text-gray-900' }}">{{ $lowStockCount }}</p>
                     </div>
                     <div class="bg-white rounded-lg shadow border border-gray-100 p-5 flex items-center">
-                        <form method="get" action="{{ route('stock.index') }}" class="flex flex-wrap items-end gap-3 w-full">
+                        <form method="get" action="{{ route('stock.index') }}" data-list-page class="flex flex-wrap items-end gap-3 w-full">
                             <div class="flex-1 min-w-[160px]">
                                 <label for="q" class="block text-xs font-medium text-gray-500 mb-1">Recherche</label>
                                 <input type="search" name="q" id="q" value="{{ request('q') }}" placeholder="Référence ou nom…"

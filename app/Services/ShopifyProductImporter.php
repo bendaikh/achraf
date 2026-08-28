@@ -158,9 +158,10 @@ class ShopifyProductImporter
                 $existing->update($data);
                 // Sync variants
                 $this->syncVariants($existing, $product['variants'] ?? []);
+                app(StockMovementService::class)->ensureShopifyProductOnOnlineWarehouse($existing->fresh());
                 Log::info('Updated Shopify product', ['product_id' => $externalId, 'ref' => $ref]);
 
-                return $existing;
+                return $existing->fresh();
             }
 
             // Check if ref already exists (from manual entry or another Shopify product)
@@ -171,9 +172,10 @@ class ShopifyProductImporter
                     $existingByRef->update($data);
                     // Sync variants
                     $this->syncVariants($existingByRef, $product['variants'] ?? []);
+                    app(StockMovementService::class)->ensureShopifyProductOnOnlineWarehouse($existingByRef->fresh());
                     Log::info('Linked existing product to Shopify', ['product_id' => $externalId, 'ref' => $ref]);
 
-                    return $existingByRef;
+                    return $existingByRef->fresh();
                 } else {
                     // Reference already exists for another Shopify product, generate unique reference
                     $counter = 1;
@@ -195,9 +197,10 @@ class ShopifyProductImporter
             $newProduct = Product::create($data);
             // Sync variants
             $this->syncVariants($newProduct, $product['variants'] ?? []);
+            app(StockMovementService::class)->ensureShopifyProductOnOnlineWarehouse($newProduct->fresh());
             Log::info('Created new Shopify product', ['product_id' => $externalId, 'ref' => $ref]);
 
-            return $newProduct;
+            return $newProduct->fresh();
         });
     }
 

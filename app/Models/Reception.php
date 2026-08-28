@@ -10,16 +10,17 @@ class Reception extends Model
     use HasManagedDocuments;
 
     protected $fillable = [
-        'reception_number', 'supplier_id', 'converted_supplier_invoice_id', 'converted_at',
+        'reception_number', 'supplier_id', 'supplier_purchase_order_id', 'converted_supplier_invoice_id', 'converted_at',
         'reference', 'reception_date', 'delivery_date',
-        'currency', 'status', 'stock_location', 'model', 'remarks',
-        'subtotal', 'discount', 'adjustment', 'total', 'document_file_path',
+        'currency', 'status', 'stock_location', 'warehouse_id', 'model', 'remarks',
+        'subtotal', 'discount', 'adjustment', 'total', 'document_file_path', 'stock_applied_at',
     ];
 
     protected $casts = [
         'reception_date' => 'date',
         'delivery_date' => 'date',
         'converted_at' => 'datetime',
+        'stock_applied_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
         'adjustment' => 'decimal:2',
@@ -44,5 +45,20 @@ class Reception extends Model
     public function items()
     {
         return $this->morphMany(PurchaseItem::class, 'purchaseable');
+    }
+
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(SupplierPurchaseOrder::class, 'supplier_purchase_order_id');
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    public function stockAllocations()
+    {
+        return $this->morphMany(PurchaseStockAllocation::class, 'allocatable');
     }
 }

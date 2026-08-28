@@ -37,4 +37,19 @@ class SupplierCreditNote extends Model
     {
         return $this->morphMany(PurchaseItem::class, 'purchaseable');
     }
+
+    public function allocations()
+    {
+        return $this->hasMany(SupplierCreditNoteAllocation::class);
+    }
+
+    public function getAmountAppliedAttribute(): float
+    {
+        return round((float) $this->allocations()->sum('amount'), 2);
+    }
+
+    public function getAmountAvailableAttribute(): float
+    {
+        return max(0, round((float) $this->total - $this->amount_applied, 2));
+    }
 }

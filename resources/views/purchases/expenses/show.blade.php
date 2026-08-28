@@ -11,6 +11,10 @@
                     <p class="text-sm text-gray-600 mt-1">{{ $expense->designation }}</p>
                 </div>
                 <div class="flex gap-2">
+                    <x-libromart-pdf-actions
+                        :print-route="route('expenses.print', $expense)"
+                        :pdf-route="route('expenses.pdf', $expense)"
+                    />
                     <a href="{{ route('expenses.edit', $expense) }}" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150">
                         Modifier
                     </a>
@@ -74,6 +78,14 @@
                             <label class="block text-sm font-medium text-gray-500 mb-1">Taxe</label>
                             <p class="text-base text-gray-900">{{ $expense->tax_type }}</p>
                         </div>
+                    </div>
+
+                    <div class="mt-6 pt-6 border-t border-gray-200">
+                        <label class="block text-sm font-medium text-gray-500 mb-2">Document importé / pièce jointe</label>
+                        <x-managed-document-actions
+                            :type="$expense->expense_type === 'without_invoice' ? 'expenses-without-invoice' : 'expenses-with-invoice'"
+                            :id="$expense->id"
+                        />
                     </div>
 
                     <div class="mt-6 pt-6 border-t border-gray-200">

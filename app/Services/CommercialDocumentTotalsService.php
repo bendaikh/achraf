@@ -17,7 +17,7 @@ class CommercialDocumentTotalsService
             }
         }
 
-        $invoice->loadMissing('items');
+        $invoice->loadMissing('items', 'adjustments');
 
         if ($invoice->items->isEmpty()) {
             return false;

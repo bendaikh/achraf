@@ -9,8 +9,12 @@ use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\SupplierDeliveryNote;
 use App\Models\SupplierInvoice;
+use App\Models\SupplierPurchaseOrder;
+use App\Models\Warehouse;
 use App\Services\DocumentNumberService;
 use App\Services\ProductPurchasePriceService;
+use App\Services\PurchaseReceiptService;
+use App\Services\PurchaseStockReceiptService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use App\Models\Setting;
@@ -24,6 +28,8 @@ class SupplierDeliveryNoteController extends Controller
 
     public function __construct(
         protected ProductPurchasePriceService $purchasePriceSync,
+        protected PurchaseStockReceiptService $purchaseStockReceipt,
+        protected PurchaseReceiptService $purchaseReceipts,
     ) {}
 
     public function index(Request $request)
@@ -46,28 +52,44 @@ class SupplierDeliveryNoteController extends Controller
     public function create()
     {
         $suppliers = Supplier::all();
-        $products = Product::all();
+        $products = collect();
         $deliveryNumber = DocumentNumberService::preview('bon_livraison_fournisseur');
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
+        $purchaseOrders = SupplierPurchaseOrder::query()->with('supplier')->orderByDesc('order_date')->limit(200)->get();
 
-        return view('purchases.supplier-delivery-notes.create', compact('suppliers', 'products', 'deliveryNumber', 'pricesAreTtc'));
+        return view('purchases.supplier-delivery-notes.create', compact('suppliers', 'products', 'deliveryNumber', 'pricesAreTtc', 'warehouses', 'purchaseOrders'));
     }
 
     public function store(Request $request)
     {
         $validated = $this->validateSupplierDeliveryNote($request);
 
+        $warehouse = $this->purchaseStockReceipt->resolveDefaultWarehouse(
+            isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null,
+            $validated['stock_location'] ?? null
+        );
+
         DB::beginTransaction();
         try {
+            if (! empty($validated['supplier_purchase_order_id'])) {
+                $this->purchaseReceipts->assertNotOverReceiving(
+                    SupplierPurchaseOrder::findOrFail($validated['supplier_purchase_order_id']),
+                    $validated['items']
+                );
+            }
+
             $deliveryNote = SupplierDeliveryNote::create([
                 'delivery_number' => $validated['delivery_number'],
                 'supplier_id' => $validated['supplier_id'],
+                'supplier_purchase_order_id' => $validated['supplier_purchase_order_id'] ?? null,
                 'delivery_date' => $validated['delivery_date'],
                 'expected_reception_date' => $validated['expected_reception_date'] ?? null,
                 'reference' => $validated['reference'] ?? null,
                 'currency' => $validated['currency'],
                 'status' => $validated['status'],
-                'stock_location' => $validated['stock_location'],
+                'stock_location' => $warehouse->name,
+                'warehouse_id' => $warehouse->id,
                 'model' => $validated['model'] ?? null,
                 'remarks' => $validated['remarks'] ?? null,
                 'subtotal' => 0,
@@ -78,12 +100,16 @@ class SupplierDeliveryNoteController extends Controller
 
             $subtotal = $this->syncItems($deliveryNote, $validated['items']);
             $deliveryNote->update(['subtotal' => $subtotal, 'total' => $subtotal]);
+            $deliveryNote->load('supplier');
+            $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
+            // Le BL est un document logistique : il n'augmente pas le stock.
+            // L'entrée physique se fait uniquement au BR (ou via « Réceptionner » sur une facture directe).
 
             DB::commit();
 
             DocumentNumberService::advanceAfterUse('bon_livraison_fournisseur', $validated['delivery_number']);
 
-            return redirect()->route('supplier-delivery-notes.index')->with('success', 'Bon de livraison créé avec succès!');
+            return redirect()->route('supplier-delivery-notes.index')->with('success', 'Bon de livraison créé. Aucune entrée de stock (réservée au bon de réception).');
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -101,7 +127,7 @@ class SupplierDeliveryNoteController extends Controller
     public function edit(SupplierDeliveryNote $supplierDeliveryNote)
     {
         $suppliers = Supplier::all();
-        $products = Product::all();
+        $products = collect();
         $supplierDeliveryNote->load('items');
         $existingItems = $supplierDeliveryNote->items->map(fn ($item) => [
             'product_id' => $item->product_id,
@@ -164,15 +190,6 @@ class SupplierDeliveryNoteController extends Controller
 
     public function print(SupplierDeliveryNote $supplierDeliveryNote)
     {
-        if ($supplierDeliveryNote->document_file_path && Storage::disk('public')->exists($supplierDeliveryNote->document_file_path)) {
-            $path = Storage::disk('public')->path($supplierDeliveryNote->document_file_path);
-            $filename = $supplierDeliveryNote->delivery_number.'.'.pathinfo($path, PATHINFO_EXTENSION);
-
-            return response()->file($path, [
-                'Content-Disposition' => 'inline; filename="'.$filename.'"',
-            ]);
-        }
-
         $supplierDeliveryNote->load('supplier', 'items');
         $printData = $this->printViewData($supplierDeliveryNote, $supplierDeliveryNote->items);
 
@@ -186,13 +203,6 @@ class SupplierDeliveryNoteController extends Controller
 
     public function downloadPdf(SupplierDeliveryNote $supplierDeliveryNote)
     {
-        if ($supplierDeliveryNote->document_file_path && Storage::disk('public')->exists($supplierDeliveryNote->document_file_path)) {
-            $path = Storage::disk('public')->path($supplierDeliveryNote->document_file_path);
-            $filename = $supplierDeliveryNote->delivery_number.'.'.pathinfo($path, PATHINFO_EXTENSION);
-
-            return response()->download($path, $filename);
-        }
-
         $supplierDeliveryNote->load('supplier', 'items');
         $printData = $this->printViewData($supplierDeliveryNote, $supplierDeliveryNote->items);
 
@@ -222,7 +232,7 @@ class SupplierDeliveryNoteController extends Controller
             'reference' => 'nullable|string',
             'currency' => 'required|string',
             'status' => 'required|string',
-            'stock_location' => 'required|string',
+            'stock_location' => 'nullable|string',
             'model' => 'nullable|string',
             'remarks' => 'nullable|string',
             'items' => 'required|array',
@@ -234,7 +244,7 @@ class SupplierDeliveryNoteController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ]);
+        ] + $this->purchaseStockReceipt->validationRules());
     }
 
     protected function syncItems(SupplierDeliveryNote $deliveryNote, array $items): float
@@ -319,11 +329,13 @@ class SupplierDeliveryNoteController extends Controller
         $invoice = SupplierInvoice::create([
             'invoice_number' => $this->nextSupplierInvoiceNumber(),
             'supplier_id' => $first->supplier_id,
+            'supplier_purchase_order_id' => $first->supplier_purchase_order_id,
             'invoice_date' => now()->toDateString(),
             'due_date' => null,
             'reference_invoice' => $referenceInvoice,
             'currency' => $first->currency,
             'stock_location' => $first->stock_location,
+            'warehouse_id' => $first->warehouse_id,
             'model' => $first->model,
             'remarks' => 'Générée depuis Bon(s) de Livraison: '.$originLabels->implode(', '),
             'conditions' => null,
@@ -369,6 +381,8 @@ class SupplierDeliveryNoteController extends Controller
                 'converted_at' => now(),
             ]);
         }
+
+        $this->purchaseStockReceipt->attachConvertedDocument($deliveryNotes, $invoice);
 
         return $invoice;
     }

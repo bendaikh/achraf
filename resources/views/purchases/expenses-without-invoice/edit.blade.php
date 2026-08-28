@@ -14,10 +14,10 @@
     </header>
 
     <div class="p-8">
-        <form action="{{ route('expenses-without-invoice.update', $expense) }}" method="POST" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <form action="{{ route('expenses-without-invoice.update', $expense) }}" method="POST" enctype="multipart/form-data" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             @csrf
             @method('PUT')
-            @include('purchases.partials.expense-form-fields', ['expense' => $expense])
+            @include('purchases.partials.expense-form-fields', ['expense' => $expense, 'showInvoiceFile' => true])
 
             <div class="mt-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Client</label>

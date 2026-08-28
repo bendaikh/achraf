@@ -37,6 +37,25 @@ class ShopifyOrderImporter
             $isLibromartOrigin = $existing
                 && ($existing->source === OrderSource::LIBROMART || filled($existing->creation_token));
 
+            // Ignore out-of-order / stale webhook payloads so an older snapshot cannot
+            // overwrite a newer local sync (e.g. refund already applied, then delayed update arrives).
+            if ($existing && ! $isLibromartOrigin && isset($order['updated_at'])) {
+                $payloadUpdatedAt = Carbon::parse($order['updated_at']);
+                $knownUpdatedAt = data_get($existing->external_metadata, 'shopify_updated_at');
+                if ($knownUpdatedAt) {
+                    $known = Carbon::parse($knownUpdatedAt);
+                    if ($payloadUpdatedAt->lt($known)) {
+                        \Log::info('Skipping stale Shopify order payload', [
+                            'order_id' => $externalId,
+                            'payload_updated_at' => $payloadUpdatedAt->toIso8601String(),
+                            'known_updated_at' => $known->toIso8601String(),
+                        ]);
+
+                        return $existing;
+                    }
+                }
+            }
+
             $previousStockApplied = $this->stockSync->previousAppliedFromSale($existing);
 
             $client = $isLibromartOrigin ? $existing->client : $this->resolveClient($order);
@@ -110,6 +129,14 @@ class ShopifyOrderImporter
                         'external_id' => $externalId,
                         'sync_status' => PosSale::SYNC_SYNCED,
                         'sync_error' => null,
+                        'external_metadata' => array_merge(
+                            is_array($existing->external_metadata) ? $existing->external_metadata : [],
+                            array_filter([
+                                'shopify_updated_at' => isset($order['updated_at'])
+                                    ? Carbon::parse($order['updated_at'])->toIso8601String()
+                                    : null,
+                            ])
+                        ),
                     ];
 
                     if (! $isLibromartOrigin) {
@@ -155,26 +182,25 @@ class ShopifyOrderImporter
                 (float) ($order['current_total_discounts'] ?? $order['total_discounts'] ?? 0),
                 2
             );
-            $totalBeforeGlobal = round($subtotalHt + $taxTotal, 2);
+            $shippingAmount = $this->shippingAmountFromOrder($order);
+            $totalBeforeGlobal = round($subtotalHt + $taxTotal + $shippingAmount, 2);
             $computedTotal = max(0, round($totalBeforeGlobal - $globalDiscount, 2));
 
             // Prefer current_total_price (reflects state after refunds/removals)
-            // over total_price (original order total that doesn't change after refunds)
+            // over total_price (original order total that doesn't change after refunds).
+            // Always trust Shopify's current_* totals when present — recomputed line totals
+            // can diverge when a webhook omits current_quantity or when shipping is present.
             $shopifyTotal = null;
-            if (isset($order['current_total_price'])) {
+            if (array_key_exists('current_total_price', $order) && $order['current_total_price'] !== null && $order['current_total_price'] !== '') {
                 $shopifyTotal = round((float) $order['current_total_price'], 2);
             } elseif (isset($order['total_price'])) {
                 $shopifyTotal = round((float) $order['total_price'], 2);
             }
 
-            // If Shopify's total doesn't match our computed total from active line items,
-            // prefer our computed total (this handles edge cases where Shopify's current_total_price
-            // isn't updated correctly)
-            if ($shopifyTotal !== null && abs($shopifyTotal - $computedTotal) > 1) {
-                // Use computed total from active line items for accuracy
-                $total = $computedTotal;
-            } else {
-                $total = $shopifyTotal !== null ? $shopifyTotal : $computedTotal;
+            $total = $shopifyTotal !== null ? $shopifyTotal : $computedTotal;
+
+            if (array_key_exists('current_total_tax', $order) && $order['current_total_tax'] !== null && $order['current_total_tax'] !== '') {
+                $taxTotal = round((float) $order['current_total_tax'], 2);
             }
 
             $paymentMethod = $this->mapPaymentMethod($order);
@@ -211,6 +237,14 @@ class ShopifyOrderImporter
                     'external_id' => $externalId,
                     'sync_status' => PosSale::SYNC_SYNCED,
                     'sync_error' => null,
+                    'external_metadata' => array_merge(
+                        is_array($existing->external_metadata) ? $existing->external_metadata : [],
+                        array_filter([
+                            'shopify_updated_at' => isset($order['updated_at'])
+                                ? Carbon::parse($order['updated_at'])->toIso8601String()
+                                : null,
+                        ])
+                    ),
                 ];
 
                 // Libromart-originated orders keep their local snapshot (attribution,
@@ -221,6 +255,7 @@ class ShopifyOrderImporter
                         'subtotal' => $subtotalHt,
                         'discount' => $globalDiscount,
                         'tax_total' => $taxTotal,
+                        'shipping_amount' => $shippingAmount,
                         'total' => $total,
                         'payment_method' => $paymentMethod,
                         'amount_received' => $amountReceived,
@@ -306,6 +341,7 @@ class ShopifyOrderImporter
                 'subtotal' => $subtotalHt,
                 'discount' => $globalDiscount,
                 'tax_total' => $taxTotal,
+                'shipping_amount' => $shippingAmount,
                 'total' => $total,
                 'payment_method' => $paymentMethod,
                 'amount_received' => $amountReceived,
@@ -320,6 +356,11 @@ class ShopifyOrderImporter
                 'notes' => 'Shopify order #'.$orderNumber.' (id '.$externalId.')',
                 'source' => 'shopify',
                 'external_id' => $externalId,
+                'external_metadata' => array_filter([
+                    'shopify_updated_at' => isset($order['updated_at'])
+                        ? Carbon::parse($order['updated_at'])->toIso8601String()
+                        : null,
+                ]),
             ]);
 
             foreach ($lineRows as $row) {
@@ -498,6 +539,23 @@ class ShopifyOrderImporter
         $p = $order['phone'] ?? $billing['phone'] ?? $shipping['phone'] ?? $customer['phone'] ?? null;
 
         return $p ? trim((string) $p) : null;
+    }
+
+    private function shippingAmountFromOrder(array $order): float
+    {
+        if (isset($order['total_shipping_price_set']['shop_money']['amount'])) {
+            return round((float) $order['total_shipping_price_set']['shop_money']['amount'], 2);
+        }
+
+        $shipping = 0.0;
+        foreach ($order['shipping_lines'] ?? [] as $line) {
+            if (! is_array($line)) {
+                continue;
+            }
+            $shipping += (float) ($line['price'] ?? 0);
+        }
+
+        return round($shipping, 2);
     }
 
     private function lineTaxRate(array $lineItem, ?Product $product): float

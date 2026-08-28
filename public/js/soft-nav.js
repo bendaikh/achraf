@@ -8,6 +8,8 @@
     const IGNORE_PATH = /\/(print|pdf|export|download)(\/|$)/i;
     const IGNORE_TEMPLATE = /\/import\/template/i;
     // True while injected page scripts run (before HTML is mounted into #app-page-root).
+    let navGeneration = 0;
+    let navAbort = null;
     let mounting = false;
     let mountReadyQueue = [];
 
@@ -76,6 +78,32 @@
 
     function tabsEl() {
         return document.getElementById('app-module-tabs');
+    }
+
+    function pageActionsEl() {
+        return document.getElementById('app-page-actions');
+    }
+
+    function restorePageActions(root) {
+        const slot = pageActionsEl();
+        if (!slot || !root) {
+            return;
+        }
+        while (slot.firstChild) {
+            root.appendChild(slot.firstChild);
+        }
+    }
+
+    function hoistPageActions(root) {
+        const slot = pageActionsEl();
+        if (!slot) {
+            return;
+        }
+        slot.replaceChildren();
+        const source = root && root.querySelector('[data-page-actions]');
+        if (source) {
+            slot.appendChild(source);
+        }
     }
 
     function logMetric(name, ms) {
@@ -317,6 +345,7 @@
     }
 
     async function mountHtml(root, html) {
+        restorePageActions(root);
         destroyCurrentPage(root);
         document.documentElement.classList.remove('pos-full-view-active');
 
@@ -334,20 +363,28 @@
             if (window.Alpine && typeof window.Alpine.initTree === 'function') {
                 window.Alpine.initTree(root);
             }
+            hoistPageActions(root);
         } finally {
             mounting = false;
             flushMountReadyQueue();
         }
     }
 
-    async function navigate(url, { pushState = true, fromPopState = false, scrollY = null } = {}) {
+    async function navigate(url, { pushState = true, fromPopState = false, scrollY = null, replaceState = false, keepScroll = false, silent = false } = {}) {
         const root = pageRoot();
         if (!root) {
             window.location.href = url;
             return;
         }
 
-        if (pushState && !fromPopState) {
+        if (navAbort) {
+            navAbort.abort();
+        }
+        navAbort = new AbortController();
+        const signal = navAbort.signal;
+        const generation = ++navGeneration;
+
+        if (pushState && !fromPopState && !replaceState) {
             const current = window.history.state || {};
             try {
                 window.history.replaceState(
@@ -363,7 +400,10 @@
         }
 
         const started = performance.now();
-        showLoading();
+        const keepY = keepScroll ? (window.scrollY || 0) : null;
+        if (!silent) {
+            showLoading();
+        }
 
         try {
             const response = await fetch(url, {
@@ -373,6 +413,7 @@
                     [HEADER]: '1',
                 },
                 credentials: 'same-origin',
+                signal: signal,
             });
 
             if (response.redirected && response.url && /\/login(\?|$)/.test(response.url)) {
@@ -410,13 +451,17 @@
             await mountHtml(root, payload.html || '');
             updateSidebarActive(payload.module || null, payload.url || url);
 
-            if (pushState && !fromPopState) {
+            if (replaceState && !fromPopState) {
+                try {
+                    window.history.replaceState({ softNav: true, url: payload.url || url, scrollY: keepY || 0 }, '', payload.url || url);
+                } catch (e) {}
+            } else if (pushState && !fromPopState) {
                 window.history.pushState({ softNav: true, url: payload.url || url, scrollY: 0 }, '', payload.url || url);
             }
 
             const restoreY = fromPopState
                 ? (scrollY != null ? scrollY : ((window.history.state && window.history.state.scrollY) || 0))
-                : 0;
+                : (keepY != null ? keepY : 0);
             requestAnimationFrame(function () {
                 window.scrollTo(0, restoreY);
             });
@@ -424,10 +469,15 @@
             logMetric('soft-nav-total-ms', performance.now() - started);
             window.dispatchEvent(new CustomEvent('soft-nav:loaded', { detail: payload }));
         } catch (error) {
+            if (error && (error.name === 'AbortError' || generation !== navGeneration)) {
+                return;
+            }
             console.error('[SoftNav]', error);
             window.location.href = url;
         } finally {
-            hideLoading();
+            if (generation === navGeneration && !silent) {
+                hideLoading();
+            }
         }
     }
 
@@ -459,6 +509,9 @@
 
     document.addEventListener('click', onClick);
     window.addEventListener('popstate', onPopState);
+    whenReady(function () {
+        hoistPageActions(pageRoot());
+    });
 
     if (!window.history.state || window.history.state.softNav === undefined) {
         window.history.replaceState({ softNav: false, url: window.location.href }, '', window.location.href);

@@ -53,6 +53,8 @@ class ManagedDocumentController extends Controller
 
     public function replace(Request $request, ManagedDocument $managedDocument)
     {
+        abort_unless($managedDocument->is_active, 404);
+
         $validated = $request->validate([
             'document_file' => 'required|file|mimes:'.implode(',', config('managed_documents.allowed_mimes')).'|max:'.config('managed_documents.max_kilobytes'),
             'source' => 'nullable|in:upload,scan',
@@ -69,6 +71,23 @@ class ManagedDocumentController extends Controller
             ->with('success', 'Document remplacé. L’ancienne version a été conservée dans l’historique.');
     }
 
+    public function destroy(Request $request, ManagedDocument $managedDocument)
+    {
+        $validated = $request->validate([
+            'redirect_to' => 'nullable|string',
+        ]);
+
+        abort_unless($managedDocument->is_active, 404);
+
+        $this->attachments->deactivate($managedDocument, [
+            'user_id' => $request->user()?->id,
+        ]);
+
+        return redirect()
+            ->to($validated['redirect_to'] ?? url()->previous())
+            ->with('success', 'Pièce jointe supprimée. L’enregistrement n’a pas été modifié.');
+    }
+
     public function show(ManagedDocument $managedDocument): StreamedResponse
     {
         return $this->stream($managedDocument, false);
@@ -81,7 +100,7 @@ class ManagedDocumentController extends Controller
 
     public function history(ManagedDocument $managedDocument)
     {
-        $managedDocument->load(['versions.uploader', 'uploader', 'documentable']);
+        $managedDocument->load(['versions.uploader', 'uploader', 'deletedBy', 'documentable']);
 
         return view('documents.managed.history', [
             'document' => $managedDocument,

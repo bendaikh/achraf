@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Models\Product;
+use App\Support\IntelligentSearch;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -36,7 +37,7 @@ class StockReportExportService
             $request->merge(['search' => $request->input('q')]);
         }
 
-        $this->applyTableSearch($query, $request, ['name', 'ref', 'barcode']);
+        $this->applyTableSearch($query, $request, IntelligentSearch::PRODUCT_COLUMNS);
 
         if ($request->get('filter') === 'low') {
             $query->tracksStock()->lowStock();

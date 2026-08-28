@@ -13,8 +13,11 @@ use App\Models\Quote;
 use App\Models\ShopifyIntegration;
 use App\Models\User;
 use App\Services\DocumentNumberService;
+use App\Services\OrderPhysicalStockService;
 use App\Services\OrderToInvoiceConverter;
 use App\Services\ShopifyOrderCreator;
+use App\Support\IntelligentSearch;
+use App\Support\VariantCatalogSearch;
 use App\Support\OrderSource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,6 +33,7 @@ class OrderController extends Controller
     public function __construct(
         protected OrderToInvoiceConverter $orderToInvoiceConverter,
         protected ShopifyOrderCreator $shopifyOrderCreator,
+        protected OrderPhysicalStockService $orderPhysicalStock,
     ) {}
 
     public function index(Request $request): View
@@ -64,17 +68,13 @@ class OrderController extends Controller
             $query->where('fulfillment_status', $request->input('fulfillment_status'));
         }
 
-        // Search by ticket number, client name, or external ID
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('ticket_number', 'like', "%{$search}%")
-                    ->orWhere('external_id', 'like', "%{$search}%")
-                    ->orWhereHas('client', function ($q) use ($search) {
-                        $q->where('name', 'like', "%{$search}%");
-                    });
-            });
-        }
+        $this->applyTableSearch($query, $request, [
+            'ticket_number',
+            'external_id',
+            'client.name',
+            'fulfillments.tracking_number',
+            'trackings.tracking_number',
+        ]);
 
         // Date filters
         if ($request->filled('date_from')) {
@@ -143,18 +143,7 @@ class OrderController extends Controller
 
         $products = Product::query()
             ->with('variants')
-            ->when($term !== '', function ($query) use ($term) {
-                $query->where(function ($query) use ($term) {
-                    $query->where('name', 'like', "%{$term}%")
-                        ->orWhere('ref', 'like', "%{$term}%")
-                        ->orWhere('barcode', 'like', "%{$term}%")
-                        ->orWhereHas('variants', function ($variantQuery) use ($term) {
-                            $variantQuery->where('title', 'like', "%{$term}%")
-                                ->orWhere('sku', 'like', "%{$term}%")
-                                ->orWhere('barcode', 'like', "%{$term}%");
-                        });
-                });
-            })
+            ->when($term !== '', fn ($query) => IntelligentSearch::constrain($query, IntelligentSearch::PRODUCT_COLUMNS, $term))
             ->where(function ($query) {
                 $query->where('status', 'Activer')->orWhereNull('status');
             })
@@ -162,37 +151,11 @@ class OrderController extends Controller
             ->limit(30)
             ->get();
 
-        $rows = $products->flatMap(function (Product $product) {
-            if ($product->variants->isNotEmpty()) {
-                return $product->variants->map(fn (ProductVariant $variant) => [
-                    'key' => $product->id.'-'.$variant->id,
-                    'product_id' => $product->id,
-                    'variant_id' => $variant->id,
-                    'name' => $product->name,
-                    'variant' => $variant->full_title,
-                    'sku' => $variant->sku ?: $product->ref,
-                    'barcode' => $variant->barcode ?: $product->barcode,
-                    'price' => (float) ($variant->price ?? $product->sale_price ?? 0),
-                    'tax_rate' => $this->defaultTaxRate($product),
-                    'shopify_variant_id' => $variant->shopify_variant_id,
-                    'stock' => $variant->inventory_quantity,
-                ]);
-            }
+        $rows = VariantCatalogSearch::expandProducts($products, 'sale')->map(function (array $row) {
+            $row['tax_rate'] = $this->defaultTaxRate(Product::find($row['product_id']));
 
-            return [[
-                'key' => (string) $product->id,
-                'product_id' => $product->id,
-                'variant_id' => null,
-                'name' => $product->name,
-                'variant' => null,
-                'sku' => $product->ref,
-                'barcode' => $product->barcode,
-                'price' => (float) ($product->sale_price ?? 0),
-                'tax_rate' => $this->defaultTaxRate($product),
-                'shopify_variant_id' => null,
-                'stock' => $product->stock_enligne,
-            ]];
-        })->values();
+            return $row;
+        });
 
         return response()->json(['products' => $rows]);
     }
@@ -387,6 +350,24 @@ class OrderController extends Controller
         ]);
 
         return view('sales.orders.show', compact('order'));
+    }
+
+    public function preparePhysicalStock(PosSale $order)
+    {
+        try {
+            $result = $this->orderPhysicalStock->process($order);
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $warehouseName = $result['warehouse']->name;
+        if ($result['unavailable'] === []) {
+            return back()->with('success', 'Stock physique déduit de '.$warehouseName.'. Sorties commande enregistrées.');
+        }
+
+        $names = collect($result['unavailable'])->map(fn ($row) => $row['name'].' ×'.$row['quantity'])->implode(', ');
+
+        return back()->with('warning', 'STOCK PHYSIQUE NON DISPONIBLE pour : '.$names.'. Ajouté à la liste À approvisionner. Le stock Shopify n’a pas été utilisé.');
     }
 
     /**

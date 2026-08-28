@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\ShopifyIntegration;
 use App\Services\MarketplaceStockSyncService;
+use App\Services\ShopifyApiClient;
 use App\Services\ShopifyFulfillmentSyncService;
 use App\Services\ShopifyInventorySyncService;
 use App\Services\ShopifyOrderImporter;
@@ -83,8 +84,23 @@ class ShopifyWebhookController extends Controller
         }
 
         try {
+            // Re-fetch from Admin API so we never apply a stale/out-of-order webhook body
+            // (Shopify can deliver delayed updates after a newer refund/fulfillment state).
+            try {
+                $fresh = (new ShopifyApiClient($integration))->getOrder((string) ($order['id'] ?? ''));
+                if (is_array($fresh) && ! empty($fresh['id'])) {
+                    $order = $fresh;
+                }
+            } catch (\Throwable $fetchError) {
+                Log::warning('Shopify webhook could not refresh order from API; using payload', [
+                    'order_id' => $order['id'] ?? 'unknown',
+                    'error' => $fetchError->getMessage(),
+                ]);
+            }
+
             $importer->import($order);
-            $integration->forceFill(['last_sync_at' => now()])->save();
+            // Do not advance last_sync_at here — webhooks would push the cron cursor past
+            // older modified orders and permanently prevent API recovery.
             Log::info('Shopify order webhook processed', ['order_id' => $order['id'] ?? 'unknown']);
         } catch (\Throwable $e) {
             Log::error('Shopify order import failed: '.$e->getMessage(), ['exception' => $e]);
@@ -235,6 +251,58 @@ class ShopifyWebhookController extends Controller
     }
 
     /**
+     * Handle refunds/create — re-fetch and re-import the parent order so totals/lines update.
+     */
+    public function refundsCreate(Request $request, ShopifyOrderImporter $importer): Response
+    {
+        $integration = ShopifyIntegration::query()->first();
+
+        if (! $integration || ! $integration->enabled) {
+            return response('Integration disabled', 401);
+        }
+
+        $verifyError = $this->verifyWebhook($request, $integration);
+        if ($verifyError) {
+            return $verifyError;
+        }
+
+        $refund = json_decode($request->getContent(), true);
+        if (! is_array($refund)) {
+            return response('Invalid payload', 400);
+        }
+
+        $orderId = (string) ($refund['order_id'] ?? '');
+        if ($orderId === '') {
+            return response('Missing order_id', 400);
+        }
+
+        try {
+            $order = (new ShopifyApiClient($integration))->getOrder($orderId);
+            if (! is_array($order) || empty($order['id'])) {
+                Log::warning('Shopify refund webhook: order not found via API', [
+                    'order_id' => $orderId,
+                    'refund_id' => $refund['id'] ?? null,
+                ]);
+
+                return response('Order not found', 404);
+            }
+
+            $importer->import($order);
+            Log::info('Shopify refund webhook processed — order re-imported', [
+                'order_id' => $orderId,
+                'refund_id' => $refund['id'] ?? null,
+                'current_total_price' => $order['current_total_price'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Shopify refund webhook failed: '.$e->getMessage(), ['exception' => $e]);
+
+            return response('Processing error', 500);
+        }
+
+        return response('OK', 200);
+    }
+
+    /**
      * Handle fulfillments/create webhook from Shopify
      */
     public function fulfillmentsCreate(Request $request, ShopifyFulfillmentSyncService $sync): Response
@@ -256,6 +324,22 @@ class ShopifyWebhookController extends Controller
         }
 
         try {
+            // Fulfillments can coincide with refunds/edits — refresh full order totals too.
+            $orderId = (string) ($fulfillment['order_id'] ?? '');
+            if ($orderId !== '') {
+                try {
+                    $order = (new ShopifyApiClient($integration))->getOrder($orderId);
+                    if (is_array($order) && ! empty($order['id'])) {
+                        app(ShopifyOrderImporter::class)->import($order);
+                    }
+                } catch (\Throwable $orderRefreshError) {
+                    Log::warning('Shopify fulfillment webhook: order refresh failed', [
+                        'order_id' => $orderId,
+                        'error' => $orderRefreshError->getMessage(),
+                    ]);
+                }
+            }
+
             $sync->syncFromFulfillmentWebhook($fulfillment);
             Log::info('Shopify fulfillment webhook processed', [
                 'fulfillment_id' => $fulfillment['id'] ?? 'unknown',

@@ -20,14 +20,21 @@
             <span>-{{ number_format($taxes['document_discount'], 2) }} {{ $currency }}</span>
         </div>
     @endif
-    @if($showAdjustment && ($taxes['adjustment'] ?? 0) != 0)
+    @if($showAdjustment && ! empty($taxes['adjustment_lines']))
+        @foreach($taxes['adjustment_lines'] as $line)
+            <div class="total-row">
+                <span>{{ $line['signed_total'] >= 0 ? '+' : '−' }} {{ $line['label'] }}</span>
+                <span>{{ $line['signed_total'] >= 0 ? '+' : '-' }}{{ number_format($line['line_total'], 2) }} {{ $currency }}</span>
+            </div>
+        @endforeach
+    @elseif($showAdjustment && ($taxes['adjustment'] ?? 0) != 0)
         <div class="total-row">
             <span>Ajustement</span>
             <span>{{ number_format($taxes['adjustment'], 2) }} {{ $currency }}</span>
         </div>
     @endif
     <div class="total-row grand">
-        <span>Total TTC</span>
+        <span>TOTAL FACTURE TTC</span>
         <span>{{ number_format($taxes['total_ttc'], 2) }} {{ $currency }}</span>
     </div>
 </div>

@@ -81,18 +81,9 @@
                             @foreach($inspection['missing'] as $missing)
                                 <li>
                                     {{ $missing['reference'] }} – {{ $missing['document_date_display'] }} – Document manquant
-                                    <a href="{{ route(match($missing['section_key']) {
-                                        'expenses-with-invoice' => 'expenses-with-invoice.index',
-                                        'expenses-without-invoice' => 'expenses-without-invoice.index',
-                                        'supplier-purchase-orders' => 'supplier-purchase-orders.index',
-                                        'supplier-delivery-notes' => 'supplier-delivery-notes.index',
-                                        'receptions' => 'receptions.index',
-                                        'supplier-invoices' => 'supplier-invoices.index',
-                                        'supplier-credit-notes' => 'supplier-credit-notes.index',
-                                        'supplier-payments' => 'purchases.payments.index',
-                                        'delivery-notes' => 'delivery-notes.index',
-                                        default => 'documents.archive.index',
-                                    }) }}" class="ml-2 text-blue-700 underline">Ajouter / Scanner</a>
+                                    @if(! empty($missing['attach_url']))
+                                        <a href="{{ $missing['attach_url'] }}" class="ml-2 text-blue-700 underline">📎 Ajouter / Scanner le document</a>
+                                    @endif
                                 </li>
                             @endforeach
                         </ul>
@@ -108,17 +99,20 @@
                     @endforeach
 
                     @if($inspection['missing_count'] > 0)
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" name="allow_missing" value="1" class="rounded border-gray-300">
-                            Continuer l’export malgré les pièces manquantes
-                        </label>
-                    @endif
-
+                        <div class="flex flex-wrap items-center gap-3">
+                            <a href="{{ route('documents.archive.index') }}" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50">Annuler l’export</a>
+                            <button type="submit" name="format" value="excel" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50">Exporter → Excel</button>
+                            <button type="submit" name="format" value="zip" class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100" onclick="this.form.allow_missing.value=1">Continuer ZIP malgré les pièces manquantes</button>
+                            <button type="submit" name="format" value="pdf" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700" onclick="this.form.allow_missing.value=1">Continuer PDF fusionné malgré les pièces manquantes</button>
+                            <input type="hidden" name="allow_missing" value="0">
+                        </div>
+                    @else
                     <div class="flex flex-wrap gap-3">
                         <button type="submit" name="format" value="excel" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50">Exporter → Excel</button>
                         <button type="submit" name="format" value="zip" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50">Exporter → Documents ZIP</button>
                         <button type="submit" name="format" value="pdf" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Exporter → PDF fusionné</button>
                     </div>
+                    @endif
                     <p class="text-xs text-gray-500">Ordre garanti : Date du document ASC, puis Référence ASC. Les journées sans document sont ignorées.</p>
                 </form>
             </div>

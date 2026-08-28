@@ -158,6 +158,11 @@ class Supplier extends Model
         return $this->hasMany(SupplierCreditNote::class);
     }
 
+    public function accountPayments()
+    {
+        return $this->hasMany(SupplierPayment::class);
+    }
+
     public function receptions()
     {
         return $this->hasMany(Reception::class);

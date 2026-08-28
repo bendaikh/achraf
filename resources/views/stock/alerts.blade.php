@@ -22,7 +22,7 @@
             </a>
         </div>
 
-        <form method="GET" class="mb-5 flex flex-wrap gap-3 items-end bg-white border border-slate-200 rounded-xl p-4">
+        <form method="GET" class="mb-5 flex flex-wrap gap-3 items-end bg-white border border-slate-200 rounded-xl p-4" data-list-page>
             <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Statut</label>
                 <select name="status" class="rounded-lg border-slate-300 text-sm">

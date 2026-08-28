@@ -8,7 +8,11 @@
 ])
 
 @php
-    $showZip = $zipExport || in_array($exportType, ['invoices', 'quotes', 'purchase-orders', 'credit-notes', 'delivery-notes', 'supplier-invoices'], true);
+    $showZip = $zipExport || in_array($exportType, [
+        'invoices', 'quotes', 'purchase-orders', 'credit-notes', 'delivery-notes',
+        'supplier-invoices', 'supplier-delivery-notes', 'receptions', 'supplier-purchase-orders',
+        'supplier-credit-notes', 'expenses', 'expenses-with-invoice', 'expenses-without-invoice',
+    ], true);
 
     $deletableTypes = [
         'invoices', 'quotes', 'purchase-orders', 'delivery-notes', 'credit-notes',
@@ -27,6 +31,11 @@
         'supplier-invoices' => 'supplier-invoices.print',
         'supplier-delivery-notes' => 'supplier-delivery-notes.print',
         'receptions' => 'receptions.print',
+        'supplier-purchase-orders' => 'supplier-purchase-orders.print',
+        'supplier-credit-notes' => 'supplier-credit-notes.print',
+        'expenses' => 'expenses.print',
+        'expenses-with-invoice' => 'expenses.print',
+        'expenses-without-invoice' => 'expenses.print',
     ];
     $printPattern = null;
     $resolvedPrintRoute = $printRoute ?? ($printRoutes[$exportType] ?? null);

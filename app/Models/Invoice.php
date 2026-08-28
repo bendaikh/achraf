@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDocumentAdjustments;
 use App\Support\DocumentTaxBreakdown;
 use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
 {
+    use HasDocumentAdjustments;
+
     public const PAYMENT_UNPAID = 'unpaid';
 
     public const PAYMENT_PARTIAL = 'partial';
@@ -77,9 +80,9 @@ class Invoice extends Model
 
     public function getComputedTotalAttribute(): float
     {
-        $items = $this->relationLoaded('items')
-            ? $this->items
-            : $this->items()->get();
+        $this->loadMissing('items', 'adjustments');
+
+        $items = $this->items;
 
         if ($items->isEmpty()) {
             return (float) $this->total;

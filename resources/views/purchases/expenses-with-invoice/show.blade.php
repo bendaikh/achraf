@@ -11,6 +11,10 @@
                 <p class="text-sm text-gray-600 mt-1">{{ $expense->designation }}</p>
             </div>
             <div class="flex gap-2">
+                <x-libromart-pdf-actions
+                    :print-route="route('expenses.print', $expense)"
+                    :pdf-route="route('expenses.pdf', $expense)"
+                />
                 <a href="{{ route('expenses-with-invoice.edit', $expense) }}" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-150">
                     Modifier
                 </a>
@@ -75,14 +79,10 @@
                         <p class="text-base text-gray-900">{{ $expense->tax_type }}</p>
                     </div>
 
-                    @if ($expense->invoice_file_path)
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-500 mb-1">Fichier facture</label>
-                            <a href="{{ \App\Support\PublicStorage::url($expense->invoice_file_path) }}" target="_blank" class="text-blue-600 hover:text-blue-800">
-                                Voir le fichier
-                            </a>
-                        </div>
-                    @endif
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-500 mb-2">Documents</label>
+                        <x-managed-document-actions type="expenses-with-invoice" :id="$expense->id" />
+                    </div>
                 </div>
 
                 @include('purchases.partials.expense-recurrence-details', ['expense' => $expense])

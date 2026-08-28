@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Models\Expense;
 use App\Models\FinancialMovement;
 use App\Models\InvoicePayment;
+use App\Models\PayrollPayment;
 use App\Models\PosSale;
 use App\Models\SupplierInvoicePayment;
+use App\Models\SupplierPayment;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -33,12 +35,18 @@ class FinancialMovementService
         ]);
     }
 
-    public function syncFromSupplierPayment(SupplierInvoicePayment $payment): FinancialMovement
+    public function syncFromSupplierPayment(SupplierInvoicePayment $payment): ?FinancialMovement
     {
-        $payment->loadMissing('supplierInvoice.supplier');
+        if ($payment->is_cash_movement === false) {
+            $this->deleteForSource($payment);
 
-        $supplierName = $payment->supplierInvoice?->supplier?->name;
-        $invoiceNumber = $payment->supplierInvoice?->invoice_number ?? '—';
+            return null;
+        }
+
+        $payment->loadMissing(['supplierInvoice.supplier', 'supplier']);
+
+        $supplierName = $payment->supplierInvoice?->supplier?->name ?? $payment->supplier?->name;
+        $invoiceNumber = $payment->supplierInvoice?->invoice_number ?? 'avance';
 
         return $this->upsertFromSource($payment, [
             'movement_date' => $payment->payment_date,
@@ -50,6 +58,31 @@ class FinancialMovementService
             'amount_out' => (float) $payment->amount,
             'justificatif_path' => $payment->payment_file_path,
             'notes' => $this->paymentNotes($payment),
+        ]);
+    }
+
+    public function syncFromSupplierAdvance(SupplierPayment $payment): ?FinancialMovement
+    {
+        $amount = round((float) $payment->unallocated_amount, 2);
+        if ($amount <= 0.009) {
+            $this->deleteForSource($payment);
+
+            return null;
+        }
+
+        $payment->loadMissing('supplier');
+        $supplierName = $payment->supplier?->name;
+
+        return $this->upsertFromSource($payment, [
+            'movement_date' => $payment->payment_date,
+            'origin' => FinancialMovement::ORIGIN_FOURNISSEUR,
+            'type' => FinancialMovement::TYPE_SORTIE,
+            'label' => 'Avance fournisseur'.($supplierName ? ' — '.$supplierName : ''),
+            'account' => $this->classifyPaymentMethod($payment->payment_method),
+            'amount_in' => 0,
+            'amount_out' => $amount,
+            'justificatif_path' => $payment->payment_file_path,
+            'notes' => $payment->notes,
         ]);
     }
 
@@ -113,6 +146,43 @@ class FinancialMovementService
             'amount_out' => 0,
             'user_id' => $sale->user_id,
             'notes' => $sale->notes,
+        ]);
+    }
+
+    public function syncFromPayrollPayment(PayrollPayment $payment): FinancialMovement
+    {
+        $payment->loadMissing('slip.employee', 'slip.run');
+
+        $employee = $payment->slip?->employee;
+        $period = $payment->slip?->run?->periodLabel() ?? '';
+        $matricule = $employee?->matricule ?? '';
+        $name = $employee?->fullName() ?? '';
+
+        $account = match ($payment->method) {
+            'especes' => FinancialMovement::ACCOUNT_CAISSE,
+            default => FinancialMovement::ACCOUNT_BANQUE,
+        };
+        if ($payment->account === FinancialMovement::ACCOUNT_CAISSE) {
+            $account = FinancialMovement::ACCOUNT_CAISSE;
+        }
+
+        return $this->upsertFromSource($payment, [
+            'movement_date' => $payment->paid_at,
+            'origin' => FinancialMovement::ORIGIN_SALAIRE,
+            'type' => FinancialMovement::TYPE_SORTIE,
+            'label' => trim('Salaire – '.$matricule.($period ? ' – '.$period : '').($name ? ' – '.$name : '')),
+            'account' => $account,
+            'amount_in' => 0,
+            'amount_out' => (float) $payment->amount,
+            'justificatif_path' => $payment->proof_path,
+            'notes' => implode("\n", array_filter([
+                'Net réellement payé au salarié (hors charges patronales / cotisations).',
+                $payment->reference ? 'Référence : '.$payment->reference : null,
+                'Coût employeur du bulletin : '.number_format((float) ($payment->slip?->employer_cost ?? 0), 2, ',', ' ').' MAD',
+                'Cotisations salariales : '.number_format((float) ($payment->slip?->employee_contributions ?? 0), 2, ',', ' ').' MAD',
+                'IR : '.number_format((float) ($payment->slip?->income_tax ?? 0), 2, ',', ' ').' MAD',
+                $payment->notes,
+            ])),
         ]);
     }
 

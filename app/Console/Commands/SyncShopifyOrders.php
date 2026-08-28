@@ -13,6 +13,7 @@ class SyncShopifyOrders extends Command
     protected $signature = 'shopify:sync-orders 
                             {--since-id= : Fetch orders after this Shopify order ID}
                             {--days= : Fetch orders from the last N days (default: all orders)}
+                            {--order= : Re-import a single Shopify order by ID}
                             {--all : Fetch ALL orders (ignore date limit)}';
 
     protected $description = 'Sync orders from Shopify using the Admin API with pagination';
@@ -58,6 +59,32 @@ class SyncShopifyOrders extends Command
             $sinceId = $this->option('since-id');
             $days = $this->option('days');
             $fetchAll = $this->option('all');
+            $singleOrderId = $this->option('order');
+
+            if ($singleOrderId) {
+                $this->info("Re-importing single order: {$singleOrderId}");
+                $order = $client->getOrder((string) $singleOrderId);
+                if (! $order) {
+                    $this->error("Order {$singleOrderId} not found in Shopify.");
+
+                    return self::FAILURE;
+                }
+
+                try {
+                    $importer->import($order);
+                    $this->info("Order {$singleOrderId} imported successfully.");
+                    $this->line('  Ticket: '.ltrim((string) ($order['name'] ?? ''), '#'));
+                    $this->line('  current_total_price: '.($order['current_total_price'] ?? 'n/a'));
+                    $this->line('  total_price: '.($order['total_price'] ?? 'n/a'));
+                    $this->line('  fulfillment: '.($order['fulfillment_status'] ?? 'unfulfilled'));
+
+                    return self::SUCCESS;
+                } catch (\Exception $e) {
+                    $this->error('Import failed: '.$e->getMessage());
+
+                    return self::FAILURE;
+                }
+            }
 
             $params = ['status' => 'any', 'limit' => 250];
 
@@ -71,13 +98,17 @@ class SyncShopifyOrders extends Command
             } elseif ($fetchAll) {
                 $this->info('Fetching ALL orders (this may take a while)...');
             } else {
-                // Default: fetch orders updated since last sync, or all if never synced
+                // Default: fetch recently updated orders automatically.
+                // Always look back at least 2 days so refunds/edits are recovered even if
+                // last_sync_at advanced ahead of Shopify's order.updated_at (stale webhooks).
+                // Also overlap last_sync_at by 6 hours for denser recent coverage.
+                $lookbacks = [now()->subDays(2)];
                 if ($integration->last_sync_at) {
-                    $params['updated_at_min'] = $integration->last_sync_at->toIso8601String();
-                    $this->info("Fetching orders updated since: {$integration->last_sync_at->format('Y-m-d H:i:s')}");
-                } else {
-                    $this->info('First sync: fetching ALL orders...');
+                    $lookbacks[] = $integration->last_sync_at->copy()->subHours(6);
                 }
+                $updatedAtMin = collect($lookbacks)->sort()->first();
+                $params['updated_at_min'] = $updatedAtMin->toIso8601String();
+                $this->info("Fetching orders updated since: {$updatedAtMin->format('Y-m-d H:i:s')} (auto lookback)");
             }
 
             $imported = 0;

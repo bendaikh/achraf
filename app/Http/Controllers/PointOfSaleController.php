@@ -7,6 +7,8 @@ use App\Models\PosSale;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Services\StockMovementService;
+use App\Support\IntelligentSearch;
+use App\Support\VariantCatalogSearch;
 use App\Support\PosDefaultClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -81,20 +83,40 @@ class PointOfSaleController extends Controller
         }
 
         if ($barcode !== '') {
-            $query->where('barcode', $barcode);
-        } elseif ($q !== '') {
-            $query->where(function ($sub) use ($q) {
-                $sub->where('name', 'like', '%'.$q.'%')
-                    ->orWhere('ref', 'like', '%'.$q.'%')
-                    ->orWhere('barcode', 'like', '%'.$q.'%');
+            $query->where(function ($sub) use ($barcode) {
+                $sub->where('barcode', $barcode)
+                    ->orWhereHas('variants', fn ($variantQuery) => $variantQuery->where('barcode', $barcode));
             });
+        } elseif ($q !== '') {
+            IntelligentSearch::constrain($query, IntelligentSearch::PRODUCT_COLUMNS, $q);
         } else {
             return response()->json(['products' => []]);
         }
 
-        $rows = $query->limit(30)->get();
+        $rows = $query->with('variants')->limit(30)->get();
 
-        $products = $rows->map(fn (Product $p) => $this->mapProductForPos($p, $stockType))->values();
+        $products = VariantCatalogSearch::expandProducts($rows, 'sale')->map(function (array $row) use ($stockType) {
+            $product = Product::find($row['product_id']);
+            $stock = $row['stock'] ?? 0;
+            if ($product && $product->tracksStock() && $stockType === 'magasin' && empty($row['product_variant_id'])) {
+                $stock = (int) $product->stock_magasin;
+            }
+
+            return [
+                'id' => $row['product_id'],
+                'product_variant_id' => $row['product_variant_id'],
+                'name' => $row['text'] ?: $row['name'],
+                'ref' => $row['ref'],
+                'sale_price' => (float) ($row['sale_price'] ?? 0),
+                'barcode' => $row['barcode'],
+                'tax_rate' => $this->defaultTaxRate($product ?? new Product),
+                'image_url' => $product?->image_url,
+                'stock' => $product && $product->tracksStock() ? (int) $stock : null,
+                'tracks_stock' => $product?->tracksStock() ?? true,
+                'item_kind' => $product?->item_kind ?? Product::KIND_STOCKED,
+                'item_kind_label' => $product?->item_kind_label ?? 'Produit stocké',
+            ];
+        })->values();
 
         return response()->json(['products' => $products]);
     }
@@ -110,6 +132,7 @@ class PointOfSaleController extends Controller
             'stock_type' => 'nullable|in:magasin,enligne',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_variant_id' => 'nullable|exists:product_variants,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.tax_rate' => 'nullable|numeric|min:0|max:100',
@@ -168,6 +191,7 @@ class PointOfSaleController extends Controller
 
                 $lineRows[] = [
                     'product' => $product,
+                    'product_variant_id' => $row['product_variant_id'] ?? null,
                     'quantity' => $qty,
                     'unit_price' => $unitPriceHt,
                     'tax_rate' => $taxRate,
@@ -213,6 +237,7 @@ class PointOfSaleController extends Controller
                 $p = $row['product'];
                 $sale->items()->create([
                     'product_id' => $p->id,
+                    'product_variant_id' => $row['product_variant_id'] ?? null,
                     'ref' => $p->ref,
                     'designation' => $p->name,
                     'quantity' => $row['quantity'],
@@ -230,6 +255,7 @@ class PointOfSaleController extends Controller
             $this->stockMovement->decreaseForSale(
                 collect($lineRows)->map(fn ($row) => [
                     'product_id' => $row['product']->id,
+                    'product_variant_id' => $row['product_variant_id'] ?? null,
                     'quantity' => $row['quantity'],
                 ])->all(),
                 $stockLocation

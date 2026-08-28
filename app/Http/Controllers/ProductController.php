@@ -12,9 +12,12 @@ use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Services\ProductPurchaseHistoryService;
 use App\Services\StockMovementService;
+use App\Support\IntelligentSearch;
+use App\Support\VariantCatalogSearch;
 use App\Support\StockSettings;
 use App\Support\VatCategoryHelper;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +35,7 @@ class ProductController extends Controller
 
     public function index(Request $request)
     {
-        $query = Product::query()->with(['primarySupplier', 'variants', 'warehouse', 'warehouseLocation']);
+        $query = Product::query()->with(['primarySupplier', 'variants', 'warehouse', 'warehouseLocation', 'stocks.warehouse']);
 
         $this->applyProductFilters($query, $request);
 
@@ -54,6 +57,57 @@ class ProductController extends Controller
             $stats,
             $filterOptions
         ));
+    }
+
+    /**
+     * AJAX search for commercial document Select2 pickers.
+     */
+    public function searchForSelect(Request $request): JsonResponse
+    {
+        $term = trim((string) $request->input('q', ''));
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = 20;
+
+        $query = Product::query()
+            ->where(function (Builder $statusQuery) {
+                $statusQuery->where('status', 'Activer')->orWhereNull('status');
+            });
+
+        if ($term !== '') {
+            IntelligentSearch::constrain($query, IntelligentSearch::PRODUCT_COLUMNS, $term);
+        }
+
+        $query->orderBy('name');
+
+        $paginator = $query->with('variants')->paginate(
+            $perPage,
+            [
+                'id',
+                'name',
+                'ref',
+                'barcode',
+                'vat_category',
+                'sale_price_ht',
+                'sale_price',
+                'cost_price_ht',
+                'cost_price_ttc',
+                'last_purchase_price',
+            ],
+            'page',
+            $page
+        );
+
+        $priceMode = $request->input('price_mode', 'sale');
+        $rows = VariantCatalogSearch::expandProducts($paginator->getCollection(), $priceMode);
+
+        return response()->json([
+            'results' => $rows->map(fn (array $row) => array_merge($row, [
+                'id' => $row['id'],
+            ]))->values(),
+            'pagination' => [
+                'more' => $paginator->hasMorePages(),
+            ],
+        ]);
     }
 
     /**
@@ -146,9 +200,21 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
-        $product->load(['variants', 'primarySupplier', 'warehouse', 'warehouseLocation', 'stocks.warehouse', 'stocks.location']);
+        $product->load([
+            'variants.stocks.warehouse',
+            'variants.stocks.location',
+            'primarySupplier',
+            'warehouse',
+            'warehouseLocation',
+            'stocks.warehouse',
+            'stocks.location',
+            'stocks.variant',
+        ]);
 
-        return view('products.show', compact('product'));
+        $variantStockBreakdown = app(\App\Services\StockMovementService::class)
+            ->variantLocationBreakdown($product);
+
+        return view('products.show', compact('product', 'variantStockBreakdown'));
     }
 
     public function edit(Product $product)
@@ -384,7 +450,7 @@ class ProductController extends Controller
             };
         }
 
-        $this->applyTableSearch($query, $request, ['name', 'ref', 'barcode']);
+        $this->applyTableSearch($query, $request, \App\Support\IntelligentSearch::PRODUCT_COLUMNS);
         $this->applyTableFilter($query, $request, 'status', 'status');
         $this->applyTableFilter($query, $request, 'product_type_category', 'category');
         $this->applyTableFilter($query, $request, 'product_category', 'subcategory');

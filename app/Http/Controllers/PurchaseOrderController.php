@@ -37,7 +37,7 @@ class PurchaseOrderController extends Controller
 
     public function create()
     {
-        $products = Product::all();
+        $products = collect();
         $reference = DocumentNumberService::preview('bc_client');
 
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';

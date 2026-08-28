@@ -3,19 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\FiltersIndexTables;
+use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
+use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\SupplierPurchaseOrder;
 use App\Services\DocumentNumberService;
 use App\Services\ProductPurchasePriceService;
+use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SupplierPurchaseOrderController extends Controller
 {
-    use FiltersIndexTables;
+    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function __construct(
         protected ProductPurchasePriceService $purchasePriceSync,
@@ -40,7 +43,7 @@ class SupplierPurchaseOrderController extends Controller
     public function create()
     {
         $suppliers = Supplier::all();
-        $products = Product::all();
+        $products = collect();
         $orderNumber = DocumentNumberService::preview('bc_fournisseur');
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
 
@@ -122,15 +125,16 @@ class SupplierPurchaseOrderController extends Controller
     public function show(SupplierPurchaseOrder $supplierPurchaseOrder)
     {
         $supplierPurchaseOrder->load(['supplier', 'items.product']);
+        $receiptProgress = app(\App\Services\PurchaseReceiptService::class)->progressForOrder($supplierPurchaseOrder);
 
-        return view('purchases.supplier-purchase-orders.show', compact('supplierPurchaseOrder'));
+        return view('purchases.supplier-purchase-orders.show', compact('supplierPurchaseOrder', 'receiptProgress'));
     }
 
     public function edit(SupplierPurchaseOrder $supplierPurchaseOrder)
     {
         $supplierPurchaseOrder->load(['supplier', 'items.product']);
         $suppliers = Supplier::all();
-        $products = Product::all();
+        $products = collect();
 
         return view('purchases.supplier-purchase-orders.edit', compact('supplierPurchaseOrder', 'suppliers', 'products'));
     }
@@ -211,5 +215,34 @@ class SupplierPurchaseOrderController extends Controller
         $supplierPurchaseOrder->delete();
 
         return redirect()->route('supplier-purchase-orders.index')->with('success', 'BC supprimé!');
+    }
+
+    public function print(SupplierPurchaseOrder $supplierPurchaseOrder)
+    {
+        $supplierPurchaseOrder->load('supplier', 'items');
+        $printData = $this->printViewData($supplierPurchaseOrder, $supplierPurchaseOrder->items);
+
+        return view('purchases.supplier-purchase-orders.print', array_merge(
+            CommercialDocumentView::forSupplierPurchaseOrder($supplierPurchaseOrder, $printData['taxes']),
+            $printData,
+            compact('supplierPurchaseOrder'),
+            ['generatedBy' => auth()->user()?->name]
+        ));
+    }
+
+    public function downloadPdf(SupplierPurchaseOrder $supplierPurchaseOrder)
+    {
+        $supplierPurchaseOrder->load('supplier', 'items');
+        $printData = $this->printViewData($supplierPurchaseOrder, $supplierPurchaseOrder->items);
+
+        return $this->downloadCommercialPdf(
+            array_merge(
+                CommercialDocumentView::forSupplierPurchaseOrder($supplierPurchaseOrder, $printData['taxes']),
+                $printData,
+                ['generatedBy' => auth()->user()?->name]
+            ),
+            'bon-commande-fournisseur',
+            $supplierPurchaseOrder->order_number
+        );
     }
 }

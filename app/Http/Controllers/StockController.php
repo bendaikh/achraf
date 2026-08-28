@@ -9,6 +9,7 @@ use App\Models\StockMovement;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Services\StockMovementService;
+use App\Support\IntelligentSearch;
 use App\Support\StockSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,7 +31,7 @@ class StockController extends Controller
             $request->merge(['search' => $request->input('q')]);
         }
 
-        $this->applyTableSearch($query, $request, ['name', 'ref', 'barcode']);
+        $this->applyTableSearch($query, $request, IntelligentSearch::PRODUCT_COLUMNS);
 
         if ($request->get('filter') === 'low') {
             $query->lowStock();
@@ -59,11 +60,8 @@ class StockController extends Controller
             ->whereHas('product', fn ($q) => $q->tracksStock());
 
         if ($request->filled('search')) {
-            $term = '%'.$request->input('search').'%';
-            $query->whereHas('product', function ($q) use ($term) {
-                $q->where('name', 'like', $term)
-                    ->orWhere('ref', 'like', $term)
-                    ->orWhere('barcode', 'like', $term);
+            $query->whereHas('product', function ($q) use ($request) {
+                IntelligentSearch::constrain($q, IntelligentSearch::PRODUCT_COLUMNS, (string) $request->input('search'), false);
             });
         }
 
@@ -115,7 +113,7 @@ class StockController extends Controller
             $query->whereRaw("{$available} <= {$threshold}");
         }
 
-        $this->applyTableSearch($query, $request, ['name', 'ref', 'barcode']);
+        $this->applyTableSearch($query, $request, IntelligentSearch::PRODUCT_COLUMNS);
 
         if ($request->filled('warehouse_id')) {
             $query->where('warehouse_id', $request->integer('warehouse_id'));
@@ -132,14 +130,13 @@ class StockController extends Controller
     public function movements(Request $request)
     {
         $query = StockMovement::query()
-            ->with(['product', 'warehouse', 'location', 'user'])
+            ->with(['product', 'warehouse', 'location', 'user', 'documents'])
             ->orderByDesc('moved_at')
             ->orderByDesc('id');
 
         if ($request->filled('search')) {
-            $term = '%'.$request->input('search').'%';
-            $query->whereHas('product', function ($q) use ($term) {
-                $q->where('name', 'like', $term)->orWhere('ref', 'like', $term);
+            $query->whereHas('product', function ($q) use ($request) {
+                IntelligentSearch::constrain($q, IntelligentSearch::PRODUCT_COLUMNS, (string) $request->input('search'), false);
             });
         }
 

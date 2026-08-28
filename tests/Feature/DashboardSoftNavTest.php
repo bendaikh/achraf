@@ -89,7 +89,30 @@ class DashboardSoftNavTest extends TestCase
 
         $this->assertSame('dashboard', $response->json('module'));
         $this->assertStringContainsString('dashboardPage', $response->json('html'));
+        $this->assertStringContainsString("Vue globale de l'activité", $response->json('html'));
         $this->assertStringNotContainsString('app-shell-aside', $response->json('html'));
+        $this->assertDoesNotMatchRegularExpression(
+            '/<(h1|h2)[^>]*>\s*Tableau de bord\s*<\/(h1|h2)>/i',
+            $response->json('html')
+        );
+    }
+
+    public function test_dashboard_full_page_keeps_shell_title_and_menu_without_duplicate_heading(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('Ouvrir le menu', false);
+        $response->assertSee('id="app-page-title"', false);
+        $response->assertSee('Tableau de bord');
+        $response->assertSee("Vue globale de l'activité", false);
+        $this->assertDoesNotMatchRegularExpression(
+            '/<(h1|h2)[^>]*>\s*Tableau de bord\s*<\/(h1|h2)>/i',
+            $response->getContent()
+        );
+        $this->assertSame(1, substr_count($response->getContent(), 'id="app-page-title"'));
     }
 
     public function test_soft_nav_shell_skips_heavy_stats_queries_and_is_much_smaller(): void

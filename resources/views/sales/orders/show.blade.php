@@ -49,6 +49,16 @@
                     </button>
                 </form>
                 @endif
+                @if(! $order->physical_stock_processed_at)
+                <form method="POST" action="{{ route('orders.prepare-physical-stock', $order) }}">
+                    @csrf
+                    <button type="submit" class="px-4 py-2 bg-[#0a5d8a] rounded-lg text-sm font-medium text-white hover:bg-[#074866]">
+                        Traiter stock physique (Belvédère)
+                    </button>
+                </form>
+                @else
+                <span class="px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-800">Stock physique traité le {{ $order->physical_stock_processed_at->format('d/m/Y H:i') }}</span>
+                @endif
                 <button type="button" onclick="window.print()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Imprimer
                 </button>
@@ -63,8 +73,8 @@
         @if(session('success'))
             <div class="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">{{ session('success') }}</div>
         @endif
-        @if(session('error'))
-            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{{ session('error') }}</div>
+        @if(session('warning'))
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{{ session('warning') }}</div>
         @endif
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <!-- Order Header -->

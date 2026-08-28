@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Expense;
 use App\Models\Reception;
 use App\Models\Setting;
 use App\Models\SupplierCreditNote;
@@ -215,7 +216,8 @@ class LineItemCalculator
             $document instanceof SupplierInvoice,
             $document instanceof Reception,
             $document instanceof SupplierCreditNote,
-            $document instanceof SupplierPurchaseOrder => 'purchase',
+            $document instanceof SupplierPurchaseOrder,
+            $document instanceof Expense => 'purchase',
             default => 'sale',
         };
     }
