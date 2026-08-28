@@ -23,6 +23,7 @@ class InvoicePaymentController extends Controller
             'payments.paymentImport',
             'items',
             'adjustments',
+            'activities.actor',
         ]);
 
         return view('sales.invoices.payments.index', compact('invoice'));

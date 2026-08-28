@@ -43,39 +43,43 @@
             </div>
         </x-table-filters>
 
+        <x-table-list-toolbar table-id="hr-employees" />
+
+
+
         <x-table-bulk-bar export-type="employees" item-label="salarié(s)" :can-delete="false" />
 
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
+                <table data-lm-table="hr-employees" class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
                             <x-table-checkbox-header export-type="employees" />
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Matricule</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Salarié</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fonction</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entrée</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-matricule column-matricule" data-lm-col="matricule">Matricule</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-nom column-nom" data-lm-col="nom">Salarié</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-poste column-poste" data-lm-col="poste">Fonction</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-departement column-departement" data-lm-col="departement">Service</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-date_entree column-date_entree" data-lm-col="date_entree">Entrée</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-statut column-statut" data-lm-col="statut">Statut</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-actions column-actions" data-lm-col="actions">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
                         @forelse($employees as $employee)
                             <tr class="hover:bg-gray-50">
                                 <x-table-checkbox-cell export-type="employees" :id="$employee->id" />
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $employee->matricule }}</td>
-                                <td class="px-6 py-4">
+                                <td class="px-6 py-4 text-sm font-medium text-gray-900 lm-col lm-col-matricule column-matricule" data-lm-col="matricule">{{ $employee->matricule }}</td>
+                                <td class="px-6 py-4 lm-col lm-col-nom column-nom" data-lm-col="nom">
                                     <div class="text-sm font-medium text-gray-900">{{ $employee->fullName() }}</div>
                                     <div class="text-xs text-gray-500">{{ $employee->email ?? $employee->phone ?? '—' }}</div>
                                 </td>
-                                <td class="px-6 py-4 text-sm text-gray-700">{{ $employee->job_title ?? '—' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-700">{{ $employee->department?->name ?? '—' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-700">{{ $employee->hire_date?->format('d/m/Y') }}</td>
-                                <td class="px-6 py-4">
+                                <td class="px-6 py-4 text-sm text-gray-700 lm-col lm-col-poste column-poste" data-lm-col="poste">{{ $employee->job_title ?? '—' }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-700 lm-col lm-col-departement column-departement" data-lm-col="departement">{{ $employee->department?->name ?? '—' }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-700 lm-col lm-col-date_entree column-date_entree" data-lm-col="date_entree">{{ $employee->hire_date?->format('d/m/Y') }}</td>
+                                <td class="px-6 py-4 lm-col lm-col-statut column-statut" data-lm-col="statut">
                                     <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium {{ $employee->statusBadgeClass() }}">{{ $employee->statusLabel() }}</span>
                                 </td>
-                                <td class="px-6 py-4">
+                                <td class="px-6 py-4 lm-col lm-col-actions column-actions" data-lm-col="actions">
                                     <a href="{{ route('hr.employees.show', $employee) }}" class="text-blue-600 hover:text-blue-900 text-sm font-medium">Ouvrir</a>
                                 </td>
                             </tr>

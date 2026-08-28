@@ -40,20 +40,21 @@
             </select>
         </div>
     </x-table-filters>
+    <x-table-list-toolbar table-id="hr-attendance" />
     <div class="bg-white rounded-lg shadow overflow-x-auto">
-        <table class="min-w-full text-sm">
+        <table data-lm-table="hr-attendance" class="min-w-full text-sm">
             <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr>
-                <th class="px-4 py-3 text-left">Date</th><th class="px-4 py-3 text-left">Salarié</th><th class="px-4 py-3 text-left">Entrée</th><th class="px-4 py-3 text-left">Sortie</th><th class="px-4 py-3 text-left">Durée</th><th class="px-4 py-3 text-left">Retard</th><th class="px-4 py-3 text-left">HS</th><th class="px-4 py-3 text-left">Statut</th><th class="px-4 py-3 text-left">Source</th>
+                <th class="px-4 py-3 text-left lm-col lm-col-salarie column-salarie" data-lm-col="salarie">Date</th><th class="px-4 py-3 text-left lm-col lm-col-date column-date" data-lm-col="date">Salarié</th><th class="px-4 py-3 text-left lm-col lm-col-entree column-entree" data-lm-col="entree">Entrée</th><th class="px-4 py-3 text-left lm-col lm-col-sortie column-sortie" data-lm-col="sortie">Sortie</th><th class="px-4 py-3 text-left lm-col lm-col-duree column-duree" data-lm-col="duree">Durée</th><th class="px-4 py-3 text-left lm-col lm-col-statut column-statut" data-lm-col="statut">Retard</th><th class="px-4 py-3 text-left lm-col lm-col-salarie column-salarie" data-lm-col="salarie">HS</th><th class="px-4 py-3 text-left lm-col lm-col-date column-date" data-lm-col="date">Statut</th><th class="px-4 py-3 text-left lm-col lm-col-entree column-entree" data-lm-col="entree">Source</th>
             </tr></thead>
             <tbody>
                 @forelse($records as $row)
                     <tr class="border-t">
-                        <td class="px-4 py-3">{{ $row->work_date?->format('d/m/Y') }}</td>
-                        <td class="px-4 py-3">{{ $row->employee?->fullName() }}</td>
-                        <td class="px-4 py-3">{{ $row->clock_in ? substr($row->clock_in,0,5) : '—' }}</td>
-                        <td class="px-4 py-3">{{ $row->clock_out ? substr($row->clock_out,0,5) : '—' }}</td>
-                        <td class="px-4 py-3">{{ $row->workedHoursLabel() }}</td>
-                        <td class="px-4 py-3">{{ $row->late_minutes }} min</td>
+                        <td class="px-4 py-3 lm-col lm-col-salarie column-salarie" data-lm-col="salarie">{{ $row->work_date?->format('d/m/Y') }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-date column-date" data-lm-col="date">{{ $row->employee?->fullName() }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-entree column-entree" data-lm-col="entree">{{ $row->clock_in ? substr($row->clock_in,0,5) : '—' }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-sortie column-sortie" data-lm-col="sortie">{{ $row->clock_out ? substr($row->clock_out,0,5) : '—' }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-duree column-duree" data-lm-col="duree">{{ $row->workedHoursLabel() }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-statut column-statut" data-lm-col="statut">{{ $row->late_minutes }} min</td>
                         <td class="px-4 py-3">{{ $row->overtime_minutes }} min</td>
                         <td class="px-4 py-3">{{ $row->statusLabel() }}</td>
                         <td class="px-4 py-3">{{ $row->source }}</td>

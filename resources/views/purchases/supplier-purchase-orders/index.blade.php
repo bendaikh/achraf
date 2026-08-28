@@ -29,32 +29,36 @@
                 grid-cols="md:grid-cols-5"
             />
 
+            <x-table-list-toolbar table-id="supplier-purchase-orders" />
+
+
+
             <x-table-bulk-bar export-type="supplier-purchase-orders" item-label="bon(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
+                    <table data-lm-table="supplier-purchase-orders" class="w-full">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <x-table-checkbox-header export-type="supplier-purchase-orders" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-numero column-numero" data-lm-col="numero">
                                     Numéro
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">
                                     Client
                                 </th>
                                 <x-table-sort-header column="order_date" label="Date de commande" :default="true" default-direction="desc" />
                                 <x-table-sort-header column="due_date" label="Échéance" default-direction="desc" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-date column-date" data-lm-col="date">
                                     Devise
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">
                                     Total
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">
                                     Document
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">
                                     Actions
                                 </th>
                             </tr>
@@ -63,22 +67,22 @@
                             @forelse($orders as $order)
                                 <tr class="hover:bg-gray-50 transition duration-150">
                                     <x-table-checkbox-cell export-type="supplier-purchase-orders" :id="$order->id" />
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-numero column-numero" data-lm-col="numero">
                                         <x-table-show-link :href="route('supplier-purchase-orders.show', $order)" :label="$order->order_number" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">
                                         <div class="text-sm text-gray-900">{{ $order->supplier->name }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">
                                         <div class="text-sm text-gray-900">{{ $order->order_date->format('d/m/Y') }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm text-gray-900">{{ $order->due_date ? $order->due_date->format('d/m/Y') : '-' }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
                                         <div class="text-sm text-gray-900">{{ $order->currency }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($order->total, 2) }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">

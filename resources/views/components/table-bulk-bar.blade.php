@@ -1,5 +1,6 @@
 @props([
     'exportType',
+    'tableId' => null,
     'itemLabel' => 'élément(s)',
     'zipExport' => false,
     'canDelete' => null,
@@ -49,6 +50,7 @@
     id="bulkActionsBar-{{ $exportType }}"
     class="hidden bg-[#0a5d8a]/10 border border-[#0a5d8a]/30 rounded-lg p-4 mb-4"
     data-export-type="{{ $exportType }}"
+    @if($tableId) data-lm-table-id="{{ $tableId }}" @elseif($exportType) data-lm-table-id="{{ $exportType }}" @endif
     @if($printPattern) data-print-pattern="{{ $printPattern }}" @endif
 >
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -56,6 +58,15 @@
             <span id="selectedCount-{{ $exportType }}">0</span> éléments sélectionnés
         </span>
         <div class="flex flex-wrap items-center gap-2">
+            @if($tableId || $exportType)
+            <label class="inline-flex items-center gap-2 text-xs text-gray-600 mr-1">
+                <span>Export :</span>
+                <select data-lm-export-mode="{{ $tableId ?? $exportType }}" class="rounded border-gray-300 text-xs py-1 pl-2 pr-7 focus:border-[#0a5d8a] focus:ring-[#0a5d8a]">
+                    <option value="visible">Colonnes visibles</option>
+                    <option value="all">Toutes les colonnes</option>
+                </select>
+            </label>
+            @endif
             @if($showDelete)
             <button type="button" onclick="deleteSelectedTable('{{ $exportType }}')"
                 class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium">

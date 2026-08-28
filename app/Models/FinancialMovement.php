@@ -42,6 +42,10 @@ class FinancialMovement extends Model
 
     public const ORIGIN_SHOPIFY = 'shopify';
 
+    public const ORIGIN_JUMIA = 'jumia';
+
+    public const ORIGIN_REMBOURSEMENT = 'remboursement';
+
     public const ORIGIN_MANUEL = 'manuel';
 
     public const ORIGIN_SALAIRE = 'salaire';
@@ -129,6 +133,8 @@ class FinancialMovement extends Model
             self::ORIGIN_CLIENT => 'Client',
             self::ORIGIN_POS => 'POS',
             self::ORIGIN_SHOPIFY => 'Shopify',
+            self::ORIGIN_JUMIA => 'Jumia',
+            self::ORIGIN_REMBOURSEMENT => 'Remboursement client',
             self::ORIGIN_MANUEL => 'Manuel',
             self::ORIGIN_SALAIRE => 'Salaire',
             self::ORIGIN_LOYER => 'Loyer',

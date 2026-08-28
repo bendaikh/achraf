@@ -21,6 +21,9 @@ class TableExportController extends Controller
             'type' => 'required|string',
             'ids' => 'required|array|min:1',
             'ids.*' => 'integer',
+            'columns_mode' => 'nullable|string|in:visible,all',
+            'visible_columns' => 'nullable|array',
+            'visible_columns.*' => 'string|max:100',
         ]);
 
         if (! in_array($validated['type'], $this->exportService->types(), true)) {
@@ -31,6 +34,10 @@ class TableExportController extends Controller
             'user_id' => $request->user()?->id,
             'type' => $validated['type'],
             'ids' => array_map('intval', $validated['ids']),
+            'export_options' => [
+                'columns_mode' => $validated['columns_mode'] ?? 'all',
+                'visible_columns' => $validated['visible_columns'] ?? [],
+            ],
             'status' => 'pending',
             'progress' => 0,
             'total_rows' => count($validated['ids']),

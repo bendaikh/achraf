@@ -29,34 +29,38 @@
                 grid-cols="md:grid-cols-5"
             />
 
+            <x-table-list-toolbar table-id="supplier-credit-notes" />
+
+
+
             <x-table-bulk-bar export-type="supplier-credit-notes" item-label="avoir(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
+                    <table data-lm-table="supplier-credit-notes" class="w-full">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <x-table-checkbox-header export-type="supplier-credit-notes" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-numero column-numero" data-lm-col="numero">
                                     Numéro
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">
                                     Fournisseur
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-facture column-facture" data-lm-col="facture">
                                     Facture liée
                                 </th>
                                 <x-table-sort-header column="credit_note_date" label="Date" :default="true" default-direction="desc" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-date column-date" data-lm-col="date">
                                     Devise
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">
                                     Total
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">
                                     Document
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">
                                     Actions
                                 </th>
                             </tr>
@@ -65,25 +69,25 @@
                             @forelse($supplierCreditNotes as $supplierCreditNote)
                                 <tr class="hover:bg-gray-50 transition duration-150">
                                     <x-table-checkbox-cell export-type="supplier-credit-notes" :id="$supplierCreditNote->id" />
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-numero column-numero" data-lm-col="numero">
                                         <x-table-show-link :href="route('supplier-credit-notes.show', $supplierCreditNote)" :label="$supplierCreditNote->credit_note_number" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">
                                         <div class="text-sm text-gray-900">{{ $supplierCreditNote->supplier->name }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-facture column-facture" data-lm-col="facture">
                                         <div class="text-sm text-gray-900">{{ $supplierCreditNote->invoice ?? '-' }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">
                                         <div class="text-sm text-gray-900">{{ $supplierCreditNote->credit_note_date->format('d/m/Y') }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm text-gray-900">{{ $supplierCreditNote->currency }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($supplierCreditNote->total, 2) }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <x-managed-document-actions type="supplier-credit-notes" :id="$supplierCreditNote->id" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">

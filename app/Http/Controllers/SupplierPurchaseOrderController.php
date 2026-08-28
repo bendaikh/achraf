@@ -11,6 +11,8 @@ use App\Models\Supplier;
 use App\Models\SupplierPurchaseOrder;
 use App\Services\DocumentNumberService;
 use App\Services\ProductPurchasePriceService;
+use App\Services\PurchaseDocumentChainService;
+use App\Services\PurchaseReceiptService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use Illuminate\Http\Request;
@@ -124,10 +126,16 @@ class SupplierPurchaseOrderController extends Controller
 
     public function show(SupplierPurchaseOrder $supplierPurchaseOrder)
     {
-        $supplierPurchaseOrder->load(['supplier', 'items.product']);
-        $receiptProgress = app(\App\Services\PurchaseReceiptService::class)->progressForOrder($supplierPurchaseOrder);
+        $supplierPurchaseOrder->load(['supplier', 'items.product', 'items.variant']);
+        $receiptProgress = app(PurchaseReceiptService::class)->progressForDocument($supplierPurchaseOrder);
+        $linkedReceptions = app(PurchaseReceiptService::class)->linkedReceptions($supplierPurchaseOrder);
+        $documentChain = app(PurchaseDocumentChainService::class)->forPurchaseOrder($supplierPurchaseOrder);
+        $receptionStatus = app(PurchaseReceiptService::class)->documentReceptionStatusLabel($supplierPurchaseOrder);
+        $canReceive = $receiptProgress->contains(fn (array $row) => $row['remaining'] > 0);
 
-        return view('purchases.supplier-purchase-orders.show', compact('supplierPurchaseOrder', 'receiptProgress'));
+        return view('purchases.supplier-purchase-orders.show', compact(
+            'supplierPurchaseOrder', 'receiptProgress', 'linkedReceptions', 'documentChain', 'receptionStatus', 'canReceive'
+        ));
     }
 
     public function edit(SupplierPurchaseOrder $supplierPurchaseOrder)

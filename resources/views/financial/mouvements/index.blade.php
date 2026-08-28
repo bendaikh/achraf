@@ -99,50 +99,52 @@
             <button type="submit" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-medium hover:bg-[#084a6e]">Filtrer</button>
         </form>
 
+        <x-table-list-toolbar table-id="financial-movements" />
+
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[1100px] text-sm">
+                <table data-lm-table="financial-movements" class="w-full min-w-[1100px] text-sm">
                     <thead class="bg-slate-50 border-b border-slate-200">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Référence</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Origine</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Type</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Libellé</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Compte</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Entrée</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Sortie</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Solde</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">User</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Statut</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th>
+                            <x-lm-col key="date" tag="th" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</x-lm-col>
+                            <x-lm-col key="reference" tag="th" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Référence</x-lm-col>
+                            <x-lm-col key="origine" tag="th" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Origine</x-lm-col>
+                            <x-lm-col key="type" tag="th" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Type</x-lm-col>
+                            <x-lm-col key="libelle" tag="th" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Libellé</x-lm-col>
+                            <x-lm-col key="compte" tag="th" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Compte</x-lm-col>
+                            <x-lm-col key="entree" tag="th" class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Entrée</x-lm-col>
+                            <x-lm-col key="sortie" tag="th" class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Sortie</x-lm-col>
+                            <x-lm-col key="solde" tag="th" class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Solde</x-lm-col>
+                            <x-lm-col key="utilisateur" tag="th" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Utilisateur</x-lm-col>
+                            <x-lm-col key="statut" tag="th" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Statut</x-lm-col>
+                            <x-lm-col key="actions" tag="th" class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</x-lm-col>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse($rows as $row)
                             @php $m = $row['movement']; @endphp
                             <tr class="hover:bg-slate-50/80">
-                                <td class="px-4 py-3 whitespace-nowrap text-slate-800">{{ $m->movement_date?->format('d/m/Y') }}</td>
-                                <td class="px-4 py-3 font-mono text-xs text-slate-600">{{ $m->reference }}</td>
-                                <td class="px-4 py-3 text-slate-600">{{ $originLabels[$m->origin] ?? $m->origin }}</td>
-                                <td class="px-4 py-3">
+                                <x-lm-col key="date" class="px-4 py-3 whitespace-nowrap text-slate-800">{{ $m->movement_date?->format('d/m/Y') }}</x-lm-col>
+                                <x-lm-col key="reference" class="px-4 py-3 font-mono text-xs text-slate-600">{{ $m->reference }}</x-lm-col>
+                                <x-lm-col key="origine" class="px-4 py-3 text-slate-600">{{ $originLabels[$m->origin] ?? $m->origin }}</x-lm-col>
+                                <x-lm-col key="type" class="px-4 py-3">
                                     <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold
                                         {{ $m->type === 'entree' ? 'bg-emerald-100 text-emerald-800' : ($m->type === 'sortie' ? 'bg-rose-100 text-rose-800' : 'bg-sky-100 text-sky-800') }}">
                                         {{ $typeLabels[$m->type] ?? $m->type }}
                                     </span>
-                                </td>
-                                <td class="px-4 py-3 max-w-[220px] truncate text-slate-800" title="{{ $m->label }}">{{ $m->label }}</td>
-                                <td class="px-4 py-3 text-slate-600">{{ $accountLabels[$m->account] ?? $m->account }}</td>
-                                <td class="px-4 py-3 text-right font-medium tabular-nums text-emerald-600">{{ (float) $m->amount_in > 0 ? number_format((float) $m->amount_in, 2) : '—' }}</td>
-                                <td class="px-4 py-3 text-right font-medium tabular-nums text-rose-600">{{ (float) $m->amount_out > 0 ? number_format((float) $m->amount_out, 2) : '—' }}</td>
-                                <td class="px-4 py-3 text-right font-bold tabular-nums text-slate-900">{{ number_format((float) $row['solde'], 2) }}</td>
-                                <td class="px-4 py-3 text-slate-500 text-xs">{{ $m->user?->name ?? '—' }}</td>
-                                <td class="px-4 py-3">
+                                </x-lm-col>
+                                <x-lm-col key="libelle" class="px-4 py-3 max-w-[220px] truncate text-slate-800" title="{{ $m->label }}">{{ $m->label }}</x-lm-col>
+                                <x-lm-col key="compte" class="px-4 py-3 text-slate-600">{{ $accountLabels[$m->account] ?? $m->account }}</x-lm-col>
+                                <x-lm-col key="entree" class="px-4 py-3 text-right font-medium tabular-nums text-emerald-600">{{ (float) $m->amount_in > 0 ? number_format((float) $m->amount_in, 2) : '—' }}</x-lm-col>
+                                <x-lm-col key="sortie" class="px-4 py-3 text-right font-medium tabular-nums text-rose-600">{{ (float) $m->amount_out > 0 ? number_format((float) $m->amount_out, 2) : '—' }}</x-lm-col>
+                                <x-lm-col key="solde" class="px-4 py-3 text-right font-bold tabular-nums text-slate-900">{{ number_format((float) $row['solde'], 2) }}</x-lm-col>
+                                <x-lm-col key="utilisateur" class="px-4 py-3 text-slate-500 text-xs">{{ $m->user?->name ?? '—' }}</x-lm-col>
+                                <x-lm-col key="statut" class="px-4 py-3">
                                     <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
                                         {{ $statusLabels[$m->status] ?? $m->status }}
                                     </span>
-                                </td>
-                                <td class="px-4 py-3 whitespace-nowrap text-right">
+                                </x-lm-col>
+                                <x-lm-col key="actions" class="px-4 py-3 whitespace-nowrap text-right">
                                     <div class="inline-flex items-center gap-2">
                                         @if($m->justificatif_path)
                                             <a href="{{ asset('storage/'.$m->justificatif_path) }}" target="_blank" class="text-xs text-slate-500 hover:underline">Pièce</a>
@@ -164,7 +166,7 @@
                                             </form>
                                         @endif
                                     </div>
-                                </td>
+                                </x-lm-col>
                             </tr>
                         @empty
                             <tr>
@@ -172,7 +174,7 @@
                                     Aucun mouvement sur la période.
                                     <form method="POST" action="{{ route('financial.mouvements.sync') }}" class="inline">
                                         @csrf
-                                        <button type="submit" class="text-[#0a5d8a] font-medium hover:underline">Synchroniser l’historique</button>
+                                        <button type="submit" class="text-[#0a5d8a] font-medium hover:underline">Synchroniser l'historique</button>
                                     </form>
                                 </td>
                             </tr>

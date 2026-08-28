@@ -47,29 +47,33 @@
                 />
             </x-table-filters>
 
+            <x-table-list-toolbar table-id="quotes" />
+
+
+
             <x-table-bulk-bar export-type="quotes" item-label="devis" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
+                    <table data-lm-table="quotes" class="w-full">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <x-table-checkbox-header export-type="quotes" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-numero column-numero" data-lm-col="numero">
                                     Numéro
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-client column-client" data-lm-col="client">
                                     Client
                                 </th>
-                                <x-table-sort-header column="quote_date" label="Date" :default="true" default-direction="desc" />
-                                <x-table-sort-header column="expiry_date" label="Échéance" default-direction="desc" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <x-table-sort-header column="quote_date" colKey="date" label="Date" :default="true" default-direction="desc" />
+                                <x-table-sort-header column="expiry_date" colKey="validite" label="Échéance" default-direction="desc" />
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">
                                     Devise
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">
                                     Total
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-numero column-numero" data-lm-col="numero">
                                     Actions
                                 </th>
                             </tr>
@@ -78,22 +82,22 @@
                             @forelse($quotes as $invoice)
                                 <tr class="hover:bg-gray-50 transition duration-150">
                                     <x-table-checkbox-cell export-type="quotes" :id="$invoice->id" />
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-numero column-numero" data-lm-col="numero">
                                         <x-table-show-link :href="route('quotes.show', $invoice)" :label="$invoice->quote_number" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-client column-client" data-lm-col="client">
                                         <div class="text-sm text-gray-900">{{ $invoice->client->name }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">
                                         <div class="text-sm text-gray-900">{{ $invoice->quote_date->format('d/m/Y') }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-validite column-validite" data-lm-col="validite">
                                         <div class="text-sm text-gray-900">{{ $invoice->expiry_date ? $invoice->expiry_date->format('d/m/Y') : '-' }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm text-gray-900">{{ $invoice->currency }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($invoice->total, 2) }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">

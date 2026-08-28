@@ -25,19 +25,20 @@
             </select>
         </div>
     </x-table-filters>
+    <x-table-list-toolbar table-id="hr-documents" />
     <div class="bg-white rounded-lg shadow overflow-x-auto">
-        <table class="min-w-full text-sm">
+        <table data-lm-table="hr-documents" class="min-w-full text-sm">
             <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr>
-                <th class="px-4 py-3 text-left">Salarié</th><th class="px-4 py-3 text-left">Type</th><th class="px-4 py-3 text-left">Fichier</th><th class="px-4 py-3 text-left">Expiration</th><th class="px-4 py-3 text-left">Actions</th>
+                <th class="px-4 py-3 text-left lm-col lm-col-salarie column-salarie" data-lm-col="salarie">Salarié</th><th class="px-4 py-3 text-left lm-col lm-col-type column-type" data-lm-col="type">Type</th><th class="px-4 py-3 text-left lm-col lm-col-titre column-titre" data-lm-col="titre">Fichier</th><th class="px-4 py-3 text-left lm-col lm-col-date column-date" data-lm-col="date">Expiration</th><th class="px-4 py-3 text-left lm-col lm-col-expiration column-expiration" data-lm-col="expiration">Actions</th>
             </tr></thead>
             <tbody>
                 @forelse($documents as $document)
                     <tr class="border-t">
-                        <td class="px-4 py-3">{{ $document->documentable instanceof \App\Models\Employee ? $document->documentable->fullName() : '—' }}</td>
-                        <td class="px-4 py-3">{{ $document->document_type_label }}</td>
-                        <td class="px-4 py-3">{{ $document->display_name }}</td>
-                        <td class="px-4 py-3">{{ $document->expires_at?->format('d/m/Y') ?: '—' }}</td>
-                        <td class="px-4 py-3"><x-managed-document-actions type="hr-employees" :id="$document->documentable_id" :document="$document" :show-add="false" /></td>
+                        <td class="px-4 py-3 lm-col lm-col-salarie column-salarie" data-lm-col="salarie">{{ $document->documentable instanceof \App\Models\Employee ? $document->documentable->fullName() : '—' }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-type column-type" data-lm-col="type">{{ $document->document_type_label }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-titre column-titre" data-lm-col="titre">{{ $document->display_name }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-date column-date" data-lm-col="date">{{ $document->expires_at?->format('d/m/Y') ?: '—' }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-expiration column-expiration" data-lm-col="expiration"><x-managed-document-actions type="hr-employees" :id="$document->documentable_id" :document="$document" :show-add="false" /></td>
                     </tr>
                 @empty
                     <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">Aucun document.</td></tr>

@@ -23,14 +23,33 @@
                 </div>
             @endif
 
+            @if(!empty($sourceDocument))
+                <div class="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                    <p class="text-sm text-emerald-900">
+                        Réception préremplie depuis
+                        <strong>{{ class_basename($sourceDocument) }}</strong>
+                        — quantités restantes uniquement. L’entrée en stock sera enregistrée via ce bon de réception.
+                    </p>
+                </div>
+            @endif
+
             <form action="{{ route('receptions.store') }}" method="POST" id="quoteForm">
                 @csrf
+                @if(!empty($prefill['supplier_purchase_order_id']))
+                    <input type="hidden" name="supplier_purchase_order_id" value="{{ $prefill['supplier_purchase_order_id'] }}">
+                @endif
+                @if(!empty($prefill['supplier_delivery_note_id']))
+                    <input type="hidden" name="supplier_delivery_note_id" value="{{ $prefill['supplier_delivery_note_id'] }}">
+                @endif
+                @if(!empty($prefill['source_supplier_invoice_id']))
+                    <input type="hidden" name="source_supplier_invoice_id" value="{{ $prefill['source_supplier_invoice_id'] }}">
+                @endif
                 
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div class="min-w-0">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Fournisseur *</label>
-                            <x-supplier-select-with-create :suppliers="$suppliers" />
+                            <x-supplier-select-with-create :suppliers="$suppliers" :selected="old('supplier_id', $prefill['supplier_id'] ?? null)" />
                         </div>
 
                         <div>
@@ -40,7 +59,7 @@
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Devise</label>
-                            <input type="text" name="currency" value="dh - MAD" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="text" name="currency" value="{{ old('currency', $prefill['currency'] ?? 'dh - MAD') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
@@ -58,7 +77,7 @@
                             <select name="warehouse_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="">— Choisir —</option>
                                 @foreach($warehouses as $warehouse)
-                                    <option value="{{ $warehouse->id }}" @selected(old('warehouse_id', $warehouse->is_fulfillment_default) == $warehouse->id)>
+                                    <option value="{{ $warehouse->id }}" @selected(old('warehouse_id', $prefill['warehouse_id'] ?? $warehouse->is_fulfillment_default) == $warehouse->id)>
                                         {{ $warehouse->isOnline() ? '🟢 ' : '' }}{{ $warehouse->name }}
                                     </option>
                                 @endforeach
@@ -68,7 +87,7 @@
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Référence</label>
-                            <input type="text" name="reference" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="text" name="reference" value="{{ old('reference', $prefill['reference'] ?? '') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
@@ -228,6 +247,24 @@ function removeItem(button) {
     button.closest('tr').remove();
     calculateCommercialTotal();
 }
+
+@if(!empty($prefill['items']))
+document.addEventListener('DOMContentLoaded', function () {
+    var prefillItems = @json($prefill['items']);
+    prefillItems.forEach(function (item) {
+        addItem();
+        var idx = itemIndex - 1;
+        var set = function (sel, val) { var el = document.querySelector(sel); if (el && val != null) el.value = val; };
+        set('[name="items[' + idx + '][product_id]"]', item.product_id);
+        set('[name="items[' + idx + '][ref]"]', item.ref);
+        set('[name="items[' + idx + '][designation]"]', item.designation);
+        set('[name="items[' + idx + '][quantity]"]', item.quantity);
+        set('[name="items[' + idx + '][unit_price]"]', item.unit_price);
+        set('[name="items[' + idx + '][tax_rate]"]', item.tax_rate);
+        calculateCommercialTotal();
+    });
+});
+@endif
 </script>
 @endpush
 @endsection

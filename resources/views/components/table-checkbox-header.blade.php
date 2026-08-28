@@ -1,5 +1,5 @@
 @props(['exportType'])
-<th class="px-4 py-3 text-left w-12">
+<th class="px-4 py-3 text-left w-12 lm-col lm-col-select column-select" data-lm-col="select">
     <label class="inline-flex items-center cursor-pointer">
         <input
             type="checkbox"

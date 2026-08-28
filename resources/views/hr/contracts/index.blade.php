@@ -26,20 +26,21 @@
             </select>
         </div>
     </x-table-filters>
+    <x-table-list-toolbar table-id="hr-contracts" />
     <div class="bg-white rounded-lg shadow overflow-x-auto">
-        <table class="min-w-full text-sm">
+        <table data-lm-table="hr-contracts" class="min-w-full text-sm">
             <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr>
-                <th class="px-4 py-3 text-left">Salarié</th><th class="px-4 py-3 text-left">Type</th><th class="px-4 py-3 text-left">Début</th><th class="px-4 py-3 text-left">Fin</th><th class="px-4 py-3 text-left">Essai</th><th class="px-4 py-3 text-left">Statut</th>
+                <th class="px-4 py-3 text-left lm-col lm-col-salarie column-salarie" data-lm-col="salarie">Salarié</th><th class="px-4 py-3 text-left lm-col lm-col-type column-type" data-lm-col="type">Type</th><th class="px-4 py-3 text-left lm-col lm-col-debut column-debut" data-lm-col="debut">Début</th><th class="px-4 py-3 text-left lm-col lm-col-fin column-fin" data-lm-col="fin">Fin</th><th class="px-4 py-3 text-left lm-col lm-col-statut column-statut" data-lm-col="statut">Essai</th><th class="px-4 py-3 text-left lm-col lm-col-actions column-actions" data-lm-col="actions">Statut</th>
             </tr></thead>
             <tbody>
                 @forelse($contracts as $contract)
                     <tr class="border-t hover:bg-gray-50">
-                        <td class="px-4 py-3"><a class="text-[#0a5d8a] font-medium" href="{{ route('hr.employees.show', [$contract->employee, 'tab' => 'contrat']) }}">{{ $contract->employee?->matricule }} — {{ $contract->employee?->fullName() }}</a></td>
-                        <td class="px-4 py-3">{{ $contract->typeLabel() }}</td>
-                        <td class="px-4 py-3">{{ $contract->start_date?->format('d/m/Y') }}</td>
-                        <td class="px-4 py-3">{{ $contract->end_date?->format('d/m/Y') ?: '—' }}</td>
-                        <td class="px-4 py-3">{{ $contract->trial_end_date?->format('d/m/Y') ?: '—' }}</td>
-                        <td class="px-4 py-3">{{ $contract->statusLabel() }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-salarie column-salarie" data-lm-col="salarie"><a class="text-[#0a5d8a] font-medium" href="{{ route('hr.employees.show', [$contract->employee, 'tab' => 'contrat']) }}">{{ $contract->employee?->matricule }} — {{ $contract->employee?->fullName() }}</a></td>
+                        <td class="px-4 py-3 lm-col lm-col-type column-type" data-lm-col="type">{{ $contract->typeLabel() }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-debut column-debut" data-lm-col="debut">{{ $contract->start_date?->format('d/m/Y') }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-fin column-fin" data-lm-col="fin">{{ $contract->end_date?->format('d/m/Y') ?: '—' }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-statut column-statut" data-lm-col="statut">{{ $contract->trial_end_date?->format('d/m/Y') ?: '—' }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-actions column-actions" data-lm-col="actions">{{ $contract->statusLabel() }}</td>
                     </tr>
                 @empty
                     <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Aucun contrat.</td></tr>

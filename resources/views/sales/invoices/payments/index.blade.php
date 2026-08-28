@@ -104,7 +104,9 @@
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant facture</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Frais livraison</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net encaissé</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Méthode</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tracking</th>
@@ -123,10 +125,19 @@
                                     <div class="text-sm text-gray-900">{{ $payment->payment_date->format('d/m/Y') }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-semibold text-gray-900">{{ number_format($payment->amount, 2) }} {{ $invoice->currency }}</div>
+                                    <div class="text-sm font-semibold text-gray-900">{{ number_format($payment->gross_amount ?? $payment->amount, 2) }} {{ $invoice->currency }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">{{ $payment->delivery_fees !== null ? number_format($payment->delivery_fees, 2) : '—' }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">{{ $payment->net_received !== null ? number_format($payment->net_received, 2) : '—' }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">{{ $payment->payment_method }}</div>
+                                    @if($payment->carrier)
+                                        <div class="text-xs text-gray-500">{{ $payment->carrier }}</div>
+                                    @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">{{ $payment->payment_reference ?? '-' }}</div>
@@ -182,7 +193,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="px-6 py-12 text-center">
+                                <td colspan="13" class="px-6 py-12 text-center">
                                     <div class="flex flex-col items-center">
                                         <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
@@ -196,6 +207,42 @@
                 </table>
             </div>
         </div>
+
+        @if($invoice->activities->isNotEmpty())
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Historique de rapprochement</h3>
+            </div>
+            <div class="divide-y divide-gray-100">
+                @foreach($invoice->activities as $activity)
+                    <div class="px-6 py-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-sm text-gray-900">{{ $activity->description }}</p>
+                                @if(is_array($activity->metadata) && ! empty($activity->metadata))
+                                    <div class="mt-2 text-xs text-gray-500 space-y-1">
+                                        @if(! empty($activity->metadata['order_number']))
+                                            <div>Commande : {{ $activity->metadata['order_number'] }}</div>
+                                        @endif
+                                        @if(! empty($activity->metadata['import_file']))
+                                            <div>Fichier : {{ $activity->metadata['import_file'] }}</div>
+                                        @endif
+                                        @if(! empty($activity->metadata['match_criteria']))
+                                            <div>Critères : {{ collect($activity->metadata['match_criteria'])->map(fn ($c) => \App\Services\PaymentMatchingService::CRITERIA[$c]['label'] ?? $c)->implode(', ') }}</div>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                            <div class="text-right text-xs text-gray-500 shrink-0">
+                                <div>{{ $activity->occurred_at?->format('d/m/Y H:i') }}</div>
+                                <div>{{ $activity->actor?->name ?? 'Système' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
     </div>
 </main>
 @endsection

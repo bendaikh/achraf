@@ -91,6 +91,7 @@ class DocumentNumberService
             'bon_livraison' => 'BL-{YEAR}/{NUMBER}',
             'bon_livraison_fournisseur' => 'BLF-{YEAR}/{NUMBER}',
             'bon_reception' => 'BR-{YEAR}/{NUMBER}',
+            'remboursement' => 'RB-{YEAR}/{NUMBER}',
             default => '{NUMBER}',
         };
     }

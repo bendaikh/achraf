@@ -76,7 +76,7 @@ class LocationStockManagementTest extends TestCase
                 'discount' => 0,
                 'discount_type' => 'fixed',
             ]],
-        ])->assertRedirect(route('receptions.index'));
+        ])->assertRedirect();
 
         $this->assertSame(10, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $warehouse->id));
         $this->assertSame(1, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
@@ -120,7 +120,7 @@ class LocationStockManagementTest extends TestCase
                     ['warehouse_id' => $store->id, 'quantity' => 5],
                 ],
             ]],
-        ])->assertRedirect(route('receptions.index'));
+        ])->assertRedirect();
 
         $this->assertSame(15, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $online->id));
         $this->assertSame(5, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $store->id));

@@ -94,6 +94,11 @@
 
         @include('purchases.partials.document-chain')
 
+        @include('purchases.partials.reception-progress', [
+            'documentLabel' => 'BR',
+            'receiveRoute' => null,
+        ])
+
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Articles</h3>
             <div class="overflow-x-auto">

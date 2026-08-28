@@ -59,18 +59,22 @@
             </div>
         </form>
 
+        <x-table-list-toolbar table-id="stock-inventory" />
+
+
+
         <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="min-w-full text-sm">
+                <table data-lm-table="stock-inventory" class="min-w-full text-sm">
                     <thead class="bg-slate-50 text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-4 py-3 text-left">Référence</th>
-                            <th class="px-4 py-3 text-left">Produit</th>
-                            <th class="px-4 py-3 text-left">Dépôt</th>
-                            <th class="px-4 py-3 text-left">Emplacement</th>
-                            <th class="px-4 py-3 text-right">Quantité</th>
-                            <th class="px-4 py-3 text-right">Disponible</th>
-                            <th class="px-4 py-3 text-left">Statut</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-ref column-ref" data-lm-col="ref">Référence</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-nom column-nom" data-lm-col="nom">Produit</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-depot column-depot" data-lm-col="depot">Dépôt</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-theorique column-theorique" data-lm-col="theorique">Emplacement</th>
+                            <th class="px-4 py-3 text-right lm-col lm-col-reel column-reel" data-lm-col="reel">Quantité</th>
+                            <th class="px-4 py-3 text-right lm-col lm-col-statut column-statut" data-lm-col="statut">Disponible</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-ref column-ref" data-lm-col="ref">Statut</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -88,14 +92,14 @@
                                 }
                             @endphp
                             <tr class="hover:bg-slate-50">
-                                <td class="px-4 py-3 font-mono text-xs">{{ $product?->ref }}</td>
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3 font-mono text-xs lm-col lm-col-ref column-ref" data-lm-col="ref">{{ $product?->ref }}</td>
+                                <td class="px-4 py-3 lm-col lm-col-nom column-nom" data-lm-col="nom">
                                     <a href="{{ $product ? route('products.show', $product) : '#' }}" class="font-medium text-slate-900 hover:text-[#0a5d8a]">{{ $product?->name }}</a>
                                 </td>
-                                <td class="px-4 py-3">{{ $stock->warehouse?->name ?: '—' }}</td>
-                                <td class="px-4 py-3">{{ $stock->location?->code ?: '—' }}</td>
-                                <td class="px-4 py-3 text-right font-semibold">{{ $stock->quantity }}</td>
-                                <td class="px-4 py-3 text-right">{{ $available }}</td>
+                                <td class="px-4 py-3 lm-col lm-col-depot column-depot" data-lm-col="depot">{{ $stock->warehouse?->name ?: '—' }}</td>
+                                <td class="px-4 py-3 lm-col lm-col-theorique column-theorique" data-lm-col="theorique">{{ $stock->location?->code ?: '—' }}</td>
+                                <td class="px-4 py-3 text-right font-semibold lm-col lm-col-reel column-reel" data-lm-col="reel">{{ $stock->quantity }}</td>
+                                <td class="px-4 py-3 text-right lm-col lm-col-statut column-statut" data-lm-col="statut">{{ $available }}</td>
                                 <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $badge[1] }}">{{ $badge[0] }}</span></td>
                             </tr>
                         @empty

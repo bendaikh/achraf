@@ -13,6 +13,7 @@ use App\Models\SupplierPurchaseOrder;
 use App\Models\Warehouse;
 use App\Services\DocumentNumberService;
 use App\Services\ProductPurchasePriceService;
+use App\Services\PurchaseDocumentChainService;
 use App\Services\PurchaseReceiptService;
 use App\Services\PurchaseStockReceiptService;
 use App\Support\CommercialDocumentView;
@@ -119,9 +120,16 @@ class SupplierDeliveryNoteController extends Controller
 
     public function show(SupplierDeliveryNote $supplierDeliveryNote)
     {
-        $supplierDeliveryNote->load('supplier', 'items');
+        $supplierDeliveryNote->load(['supplier', 'items.product', 'items.variant', 'warehouse', 'purchaseOrder']);
+        $receiptProgress = $this->purchaseReceipts->progressForDocument($supplierDeliveryNote);
+        $linkedReceptions = $this->purchaseReceipts->linkedReceptions($supplierDeliveryNote);
+        $documentChain = app(PurchaseDocumentChainService::class)->forDeliveryNote($supplierDeliveryNote);
+        $receptionStatus = $this->purchaseReceipts->documentReceptionStatusLabel($supplierDeliveryNote);
+        $canReceive = $receiptProgress->contains(fn (array $row) => $row['remaining'] > 0);
 
-        return view('purchases.supplier-delivery-notes.show', compact('supplierDeliveryNote'));
+        return view('purchases.supplier-delivery-notes.show', compact(
+            'supplierDeliveryNote', 'receiptProgress', 'linkedReceptions', 'documentChain', 'receptionStatus', 'canReceive'
+        ));
     }
 
     public function edit(SupplierDeliveryNote $supplierDeliveryNote)

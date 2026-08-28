@@ -257,6 +257,21 @@
             return;
         }
 
+        var tableId = exportType;
+        var bar = getBar(exportType);
+        if (bar && bar.getAttribute('data-lm-table-id')) {
+            tableId = bar.getAttribute('data-lm-table-id');
+        }
+
+        var columnsMode = 'all';
+        var visibleColumns = [];
+        if (window.LmTableColumns) {
+            columnsMode = window.LmTableColumns.getExportMode(tableId) || 'all';
+            if (columnsMode === 'visible') {
+                visibleColumns = window.LmTableColumns.getVisibleKeys(tableId) || [];
+            }
+        }
+
         fetch(window.tableBulkExportUrl || '/export/table', {
             method: 'POST',
             headers: {
@@ -268,7 +283,9 @@
             credentials: 'same-origin',
             body: JSON.stringify({
                 type: exportType,
-                ids: ids
+                ids: ids,
+                columns_mode: columnsMode,
+                visible_columns: visibleColumns
             })
         })
             .then(function (response) {

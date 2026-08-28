@@ -31,11 +31,17 @@ class InvoicePayment extends Model
         'payment_import_row_id',
         'dedupe_key',
         'allow_overpayment',
+        'gross_amount',
+        'delivery_fees',
+        'net_received',
     ];
 
     protected $casts = [
         'payment_date' => 'date',
         'amount' => 'decimal:2',
+        'gross_amount' => 'decimal:2',
+        'delivery_fees' => 'decimal:2',
+        'net_received' => 'decimal:2',
         'allow_overpayment' => 'boolean',
     ];
 

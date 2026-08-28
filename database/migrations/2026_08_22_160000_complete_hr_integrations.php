@@ -9,13 +9,20 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasColumn('employee_schedules', 'effective_from')) {
+            Schema::table('employee_schedules', function (Blueprint $table) {
+                $table->date('effective_from')->default('1970-01-01')->after('employee_id');
+            });
+        }
+
         Schema::table('employee_schedules', function (Blueprint $table) {
-            $table->date('effective_from')->default('1970-01-01')->after('employee_id');
+            $table->dropForeign(['employee_id']);
         });
 
         Schema::table('employee_schedules', function (Blueprint $table) {
             $table->dropUnique('employee_schedules_employee_id_weekday_unique');
             $table->unique(['employee_id', 'weekday', 'effective_from']);
+            $table->foreign('employee_id')->references('id')->on('employees')->cascadeOnDelete();
         });
 
         Schema::table('attendance_records', function (Blueprint $table) {
@@ -79,8 +86,13 @@ return new class extends Migration
             $table->dropColumn(['early_minutes', 'is_incomplete']);
         });
         Schema::table('employee_schedules', function (Blueprint $table) {
+            $table->dropForeign(['employee_id']);
+        });
+
+        Schema::table('employee_schedules', function (Blueprint $table) {
             $table->dropUnique(['employee_id', 'weekday', 'effective_from']);
             $table->unique(['employee_id', 'weekday']);
+            $table->foreign('employee_id')->references('id')->on('employees')->cascadeOnDelete();
             $table->dropColumn('effective_from');
         });
     }

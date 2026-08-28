@@ -257,9 +257,9 @@ class TableExportService
         ]);
     }
 
-    public function exportToStorage(string $type, array $ids, ?callable $progress = null): array
+    public function exportToStorage(string $type, array $ids, ?callable $progress = null, ?array $exportOptions = null): array
     {
-        $spreadsheet = $this->buildSpreadsheet($type, $ids, $progress);
+        $spreadsheet = $this->buildSpreadsheet($type, $ids, $progress, $exportOptions);
         $filename = $this->filename($type);
         $path = 'exports/'.$filename;
 
@@ -295,7 +295,7 @@ class TableExportService
 
         $file = $this->exportToStorage($export->type, $ids, function (int $progress) use ($export) {
             $export->update(['progress' => max(5, min(95, $progress))]);
-        });
+        }, $export->export_options);
 
         $export->update([
             'status' => 'completed',
@@ -306,7 +306,7 @@ class TableExportService
         ]);
     }
 
-    protected function buildSpreadsheet(string $type, array $ids, ?callable $progress = null): Spreadsheet
+    protected function buildSpreadsheet(string $type, array $ids, ?callable $progress = null, ?array $exportOptions = null): Spreadsheet
     {
         $registry = $this->registry();
 
@@ -324,7 +324,7 @@ class TableExportService
         }
 
         $rows = $query->get();
-        $columns = $config['columns'];
+        $columns = $this->resolveExportColumns($type, $config['columns'], $exportOptions);
         $totalRows = max(1, $rows->count());
 
         $spreadsheet = new Spreadsheet();
@@ -350,6 +350,37 @@ class TableExportService
         }
 
         return $spreadsheet;
+    }
+
+    /**
+     * @param  array<string, string>  $columns
+     * @param  array{columns_mode?: string, visible_columns?: list<string>}|null  $exportOptions
+     * @return array<string, string>
+     */
+    protected function resolveExportColumns(string $type, array $columns, ?array $exportOptions): array
+    {
+        $mode = $exportOptions['columns_mode'] ?? 'all';
+        $visibleKeys = $exportOptions['visible_columns'] ?? [];
+
+        if ($mode !== 'visible' || $visibleKeys === []) {
+            return $columns;
+        }
+
+        /** @var TableColumnPreferenceService $preferences */
+        $preferences = app(TableColumnPreferenceService::class);
+        $allowedFields = $preferences->exportFieldsForVisible($type, $visibleKeys);
+
+        if ($allowedFields === []) {
+            return $columns;
+        }
+
+        $filtered = array_filter(
+            $columns,
+            fn (string $field) => in_array($field, $allowedFields, true),
+            ARRAY_FILTER_USE_KEY
+        );
+
+        return $filtered !== [] ? $filtered : $columns;
     }
 
     protected function filename(string $type): string

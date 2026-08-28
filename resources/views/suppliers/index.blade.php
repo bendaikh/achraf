@@ -50,47 +50,51 @@
             grid-cols="md:grid-cols-3"
         />
 
+        <x-table-list-toolbar table-id="suppliers" />
+
+
+
         <x-table-bulk-bar export-type="suppliers" item-label="fournisseur(s)" />
 
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
+                <table data-lm-table="suppliers" class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
                             <x-table-checkbox-header export-type="suppliers" />
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fournisseur</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                            <x-lm-col key="code" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</x-lm-col>
+                            <x-lm-col key="fournisseur" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fournisseur</x-lm-col>
+                            <x-lm-col key="contact" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</x-lm-col>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Téléphone</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ville</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ICE</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <x-lm-col key="ville" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ville</x-lm-col>
+                            <x-lm-col key="ice" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ICE</x-lm-col>
+                            <x-lm-col key="statut" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</x-lm-col>
+                            <x-lm-col key="actions" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</x-lm-col>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         @forelse($suppliers as $supplier)
                             <tr class="hover:bg-gray-50">
                                 <x-table-checkbox-cell export-type="suppliers" :id="$supplier->id" />
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-code column-code" data-lm-col="code">
                                     <span class="text-sm font-medium text-gray-900">{{ $supplier->code ?? 'N/A' }}</span>
                                 </td>
-                                <td class="px-6 py-4">
+                                <td class="px-6 py-4 lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">
                                     <div class="text-sm font-medium text-gray-900">{{ $supplier->name }}</div>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                <x-lm-col key="contact" class="px-6 py-4 whitespace-nowrap">
                                     <span class="text-sm text-gray-900">{{ $supplier->email }}</span>
-                                </td>
+                                </x-lm-col>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="text-sm text-gray-900">{{ $supplier->phone ?? 'N/A' }}</span>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                <x-lm-col key="ville" class="px-6 py-4 whitespace-nowrap">
                                     <span class="text-sm text-gray-900">{{ $supplier->ville ?? $supplier->city ?? 'N/A' }}</span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="ice" class="px-6 py-4 whitespace-nowrap">
                                     <span class="text-sm text-gray-900">{{ $supplier->ice ?? 'N/A' }}</span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="statut" class="px-6 py-4 whitespace-nowrap">
                                     @php
                                         $statusColors = [
                                             'actif' => 'bg-green-100 text-green-800',
@@ -102,8 +106,8 @@
                                     <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColors[$status] ?? 'bg-gray-100 text-gray-800' }}">
                                         {{ $supplier->statusLabel() }}
                                     </span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                </x-lm-col>
+                                <x-lm-col key="actions" class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div class="flex space-x-2">
                                         <a href="{{ route('suppliers.show', $supplier) }}" class="text-blue-600 hover:text-blue-900">
                                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,7 +130,7 @@
                                             </button>
                                         </form>
                                     </div>
-                                </td>
+                                </x-lm-col>
                             </tr>
                         @empty
                             <tr>

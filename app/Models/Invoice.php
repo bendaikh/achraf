@@ -36,6 +36,8 @@ class Invoice extends Model
         'total',
         'document_file_path',
         'payment_status',
+        'commercial_status',
+        'source',
     ];
 
     protected $casts = [
@@ -73,6 +75,22 @@ class Invoice extends Model
         return $this->hasMany(InvoicePayment::class);
     }
 
+    public function activities()
+    {
+        return $this->hasMany(InvoiceActivity::class)->orderByDesc('occurred_at')->orderByDesc('id');
+    }
+
+    public function recordActivity(string $event, string $description, ?int $actorUserId = null, array $metadata = []): InvoiceActivity
+    {
+        return $this->activities()->create([
+            'actor_user_id' => $actorUserId,
+            'event' => $event,
+            'description' => $description,
+            'metadata' => $metadata ?: null,
+            'occurred_at' => now(),
+        ]);
+    }
+
     public function getTotalPaidAttribute(): float
     {
         return (float) $this->payments()->sum('amount');
@@ -89,6 +107,31 @@ class Invoice extends Model
         }
 
         return DocumentTaxBreakdown::fromDocument($this, $items)['total_ttc'];
+    }
+
+    public function refunds()
+    {
+        return $this->hasMany(ClientRefund::class);
+    }
+
+    public function getTotalCreditsAttribute(): float
+    {
+        return (float) $this->creditNotes()->get()->sum(fn (CreditNote $cn) => (float) $cn->computed_total);
+    }
+
+    public function getNetSaleAttribute(): float
+    {
+        return max(0, round($this->computed_total - $this->total_credits, 2));
+    }
+
+    public function getTotalRefundedAttribute(): float
+    {
+        return (float) $this->refunds()->sum('amount');
+    }
+
+    public function getRemainingToRefundAttribute(): float
+    {
+        return max(0, round($this->total_credits - $this->total_refunded, 2));
     }
 
     public function getRemainingBalanceAttribute(): float

@@ -56,11 +56,26 @@ class DashboardService
             ->tap(fn (Builder $q) => $this->betweenDates($q, 'invoice_date', $dateFrom, $dateTo))
             ->sum('total');
 
+        $creditNotes = (float) CreditNote::query()
+            ->tap(fn (Builder $q) => $this->betweenDates($q, 'credit_note_date', $dateFrom, $dateTo))
+            ->sum('total');
+
+        $gross = round($pos + $invoices, 2);
+
         return [
             'pos' => round($pos, 2),
             'invoices' => round($invoices, 2),
-            'total' => round($pos + $invoices, 2),
+            'credit_notes' => round($creditNotes, 2),
+            'gross' => $gross,
+            'total' => round(max(0, $gross - $creditNotes), 2),
         ];
+    }
+
+    public function getRefunds(Carbon $dateFrom, Carbon $dateTo): float
+    {
+        return round((float) \App\Models\ClientRefund::query()
+            ->tap(fn (Builder $q) => $this->betweenDates($q, 'refund_date', $dateFrom, $dateTo))
+            ->sum('amount'), 2);
     }
 
     /**
@@ -85,7 +100,7 @@ class DashboardService
     public function getCashOut(Carbon $dateFrom, Carbon $dateTo): float
     {
         return round(
-            $this->getSupplierPayments($dateFrom, $dateTo) + $this->getExpenses($dateFrom, $dateTo),
+            $this->getSupplierPayments($dateFrom, $dateTo) + $this->getExpenses($dateFrom, $dateTo) + $this->getRefunds($dateFrom, $dateTo),
             2
         );
     }

@@ -76,6 +76,8 @@ class OrderToInvoiceConverter
             'remarks' => 'Générée automatiquement depuis la commande ' . $order->ticket_number,
             'conditions' => Setting::get('facture_conditions'),
             'payment_status' => $markAsPaid ? Invoice::PAYMENT_PAID : Invoice::PAYMENT_UNPAID,
+            'commercial_status' => 'normal',
+            'source' => $order->source,
         ]);
 
         $linesSubtotal = 0.0;

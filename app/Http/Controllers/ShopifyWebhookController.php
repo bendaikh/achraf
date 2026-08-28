@@ -8,6 +8,7 @@ use App\Services\MarketplaceStockSyncService;
 use App\Services\ShopifyApiClient;
 use App\Services\ShopifyFulfillmentSyncService;
 use App\Services\ShopifyInventorySyncService;
+use App\Services\SalesReturnService;
 use App\Services\ShopifyOrderImporter;
 use App\Services\ShopifyProductImporter;
 use Illuminate\Http\Request;
@@ -253,7 +254,7 @@ class ShopifyWebhookController extends Controller
     /**
      * Handle refunds/create — re-fetch and re-import the parent order so totals/lines update.
      */
-    public function refundsCreate(Request $request, ShopifyOrderImporter $importer): Response
+    public function refundsCreate(Request $request, ShopifyOrderImporter $importer, SalesReturnService $returns): Response
     {
         $integration = ShopifyIntegration::query()->first();
 
@@ -288,9 +289,13 @@ class ShopifyWebhookController extends Controller
             }
 
             $importer->import($order);
-            Log::info('Shopify refund webhook processed — order re-imported', [
+
+            $creditNote = $returns->processShopifyRefund($refund, $order);
+
+            Log::info('Shopify refund webhook processed', [
                 'order_id' => $orderId,
                 'refund_id' => $refund['id'] ?? null,
+                'credit_note_id' => $creditNote?->id,
                 'current_total_price' => $order['current_total_price'] ?? null,
             ]);
         } catch (\Throwable $e) {

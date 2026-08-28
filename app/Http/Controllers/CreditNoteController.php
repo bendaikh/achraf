@@ -10,6 +10,7 @@ use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Services\DocumentNumberService;
+use App\Services\InvoiceSituationService;
 use App\Services\StockMovementService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
@@ -21,7 +22,8 @@ class CreditNoteController extends Controller
     use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function __construct(
-        protected StockMovementService $stockMovement
+        protected StockMovementService $stockMovement,
+        protected InvoiceSituationService $situation
     ) {}
 
     public function index(Request $request)
@@ -81,6 +83,10 @@ class CreditNoteController extends Controller
                 $creditNote->items,
                 $validated['stock_location']
             );
+
+            if ($creditNote->invoice_id) {
+                $this->situation->syncCommercialStatus($creditNote->invoice);
+            }
 
             DB::commit();
 

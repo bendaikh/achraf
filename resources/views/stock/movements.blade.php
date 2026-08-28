@@ -56,37 +56,41 @@
             </div>
         </form>
 
+        <x-table-list-toolbar table-id="stock-movements" />
+
+
+
         <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="min-w-full text-sm">
+                <table data-lm-table="stock-movements" class="min-w-full text-sm">
                     <thead class="bg-slate-50 text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-4 py-3 text-left">Date</th>
-                            <th class="px-4 py-3 text-left">Produit</th>
-                            <th class="px-4 py-3 text-left">Type</th>
-                            <th class="px-4 py-3 text-right">Qté</th>
-                            <th class="px-4 py-3 text-right">Avant</th>
-                            <th class="px-4 py-3 text-right">Après</th>
-                            <th class="px-4 py-3 text-left">Dépôt</th>
-                            <th class="px-4 py-3 text-left">Motif</th>
-                            <th class="px-4 py-3 text-left">Document</th>
-                            <th class="px-4 py-3 text-left">Utilisateur</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-date column-date" data-lm-col="date">Date</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-produit column-produit" data-lm-col="produit">Produit</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-type column-type" data-lm-col="type">Type</th>
+                            <th class="px-4 py-3 text-right lm-col lm-col-quantite column-quantite" data-lm-col="quantite">Qté</th>
+                            <th class="px-4 py-3 text-right lm-col lm-col-depot column-depot" data-lm-col="depot">Avant</th>
+                            <th class="px-4 py-3 text-right lm-col lm-col-reference column-reference" data-lm-col="reference">Après</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-date column-date" data-lm-col="date">Dépôt</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-produit column-produit" data-lm-col="produit">Motif</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-type column-type" data-lm-col="type">Document</th>
+                            <th class="px-4 py-3 text-left lm-col lm-col-quantite column-quantite" data-lm-col="quantite">Utilisateur</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse($movements as $movement)
                             <tr>
-                                <td class="px-4 py-3 whitespace-nowrap">{{ $movement->moved_at?->format('d/m/Y H:i') }}</td>
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">{{ $movement->moved_at?->format('d/m/Y H:i') }}</td>
+                                <td class="px-4 py-3 lm-col lm-col-produit column-produit" data-lm-col="produit">
                                     <div class="font-medium">{{ $movement->product?->name }}</div>
                                     <div class="text-xs text-slate-500 font-mono">{{ $movement->product?->ref }}</div>
                                 </td>
-                                <td class="px-4 py-3">{{ $movement->typeLabel() }}</td>
-                                <td class="px-4 py-3 text-right font-semibold {{ $movement->quantity > 0 ? 'text-green-700' : 'text-red-700' }}">
+                                <td class="px-4 py-3 lm-col lm-col-type column-type" data-lm-col="type">{{ $movement->typeLabel() }}</td>
+                                <td class="px-4 py-3 text-right font-semibold {{ $movement->quantity > 0 ? 'text-green-700' : 'text-red-700' }} lm-col lm-col-quantite column-quantite" data-lm-col="quantite">
                                     {{ $movement->quantity > 0 ? '+' : '' }}{{ $movement->quantity }}
                                 </td>
-                                <td class="px-4 py-3 text-right text-slate-500">{{ $movement->quantity_before ?? '—' }}</td>
-                                <td class="px-4 py-3 text-right">{{ $movement->quantity_after ?? '—' }}</td>
+                                <td class="px-4 py-3 text-right text-slate-500 lm-col lm-col-depot column-depot" data-lm-col="depot">{{ $movement->quantity_before ?? '—' }}</td>
+                                <td class="px-4 py-3 text-right lm-col lm-col-reference column-reference" data-lm-col="reference">{{ $movement->quantity_after ?? '—' }}</td>
                                 <td class="px-4 py-3">{{ $movement->warehouse?->name ?: '—' }}</td>
                                 <td class="px-4 py-3 text-xs">{{ $movement->reason ?: $movement->notes ?: '—' }}</td>
                                 <td class="px-4 py-3 text-xs">

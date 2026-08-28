@@ -62,4 +62,9 @@ class SupplierDeliveryNote extends Model
     {
         return $this->morphMany(PurchaseStockAllocation::class, 'allocatable');
     }
+
+    public function receptions()
+    {
+        return $this->hasMany(Reception::class, 'supplier_delivery_note_id');
+    }
 }

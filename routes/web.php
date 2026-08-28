@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ClientRefundController;
 use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\CrmImportController;
 use App\Http\Controllers\DashboardController;
@@ -43,6 +44,7 @@ use App\Http\Controllers\SupplierInvoiceController;
 use App\Http\Controllers\SupplierInvoicePaymentController;
 use App\Http\Controllers\SupplierPurchaseOrderController;
 use App\Http\Controllers\TableBulkDestroyController;
+use App\Http\Controllers\TableColumnPreferenceController;
 use App\Http\Controllers\TableExportController;
 use App\Http\Controllers\Hr\AttendanceController;
 use App\Http\Controllers\Hr\CompensationController;
@@ -222,6 +224,11 @@ Route::middleware('auth')->group(function () {
         Route::get('payments/import/{paymentImport}', [SalesPaymentController::class, 'importShow'])->name('sales.payments.import.show');
         Route::patch('payments/import/{paymentImport}/lines/{line}', [SalesPaymentController::class, 'importUpdateLine'])->name('sales.payments.import.line');
         Route::post('payments/import/{paymentImport}/validate', [SalesPaymentController::class, 'importValidate'])->name('sales.payments.import.validate');
+        Route::get('refunds/create', [ClientRefundController::class, 'create'])->name('sales.refunds.create');
+        Route::post('refunds', [ClientRefundController::class, 'store'])->name('sales.refunds.store');
+        Route::get('refunds/{refund}', [ClientRefundController::class, 'show'])->name('sales.refunds.show');
+        Route::delete('refunds/{refund}', [ClientRefundController::class, 'destroy'])->name('sales.refunds.destroy');
+        Route::get('refunds', [ClientRefundController::class, 'index'])->name('sales.refunds.index');
         Route::resource('invoices', InvoiceController::class);
         Route::get('quotes/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'quotes')->name('quotes.import.template');
         Route::post('quotes/import', [DocumentImportController::class, 'import'])->defaults('type', 'quotes')->name('quotes.import');
@@ -387,4 +394,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/export/table/{export}/status', [TableExportController::class, 'status'])->name('table.export.status');
     Route::get('/export/table/{export}/download', [TableExportController::class, 'download'])->name('table.export.download');
     Route::post('/export/table-zip', [TableExportController::class, 'exportZip'])->name('table.export.zip');
+
+    Route::get('/api/table-columns/{tableKey}', [TableColumnPreferenceController::class, 'show'])->name('table-columns.show');
+    Route::put('/api/table-columns/{tableKey}', [TableColumnPreferenceController::class, 'update'])->name('table-columns.update');
+    Route::put('/api/table-columns/{tableKey}/defaults', [TableColumnPreferenceController::class, 'updateDefaults'])->name('table-columns.defaults');
+    Route::post('/api/table-columns/{tableKey}/reset', [TableColumnPreferenceController::class, 'reset'])->name('table-columns.reset');
 });

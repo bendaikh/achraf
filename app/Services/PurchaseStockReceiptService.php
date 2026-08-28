@@ -16,6 +16,7 @@ class PurchaseStockReceiptService
 {
     public function __construct(
         protected StockMovementService $stockMovement,
+        protected PurchaseReceiptService $purchaseReceipts,
     ) {}
 
     public function resolveDefaultWarehouse(?int $warehouseId, ?string $stockLocation): Warehouse
@@ -40,6 +41,8 @@ class PurchaseStockReceiptService
             'warehouse_id' => 'nullable|exists:warehouses,id',
             'stock_location' => 'nullable|string',
             'supplier_purchase_order_id' => 'nullable|exists:supplier_purchase_orders,id',
+            'supplier_delivery_note_id' => 'nullable|exists:supplier_delivery_notes,id',
+            'source_supplier_invoice_id' => 'nullable|exists:supplier_invoices,id',
             'items.*.allocations' => 'nullable|array',
             'items.*.allocations.*.warehouse_id' => 'nullable|exists:warehouses,id',
             'items.*.allocations.*.warehouse_location_id' => 'nullable|exists:warehouse_locations,id',
@@ -50,7 +53,7 @@ class PurchaseStockReceiptService
     }
 
     /**
-     * Entrée en stock unique (idéalement via BR). Idempotente via stock_applied_at.
+     * Entrée en stock unique via BR. Idempotente via stock_applied_at.
      *
      * @param  list<array<string, mixed>>  $items
      */
@@ -60,8 +63,12 @@ class PurchaseStockReceiptService
             return;
         }
 
+        // Seuls les BR créent une entrée physique de stock.
+        if (! $document instanceof Reception) {
+            throw new \InvalidArgumentException('L’entrée en stock doit passer par un bon de réception.');
+        }
+
         $meta = $this->documentMeta($document);
-        $poId = $document->getAttribute('supplier_purchase_order_id');
 
         $supplierName = $document->supplier?->name;
 
@@ -120,23 +127,13 @@ class PurchaseStockReceiptService
         }
 
         $document->update(['stock_applied_at' => now()]);
-        $this->linkMovementsToDocument($this->movementsForDocument($meta['type'], (int) $document->getKey()), $meta['type'], (int) $document->getKey(), $meta['reference']);
-
-        if ($poId) {
-            $po = SupplierPurchaseOrder::find($poId);
-            if ($po) {
-                $this->linkMovementsToDocument(
-                    $this->movementsForDocument($meta['type'], (int) $document->getKey()),
-                    'supplier_purchase_order',
-                    (int) $po->id,
-                    $po->order_number
-                );
-            }
-        }
+        $movements = $this->movementsForDocument($meta['type'], (int) $document->getKey());
+        $this->linkMovementsToDocument($movements, $meta['type'], (int) $document->getKey(), $meta['reference']);
+        $this->linkMovementsToRelatedDocuments($document, $movements);
     }
 
     /**
-     * Relie un document commercial (facture, etc.) au mouvement déjà créé, sans recréer de stock.
+     * Relie un document commercial au mouvement déjà créé, sans recréer de stock.
      *
      * @param  Collection<int, Model>  $sources
      */
@@ -165,8 +162,6 @@ class PurchaseStockReceiptService
             $movement->update(['document_reference' => $refs]);
         }
 
-        // Conversion ne recrée pas de stock : si l’entrée a déjà eu lieu (BR),
-        // marquer la facture comme « Stock réceptionné » pour bloquer une 2ᵉ entrée.
         if ($anyApplied && ! $target->getAttribute('stock_applied_at')) {
             $target->update(['stock_applied_at' => now()]);
         }
@@ -231,8 +226,63 @@ class PurchaseStockReceiptService
         if ($document instanceof SupplierInvoice) {
             return ['type' => 'supplier_invoice', 'reference' => (string) $document->invoice_number];
         }
+        if ($document instanceof SupplierPurchaseOrder) {
+            return ['type' => 'supplier_purchase_order', 'reference' => (string) $document->order_number];
+        }
 
         throw new \InvalidArgumentException('Document d’achat non pris en charge pour le stock.');
+    }
+
+    /**
+     * @param  Collection<int, StockMovement>|iterable<int, StockMovement>  $movements
+     */
+    protected function linkMovementsToRelatedDocuments(Reception $reception, iterable $movements): void
+    {
+        if ($reception->supplier_purchase_order_id) {
+            $po = SupplierPurchaseOrder::find($reception->supplier_purchase_order_id);
+            if ($po) {
+                $this->linkMovementsToDocument(
+                    $movements,
+                    'supplier_purchase_order',
+                    (int) $po->id,
+                    $po->order_number
+                );
+            }
+        }
+
+        if ($reception->supplier_delivery_note_id) {
+            $note = SupplierDeliveryNote::find($reception->supplier_delivery_note_id);
+            if ($note) {
+                $this->linkMovementsToDocument(
+                    $movements,
+                    'supplier_delivery_note',
+                    (int) $note->id,
+                    $note->delivery_number
+                );
+            }
+        }
+
+        $invoiceIds = collect([$reception->source_supplier_invoice_id, $reception->converted_supplier_invoice_id])
+            ->filter()
+            ->unique();
+
+        foreach ($invoiceIds as $invoiceId) {
+            $invoice = SupplierInvoice::find($invoiceId);
+            if (! $invoice) {
+                continue;
+            }
+
+            $this->linkMovementsToDocument(
+                $movements,
+                'supplier_invoice',
+                (int) $invoice->id,
+                $invoice->invoice_number
+            );
+
+            if (! $invoice->stock_applied_at) {
+                $invoice->update(['stock_applied_at' => now()]);
+            }
+        }
     }
 
     /**

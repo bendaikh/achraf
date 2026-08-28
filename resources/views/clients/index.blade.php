@@ -61,31 +61,34 @@
             </div>
         </x-table-filters>
 
+        <x-table-list-toolbar table-id="clients" />
+
+
         <x-table-bulk-bar export-type="clients" item-label="client(s)" />
 
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
+                <table data-lm-table="clients" class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
                             <x-table-checkbox-header export-type="clients" />
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ville</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <x-lm-col key="code" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</x-lm-col>
+                            <x-lm-col key="client" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</x-lm-col>
+                            <x-lm-col key="type" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</x-lm-col>
+                            <x-lm-col key="contact" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</x-lm-col>
+                            <x-lm-col key="ville" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ville</x-lm-col>
+                            <x-lm-col key="statut" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</x-lm-col>
+                            <x-lm-col key="actions" tag="th" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</x-lm-col>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         @forelse($clients as $client)
                             <tr class="hover:bg-gray-50">
                                 <x-table-checkbox-cell export-type="clients" :id="$client->id" />
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                <x-lm-col key="code" class="px-6 py-4 whitespace-nowrap">
                                     <span class="text-sm font-medium text-gray-900">{{ $client->code ?? 'N/A' }}</span>
-                                </td>
-                                <td class="px-6 py-4">
+                                </x-lm-col>
+                                <x-lm-col key="client" class="px-6 py-4">
                                     <div class="flex items-center gap-2">
                                         <div>
                                             <div class="text-sm font-medium text-gray-900">{{ $client->name }}</div>
@@ -97,22 +100,22 @@
                                             <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">VIP</span>
                                         @endif
                                     </div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="type" class="px-6 py-4 whitespace-nowrap">
                                     <span class="text-sm text-gray-700">{{ $client->client_type === 'particulier' ? 'Particulier' : 'Entreprise' }}</span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="contact" class="px-6 py-4 whitespace-nowrap">
                                     <span class="text-sm text-gray-900">{{ $client->phone ?? $client->whatsapp ?? '—' }}</span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="ville" class="px-6 py-4 whitespace-nowrap">
                                     <span class="text-sm text-gray-900">{{ $client->ville ?? $client->city ?? '—' }}</span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="statut" class="px-6 py-4 whitespace-nowrap">
                                     <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium {{ $client->statusBadgeClass() }}">
                                         {{ $client->statusLabel() }}
                                     </span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                </x-lm-col>
+                                <x-lm-col key="actions" class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div class="flex space-x-2">
                                         <a href="{{ route('clients.show', $client) }}" class="text-blue-600 hover:text-blue-900" title="Voir">
                                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,7 +138,7 @@
                                             </button>
                                         </form>
                                     </div>
-                                </td>
+                                </x-lm-col>
                             </tr>
                         @empty
                             <tr>

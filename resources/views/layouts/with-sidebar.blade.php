@@ -240,6 +240,12 @@
     window.tableBulkExportUrl = @json(route('table.export'));
     window.tableBulkZipExportUrl = @json(route('table.export.zip'));
     window.tableBulkDestroyUrl = @json(route('table.bulk-destroy'));
+    window.lmTableColumnsApi = {
+        show: @json(route('table-columns.show', ['tableKey' => '__TABLE__'])),
+        update: @json(route('table-columns.update', ['tableKey' => '__TABLE__'])),
+        reset: @json(route('table-columns.reset', ['tableKey' => '__TABLE__'])),
+        defaults: @json(route('table-columns.defaults', ['tableKey' => '__TABLE__'])),
+    };
 </script>
 @php
     $tableBulkSelectionScript = public_path('js/table-bulk-selection.js');
@@ -266,6 +272,15 @@
 <script>/* list-state v={{ $listStateVersion }} */{!! file_get_contents($listStateScript) !!}</script>
 @else
 <script src="{{ asset('js/list-state.js') }}?v={{ $listStateVersion }}"></script>
+@endif
+@php
+    $tableColumnsScript = public_path('js/table-columns.js');
+    $tableColumnsVersion = is_readable($tableColumnsScript) ? filemtime($tableColumnsScript) : time();
+@endphp
+@if (is_readable($tableColumnsScript))
+<script>/* table-columns v={{ $tableColumnsVersion }} */{!! file_get_contents($tableColumnsScript) !!}</script>
+@else
+<script src="{{ asset('js/table-columns.js') }}?v={{ $tableColumnsVersion }}"></script>
 @endif
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 @endsection

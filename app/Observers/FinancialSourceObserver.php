@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Models\ClientRefund;
 use App\Models\Expense;
 use App\Models\InvoicePayment;
 use App\Models\PosSale;
@@ -15,22 +16,22 @@ class FinancialSourceObserver
         private FinancialMovementService $movements
     ) {}
 
-    public function created(InvoicePayment|SupplierInvoicePayment|SupplierPayment|Expense|PosSale $model): void
+    public function created(InvoicePayment|SupplierInvoicePayment|SupplierPayment|Expense|PosSale|ClientRefund $model): void
     {
         $this->sync($model);
     }
 
-    public function updated(InvoicePayment|SupplierInvoicePayment|SupplierPayment|Expense|PosSale $model): void
+    public function updated(InvoicePayment|SupplierInvoicePayment|SupplierPayment|Expense|PosSale|ClientRefund $model): void
     {
         $this->sync($model);
     }
 
-    public function deleted(InvoicePayment|SupplierInvoicePayment|SupplierPayment|Expense|PosSale $model): void
+    public function deleted(InvoicePayment|SupplierInvoicePayment|SupplierPayment|Expense|PosSale|ClientRefund $model): void
     {
         $this->movements->deleteForSource($model);
     }
 
-    private function sync(InvoicePayment|SupplierInvoicePayment|SupplierPayment|Expense|PosSale $model): void
+    private function sync(InvoicePayment|SupplierInvoicePayment|SupplierPayment|Expense|PosSale|ClientRefund $model): void
     {
         match (true) {
             $model instanceof InvoicePayment => $this->movements->syncFromInvoicePayment($model),
@@ -38,6 +39,7 @@ class FinancialSourceObserver
             $model instanceof SupplierPayment => $this->movements->syncFromSupplierAdvance($model),
             $model instanceof Expense => $this->movements->syncFromExpense($model),
             $model instanceof PosSale => $this->movements->syncFromPosSale($model),
+            $model instanceof ClientRefund => $this->movements->syncFromClientRefund($model),
         };
     }
 }

@@ -77,6 +77,11 @@ class User extends Authenticatable
         return $this->hasOne(Employee::class);
     }
 
+    public function tablePreferences()
+    {
+        return $this->hasMany(UserTablePreference::class);
+    }
+
     public function canHr(string $permission): bool
     {
         return \App\Support\HrPermission::allows($this, $permission);

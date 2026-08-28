@@ -68,6 +68,8 @@
                 </div>
             </div>
 
+            @include('sales.invoices.partials.situation', ['situation' => $situation, 'invoice' => $invoice])
+
             <!-- Client Information -->
             <div class="p-6 border-b border-gray-200">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Informations Client</h3>

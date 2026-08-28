@@ -1,11 +1,13 @@
 @props([
     'column',
     'label',
+    'colKey' => null,
     'default' => false,
     'defaultDirection' => 'desc',
 ])
 
 @php
+    $lmColKey = $colKey ?? $column;
     $currentSort = request('sort');
     $currentDirection = strtolower((string) request('direction', $defaultDirection));
     if (! in_array($currentDirection, ['asc', 'desc'], true)) {
@@ -46,8 +48,9 @@
 @endphp
 
 <th
-    class="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider"
+    class="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider lm-col lm-col-{{ $lmColKey }} column-{{ $lmColKey }}"
     aria-sort="{{ $ariaSort }}"
+    data-lm-col="{{ $lmColKey }}"
 >
     <a
         href="{{ $url }}"

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ClientRefund;
 use App\Models\Expense;
 use App\Models\FinancialMovement;
 use App\Models\InvoicePayment;
@@ -15,6 +16,33 @@ use Illuminate\Support\Collection;
 
 class FinancialMovementService
 {
+    public function syncFromClientRefund(ClientRefund $refund): FinancialMovement
+    {
+        $refund->loadMissing(['client', 'invoice', 'creditNote', 'posSale']);
+
+        $clientName = $refund->client?->name;
+        $invoiceNumber = $refund->invoice?->invoice_number ?? '—';
+
+        $origin = match ($refund->source) {
+            'shopify' => FinancialMovement::ORIGIN_SHOPIFY,
+            'jumia' => FinancialMovement::ORIGIN_JUMIA,
+            default => FinancialMovement::ORIGIN_REMBOURSEMENT,
+        };
+
+        return $this->upsertFromSource($refund, [
+            'movement_date' => $refund->refund_date,
+            'origin' => $origin,
+            'type' => FinancialMovement::TYPE_SORTIE,
+            'label' => 'Remboursement client '.$refund->refund_number.' — facture '.$invoiceNumber.($clientName ? ' — '.$clientName : ''),
+            'account' => $this->classifyPaymentMethod($refund->payment_method),
+            'amount_in' => 0,
+            'amount_out' => (float) $refund->amount,
+            'justificatif_path' => $refund->payment_file_path,
+            'notes' => $refund->notes,
+            'user_id' => $refund->created_by,
+        ]);
+    }
+
     public function syncFromInvoicePayment(InvoicePayment $payment): FinancialMovement
     {
         $payment->loadMissing('invoice.client');
@@ -28,7 +56,7 @@ class FinancialMovementService
             'type' => FinancialMovement::TYPE_ENTREE,
             'label' => 'Encaissement facture '.$invoiceNumber.($clientName ? ' — '.$clientName : ''),
             'account' => $this->classifyPaymentMethod($payment->payment_method),
-            'amount_in' => (float) $payment->amount,
+            'amount_in' => (float) ($payment->net_received ?? $payment->amount),
             'amount_out' => 0,
             'justificatif_path' => $payment->payment_file_path,
             'notes' => $this->paymentNotes($payment),
@@ -334,6 +362,13 @@ class FinancialMovementService
                     }
                 }
             });
+
+        ClientRefund::query()->with(['client', 'invoice'])->orderBy('id')->chunkById(100, function ($refunds) use (&$created) {
+            foreach ($refunds as $refund) {
+                $this->syncFromClientRefund($refund);
+                $created++;
+            }
+        });
 
         return compact('created', 'skipped');
     }

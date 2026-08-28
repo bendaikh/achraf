@@ -100,10 +100,15 @@
 
         @include('purchases.partials.document-chain')
 
-        @if(!$supplierInvoice->stock_applied_at)
+        @include('purchases.partials.reception-progress', [
+            'documentLabel' => 'facture',
+            'receiveRoute' => ($canReceive ?? false) ? route('receptions.create', ['from' => 'invoice', 'id' => $supplierInvoice->id]) : null,
+        ])
+
+        @if($canReceive ?? false)
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-6 mb-6">
-            <h3 class="text-lg font-semibold text-amber-900 mb-2">Réceptionner / Entrer en stock</h3>
-            <p class="text-sm text-amber-800 mb-4">Cette facture n’a pas encore alimenté le stock. Une seule entrée est autorisée. Choisissez le dépôt destination pour chaque ligne.</p>
+            <h3 class="text-lg font-semibold text-amber-900 mb-2">Réception rapide depuis la facture</h3>
+            <p class="text-sm text-amber-800 mb-4">Crée automatiquement un bon de réception (BR) — seule entrée physique autorisée en stock.</p>
             <form method="POST" action="{{ route('supplier-invoices.receive-stock', $supplierInvoice) }}" class="space-y-4">
                 @csrf
                 <div>
@@ -121,20 +126,23 @@
                         <thead class="bg-white/70">
                             <tr>
                                 <th class="px-3 py-2 text-left">Produit</th>
-                                <th class="px-3 py-2 text-left">Qté</th>
+                                <th class="px-3 py-2 text-left">Qté à recevoir</th>
                                 <th class="px-3 py-2 text-left">Dépôt destination</th>
                                 <th class="px-3 py-2 text-left">Emplacement</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($supplierInvoice->items as $idx => $item)
+                            @foreach($receiptProgress ?? [] as $idx => $row)
+                                @if(($row['remaining'] ?? 0) <= 0) @continue @endif
+                                @php $item = $supplierInvoice->items->first(fn ($i) => (int)($i->product_id ?? 0) === (int)($row['product_id'] ?? 0) && (int)($i->product_variant_id ?? 0) === (int)($row['product_variant_id'] ?? 0)); @endphp
                                 <tr class="border-t border-amber-100">
                                     <td class="px-3 py-2">
-                                        {{ $item->designation }}
-                                        <input type="hidden" name="items[{{ $idx }}][product_id]" value="{{ $item->product_id }}">
-                                        <input type="hidden" name="items[{{ $idx }}][quantity]" value="{{ $item->quantity }}">
+                                        {{ $row['designation'] }}
+                                        <input type="hidden" name="items[{{ $idx }}][product_id]" value="{{ $row['product_id'] }}">
+                                        <input type="hidden" name="items[{{ $idx }}][product_variant_id]" value="{{ $row['product_variant_id'] }}">
+                                        <input type="hidden" name="items[{{ $idx }}][quantity]" value="{{ $row['remaining'] }}">
                                     </td>
-                                    <td class="px-3 py-2">{{ $item->quantity }}</td>
+                                    <td class="px-3 py-2">{{ $row['remaining'] }}</td>
                                     <td class="px-3 py-2">
                                         <select name="items[{{ $idx }}][warehouse_id]" class="w-full px-2 py-1 border rounded invoice-recv-wh" data-idx="{{ $idx }}">
                                             @foreach($warehouses ?? [] as $warehouse)
@@ -153,7 +161,7 @@
                     </table>
                 </div>
                 <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">
-                    Valider l’entrée en stock
+                    📦 Créer le BR et réceptionner
                 </button>
             </form>
         </div>

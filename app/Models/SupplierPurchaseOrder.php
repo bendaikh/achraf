@@ -33,4 +33,19 @@ class SupplierPurchaseOrder extends Model
     {
         return $this->morphMany(PurchaseItem::class, 'purchaseable');
     }
+
+    public function deliveryNotes()
+    {
+        return $this->hasMany(SupplierDeliveryNote::class, 'supplier_purchase_order_id');
+    }
+
+    public function receptions()
+    {
+        return $this->hasMany(Reception::class, 'supplier_purchase_order_id');
+    }
+
+    public function supplierInvoices()
+    {
+        return $this->hasMany(SupplierInvoice::class, 'supplier_purchase_order_id');
+    }
 }

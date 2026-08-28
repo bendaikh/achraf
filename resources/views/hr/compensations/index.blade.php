@@ -21,19 +21,20 @@
         <input type="date" name="start_date" class="px-3 py-2 border rounded-lg text-sm" required>
         <button class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm">Ajouter</button>
     </form>
+    <x-table-list-toolbar table-id="hr-compensations" />
     <div class="bg-white rounded-lg shadow overflow-x-auto mb-8">
-        <table class="min-w-full text-sm">
+        <table data-lm-table="hr-compensations" class="min-w-full text-sm">
             <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr>
-                <th class="px-4 py-3 text-left">Salarié</th><th class="px-4 py-3 text-left">Élément</th><th class="px-4 py-3 text-left">Montant</th><th class="px-4 py-3 text-left">Récurrence</th><th class="px-4 py-3 text-left">Période</th>
+                <th class="px-4 py-3 text-left lm-col lm-col-salarie column-salarie" data-lm-col="salarie">Salarié</th><th class="px-4 py-3 text-left lm-col lm-col-type column-type" data-lm-col="type">Élément</th><th class="px-4 py-3 text-left lm-col lm-col-montant column-montant" data-lm-col="montant">Montant</th><th class="px-4 py-3 text-left lm-col lm-col-date column-date" data-lm-col="date">Récurrence</th><th class="px-4 py-3 text-left lm-col lm-col-statut column-statut" data-lm-col="statut">Période</th>
             </tr></thead>
             <tbody>
                 @forelse($items as $item)
                     <tr class="border-t">
-                        <td class="px-4 py-3">{{ $item->employee?->fullName() }}</td>
-                        <td class="px-4 py-3">{{ $item->kindLabel() }}</td>
-                        <td class="px-4 py-3">{{ number_format($item->amount, 2, ',', ' ') }} MAD</td>
-                        <td class="px-4 py-3">{{ \App\Models\CompensationItem::RECURRENCES[$item->recurrence] ?? $item->recurrence }}</td>
-                        <td class="px-4 py-3">{{ $item->start_date?->format('d/m/Y') }}{{ $item->end_date ? ' → '.$item->end_date->format('d/m/Y') : '' }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-salarie column-salarie" data-lm-col="salarie">{{ $item->employee?->fullName() }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-type column-type" data-lm-col="type">{{ $item->kindLabel() }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-montant column-montant" data-lm-col="montant">{{ number_format($item->amount, 2, ',', ' ') }} MAD</td>
+                        <td class="px-4 py-3 lm-col lm-col-date column-date" data-lm-col="date">{{ \App\Models\CompensationItem::RECURRENCES[$item->recurrence] ?? $item->recurrence }}</td>
+                        <td class="px-4 py-3 lm-col lm-col-statut column-statut" data-lm-col="statut">{{ $item->start_date?->format('d/m/Y') }}{{ $item->end_date ? ' → '.$item->end_date->format('d/m/Y') : '' }}</td>
                     </tr>
                 @empty
                     <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">Aucun élément.</td></tr>

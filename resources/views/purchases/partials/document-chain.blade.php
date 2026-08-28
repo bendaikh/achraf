@@ -10,6 +10,9 @@
                 @else
                     <span>{{ $node['label'] }} {{ $node['number'] }}</span>
                 @endif
+                @if(!empty($node['reception_status']))
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700">{{ $node['reception_status'] }}</span>
+                @endif
                 @if(!empty($node['stock_received']))
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">Stock réceptionné ✓</span>
                 @endif

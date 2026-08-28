@@ -10,6 +10,7 @@ class TableExport extends Model
         'user_id',
         'type',
         'ids',
+        'export_options',
         'status',
         'progress',
         'total_rows',
@@ -21,6 +22,7 @@ class TableExport extends Model
 
     protected $casts = [
         'ids' => 'array',
+        'export_options' => 'array',
         'completed_at' => 'datetime',
     ];
 

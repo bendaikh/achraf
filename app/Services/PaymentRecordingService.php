@@ -32,6 +32,10 @@ class PaymentRecordingService
      *   dedupe_key?: ?string,
      *   allow_overpayment?: bool,
      *   user_id?: ?int,
+     *   gross_amount?: ?float,
+     *   delivery_fees?: ?float,
+     *   net_received?: ?float,
+     *   reconciliation_metadata?: array,
      * }  $data
      */
     public function recordInvoicePayment(Invoice $invoice, array $data): InvoicePayment
@@ -74,9 +78,16 @@ class PaymentRecordingService
         }
 
         return DB::transaction(function () use ($invoice, $data, $amount, $dedupeKey, $allowOverpayment) {
+            $grossAmount = isset($data['gross_amount']) ? round((float) $data['gross_amount'], 2) : $amount;
+            $deliveryFees = isset($data['delivery_fees']) ? round((float) $data['delivery_fees'], 2) : null;
+            $netReceived = isset($data['net_received']) ? round((float) $data['net_received'], 2) : null;
+
             $payment = $invoice->payments()->create([
                 'payment_date' => $data['payment_date'],
                 'amount' => $amount,
+                'gross_amount' => $grossAmount,
+                'delivery_fees' => $deliveryFees,
+                'net_received' => $netReceived,
                 'payment_method' => $data['payment_method'],
                 'payment_reference' => $data['payment_reference'] ?? null,
                 'payment_file_path' => $data['payment_file_path'] ?? null,
@@ -96,8 +107,52 @@ class PaymentRecordingService
             $invoice->load('items');
             $invoice->syncPaymentStatus();
 
+            if (($data['source'] ?? '') === InvoicePayment::SOURCE_IMPORT && ! empty($data['reconciliation_metadata'])) {
+                $this->recordImportReconciliationActivity($invoice, $payment, $data['reconciliation_metadata']);
+            }
+
             return $payment;
         });
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    protected function recordImportReconciliationActivity(Invoice $invoice, InvoicePayment $payment, array $metadata): void
+    {
+        $gross = $metadata['gross_amount'] ?? $payment->gross_amount ?? $payment->amount;
+        $fees = $metadata['delivery_fees'] ?? $payment->delivery_fees;
+        $net = $metadata['net_received'] ?? $payment->net_received;
+        $tracking = $metadata['tracking'] ?? $payment->tracking_number;
+        $carrier = $metadata['carrier'] ?? $payment->carrier;
+        $importFile = $metadata['import_file'] ?? null;
+
+        $description = sprintf(
+            'Paiement rapproché via import transporteur — Montant facture : %s DH — Frais livraison : %s DH — Net encaissé : %s DH — Tracking : %s — Date : %s.',
+            number_format((float) $gross, 2, '.', ''),
+            $fees !== null ? number_format((float) $fees, 2, '.', '') : '—',
+            $net !== null ? number_format((float) $net, 2, '.', '') : '—',
+            $tracking ?: '—',
+            $payment->payment_date?->format('d/m/Y') ?? now()->format('d/m/Y')
+        );
+
+        $invoice->recordActivity(
+            \App\Models\InvoiceActivity::EVENT_PAYMENT_RECONCILED,
+            $description,
+            $payment->created_by,
+            array_filter([
+                'payment_id' => $payment->id,
+                'import_file' => $importFile,
+                'order_number' => $metadata['order_number'] ?? null,
+                'tracking' => $tracking,
+                'carrier' => $carrier,
+                'gross_amount' => $gross,
+                'delivery_fees' => $fees,
+                'net_received' => $net,
+                'match_criteria' => $metadata['match_criteria'] ?? null,
+                'match_score' => $metadata['match_score'] ?? null,
+            ], fn ($value) => $value !== null && $value !== '')
+        );
     }
 
     /**

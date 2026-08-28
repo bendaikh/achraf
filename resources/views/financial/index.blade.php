@@ -353,39 +353,42 @@
 
         {{-- Mouvements --}}
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div class="px-4 sm:px-6 py-4 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">Mouvements financiers</h3>
-                <p class="text-sm text-gray-500 mt-0.5">Encaissements et décaissements filtrés sur la période</p>
+            <div class="px-4 sm:px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Mouvements financiers</h3>
+                    <p class="text-sm text-gray-500 mt-0.5">Encaissements et décaissements filtrés sur la période</p>
+                </div>
+                <x-table-list-toolbar table-id="financial" class="mb-0" />
             </div>
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[640px]">
+                <table data-lm-table="financial" class="w-full min-w-[640px]">
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
-                            <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                            <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                            <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Référence</th>
-                            <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tiers</th>
-                            <th class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Mode</th>
-                            <th class="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Montant</th>
+                            <x-lm-col key="date" tag="th" class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</x-lm-col>
+                            <x-lm-col key="reference" tag="th" class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Référence</x-lm-col>
+                            <x-lm-col key="type" tag="th" class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</x-lm-col>
+                            <x-lm-col key="tiers" tag="th" class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tiers</x-lm-col>
+                            <x-lm-col key="mode" tag="th" class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Mode</x-lm-col>
+                            <x-lm-col key="montant" tag="th" class="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Montant</x-lm-col>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
                         @forelse($recentTransactions as $transaction)
                             <tr class="hover:bg-gray-50">
-                                <td class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm text-gray-900">{{ $transaction['date_formatted'] }}</td>
-                                <td class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm text-gray-700">{{ $transaction['label'] }}</td>
-                                <td class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm">
+                                <x-lm-col key="date" class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm text-gray-900">{{ $transaction['date_formatted'] }}</x-lm-col>
+                                <x-lm-col key="reference" class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm text-gray-700">
                                     @if($transaction['url'])
                                         <a href="{{ $transaction['url'] }}" class="text-blue-600 hover:text-blue-800">{{ $transaction['reference'] }}</a>
                                     @else
                                         {{ $transaction['reference'] }}
                                     @endif
-                                </td>
-                                <td class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm text-gray-700">{{ $transaction['party'] }}</td>
-                                <td class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">{{ $transaction['method'] ?? '—' }}</td>
-                                <td class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm text-right font-semibold {{ $transaction['direction'] === 'in' ? 'text-green-600' : 'text-red-600' }}">
+                                </x-lm-col>
+                                <x-lm-col key="type" class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm text-gray-700">{{ $transaction['label'] }}</x-lm-col>
+                                <x-lm-col key="tiers" class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm text-gray-700">{{ $transaction['party'] }}</x-lm-col>
+                                <x-lm-col key="mode" class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">{{ $transaction['method'] ?? '—' }}</x-lm-col>
+                                <x-lm-col key="montant" class="px-4 sm:px-6 py-3 whitespace-nowrap text-sm text-right font-semibold {{ $transaction['direction'] === 'in' ? 'text-green-600' : 'text-red-600' }}">
                                     {{ $transaction['direction'] === 'in' ? '+' : '−' }}{{ number_format($transaction['amount'], 2) }} DH
-                                </td>
+                                </x-lm-col>
                             </tr>
                         @empty
                             <tr>

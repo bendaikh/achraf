@@ -11,6 +11,11 @@
                 <p class="text-sm text-gray-600 mt-1">Détails du bon de commande fournisseur</p>
             </div>
             <div class="flex items-center space-x-3">
+                @if($canReceive ?? false)
+                    <a href="{{ route('receptions.create', ['from' => 'bc', 'id' => $supplierPurchaseOrder->id]) }}" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition duration-150 flex items-center">
+                        📦 Réceptionner
+                    </a>
+                @endif
                 <x-libromart-pdf-actions
                     :print-route="route('supplier-purchase-orders.print', $supplierPurchaseOrder)"
                     :pdf-route="route('supplier-purchase-orders.pdf', $supplierPurchaseOrder)"
@@ -29,6 +34,13 @@
     </header>
 
     <div class="p-8">
+        @include('purchases.partials.document-chain')
+
+        @include('purchases.partials.reception-progress', [
+            'documentLabel' => 'commandée',
+            'receiveRoute' => ($canReceive ?? false) ? route('receptions.create', ['from' => 'bc', 'id' => $supplierPurchaseOrder->id]) : null,
+        ])
+
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <!-- Supplier Information -->
             <div class="p-6 border-b border-gray-200">
@@ -80,9 +92,11 @@
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantité</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Reçu</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qté commandée</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Réceptionné</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Reste</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dépôt</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Prix unitaire (TTC)</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">TVA (%)</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
@@ -90,13 +104,17 @@
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             @foreach($supplierPurchaseOrder->items as $item)
-                            @php $progress = ($receiptProgress ?? collect())->firstWhere('product_id', (int) $item->product_id); @endphp
+                            @php $progress = ($receiptProgress ?? collect())->first(fn ($row) => (int)($row['product_id'] ?? 0) === (int)($item->product_id ?? 0) && (int)($row['product_variant_id'] ?? 0) === (int)($item->product_variant_id ?? 0)); @endphp
                             <tr>
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->ref ?? '-' }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->designation }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $item->quantity }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $progress['received'] ?? 0 }}</td>
                                 <td class="px-4 py-3 text-sm font-semibold text-right {{ ($progress['remaining'] ?? $item->quantity) > 0 ? 'text-amber-700' : 'text-emerald-700' }}">{{ $progress['remaining'] ?? $item->quantity }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-600">{{ $progress['warehouse'] ?? $supplierPurchaseOrder->stock_location }}</td>
+                                <td class="px-4 py-3 text-sm">
+                                    <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold {{ ($progress['status'] ?? 'non_receptionne') === 'receptionne' ? 'bg-emerald-100 text-emerald-800' : (($progress['status'] ?? '') === 'partiel' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700') }}">{{ $progress['status_label'] ?? 'Non réceptionné' }}</span>
+                                </td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->display_unit_price_ttc, 2) }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $item->tax_rate }}%</td>
                                 <td class="px-4 py-3 text-sm font-semibold text-gray-900 text-right">{{ number_format($item->line_total, 2) }}</td>

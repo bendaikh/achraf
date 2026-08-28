@@ -44,41 +44,73 @@
             <x-table-filters
                 :action="route('invoices.index')"
                 search-placeholder="N° facture, client, commande..."
-                grid-cols="md:grid-cols-5"
-            />
+                grid-cols="md:grid-cols-5 lg:grid-cols-7"
+            >
+                <div>
+                    <label for="commercial_status" class="block text-sm font-medium text-gray-700 mb-1">Statut commercial</label>
+                    <select name="commercial_status" id="commercial_status" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                        <option value="">Tous</option>
+                        @foreach($commercialStatuses as $value => $label)
+                            <option value="{{ $value }}" @selected(request('commercial_status') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label for="source" class="block text-sm font-medium text-gray-700 mb-1">Source</label>
+                    <select name="source" id="source" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                        <option value="">Toutes</option>
+                        <option value="shopify" @selected(request('source') === 'shopify')>Shopify</option>
+                        <option value="jumia" @selected(request('source') === 'jumia')>Jumia</option>
+                        <option value="libromart" @selected(request('source') === 'libromart')>Vente directe</option>
+                    </select>
+                </div>
+            </x-table-filters>
+
+            <x-table-list-toolbar table-id="invoices" />
+
+
 
             <x-table-bulk-bar export-type="invoices" item-label="facture(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
+                    <table data-lm-table="invoices" class="w-full">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <x-table-checkbox-header export-type="invoices" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-numero column-numero" data-lm-col="numero">
                                     Numéro
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-client column-client" data-lm-col="client">
                                     Client
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-commande column-commande" data-lm-col="commande">
                                     N° commande
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Origine
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-origine column-origine" data-lm-col="origine">
+                                    Source
                                 </th>
-                                <x-table-sort-header column="invoice_date" label="Date" :default="true" default-direction="desc" />
-                                <x-table-sort-header column="due_date" label="Échéance" default-direction="desc" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut-commercial column-statut-commercial" data-lm-col="statut_commercial">
+                                    Statut commercial
+                                </th>
+                                <x-table-sort-header column="invoice_date" colKey="date" label="Date" :default="true" default-direction="desc" />
+                                <x-table-sort-header column="due_date" colKey="echeance" label="Échéance" default-direction="desc" />
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-devise column-devise" data-lm-col="devise">
                                     Devise
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Total
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">
+                                    Montant initial
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-avoirs column-avoirs" data-lm-col="avoirs">
+                                    Avoirs
+                                </th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-net column-net" data-lm-col="net">
+                                    Net
+                                </th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-document column-document" data-lm-col="document">
                                     Document généré
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">
                                     Actions
                                 </th>
                             </tr>
@@ -87,13 +119,13 @@
                             @forelse($invoices as $invoice)
                                 <tr class="hover:bg-gray-50 transition duration-150">
                                     <x-table-checkbox-cell export-type="invoices" :id="$invoice->id" />
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-numero column-numero" data-lm-col="numero">
                                         <x-table-show-link :href="route('invoices.show', $invoice)" :label="$invoice->invoice_number" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-client column-client" data-lm-col="client">
                                         <div class="text-sm text-gray-900">{{ $invoice->client->name }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-commande column-commande" data-lm-col="commande">
                                         @if($invoice->posSale)
                                             <a href="{{ route('orders.show', $invoice->posSale) }}" class="text-sm font-medium text-blue-600 hover:text-blue-800">
                                                 {{ $invoice->posSale->ticket_number }}
@@ -102,35 +134,56 @@
                                             <span class="text-sm text-gray-400">—</span>
                                         @endif
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        @if($invoice->is_auto_generated)
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                                Auto générée
-                                            </span>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-origine column-origine" data-lm-col="origine">
+                                        @php
+                                            $src = $invoice->source ?? $invoice->posSale?->source;
+                                        @endphp
+                                        @if($src === 'shopify')
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Shopify</span>
+                                        @elseif($src === 'jumia')
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Jumia</span>
+                                        @elseif($invoice->is_auto_generated)
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Auto</span>
                                         @else
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                                Manuelle
-                                            </span>
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Directe</span>
                                         @endif
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut-commercial column-statut-commercial" data-lm-col="statut_commercial">
+                                        @php
+                                            $status = $invoice->commercial_status ?? 'normal';
+                                            $badge = \App\Support\InvoiceCommercialStatus::badgeClasses()[$status] ?? 'bg-gray-100 text-gray-800';
+                                            $label = \App\Support\InvoiceCommercialStatus::labels()[$status] ?? $status;
+                                        @endphp
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">{{ strtoupper($label) }}</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">
                                         <div class="text-sm text-gray-900">{{ $invoice->invoice_date->format('d/m/Y') }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-echeance column-echeance" data-lm-col="echeance">
                                         <div class="text-sm text-gray-900">{{ $invoice->due_date ? $invoice->due_date->format('d/m/Y') : '-' }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-devise column-devise" data-lm-col="devise">
                                         <div class="text-sm text-gray-900">{{ $invoice->currency }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($invoice->computed_total, 2) }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-avoirs column-avoirs" data-lm-col="avoirs">
+                                        @if($invoice->total_credits > 0)
+                                            <div class="text-sm font-semibold text-red-600">-{{ number_format($invoice->total_credits, 2) }}</div>
+                                        @else
+                                            <span class="text-sm text-gray-400">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-net column-net" data-lm-col="net">
+                                        <div class="text-sm font-semibold text-gray-900">{{ number_format($invoice->net_sale, 2) }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-document column-document" data-lm-col="document">
                                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-50 text-blue-800">
                                             PDF Libromart
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <div class="flex items-center space-x-3">
                                             <a href="{{ route('invoices.show', $invoice) }}" class="text-blue-600 hover:text-blue-900" title="Voir">
                                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -38,40 +38,44 @@
                 @endforeach
             </div>
 
+            <x-table-list-toolbar table-id="expenses-with-invoice" />
+
+
+
             <x-table-bulk-bar export-type="expenses-with-invoice" item-label="dépense(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
+                    <table data-lm-table="expenses-with-invoice" class="w-full">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <x-table-checkbox-header export-type="expenses-with-invoice" />
                                 <x-table-sort-header column="reference" label="N° facture" default-direction="asc" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-reference column-reference" data-lm-col="reference">Désignation</th>
                                 <x-table-sort-header column="expense_date" label="Date" :default="true" default-direction="desc" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Document</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Récurrence</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">Montant</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-date column-date" data-lm-col="date">Catégorie</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-total column-total" data-lm-col="total">Document</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-tva column-tva" data-lm-col="tva">Récurrence</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-statut column-statut" data-lm-col="statut">Statut</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-actions column-actions" data-lm-col="actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             @forelse($expenses as $expense)
                                 <tr class="hover:bg-gray-50">
                                     <x-table-checkbox-cell export-type="expenses-with-invoice" :id="$expense->id" />
-                                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ $expense->reference ?: '—' }}</td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900 lm-col lm-col-reference column-reference" data-lm-col="reference">{{ $expense->reference ?: '—' }}</td>
+                                    <td class="px-6 py-4 lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">
                                         <x-table-show-link :href="route('expenses-with-invoice.show', $expense)" :label="$expense->designation" />
                                     </td>
-                                    <td class="px-6 py-4">{{ $expense->expense_date->format('d/m/Y') }}</td>
-                                    <td class="px-6 py-4 font-semibold">{{ number_format($expense->amount, 2) }} {{ $expense->currency }}</td>
-                                    <td class="px-6 py-4">{{ $expense->expense_category ?? '-' }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 lm-col lm-col-date column-date" data-lm-col="date">{{ $expense->expense_date->format('d/m/Y') }}</td>
+                                    <td class="px-6 py-4 font-semibold lm-col lm-col-total column-total" data-lm-col="total">{{ number_format($expense->amount, 2) }} {{ $expense->currency }}</td>
+                                    <td class="px-6 py-4 lm-col lm-col-tva column-tva" data-lm-col="tva">{{ $expense->expense_category ?? '-' }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
                                         <x-managed-document-actions type="expenses-with-invoice" :id="$expense->id" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         @if($expense->is_recurring)
                                             <span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800">↻ Récurrente</span>
                                             @if($expense->isRecurrenceTemplate() && $expense->next_due_date)

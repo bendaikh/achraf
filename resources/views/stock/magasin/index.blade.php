@@ -55,30 +55,34 @@
                     />
                 </x-table-filters>
 
+                <x-table-list-toolbar table-id="stock-magasin" />
+
+
+
                 <x-table-bulk-bar export-type="stock-magasin" item-label="produit(s)" />
 
                 <div class="bg-white rounded-lg shadow overflow-hidden">
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
+                        <table data-lm-table="stock-magasin" class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <x-table-checkbox-header export-type="stock-magasin" />
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix d'achat</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix de vente</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seuils</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">État</th>
-                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-ref column-ref" data-lm-col="ref">Référence</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-nom column-nom" data-lm-col="nom">Produit</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-stock column-stock" data-lm-col="stock">Stock</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">Prix d'achat</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">Prix de vente</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-ref column-ref" data-lm-col="ref">Seuils</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-nom column-nom" data-lm-col="nom">État</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-stock column-stock" data-lm-col="stock">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @forelse($products as $product)
                                     <tr class="hover:bg-gray-50">
                                         <x-table-checkbox-cell export-type="stock-magasin" :id="$product->id" />
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $product->ref }}</td>
-                                        <td class="px-6 py-4">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 lm-col lm-col-ref column-ref" data-lm-col="ref">{{ $product->ref }}</td>
+                                        <td class="px-6 py-4 lm-col lm-col-nom column-nom" data-lm-col="nom">
                                             <div class="flex items-center">
                                                 <div class="text-sm font-medium text-gray-900">{{ $product->name }}</div>
                                                 <svg class="h-4 w-4 ml-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="Produit Magasin">
@@ -90,7 +94,7 @@
                                             @endif
                                         </td>
                                         @php $qty = (int) ($product->stock_magasin ?? 0); @endphp
-                                        <td class="px-6 py-4 whitespace-nowrap">
+                                        <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-stock column-stock" data-lm-col="stock">
                                             @if($qty <= 0)
                                                 <span class="text-sm font-bold text-red-600">{{ $qty }}</span>
                                             @elseif($product->minimum_alert_stock !== null && $qty <= $product->minimum_alert_stock)
@@ -99,9 +103,9 @@
                                                 <span class="text-sm text-gray-900">{{ $qty }}</span>
                                             @endif
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ number_format($product->cost_price_ht ?? 0, 2) }} DH</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ number_format($product->sale_price ?? 0, 2) }} DH</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 lm-col lm-col-statut column-statut" data-lm-col="statut">{{ number_format($product->cost_price_ht ?? 0, 2) }} DH</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 lm-col lm-col-statut column-statut" data-lm-col="statut">{{ number_format($product->sale_price ?? 0, 2) }} DH</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 lm-col lm-col-statut column-statut" data-lm-col="statut">
                                             @if($product->minimum_alert_stock !== null || $product->minimum_safety_stock !== null)
                                                 <span>Alerte : {{ $product->minimum_alert_stock ?? '—' }}</span>
                                                 <span class="mx-1 text-gray-300">|</span>
@@ -110,7 +114,7 @@
                                                 <span class="text-gray-400">Non défini</span>
                                             @endif
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
+                                        <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
                                             @if($qty <= 0)
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Rupture</span>
                                             @elseif($product->minimum_alert_stock !== null && $qty <= $product->minimum_alert_stock)
@@ -119,7 +123,7 @@
                                                 <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">OK</span>
                                             @endif
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm lm-col lm-col-actions column-actions" data-lm-col="actions">
                                             <a href="{{ route('stock.magasin.edit', $product) }}" class="inline-flex items-center px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-medium hover:from-emerald-700 hover:to-teal-700">
                                                 Ajuster
                                             </a>

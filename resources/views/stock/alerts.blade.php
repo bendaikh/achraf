@@ -47,39 +47,41 @@
             <button class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-medium">Filtrer</button>
         </form>
 
-        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <table class="min-w-full text-sm">
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden"><x-table-list-toolbar table-id="stock-alerts" />
+
+
+            <table data-lm-table="stock-alerts" class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
-                        <th class="px-4 py-3 text-left">Produit</th>
-                        <th class="px-4 py-3 text-right">Disponible</th>
-                        <th class="px-4 py-3 text-right">Seuil</th>
-                        <th class="px-4 py-3 text-left">Dépôt</th>
-                        <th class="px-4 py-3 text-left">Emplacement</th>
-                        <th class="px-4 py-3 text-left">Statut</th>
-                        <th class="px-4 py-3 text-left">Fournisseur</th>
+                        <th class="px-4 py-3 text-left lm-col lm-col-produit column-produit" data-lm-col="produit">Produit</th>
+                        <th class="px-4 py-3 text-right lm-col lm-col-ref column-ref" data-lm-col="ref">Disponible</th>
+                        <th class="px-4 py-3 text-right lm-col lm-col-stock column-stock" data-lm-col="stock">Seuil</th>
+                        <th class="px-4 py-3 text-left lm-col lm-col-minimum column-minimum" data-lm-col="minimum">Dépôt</th>
+                        <th class="px-4 py-3 text-left lm-col lm-col-depot column-depot" data-lm-col="depot">Emplacement</th>
+                        <th class="px-4 py-3 text-left lm-col lm-col-statut column-statut" data-lm-col="statut">Statut</th>
+                        <th class="px-4 py-3 text-left lm-col lm-col-actions column-actions" data-lm-col="actions">Fournisseur</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse($products as $product)
                         @php $st = $product->stockStatus(); @endphp
                         <tr>
-                            <td class="px-4 py-3">
+                            <td class="px-4 py-3 lm-col lm-col-produit column-produit" data-lm-col="produit">
                                 <a href="{{ route('products.show', $product) }}" class="font-medium text-slate-900 hover:text-[#0a5d8a]">{{ $product->name }}</a>
                                 <div class="text-xs text-slate-500 font-mono">{{ $product->ref }}</div>
                             </td>
-                            <td class="px-4 py-3 text-right font-semibold">{{ $product->available_stock }}</td>
-                            <td class="px-4 py-3 text-right">{{ $product->alertThreshold() }}</td>
-                            <td class="px-4 py-3">{{ $product->warehouse?->name ?: ($product->depot ?: '—') }}</td>
-                            <td class="px-4 py-3">{{ $product->warehouseLocation?->code ?: ($product->location ?: '—') }}</td>
-                            <td class="px-4 py-3">
+                            <td class="px-4 py-3 text-right font-semibold lm-col lm-col-ref column-ref" data-lm-col="ref">{{ $product->available_stock }}</td>
+                            <td class="px-4 py-3 text-right lm-col lm-col-stock column-stock" data-lm-col="stock">{{ $product->alertThreshold() }}</td>
+                            <td class="px-4 py-3 lm-col lm-col-minimum column-minimum" data-lm-col="minimum">{{ $product->warehouse?->name ?: ($product->depot ?: '—') }}</td>
+                            <td class="px-4 py-3 lm-col lm-col-depot column-depot" data-lm-col="depot">{{ $product->warehouseLocation?->code ?: ($product->location ?: '—') }}</td>
+                            <td class="px-4 py-3 lm-col lm-col-statut column-statut" data-lm-col="statut">
                                 @if($st === 'out_of_stock')
                                     <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">Rupture</span>
                                 @else
                                     <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">Stock faible</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3">{{ $product->primarySupplier?->name ?: '—' }}</td>
+                            <td class="px-4 py-3 lm-col lm-col-actions column-actions" data-lm-col="actions">{{ $product->primarySupplier?->name ?: '—' }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="7" class="px-4 py-10 text-center text-slate-500">Aucune alerte</td></tr>

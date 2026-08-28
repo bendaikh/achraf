@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\ClientRefund;
 use App\Models\Expense;
 use App\Models\InvoicePayment;
 use App\Models\PosSale;
@@ -30,5 +31,6 @@ class AppServiceProvider extends ServiceProvider
         SupplierPayment::observe(FinancialSourceObserver::class);
         Expense::observe(FinancialSourceObserver::class);
         PosSale::observe(FinancialSourceObserver::class);
+        ClientRefund::observe(FinancialSourceObserver::class);
     }
 }

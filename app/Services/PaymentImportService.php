@@ -4,10 +4,8 @@ namespace App\Services;
 
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
-use App\Models\OrderFulfillment;
 use App\Models\PaymentImport;
 use App\Models\PaymentImportLine;
-use App\Models\PosSale;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierInvoicePayment;
 use Illuminate\Http\UploadedFile;
@@ -20,7 +18,9 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 class PaymentImportService
 {
     public function __construct(
-        protected PaymentRecordingService $recorder
+        protected PaymentRecordingService $recorder,
+        protected PaymentMatchingService $matcher,
+        protected PaymentMatchMemoryService $matchMemories
     ) {}
 
     public function createDraftFromUpload(UploadedFile $file, string $scope = PaymentImport::SCOPE_SALES): PaymentImport
@@ -78,15 +78,18 @@ class PaymentImportService
         $invoice->load(['items', 'payments', 'posSale.fulfillments']);
         $expected = round($invoice->remaining_balance, 2);
         $amount = $line->file_amount !== null ? round((float) $line->file_amount, 2) : $expected;
-        [$amountStatus, $diff] = $this->compareAmounts($amount, $expected);
+        $fees = $line->file_delivery_fees !== null ? round((float) $line->file_delivery_fees, 2) : null;
+        $net = $line->file_net_amount !== null ? round((float) $line->file_net_amount, 2) : null;
+        [$amountStatus, $diff] = $this->matcher->compareAmountsWithFees($amount, $fees, $net, $expected);
         $exclusionReason = $this->carrierExclusionReason($line->file_raw ?? [], $amount);
 
         $line->update([
             'invoice_id' => $invoice->id,
             'supplier_invoice_id' => null,
             'pos_sale_id' => $invoice->pos_sale_id,
-            'resolved_tracking' => $invoice->posSale?->primaryTrackingNumber(),
+            'resolved_tracking' => $line->file_tracking ?? $invoice->posSale?->primaryTrackingNumber(),
             'match_status' => PaymentImportLine::MATCH_MATCHED,
+            'match_confidence' => PaymentMatchingService::CONFIDENCE_HIGH,
             'expected_amount' => $expected,
             'amount_variance' => $diff,
             'amount_status' => $amountStatus,
@@ -95,6 +98,8 @@ class PaymentImportService
             'exclude' => $exclusionReason !== null,
             'notes' => $exclusionReason ?? 'Rattaché manuellement',
         ]);
+
+        $this->matchMemories->rememberFromLine($line->fresh(), $invoice);
 
         $this->refreshCounts($line->import);
 
@@ -205,15 +210,20 @@ class PaymentImportService
                     $payment = $this->recorder->recordInvoicePayment($invoice, [
                         'payment_date' => $meta['payment_date'],
                         'amount' => $amount,
+                        'gross_amount' => $amount,
+                        'delivery_fees' => $line->file_delivery_fees !== null ? round((float) $line->file_delivery_fees, 2) : null,
+                        'net_received' => $line->file_net_amount !== null ? round((float) $line->file_net_amount, 2) : null,
                         'payment_method' => $meta['payment_method'],
                         'payment_reference' => $meta['payment_reference'] ?? $line->file_reference,
-                        'notes' => $meta['notes'] ?? null,
+                        'notes' => $this->buildImportPaymentNote($line, $import, $meta),
                         'source' => InvoicePayment::SOURCE_IMPORT,
                         'tracking_number' => $line->resolved_tracking ?? $line->file_tracking,
+                        'carrier' => $this->resolveCarrierName($line),
                         'payment_import_id' => $import->id,
                         'payment_import_line_id' => $line->id,
                         'dedupe_key' => $dedupeKey,
                         'allow_overpayment' => $line->allow_overpayment,
+                        'reconciliation_metadata' => $this->buildReconciliationMetadata($line, $import),
                     ]);
 
                     $line->update(['invoice_payment_id' => $payment->id]);
@@ -291,6 +301,12 @@ class PaymentImportService
         // CRBT is the gross customer payment. "Total" is the carrier's net
         // remittance after fees and must not leave the invoice partially paid.
         $amount = $this->extractPaymentAmount($row);
+        $deliveryFees = $this->parseAmount($this->pickField($row, ['frais', 'fees', 'delivery_fees', 'frais_livraison']));
+        $netAmount = $this->parseAmount($this->pickField($row, ['total', 'net', 'net_encaisse', 'montant_net']));
+
+        if ($amount === null && $netAmount !== null && $deliveryFees !== null) {
+            $amount = round($netAmount + $deliveryFees, 2);
+        }
 
         $line = PaymentImportLine::create([
             'payment_import_id' => $import->id,
@@ -299,6 +315,8 @@ class PaymentImportService
             'file_tracking' => $tracking,
             'file_order_ref' => $orderRef ?? $invoiceRef,
             'file_amount' => $amount,
+            'file_delivery_fees' => $deliveryFees,
+            'file_net_amount' => $netAmount,
             'file_raw' => $row,
             'normalized_lookup' => mb_strtolower(trim((string) ($tracking ?? $orderRef ?? $reference ?? ''))),
             'match_status' => PaymentImportLine::MATCH_UNMATCHED,
@@ -307,7 +325,7 @@ class PaymentImportService
         ]);
 
         if ($scope === PaymentImport::SCOPE_SALES) {
-            $this->matchSalesLine($line, $tracking, $orderRef, $invoiceRef, $reference, $amount, $import);
+            $this->matchSalesLine($line, $row, $tracking, $orderRef, $invoiceRef, $reference, $amount, $import);
         } else {
             $this->matchPurchaseLine($line, $invoiceRef, $reference, $amount, $import);
         }
@@ -361,6 +379,7 @@ class PaymentImportService
 
     protected function matchSalesLine(
         PaymentImportLine $line,
+        array $row,
         ?string $tracking,
         ?string $orderRef,
         ?string $invoiceRef,
@@ -368,79 +387,69 @@ class PaymentImportService
         ?float $amount,
         PaymentImport $import
     ): void {
-        $candidates = collect();
+        $result = $this->matcher->matchSalesLine([
+            'tracking' => $tracking,
+            'order_ref' => $orderRef,
+            'invoice_ref' => $invoiceRef,
+            'reference' => $reference,
+            'external_ref' => $this->pickField($row, ['external_id', 'order_id', 'marketplace_id', 'shopify', 'jumia']),
+            'client_name' => $this->pickField($row, ['client', 'nom', 'nom_client', 'destinataire', 'beneficiaire', 'customer', 'name']),
+            'client_phone' => $this->pickField($row, ['telephone', 'tel', 'phone', 'mobile', 'gsm', 'whatsapp']),
+            'city' => $this->pickField($row, ['ville', 'city', 'localite']),
+            'delivery_date' => $this->pickField($row, ['date_de_livraison', 'delivery_date', 'date_livraison', 'date']),
+            'pickup_date' => $this->pickField($row, ['date_de_ramassage', 'pickup_date', 'date_ramassage']),
+            'gross_amount' => $amount,
+            'delivery_fees' => $line->file_delivery_fees !== null ? (float) $line->file_delivery_fees : null,
+            'net_amount' => $line->file_net_amount !== null ? (float) $line->file_net_amount : null,
+            'raw' => $row,
+        ]);
 
-        if ($tracking) {
-            $saleIds = OrderFulfillment::query()
-                ->where('tracking_number', $tracking)
-                ->pluck('pos_sale_id');
+        $candidatePayload = $result['candidates'];
 
-            if ($saleIds->isNotEmpty()) {
-                $candidates = $candidates->merge(
-                    Invoice::query()->whereIn('pos_sale_id', $saleIds)->pluck('id')
-                );
-            }
-        }
-
-        foreach ([$orderRef, $reference, $tracking] as $token) {
-            if (! $token) {
-                continue;
-            }
-            foreach ($this->orderNumberVariants($token) as $variant) {
-                $saleIds = PosSale::query()
-                    ->where('ticket_number', 'like', '%'.$variant.'%')
-                    ->pluck('id');
-                if ($saleIds->isNotEmpty()) {
-                    $candidates = $candidates->merge(
-                        Invoice::query()->whereIn('pos_sale_id', $saleIds)->pluck('id')
-                    );
-                }
-            }
-        }
-
-        if ($invoiceRef) {
-            $candidates = $candidates->merge(
-                Invoice::query()->where('invoice_number', 'like', '%'.$invoiceRef.'%')->pluck('id')
-            );
-        }
-
-        $candidateIds = $candidates->unique()->values()->all();
-
-        if ($candidateIds === []) {
+        if ($result['status'] === PaymentImportLine::MATCH_UNMATCHED) {
             $line->update([
                 'match_status' => PaymentImportLine::MATCH_UNMATCHED,
+                'match_confidence' => $result['confidence'],
+                'match_criteria' => $result['criteria'] ?: null,
+                'match_score' => $result['score'] ?: null,
+                'candidate_matches' => $candidatePayload ?: null,
                 'include_in_validation' => false,
-                'notes' => 'Aucune commande/facture reconnue',
+                'notes' => $result['notes'],
             ]);
 
             return;
         }
 
-        if (count($candidateIds) > 1) {
+        if ($result['status'] === PaymentImportLine::MATCH_AMBIGUOUS) {
             $line->update([
                 'match_status' => PaymentImportLine::MATCH_AMBIGUOUS,
-                'candidate_matches' => $candidateIds,
+                'match_confidence' => $result['confidence'],
+                'match_criteria' => $result['criteria'] ?: null,
+                'match_score' => $result['score'] ?: null,
+                'candidate_matches' => $candidatePayload,
                 'include_in_validation' => false,
-                'notes' => count($candidateIds).' correspondances possibles',
+                'notes' => $result['notes'],
             ]);
 
             return;
         }
 
-        $invoice = Invoice::query()->with(['items', 'payments', 'posSale.fulfillments'])->find($candidateIds[0]);
+        $invoice = Invoice::query()->with(['items', 'payments', 'posSale.fulfillments'])->find($result['invoice_id']);
         if (! $invoice) {
             $line->update(['match_status' => PaymentImportLine::MATCH_UNMATCHED, 'include_in_validation' => false]);
 
             return;
         }
 
-        // Anti-doublon: same tracking/reference already paid via prior import of same file hash or same line identity
         if ($this->isDuplicateSalesPayment($invoice, $tracking, $reference, $amount, $import)) {
             $line->update([
                 'invoice_id' => $invoice->id,
                 'pos_sale_id' => $invoice->pos_sale_id,
-                'resolved_tracking' => $tracking ?? $invoice->posSale?->primaryTrackingNumber(),
+                'resolved_tracking' => $result['resolved_tracking'],
                 'match_status' => PaymentImportLine::MATCH_DUPLICATE,
+                'match_confidence' => PaymentMatchingService::CONFIDENCE_HIGH,
+                'match_criteria' => $result['criteria'],
+                'match_score' => $result['score'],
                 'exclude' => true,
                 'include_in_validation' => false,
                 'expected_amount' => round($invoice->remaining_balance, 2),
@@ -452,19 +461,60 @@ class PaymentImportService
 
         $expected = round($invoice->remaining_balance, 2);
         $payAmount = $amount ?? $expected;
-        [$amountStatus, $diff] = $this->compareAmounts($payAmount, $expected);
+        $fees = $line->file_delivery_fees !== null ? (float) $line->file_delivery_fees : null;
+        $net = $line->file_net_amount !== null ? (float) $line->file_net_amount : null;
+        [$amountStatus, $diff] = $this->matcher->compareAmountsWithFees($payAmount, $fees, $net, $expected);
 
         $line->update([
             'invoice_id' => $invoice->id,
             'pos_sale_id' => $invoice->pos_sale_id,
-            'resolved_tracking' => $tracking ?? $invoice->posSale?->primaryTrackingNumber(),
+            'resolved_tracking' => $result['resolved_tracking'],
             'match_status' => PaymentImportLine::MATCH_MATCHED,
+            'match_confidence' => $result['confidence'],
+            'match_criteria' => $result['criteria'],
+            'match_score' => $result['score'],
+            'candidate_matches' => null,
             'expected_amount' => $expected,
             'amount_variance' => $diff,
             'amount_status' => $amountStatus,
             'include_in_validation' => true,
-            'notes' => 'Correspondance automatique',
+            'notes' => $result['notes'],
         ]);
+    }
+
+    protected function buildImportPaymentNote(PaymentImportLine $line, PaymentImport $import, array $meta): ?string
+    {
+        $parts = array_filter([
+            $meta['notes'] ?? null,
+        ]);
+
+        return $parts === [] ? null : implode(' — ', $parts);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function buildReconciliationMetadata(PaymentImportLine $line, PaymentImport $import): array
+    {
+        return [
+            'import_file' => $import->file_name,
+            'import_line' => $line->row_number,
+            'match_criteria' => $line->match_criteria,
+            'match_score' => $line->match_score,
+            'gross_amount' => $line->file_amount !== null ? round((float) $line->file_amount, 2) : null,
+            'delivery_fees' => $line->file_delivery_fees !== null ? round((float) $line->file_delivery_fees, 2) : null,
+            'net_received' => $line->file_net_amount !== null ? round((float) $line->file_net_amount, 2) : null,
+            'tracking' => $line->resolved_tracking ?? $line->file_tracking,
+            'carrier' => $this->resolveCarrierName($line),
+            'order_number' => $line->posSale?->ticket_number,
+        ];
+    }
+
+    protected function resolveCarrierName(PaymentImportLine $line): ?string
+    {
+        $raw = $line->file_raw ?? [];
+
+        return $this->pickField($raw, ['transporteur', 'carrier', 'marketplace', 'livreur']);
     }
 
     protected function matchPurchaseLine(

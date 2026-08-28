@@ -35,34 +35,38 @@
                 />
             </x-table-filters>
 
+            <x-table-list-toolbar table-id="pos-sales" />
+
+
+
             <x-table-bulk-bar export-type="pos-sales" item-label="vente(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
+                    <table data-lm-table="pos-sales" class="w-full">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <x-table-checkbox-header export-type="pos-sales" />
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ticket</th>
-                                <x-table-sort-header column="sold_at" label="Date" :default="true" default-direction="desc" />
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Paiement</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total TTC</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Caissier</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-ticket column-ticket" data-lm-col="ticket">Ticket</th>
+                                <x-table-sort-header column="sold_at" colKey="date" label="Date" :default="true" default-direction="desc" />
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-client column-client" data-lm-col="client">Client</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-paiement column-paiement" data-lm-col="paiement">Paiement</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase lm-col lm-col-total column-total" data-lm-col="total">Total TTC</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-statut column-statut" data-lm-col="statut">Caissier</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase lm-col lm-col-actions column-actions" data-lm-col="actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             @forelse($sales as $sale)
                                 <tr class="hover:bg-gray-50">
                                     <x-table-checkbox-cell export-type="pos-sales" :id="$sale->id" />
-                                    <td class="px-6 py-4 text-sm font-semibold text-gray-900">{{ $sale->ticket_number }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->sold_at->format('d/m/Y H:i') }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->client?->name ?? \App\Support\PosDefaultClient::NAME }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->paymentLabel() }}</td>
-                                    <td class="px-6 py-4 text-sm font-semibold text-emerald-700 text-right">{{ number_format($sale->total, 2) }} DH</td>
-                                    <td class="px-6 py-4 text-sm text-gray-600">{{ $sale->user?->name ?? '—' }}</td>
-                                    <td class="px-6 py-4 text-right">
+                                    <td class="px-6 py-4 text-sm font-semibold text-gray-900 lm-col lm-col-ticket column-ticket" data-lm-col="ticket">{{ $sale->ticket_number }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-600 lm-col lm-col-date column-date" data-lm-col="date">{{ $sale->sold_at->format('d/m/Y H:i') }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-600 lm-col lm-col-client column-client" data-lm-col="client">{{ $sale->client?->name ?? \App\Support\PosDefaultClient::NAME }}</td>
+                                    <td class="px-6 py-4 text-sm text-gray-600 lm-col lm-col-paiement column-paiement" data-lm-col="paiement">{{ $sale->paymentLabel() }}</td>
+                                    <td class="px-6 py-4 text-sm font-semibold text-emerald-700 text-right lm-col lm-col-total column-total" data-lm-col="total">{{ number_format($sale->total, 2) }} DH</td>
+                                    <td class="px-6 py-4 text-sm text-gray-600 lm-col lm-col-statut column-statut" data-lm-col="statut">{{ $sale->user?->name ?? '—' }}</td>
+                                    <td class="px-6 py-4 text-right lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <div class="flex items-center justify-end gap-3">
                                             <a href="{{ route('pos.sales.show', $sale) }}" class="text-emerald-600 hover:text-emerald-800 text-sm font-medium">Ticket</a>
                                             <form action="{{ route('pos.sales.destroy', $sale) }}" method="POST" onsubmit="return confirm('Supprimer cette vente ?')">

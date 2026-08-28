@@ -13,7 +13,9 @@ use App\Models\Product;
 use App\Models\SupplierPurchaseOrder;
 use App\Models\Warehouse;
 use App\Services\ProductPurchasePriceService;
+use App\Services\PurchaseDocumentChainService;
 use App\Services\PurchaseReceiptService;
+use App\Services\PurchaseReceptionCreationService;
 use App\Services\PurchaseStockReceiptService;
 use App\Services\StockMovementService;
 use App\Support\CommercialDocumentView;
@@ -32,6 +34,7 @@ class SupplierInvoiceController extends Controller
         protected ProductPurchasePriceService $purchasePriceSync,
         protected PurchaseStockReceiptService $purchaseStockReceipt,
         protected PurchaseReceiptService $purchaseReceipts,
+        protected PurchaseReceptionCreationService $receptionCreation,
     ) {}
 
     public function index(Request $request)
@@ -179,26 +182,34 @@ class SupplierInvoiceController extends Controller
 
     public function show(SupplierInvoice $supplierInvoice)
     {
-        $supplierInvoice->load(['supplier', 'items', 'adjustments', 'payments.supplierPayment', 'creditNoteAllocations.creditNote', 'warehouse', 'stockAllocations.warehouse', 'stockAllocations.location']);
+        $supplierInvoice->load(['supplier', 'items.product', 'items.variant', 'adjustments', 'payments.supplierPayment', 'creditNoteAllocations.creditNote', 'warehouse', 'stockAllocations.warehouse', 'stockAllocations.location']);
         $trace = app(\App\Services\SupplierAccountService::class)->invoiceTrace($supplierInvoice);
-        $documentChain = app(\App\Services\PurchaseDocumentChainService::class)->forInvoice($supplierInvoice);
+        $documentChain = app(PurchaseDocumentChainService::class)->forInvoice($supplierInvoice);
+        $receiptProgress = $this->purchaseReceipts->progressForDocument($supplierInvoice);
+        $linkedReceptions = $this->purchaseReceipts->linkedReceptions($supplierInvoice);
+        $receptionStatus = $this->purchaseReceipts->documentReceptionStatusLabel($supplierInvoice);
+        $canReceive = $receiptProgress->contains(fn (array $row) => $row['remaining'] > 0);
         $warehouses = Warehouse::query()->active()->with('locations')->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('purchases.supplier-invoices.show', compact('supplierInvoice', 'trace', 'documentChain', 'warehouses'));
+        return view('purchases.supplier-invoices.show', compact(
+            'supplierInvoice', 'trace', 'documentChain', 'warehouses',
+            'receiptProgress', 'linkedReceptions', 'receptionStatus', 'canReceive'
+        ));
     }
 
     /**
-     * Entrée en stock unique pour une facture créée sans BR.
+     * Crée un BR et applique l’entrée de stock unique (plus d’entrée directe sur la facture).
      */
     public function receiveStock(Request $request, SupplierInvoice $supplierInvoice)
     {
-        if ($supplierInvoice->stock_applied_at) {
-            return back()->with('error', 'Le stock de cette facture a déjà été réceptionné.');
+        if ($supplierInvoice->stock_applied_at && ! $this->purchaseReceipts->progressForDocument($supplierInvoice)->contains(fn (array $row) => $row['remaining'] > 0)) {
+            return back()->with('error', 'Le stock de cette facture a déjà été entièrement réceptionné.');
         }
 
         $validated = $request->validate([
             'items' => 'required|array',
             'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.product_variant_id' => 'nullable|exists:product_variants,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.warehouse_id' => 'nullable|exists:warehouses,id',
             'items.*.warehouse_location_id' => 'nullable|exists:warehouse_locations,id',
@@ -214,25 +225,40 @@ class SupplierInvoiceController extends Controller
             $supplierInvoice->stock_location
         );
 
-        DB::beginTransaction();
+        $items = [];
+        foreach ($validated['items'] as $idx => $row) {
+            $invoiceItem = $supplierInvoice->items->firstWhere('product_id', $row['product_id'] ?? null);
+            $items[] = array_merge($row, [
+                'ref' => $invoiceItem?->ref,
+                'designation' => $invoiceItem?->designation ?? 'Article',
+                'unit_price' => $invoiceItem?->unit_price ?? 0,
+                'tax_rate' => $invoiceItem?->tax_rate ?? 20,
+                'discount' => $invoiceItem?->discount ?? 0,
+                'discount_type' => $invoiceItem?->discount_type ?? 'fixed',
+            ]);
+        }
+
         try {
-            if ($supplierInvoice->supplier_purchase_order_id) {
-                $this->purchaseReceipts->assertNotOverReceiving(
-                    SupplierPurchaseOrder::findOrFail($supplierInvoice->supplier_purchase_order_id),
-                    $validated['items']
-                );
-            }
+            $receptionNumber = \App\Services\DocumentNumberService::preview('bon_reception');
+            $reception = $this->receptionCreation->create([
+                'reception_number' => $receptionNumber,
+                'supplier_id' => $supplierInvoice->supplier_id,
+                'supplier_purchase_order_id' => $supplierInvoice->supplier_purchase_order_id,
+                'source_supplier_invoice_id' => $supplierInvoice->id,
+                'reception_date' => now()->toDateString(),
+                'currency' => $supplierInvoice->currency,
+                'status' => 'accepté',
+                'warehouse_id' => $warehouse->id,
+                'stock_location' => $warehouse->name,
+                'reference' => $supplierInvoice->invoice_number,
+                'items' => $items,
+            ]);
 
-            $supplierInvoice->load('supplier');
-            $this->purchaseStockReceipt->applyIfNeeded($supplierInvoice, $validated['items'], $warehouse);
-
-            DB::commit();
+            \App\Services\DocumentNumberService::advanceAfterUse('bon_reception', $receptionNumber);
 
             return redirect()->route('supplier-invoices.show', $supplierInvoice)
-                ->with('success', 'Stock réceptionné ✓ — entrée unique enregistrée.');
+                ->with('success', 'Réception '.$reception->reception_number.' créée — Stock réceptionné ✓ (entrée unique).');
         } catch (\Exception $e) {
-            DB::rollBack();
-
             return back()->withInput()->with('error', 'Erreur: '.$e->getMessage());
         }
     }

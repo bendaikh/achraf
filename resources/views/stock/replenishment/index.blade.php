@@ -36,14 +36,16 @@
                             <button class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-semibold">Générer BC fournisseur</button>
                         </form>
                     @endif
-                </div>
-                <table class="min-w-full text-sm">
+                </div><x-table-list-toolbar table-id="stock-replenishment" />
+
+
+                <table data-lm-table="stock-replenishment" class="min-w-full text-sm">
                     <thead class="text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-4 py-2 text-left">Produit</th>
-                            <th class="px-4 py-2 text-right">Besoin</th>
-                            <th class="px-4 py-2 text-left">Commande</th>
-                            <th class="px-4 py-2 text-left">Fournisseur</th>
+                            <th class="px-4 py-2 text-left lm-col lm-col-produit column-produit" data-lm-col="produit">Produit</th>
+                            <th class="px-4 py-2 text-right lm-col lm-col-ref column-ref" data-lm-col="ref">Besoin</th>
+                            <th class="px-4 py-2 text-left lm-col lm-col-stock column-stock" data-lm-col="stock">Commande</th>
+                            <th class="px-4 py-2 text-left lm-col lm-col-minimum column-minimum" data-lm-col="minimum">Fournisseur</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y">

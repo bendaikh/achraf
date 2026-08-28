@@ -1,5 +1,5 @@
 @props(['exportType', 'id'])
-<td class="px-4 py-4 whitespace-nowrap w-12">
+<td class="px-4 py-4 whitespace-nowrap w-12 lm-col lm-col-select column-select" data-lm-col="select">
     <label class="inline-flex items-center cursor-pointer" onclick="event.stopPropagation()">
         <input
             type="checkbox"

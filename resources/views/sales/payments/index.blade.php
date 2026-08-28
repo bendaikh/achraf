@@ -19,6 +19,9 @@
                     class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium">
                     Importer un fichier de règlement
                 </a>
+                <a href="{{ route('sales.refunds.index') }}" class="px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 transition text-sm font-medium">
+                    Remboursements clients
+                </a>
                 <a href="{{ route('invoices.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
                     Voir les factures
                 </a>
@@ -130,23 +133,27 @@
             </div>
         </div>
 
+        <x-table-list-toolbar table-id="sales-payments" />
+
+
+
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table data-lm-table="sales-payments" class="w-full">
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <x-table-checkbox-header export-type="sales-payments" />
-                            <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° facture</th>
-                            <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° commande</th>
-                            <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tracking</th>
-                            <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                            <x-table-sort-header column="invoice_date" label="Date" :default="true" default-direction="desc" />
-                            <x-table-sort-header column="due_date" label="Échéance" default-direction="desc" />
-                            <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                            <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Encaissé</th>
-                            <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
-                            <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                            <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <x-lm-col key="facture" tag="th" class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° facture</x-lm-col>
+                            <x-lm-col key="commande" tag="th" class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">N° commande</x-lm-col>
+                            <x-lm-col key="tracking" tag="th" class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tracking</x-lm-col>
+                            <x-lm-col key="client" tag="th" class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</x-lm-col>
+                            <x-table-sort-header column="invoice_date" col-key="date" label="Date" :default="true" default-direction="desc" />
+                            <x-table-sort-header column="due_date" col-key="echeance" label="Échéance" default-direction="desc" />
+                            <x-lm-col key="total" tag="th" class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</x-lm-col>
+                            <x-lm-col key="deja_paye" tag="th" class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Encaissé</x-lm-col>
+                            <x-lm-col key="solde" tag="th" class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</x-lm-col>
+                            <x-lm-col key="statut" tag="th" class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</x-lm-col>
+                            <x-lm-col key="actions" tag="th" class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</x-lm-col>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -161,10 +168,10 @@
                             @endphp
                             <tr class="hover:bg-gray-50 transition duration-150">
                                 <x-table-checkbox-cell export-type="sales-payments" :id="$invoice->id" />
-                                <td class="px-4 py-4 whitespace-nowrap">
+                                <x-lm-col key="facture" class="px-4 py-4 whitespace-nowrap">
                                     <x-table-show-link :href="route('invoices.show', $invoice)" :label="$invoice->invoice_number" />
-                                </td>
-                                <td class="px-4 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="commande" class="px-4 py-4 whitespace-nowrap">
                                     @if($invoice->posSale)
                                         <a href="{{ route('orders.show', $invoice->posSale) }}" class="text-sm font-medium text-blue-600 hover:text-blue-800">
                                             {{ $invoice->posSale->ticket_number }}
@@ -172,8 +179,8 @@
                                     @else
                                         <span class="text-sm text-gray-400">—</span>
                                     @endif
-                                </td>
-                                <td class="px-4 py-4">
+                                </x-lm-col>
+                                <x-lm-col key="tracking" class="px-4 py-4">
                                     @if($tracking)
                                         <div class="text-sm font-mono text-gray-900">{{ $tracking }}</div>
                                         @if(count($allTracking) > 1)
@@ -182,26 +189,26 @@
                                     @else
                                         <span class="text-sm text-gray-400">—</span>
                                     @endif
-                                </td>
-                                <td class="px-4 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="client" class="px-4 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">{{ $invoice->client->name ?? '-' }}</div>
-                                </td>
-                                <td class="px-4 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="date" class="px-4 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">{{ $invoice->invoice_date->format('d/m/Y') }}</div>
-                                </td>
-                                <td class="px-4 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="echeance" class="px-4 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">{{ $invoice->due_date ? $invoice->due_date->format('d/m/Y') : '-' }}</div>
-                                </td>
-                                <td class="px-4 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="total" class="px-4 py-4 whitespace-nowrap">
                                     <div class="text-sm font-semibold text-gray-900">{{ number_format($invoiceTotal, 2) }}</div>
-                                </td>
-                                <td class="px-4 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="deja_paye" class="px-4 py-4 whitespace-nowrap">
                                     <div class="text-sm font-semibold text-green-600">{{ number_format($totalPaid, 2) }}</div>
-                                </td>
-                                <td class="px-4 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="solde" class="px-4 py-4 whitespace-nowrap">
                                     <div class="text-sm font-semibold text-red-600">{{ number_format($remaining, 2) }}</div>
-                                </td>
-                                <td class="px-4 py-4 whitespace-nowrap">
+                                </x-lm-col>
+                                <x-lm-col key="statut" class="px-4 py-4 whitespace-nowrap">
                                     @if($status === 'paid')
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Payé</span>
                                     @elseif($status === 'partial')
@@ -209,12 +216,12 @@
                                     @else
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Non payé</span>
                                     @endif
-                                </td>
-                                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                </x-lm-col>
+                                <x-lm-col key="actions" class="px-4 py-4 whitespace-nowrap text-sm font-medium">
                                     <a href="{{ route('invoices.payments.index', $invoice) }}" class="text-indigo-600 hover:text-indigo-900" title="Historique / paiement">
                                         Paiements
                                     </a>
-                                </td>
+                                </x-lm-col>
                             </tr>
                         @empty
                             <tr>

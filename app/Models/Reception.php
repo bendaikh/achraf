@@ -10,7 +10,9 @@ class Reception extends Model
     use HasManagedDocuments;
 
     protected $fillable = [
-        'reception_number', 'supplier_id', 'supplier_purchase_order_id', 'converted_supplier_invoice_id', 'converted_at',
+        'reception_number', 'supplier_id', 'supplier_purchase_order_id',
+        'supplier_delivery_note_id', 'source_supplier_invoice_id',
+        'converted_supplier_invoice_id', 'converted_at',
         'reference', 'reception_date', 'delivery_date',
         'currency', 'status', 'stock_location', 'warehouse_id', 'model', 'remarks',
         'subtotal', 'discount', 'adjustment', 'total', 'document_file_path', 'stock_applied_at',
@@ -50,6 +52,16 @@ class Reception extends Model
     public function purchaseOrder()
     {
         return $this->belongsTo(SupplierPurchaseOrder::class, 'supplier_purchase_order_id');
+    }
+
+    public function deliveryNote()
+    {
+        return $this->belongsTo(SupplierDeliveryNote::class, 'supplier_delivery_note_id');
+    }
+
+    public function sourceSupplierInvoice()
+    {
+        return $this->belongsTo(SupplierInvoice::class, 'source_supplier_invoice_id');
     }
 
     public function warehouse()

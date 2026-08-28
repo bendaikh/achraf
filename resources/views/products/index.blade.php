@@ -394,28 +394,31 @@
             </form>
         </div>
 
+        <x-table-list-toolbar table-id="products" />
+
+
         <x-table-bulk-bar export-type="products" item-label="article(s)" />
 
         {{-- Table --}}
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <table data-lm-table="products" class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50">
                         <tr>
                             <x-table-checkbox-header export-type="products" />
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Source</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Image</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Réf. / Code-barres</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nom / Catégorie</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Prix / Coût / TVA</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Disponible</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Réservé</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Min. / Alerte</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Dépôt / Emp.</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Fournisseur</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Statut</th>
-                            <th class="px-3 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-source column-source" data-lm-col="source">Source</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-type column-type" data-lm-col="type">Type</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-image column-image" data-lm-col="image">Image</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-ref column-ref" data-lm-col="ref">Réf. / Code-barres</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-nom column-nom" data-lm-col="nom">Nom / Catégorie</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-prix column-prix" data-lm-col="prix">Prix / Coût / TVA</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-disponible column-disponible" data-lm-col="disponible">Disponible</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-reserve column-reserve" data-lm-col="reserve">Réservé</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-alerte column-alerte" data-lm-col="alerte">Min. / Alerte</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-depot column-depot" data-lm-col="depot">Dépôt / Emp.</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">Fournisseur</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">Statut</th>
+                            <th class="px-3 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 bg-white">
@@ -429,7 +432,7 @@
                                 <x-table-checkbox-cell export-type="products" :id="$product->id" />
 
                                 {{-- Source --}}
-                                <td class="px-3 py-3 whitespace-nowrap">
+                                <td class="px-3 py-3 whitespace-nowrap lm-col lm-col-source column-source" data-lm-col="source">
                                     @if($product->isShopifyProduct())
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Shopify</span>
                                     @else
@@ -438,14 +441,14 @@
                                 </td>
 
                                 {{-- Type --}}
-                                <td class="px-3 py-3 whitespace-nowrap">
+                                <td class="px-3 py-3 whitespace-nowrap lm-col lm-col-type column-type" data-lm-col="type">
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $kindColors[$kind] ?? 'bg-slate-100 text-slate-700' }}">
                                         {{ $product->item_kind_label }}
                                     </span>
                                 </td>
 
                                 {{-- Image --}}
-                                <td class="px-3 py-3 whitespace-nowrap">
+                                <td class="px-3 py-3 whitespace-nowrap lm-col lm-col-image column-image" data-lm-col="image">
                                     @if($product->image_url)
                                         <img src="{{ $product->image_url }}" alt="" class="h-10 w-10 rounded-lg object-cover border border-slate-200">
                                     @else
@@ -456,7 +459,7 @@
                                 </td>
 
                                 {{-- Ref / barcode --}}
-                                <td class="px-3 py-3">
+                                <td class="px-3 py-3 lm-col lm-col-ref column-ref" data-lm-col="ref">
                                     <div class="font-medium text-slate-900">{{ $product->ref }}</div>
                                     @if($product->barcode)
                                         <div class="text-xs text-slate-500 font-mono mt-0.5">{{ $product->barcode }}</div>
@@ -466,7 +469,7 @@
                                 </td>
 
                                 {{-- Name / category --}}
-                                <td class="px-3 py-3 min-w-[12rem]">
+                                <td class="px-3 py-3 min-w-[12rem] lm-col lm-col-nom column-nom" data-lm-col="nom">
                                     <div class="font-medium text-slate-900">{{ $product->name }}</div>
                                     @if($product->isService())
                                         <div class="text-xs text-violet-600 mt-0.5">{{ $product->service_category ?: 'Service' }}</div>
@@ -496,14 +499,14 @@
                                 </td>
 
                                 {{-- Prices --}}
-                                <td class="px-3 py-3 whitespace-nowrap">
+                                <td class="px-3 py-3 whitespace-nowrap lm-col lm-col-prix column-prix" data-lm-col="prix">
                                     <div class="font-semibold text-slate-900">{{ number_format($product->sale_price ?? 0, 2) }} DHS</div>
                                     <div class="text-xs text-slate-500">Coût: {{ $product->cost_price_ht !== null ? number_format($product->cost_price_ht, 2).' DHS' : '—' }}</div>
                                     <div class="text-xs text-slate-500">TVA: {{ $product->vat_category ?: '—' }}</div>
                                 </td>
 
                                 {{-- Available --}}
-                                <td class="px-3 py-3 whitespace-nowrap">
+                                <td class="px-3 py-3 whitespace-nowrap lm-col lm-col-disponible column-disponible" data-lm-col="disponible">
                                     @if(! $product->tracksStock())
                                         <span class="text-slate-400" title="{{ $product->stock_status_label }}">—</span>
                                         <div class="text-[10px] text-slate-400 max-w-[6rem] leading-tight">{{ $product->isService() ? 'Sans gestion' : 'Sans contrôle' }}</div>
@@ -548,12 +551,12 @@
                                 </td>
 
                                 {{-- Reserved --}}
-                                <td class="px-3 py-3 whitespace-nowrap text-slate-600">
+                                <td class="px-3 py-3 whitespace-nowrap text-slate-600 lm-col lm-col-reserve column-reserve" data-lm-col="reserve">
                                     {{ $product->tracksStock() ? (int) ($product->stock_reserved ?? 0) : '—' }}
                                 </td>
 
                                 {{-- Min / Alert --}}
-                                <td class="px-3 py-3 whitespace-nowrap text-slate-600">
+                                <td class="px-3 py-3 whitespace-nowrap text-slate-600 lm-col lm-col-alerte column-alerte" data-lm-col="alerte">
                                     @if($product->tracksStock())
                                         <div>Min: {{ $product->minimum_safety_stock ?? '—' }}</div>
                                         <div class="text-xs text-orange-600">Alerte: {{ $product->alertThreshold() }}</div>
@@ -563,7 +566,7 @@
                                 </td>
 
                                 {{-- Depot / location --}}
-                                <td class="px-3 py-3 whitespace-nowrap">
+                                <td class="px-3 py-3 whitespace-nowrap lm-col lm-col-depot column-depot" data-lm-col="depot">
                                     @if($product->tracksStock())
                                         <div class="text-slate-800">{{ $product->warehouse?->name ?: ($product->depot ?: '—') }}</div>
                                         <div class="text-xs text-slate-500">{{ $product->warehouseLocation?->code ?: ($product->location ?: '—') }}</div>
@@ -575,7 +578,7 @@
                                 </td>
 
                                 {{-- Supplier (dernier fournisseur d'achat) --}}
-                                <td class="px-3 py-3 whitespace-nowrap text-slate-700">
+                                <td class="px-3 py-3 whitespace-nowrap text-slate-700 lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">
                                     @if($product->isService())
                                         <span class="text-slate-400">—</span>
                                     @elseif($product->last_purchase_supplier_name)
@@ -596,14 +599,14 @@
                                 </td>
 
                                 {{-- Status --}}
-                                <td class="px-3 py-3 whitespace-nowrap">
+                                <td class="px-3 py-3 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
                                     <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ $product->isActive() ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600' }}">
                                         {{ $product->isActive() ? 'Actif' : 'Inactif' }}
                                     </span>
                                 </td>
 
                                 {{-- Actions --}}
-                                <td class="px-3 py-3 whitespace-nowrap text-right">
+                                <td class="px-3 py-3 whitespace-nowrap text-right lm-col lm-col-actions column-actions" data-lm-col="actions">
                                     <div class="relative inline-block text-left" x-data="{ open: false }" @keydown.escape.window="open = false">
                                         <button type="button" @click="open = !open"
                                                 class="inline-flex items-center justify-center h-8 w-8 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800">

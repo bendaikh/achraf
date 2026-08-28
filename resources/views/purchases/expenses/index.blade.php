@@ -35,32 +35,36 @@
                 />
             </x-table-filters>
 
+            <x-table-list-toolbar table-id="expenses" />
+
+
+
             <x-table-bulk-bar export-type="expenses" item-label="dépense(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
+                    <table data-lm-table="expenses" class="w-full">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <x-table-checkbox-header export-type="expenses" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
-                                <x-table-sort-header column="expense_date" label="Date" :default="true" default-direction="desc" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-reference column-reference" data-lm-col="reference">Désignation</th>
+                                <x-table-sort-header column="expense_date" colKey="date" label="Date" :default="true" default-direction="desc" />
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-total column-total" data-lm-col="total">Montant</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-type column-type" data-lm-col="type">Catégorie</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-actions column-actions" data-lm-col="actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             @forelse($expenses as $expense)
                                 <tr class="hover:bg-gray-50">
                                     <x-table-checkbox-cell export-type="expenses" :id="$expense->id" />
-                                    <td class="px-6 py-4">
+                                    <td class="px-6 py-4 lm-col lm-col-reference column-reference" data-lm-col="reference">
                                         <x-table-show-link :href="route('expenses.show', $expense)" :label="$expense->designation" />
                                     </td>
-                                    <td class="px-6 py-4">{{ $expense->expense_date->format('d/m/Y') }}</td>
-                                    <td class="px-6 py-4 font-semibold">{{ number_format($expense->amount, 2) }} {{ $expense->currency }}</td>
-                                    <td class="px-6 py-4">{{ $expense->expense_category ?? '-' }}</td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-6 py-4 lm-col lm-col-date column-date" data-lm-col="date">{{ $expense->expense_date->format('d/m/Y') }}</td>
+                                    <td class="px-6 py-4 font-semibold lm-col lm-col-total column-total" data-lm-col="total">{{ number_format($expense->amount, 2) }} {{ $expense->currency }}</td>
+                                    <td class="px-6 py-4 lm-col lm-col-type column-type" data-lm-col="type">{{ $expense->expense_category ?? '-' }}</td>
+                                    <td class="px-6 py-4 lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <div class="flex items-center gap-3">
                                             <a href="{{ route('expenses.show', $expense) }}" class="text-blue-600 hover:text-blue-900 transition duration-150">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

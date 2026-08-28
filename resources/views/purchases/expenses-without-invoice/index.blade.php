@@ -38,35 +38,39 @@
                 @endforeach
             </div>
 
+            <x-table-list-toolbar table-id="expenses-without-invoice" />
+
+
+
             <x-table-bulk-bar export-type="expenses-without-invoice" item-label="dépense(s)" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full">
+                    <table data-lm-table="expenses-without-invoice" class="w-full">
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <x-table-checkbox-header export-type="expenses-without-invoice" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-reference column-reference" data-lm-col="reference">Désignation</th>
                                 <x-table-sort-header column="expense_date" label="Date" :default="true" default-direction="desc" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Récurrence</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Document importé</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">Montant</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-date column-date" data-lm-col="date">Catégorie</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-total column-total" data-lm-col="total">Récurrence</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-categorie column-categorie" data-lm-col="categorie">Statut</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-statut column-statut" data-lm-col="statut">Document importé</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-actions column-actions" data-lm-col="actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             @forelse($expenses as $expense)
                                 <tr class="hover:bg-gray-50">
                                     <x-table-checkbox-cell export-type="expenses-without-invoice" :id="$expense->id" />
-                                    <td class="px-6 py-4">
+                                    <td class="px-6 py-4 lm-col lm-col-reference column-reference" data-lm-col="reference">
                                         <x-table-show-link :href="route('expenses-without-invoice.show', $expense)" :label="$expense->designation" />
                                     </td>
-                                    <td class="px-6 py-4">{{ $expense->expense_date->format('d/m/Y') }}</td>
-                                    <td class="px-6 py-4 font-semibold">{{ number_format($expense->amount, 2) }} {{ $expense->currency }}</td>
-                                    <td class="px-6 py-4">{{ $expense->expense_category ?? '-' }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">{{ $expense->expense_date->format('d/m/Y') }}</td>
+                                    <td class="px-6 py-4 font-semibold lm-col lm-col-date column-date" data-lm-col="date">{{ number_format($expense->amount, 2) }} {{ $expense->currency }}</td>
+                                    <td class="px-6 py-4 lm-col lm-col-total column-total" data-lm-col="total">{{ $expense->expense_category ?? '-' }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-categorie column-categorie" data-lm-col="categorie">
                                         @if($expense->is_recurring)
                                             <span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800">↻ Récurrente</span>
                                             @if($expense->isRecurrenceTemplate() && $expense->next_due_date)
@@ -76,7 +80,7 @@
                                             <span class="text-gray-400">—</span>
                                         @endif
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
                                         @if($expense->isPendingPayment())
                                             <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">À payer</span>
                                             <form action="{{ route('expenses.mark-paid', $expense) }}" method="POST" class="mt-2">
@@ -87,7 +91,7 @@
                                             <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">Payée</span>
                                         @endif
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <x-managed-document-actions type="expenses-without-invoice" :id="$expense->id" />
                                     </td>
                                     <td class="px-6 py-4">

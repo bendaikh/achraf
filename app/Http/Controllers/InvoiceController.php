@@ -11,7 +11,9 @@ use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Services\DocumentNumberService;
+use App\Services\InvoiceSituationService;
 use App\Services\StockMovementService;
+use App\Support\InvoiceCommercialStatus;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use Illuminate\Http\Request;
@@ -22,12 +24,13 @@ class InvoiceController extends Controller
     use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView, SyncsDocumentAdjustments;
 
     public function __construct(
-        protected StockMovementService $stockMovement
+        protected StockMovementService $stockMovement,
+        protected InvoiceSituationService $situation
     ) {}
 
     public function index(Request $request)
     {
-        $query = Invoice::with(['client', 'posSale', 'items', 'adjustments']);
+        $query = Invoice::with(['client', 'posSale', 'items', 'adjustments', 'creditNotes']);
 
         $this->applyTableSearch($query, $request, [
             'invoice_number',
@@ -44,9 +47,20 @@ class InvoiceController extends Controller
             'due_date' => 'due_date',
         ], 'invoice_date', 'desc');
 
+        if ($request->filled('commercial_status')) {
+            $query->where('commercial_status', $request->string('commercial_status'));
+        }
+
+        if ($request->filled('source')) {
+            $query->where('source', $request->string('source'));
+        }
+
         $invoices = $this->paginateTable($query, $request);
 
-        return view('sales.invoices.index', compact('invoices'));
+        return view('sales.invoices.index', [
+            'invoices' => $invoices,
+            'commercialStatuses' => InvoiceCommercialStatus::filterOptions(),
+        ]);
     }
 
     public function create()
@@ -168,9 +182,10 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load('client', 'items', 'posSale', 'payments', 'adjustments');
+        $invoice->load('client', 'items', 'posSale', 'payments', 'adjustments', 'creditNotes', 'refunds');
+        $situation = $this->situation->forInvoice($invoice);
 
-        return view('sales.invoices.show', compact('invoice'));
+        return view('sales.invoices.show', compact('invoice', 'situation'));
     }
 
     public function edit(Invoice $invoice)
