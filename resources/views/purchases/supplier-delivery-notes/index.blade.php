@@ -63,20 +63,22 @@
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">Fournisseur</th>
                                 <x-table-sort-header
                                     column="delivery_date"
+                                    colKey="date"
                                     label="Date de livraison"
                                     :default="true"
                                     default-direction="desc"
                                 />
                                 <x-table-sort-header
                                     column="expected_reception_date"
+                                    colKey="reception_prevue"
                                     label="Réception prévue"
                                     default-direction="desc"
                                 />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-date column-date" data-lm-col="date">Statut</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">Conversion</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">Total</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">Document importé</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-numero column-numero" data-lm-col="numero">Actions</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">Statut</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-conversion column-conversion" data-lm-col="conversion">Conversion</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">Total</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-document column-document" data-lm-col="document">Document importé</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
@@ -92,22 +94,22 @@
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">
                                         <div class="text-sm text-gray-900">{{ $deliveryNote->delivery_date->format('d/m/Y') }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-reception_prevue column-reception_prevue" data-lm-col="reception_prevue">
                                         <div class="text-sm text-gray-900">{{ $deliveryNote->expected_reception_date ? $deliveryNote->expected_reception_date->format('d/m/Y') : '-' }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
                                         <div class="text-sm text-gray-900">{{ $deliveryNote->status }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-conversion column-conversion" data-lm-col="conversion">
                                         <x-reception-conversion-status :converted="$deliveryNote->isConverted()" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($deliveryNote->total, 2) }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-document column-document" data-lm-col="document">
                                         <x-managed-document-actions type="supplier-delivery-notes" :id="$deliveryNote->id" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <div class="flex items-center space-x-3">
                                             <a href="{{ route('supplier-delivery-notes.show', $deliveryNote) }}" class="text-blue-600 hover:text-blue-900" title="Voir">
                                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

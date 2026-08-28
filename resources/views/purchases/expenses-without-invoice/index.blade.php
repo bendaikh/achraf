@@ -50,13 +50,13 @@
                         <thead class="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <x-table-checkbox-header export-type="expenses-without-invoice" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-reference column-reference" data-lm-col="reference">Désignation</th>
-                                <x-table-sort-header column="expense_date" label="Date" :default="true" default-direction="desc" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">Montant</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-date column-date" data-lm-col="date">Catégorie</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-total column-total" data-lm-col="total">Récurrence</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-categorie column-categorie" data-lm-col="categorie">Statut</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-statut column-statut" data-lm-col="statut">Document importé</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-designation column-designation" data-lm-col="designation">Désignation</th>
+                                <x-table-sort-header column="expense_date" colKey="date" label="Date" :default="true" default-direction="desc" />
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-total column-total" data-lm-col="total">Montant</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-categorie column-categorie" data-lm-col="categorie">Catégorie</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-recurrence column-recurrence" data-lm-col="recurrence">Récurrence</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-statut column-statut" data-lm-col="statut">Statut</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-document column-document" data-lm-col="document">Document importé</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-actions column-actions" data-lm-col="actions">Actions</th>
                             </tr>
                         </thead>
@@ -64,13 +64,13 @@
                             @forelse($expenses as $expense)
                                 <tr class="hover:bg-gray-50">
                                     <x-table-checkbox-cell export-type="expenses-without-invoice" :id="$expense->id" />
-                                    <td class="px-6 py-4 lm-col lm-col-reference column-reference" data-lm-col="reference">
+                                    <td class="px-6 py-4 lm-col lm-col-designation column-designation" data-lm-col="designation">
                                         <x-table-show-link :href="route('expenses-without-invoice.show', $expense)" :label="$expense->designation" />
                                     </td>
-                                    <td class="px-6 py-4 lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">{{ $expense->expense_date->format('d/m/Y') }}</td>
-                                    <td class="px-6 py-4 font-semibold lm-col lm-col-date column-date" data-lm-col="date">{{ number_format($expense->amount, 2) }} {{ $expense->currency }}</td>
-                                    <td class="px-6 py-4 lm-col lm-col-total column-total" data-lm-col="total">{{ $expense->expense_category ?? '-' }}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-categorie column-categorie" data-lm-col="categorie">
+                                    <td class="px-6 py-4 lm-col lm-col-date column-date" data-lm-col="date">{{ $expense->expense_date->format('d/m/Y') }}</td>
+                                    <td class="px-6 py-4 font-semibold lm-col lm-col-total column-total" data-lm-col="total">{{ number_format($expense->amount, 2) }} {{ $expense->currency }}</td>
+                                    <td class="px-6 py-4 lm-col lm-col-categorie column-categorie" data-lm-col="categorie">{{ $expense->expense_category ?? '-' }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-recurrence column-recurrence" data-lm-col="recurrence">
                                         @if($expense->is_recurring)
                                             <span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800">↻ Récurrente</span>
                                             @if($expense->isRecurrenceTemplate() && $expense->next_due_date)
@@ -91,10 +91,10 @@
                                             <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">Payée</span>
                                         @endif
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-document column-document" data-lm-col="document">
                                         <x-managed-document-actions type="expenses-without-invoice" :id="$expense->id" />
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-6 py-4 lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <div class="flex items-center gap-3">
                                             <a href="{{ route('expenses-without-invoice.show', $expense) }}" class="text-blue-600 hover:text-blue-900 transition duration-150" title="Voir">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

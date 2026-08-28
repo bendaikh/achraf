@@ -45,17 +45,17 @@
                                     Numéro
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">
-                                    Client
+                                    Fournisseur
                                 </th>
-                                <x-table-sort-header column="order_date" label="Date de commande" :default="true" default-direction="desc" />
-                                <x-table-sort-header column="due_date" label="Échéance" default-direction="desc" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-date column-date" data-lm-col="date">
+                                <x-table-sort-header column="order_date" colKey="date" label="Date de commande" :default="true" default-direction="desc" />
+                                <x-table-sort-header column="due_date" colKey="echeance" label="Échéance" default-direction="desc" />
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-devise column-devise" data-lm-col="devise">
                                     Devise
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">
                                     Total
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-document column-document" data-lm-col="document">
                                     Document
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">
@@ -76,19 +76,19 @@
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">
                                         <div class="text-sm text-gray-900">{{ $order->order_date->format('d/m/Y') }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-echeance column-echeance" data-lm-col="echeance">
                                         <div class="text-sm text-gray-900">{{ $order->due_date ? $order->due_date->format('d/m/Y') : '-' }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-devise column-devise" data-lm-col="devise">
                                         <div class="text-sm text-gray-900">{{ $order->currency }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($order->total, 2) }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-document column-document" data-lm-col="document">
                                         <x-managed-document-actions type="supplier-purchase-orders" :id="$order->id" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <div class="flex items-center space-x-3">
                                             <a href="{{ route('supplier-purchase-orders.show', $order) }}" class="text-blue-600 hover:text-blue-900" title="Voir">
                                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -62,21 +62,23 @@
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-numero column-numero" data-lm-col="numero">Numéro</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-client column-client" data-lm-col="client">Client</th>
                                 <x-table-sort-header
-                                    column="delivery_date" colKey="date"
+                                    column="delivery_date"
+                                    colKey="date"
                                     label="Date de livraison"
                                     :default="true"
                                     default-direction="desc"
                                 />
                                 <x-table-sort-header
                                     column="shipping_date"
+                                    colKey="date_expedition"
                                     label="Date d'expédition"
                                     default-direction="desc"
                                 />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">Statut</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">Total</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">BL généré</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-numero column-numero" data-lm-col="numero">BL signé</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-client column-client" data-lm-col="client">Actions</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-bl_genere column-bl_genere" data-lm-col="bl_genere">BL généré</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-bl_signe column-bl_signe" data-lm-col="bl_signe">BL signé</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
@@ -92,16 +94,16 @@
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">
                                         <div class="text-sm text-gray-900">{{ $deliveryNote->delivery_date->format('d/m/Y') }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date_expedition column-date_expedition" data-lm-col="date_expedition">
                                         <div class="text-sm text-gray-900">{{ $deliveryNote->shipping_date ? $deliveryNote->shipping_date->format('d/m/Y') : '-' }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
                                         <div class="text-sm text-gray-900">{{ $deliveryNote->status }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($deliveryNote->total, 2) }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-bl_genere column-bl_genere" data-lm-col="bl_genere">
                                         <div class="flex items-center gap-2">
                                             <x-libromart-pdf-actions
                                                 :print-route="route('delivery-notes.print', $deliveryNote)"
@@ -109,10 +111,10 @@
                                             />
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-bl_signe column-bl_signe" data-lm-col="bl_signe">
                                         <x-managed-document-actions type="delivery-notes" :id="$deliveryNote->id" category="signed" label="BL signé" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <div class="flex items-center space-x-3">
                                             <a href="{{ route('delivery-notes.show', $deliveryNote) }}" class="text-blue-600 hover:text-blue-900" title="Voir">
                                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

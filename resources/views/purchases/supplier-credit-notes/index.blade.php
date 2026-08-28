@@ -50,14 +50,14 @@
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-facture column-facture" data-lm-col="facture">
                                     Facture liée
                                 </th>
-                                <x-table-sort-header column="credit_note_date" label="Date" :default="true" default-direction="desc" />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-date column-date" data-lm-col="date">
+                                <x-table-sort-header column="credit_note_date" colKey="date" label="Date" :default="true" default-direction="desc" />
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-devise column-devise" data-lm-col="devise">
                                     Devise
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">
                                     Total
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-document column-document" data-lm-col="document">
                                     Document
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">
@@ -81,16 +81,16 @@
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">
                                         <div class="text-sm text-gray-900">{{ $supplierCreditNote->credit_note_date->format('d/m/Y') }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-devise column-devise" data-lm-col="devise">
                                         <div class="text-sm text-gray-900">{{ $supplierCreditNote->currency }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($supplierCreditNote->total, 2) }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-document column-document" data-lm-col="document">
                                         <x-managed-document-actions type="supplier-credit-notes" :id="$supplierCreditNote->id" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <div class="flex items-center space-x-3">
                                             <a href="{{ route('supplier-credit-notes.show', $supplierCreditNote) }}" class="text-blue-600 hover:text-blue-900">
                                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

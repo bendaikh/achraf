@@ -58,16 +58,16 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
             <div class="px-6 py-4 border-b"><h3 class="font-semibold text-gray-900">Soldes fournisseurs</h3></div>
             <div class="overflow-x-auto">
-                <table data-lm-table="purchase-payments" class="w-full text-sm">
+                <table class="w-full text-sm">
                     <thead class="bg-gray-50 text-xs uppercase text-gray-500">
                         <tr>
-                            <th class="px-4 py-3 text-left lm-col lm-col-facture column-facture" data-lm-col="facture">Fournisseur</th>
-                            <th class="px-4 py-3 text-right lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">Factures</th>
-                            <th class="px-4 py-3 text-right lm-col lm-col-total column-total" data-lm-col="total">Avoirs</th>
-                            <th class="px-4 py-3 text-right lm-col lm-col-deja_paye column-deja_paye" data-lm-col="deja_paye">Règlements</th>
-                            <th class="px-4 py-3 text-right lm-col lm-col-solde column-solde" data-lm-col="solde">Avances</th>
-                            <th class="px-4 py-3 text-right lm-col lm-col-statut column-statut" data-lm-col="statut">Solde</th>
-                            <th class="px-4 py-3 lm-col lm-col-actions column-actions" data-lm-col="actions">Actions</th>
+                            <th class="px-4 py-3 text-left">Fournisseur</th>
+                            <th class="px-4 py-3 text-right">Factures</th>
+                            <th class="px-4 py-3 text-right">Avoirs</th>
+                            <th class="px-4 py-3 text-right">Règlements</th>
+                            <th class="px-4 py-3 text-right">Avances</th>
+                            <th class="px-4 py-3 text-right">Solde</th>
+                            <th class="px-4 py-3">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y">
@@ -132,14 +132,14 @@
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table data-lm-table="purchase-payments" class="w-full">
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <x-table-checkbox-header export-type="purchase-payments" />
                             <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-facture column-facture" data-lm-col="facture">N° Facture</th>
                             <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">Fournisseur</th>
-                            <x-table-sort-header column="invoice_date" label="Date" :default="true" default-direction="desc" />
-                            <x-table-sort-header column="due_date" label="Échéance" default-direction="desc" />
+                            <x-table-sort-header column="invoice_date" colKey="date" label="Date" :default="true" default-direction="desc" />
+                            <x-table-sort-header column="due_date" colKey="echeance" label="Échéance" default-direction="desc" />
                             <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-total column-total" data-lm-col="total">Total</th>
                             <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-deja_paye column-deja_paye" data-lm-col="deja_paye">Payé</th>
                             <th class="px-4 py-4 text-left text-xs font-medium text-gray-500 uppercase lm-col lm-col-solde column-solde" data-lm-col="solde">Solde</th>
@@ -160,12 +160,12 @@
                                 <x-table-checkbox-cell export-type="purchase-payments" :id="$supplierInvoice->id" />
                                 <td class="px-4 py-4 lm-col lm-col-facture column-facture" data-lm-col="facture"><x-table-show-link :href="route('supplier-invoices.show', $supplierInvoice)" :label="$supplierInvoice->invoice_number" /></td>
                                 <td class="px-4 py-4 text-sm lm-col lm-col-fournisseur column-fournisseur" data-lm-col="fournisseur">{{ $supplierInvoice->supplier->name ?? '-' }}</td>
-                                <td class="px-4 py-4 text-sm lm-col lm-col-total column-total" data-lm-col="total">{{ $supplierInvoice->invoice_date->format('d/m/Y') }}</td>
-                                <td class="px-4 py-4 text-sm lm-col lm-col-deja_paye column-deja_paye" data-lm-col="deja_paye">{{ $supplierInvoice->due_date ? $supplierInvoice->due_date->format('d/m/Y') : '-' }}</td>
-                                <td class="px-4 py-4 text-sm font-semibold lm-col lm-col-solde column-solde" data-lm-col="solde">{{ number_format($invoiceTotal, 2) }}</td>
-                                <td class="px-4 py-4 text-sm font-semibold text-green-600 lm-col lm-col-statut column-statut" data-lm-col="statut">{{ number_format($totalPaid, 2) }}</td>
-                                <td class="px-4 py-4 text-sm font-semibold text-red-600 lm-col lm-col-actions column-actions" data-lm-col="actions">{{ number_format($remaining, 2) }}</td>
-                                <td class="px-4 py-4">
+                                <td class="px-4 py-4 text-sm lm-col lm-col-date column-date" data-lm-col="date">{{ $supplierInvoice->invoice_date->format('d/m/Y') }}</td>
+                                <td class="px-4 py-4 text-sm lm-col lm-col-echeance column-echeance" data-lm-col="echeance">{{ $supplierInvoice->due_date ? $supplierInvoice->due_date->format('d/m/Y') : '-' }}</td>
+                                <td class="px-4 py-4 text-sm font-semibold lm-col lm-col-total column-total" data-lm-col="total">{{ number_format($invoiceTotal, 2) }}</td>
+                                <td class="px-4 py-4 text-sm font-semibold text-green-600 lm-col lm-col-deja_paye column-deja_paye" data-lm-col="deja_paye">{{ number_format($totalPaid, 2) }}</td>
+                                <td class="px-4 py-4 text-sm font-semibold text-red-600 lm-col lm-col-solde column-solde" data-lm-col="solde">{{ number_format($remaining, 2) }}</td>
+                                <td class="px-4 py-4 lm-col lm-col-statut column-statut" data-lm-col="statut">
                                     @if($status === 'paid')
                                         <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Payé</span>
                                     @elseif($status === 'partial')
@@ -174,7 +174,7 @@
                                         <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Non payé</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-4">
+                                <td class="px-4 py-4 lm-col lm-col-actions column-actions" data-lm-col="actions">
                                     <a href="{{ route('purchases.payments.settle', ['supplier' => $supplierInvoice->supplier_id, 'invoices' => $supplierInvoice->id]) }}" class="text-indigo-600 text-sm font-medium">Payer</a>
                                 </td>
                             </tr>

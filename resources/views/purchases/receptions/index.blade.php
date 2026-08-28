@@ -67,25 +67,27 @@
                                 </th>
                                 <x-table-sort-header
                                     column="reception_date"
+                                    colKey="date"
                                     label="Date de réception"
                                     :default="true"
                                     default-direction="desc"
                                 />
                                 <x-table-sort-header
                                     column="delivery_date"
+                                    colKey="livraison"
                                     label="Date de livraison"
                                     default-direction="desc"
                                 />
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-date column-date" data-lm-col="date">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">
                                     Statut
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-depot column-depot" data-lm-col="depot">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-conversion column-conversion" data-lm-col="conversion">
                                     Conversion
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">
                                     Total
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-document column-document" data-lm-col="document">
                                     Document importé
                                 </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">
@@ -106,22 +108,22 @@
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">
                                         <div class="text-sm text-gray-900">{{ $invoice->reception_date->format('d/m/Y') }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-depot column-depot" data-lm-col="depot">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-livraison column-livraison" data-lm-col="livraison">
                                         <div class="text-sm text-gray-900">{{ $invoice->delivery_date ? $invoice->delivery_date->format('d/m/Y') : '-' }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
                                         <div class="text-sm text-gray-900">{{ $invoice->status }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-conversion column-conversion" data-lm-col="conversion">
                                         <x-reception-conversion-status :converted="$invoice->isConverted()" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-actions column-actions" data-lm-col="actions">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($invoice->total, 2) }}</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-document column-document" data-lm-col="document">
                                         <x-managed-document-actions type="receptions" :id="$invoice->id" />
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium lm-col lm-col-actions column-actions" data-lm-col="actions">
                                         <div class="flex items-center space-x-3">
                                             <a href="{{ route('receptions.show', $invoice) }}" class="text-blue-600 hover:text-blue-900" title="Voir">
                                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
