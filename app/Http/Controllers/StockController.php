@@ -14,6 +14,7 @@ use App\Support\StockSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use RuntimeException;
 
 class StockController extends Controller
 {
@@ -320,15 +321,76 @@ class StockController extends Controller
         return redirect()->route('stock.inventory.index', $request->query());
     }
 
-    public function editMagasin(Product $product)
+    public function editMagasin(Request $request, Product $product)
     {
         if (! $product->tracksStock()) {
             abort(404);
         }
 
-        $warehouses = Warehouse::active()->with(['locations' => fn ($q) => $q->active()])->orderByDesc('is_primary')->orderBy('name')->get();
+        $warehouses = Warehouse::query()
+            ->active()
+            ->physical()
+            ->with(['locations' => fn ($q) => $q->active()->orderBy('code')])
+            ->orderByDesc('is_fulfillment_default')
+            ->orderBy('name')
+            ->get();
 
-        return view('stock.magasin.edit', compact('product', 'warehouses'));
+        $defaultWarehouseId = $request->integer('warehouse_id')
+            ?: $product->warehouse_id
+            ?: $warehouses->first()?->id;
+        $defaultLocationId = $request->integer('warehouse_location_id') ?: $product->warehouse_location_id;
+
+        $currentQuantity = $defaultWarehouseId
+            ? $this->stockMovement->quantityAtSlot($product, (int) $defaultWarehouseId, $defaultLocationId ? (int) $defaultLocationId : null)
+            : 0;
+
+        return view('stock.magasin.edit', compact(
+            'product',
+            'warehouses',
+            'defaultWarehouseId',
+            'defaultLocationId',
+            'currentQuantity'
+        ));
+    }
+
+    public function slotQuantity(Request $request, Product $product)
+    {
+        if (! $product->tracksStock()) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'warehouse_location_id' => 'nullable|exists:warehouse_locations,id',
+            'product_variant_id' => 'nullable|exists:product_variants,id',
+        ]);
+
+        $warehouse = Warehouse::query()->findOrFail($validated['warehouse_id']);
+        if ($warehouse->isOnline()) {
+            return response()->json(['quantity' => 0, 'online' => true]);
+        }
+
+        $locationId = ! empty($validated['warehouse_location_id'])
+            ? (int) $validated['warehouse_location_id']
+            : null;
+
+        if ($locationId) {
+            $location = WarehouseLocation::findOrFail($locationId);
+            if ((int) $location->warehouse_id !== (int) $warehouse->id) {
+                return response()->json(['message' => 'Emplacement invalide pour ce dépôt.'], 422);
+            }
+        }
+
+        $variantId = isset($validated['product_variant_id']) ? (int) $validated['product_variant_id'] : null;
+
+        return response()->json([
+            'quantity' => $this->stockMovement->quantityAtSlot(
+                $product,
+                (int) $warehouse->id,
+                $locationId,
+                $variantId
+            ),
+        ]);
     }
 
     public function updateMagasin(Request $request, Product $product)
@@ -338,30 +400,49 @@ class StockController extends Controller
         }
 
         $validated = $request->validate([
-            'stock_magasin' => 'required|integer|min:0',
-            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'quantity' => 'required|integer|min:0',
+            'warehouse_id' => 'required|exists:warehouses,id',
             'warehouse_location_id' => 'nullable|exists:warehouse_locations,id',
+            'reason' => ['required', 'string', Rule::in(array_keys(StockMovement::STOCK_ADJUSTMENT_REASONS))],
+            'notes' => 'nullable|string|max:1000',
+            'product_variant_id' => 'nullable|exists:product_variants,id',
         ]);
 
-        DB::transaction(function () use ($product, $validated) {
-            $warehouseId = isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : $product->warehouse_id;
-            $locationId = array_key_exists('warehouse_location_id', $validated)
-                ? ($validated['warehouse_location_id'] ? (int) $validated['warehouse_location_id'] : null)
-                : $product->warehouse_location_id;
+        if ($product->hasVariants() && empty($validated['product_variant_id'])) {
+            return back()->withInput()->with('error', 'Veuillez sélectionner une variante.');
+        }
 
-            $this->stockMovement->syncProductFromWarehouseAssignment($product, $warehouseId, $locationId);
-            $this->stockMovement->setQuantity(
-                $product,
-                (int) $validated['stock_magasin'],
-                $warehouseId,
-                $locationId,
-                'Ajustement stock magasin',
-                'magasin'
-            );
-            $product->save();
-        });
+        $warehouse = Warehouse::query()->findOrFail($validated['warehouse_id']);
+        if ($warehouse->isOnline()) {
+            return back()->withInput()->with('error', 'Le stock Shopify / en ligne ne peut pas être ajusté ici.');
+        }
 
-        return redirect()->route('stock.inventory.index')
-            ->with('success', 'Stock magasin mis à jour pour « '.$product->name.' ».');
+        $locationId = ! empty($validated['warehouse_location_id'])
+            ? (int) $validated['warehouse_location_id']
+            : null;
+
+        try {
+            DB::transaction(function () use ($product, $validated, $locationId) {
+                $movement = $this->stockMovement->adjustPhysicalStock(
+                    $product,
+                    (int) $validated['quantity'],
+                    (int) $validated['warehouse_id'],
+                    $locationId,
+                    $validated['reason'],
+                    $validated['notes'] ?? null,
+                    isset($validated['product_variant_id']) ? (int) $validated['product_variant_id'] : null
+                );
+
+                if (! $movement) {
+                    throw new RuntimeException('Aucun changement : la quantité est identique au stock actuel.');
+                }
+            });
+        } catch (\Throwable $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->back()
+            ->with('success', 'Stock physique ajusté pour « '.$product->name.' ».');
     }
 }

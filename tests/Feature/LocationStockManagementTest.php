@@ -24,6 +24,135 @@ class LocationStockManagementTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_physical_stock_declaration_increases_warehouse_without_touching_shopify(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct();
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $online = Warehouse::onlineWarehouse();
+        $this->assertNotNull($belvedere);
+        $this->assertNotNull($online);
+
+        app(StockMovementService::class)->increase(
+            $product,
+            1,
+            'enligne',
+            false,
+            StockMovement::TYPE_INVENTORY_ADJUSTMENT,
+            'test',
+            null,
+            null,
+            $online->id
+        );
+        $product->refresh();
+        $this->assertSame(1, app(StockMovementService::class)->quantityAtWarehouse($product, (int) $online->id));
+
+        $this->actingAs($user)->postJson(route('products.declare-stock', $product), [
+            'quantity' => 4,
+            'warehouse_id' => $belvedere->id,
+            'reason' => StockMovement::REASON_PURCHASE,
+            'moved_at' => '2026-08-30',
+            'notes' => 'Achat direct magasin',
+        ])->assertOk()->assertJson(['success' => true]);
+
+        $product->refresh();
+        $service = app(StockMovementService::class);
+        $this->assertSame(4, $service->quantityAtWarehouse($product, (int) $belvedere->id));
+        $this->assertSame(1, $service->quantityAtWarehouse($product, (int) $online->id));
+        $this->assertSame(4, $service->physicalTotal($product));
+        $this->assertSame(1, $service->quantityAtWarehouse($product, (int) $online->id));
+
+        $movement = StockMovement::query()
+            ->where('product_id', $product->id)
+            ->where('type', StockMovement::TYPE_PHYSICAL_IN)
+            ->first();
+        $this->assertNotNull($movement);
+        $this->assertSame(4, (int) $movement->quantity);
+        $this->assertSame('Achat', $movement->reason);
+        $this->assertSame((int) $user->id, (int) $movement->user_id);
+        $this->assertSame('2026-08-30', $movement->moved_at->format('Y-m-d'));
+    }
+
+    public function test_physical_stock_adjustment_sets_absolute_quantity_without_touching_shopify(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct();
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $online = Warehouse::onlineWarehouse();
+        $location = $belvedere->locations()->first();
+        if (! $location) {
+            $location = \App\Models\WarehouseLocation::create([
+                'warehouse_id' => $belvedere->id,
+                'code' => 'BEL-TEST',
+                'name' => 'Bel Test',
+                'status' => 'active',
+            ]);
+        }
+
+        app(StockMovementService::class)->adjustPhysicalStock($product, 1, (int) $belvedere->id, (int) $location->id, StockMovement::REASON_INVENTORY_CORRECTION);
+        app(StockMovementService::class)->increase($product, 1, 'enligne', false, StockMovement::TYPE_INVENTORY_ADJUSTMENT, 'test', null, null, $online->id);
+
+        $this->actingAs($user)->patch(route('stock.magasin.update', $product), [
+            'quantity' => 4,
+            'warehouse_id' => $belvedere->id,
+            'warehouse_location_id' => $location->id,
+            'reason' => StockMovement::REASON_INVENTORY_CORRECTION,
+            'notes' => 'Inventaire',
+        ])->assertRedirect();
+
+        $service = app(StockMovementService::class);
+        $product->refresh();
+        $this->assertSame(4, $service->quantityAtSlot($product, (int) $belvedere->id, (int) $location->id));
+        $this->assertSame(1, $service->quantityAtWarehouse($product, (int) $online->id));
+
+        $movement = StockMovement::query()
+            ->where('product_id', $product->id)
+            ->where('type', StockMovement::TYPE_STOCK_ADJUSTMENT)
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($movement);
+        $this->assertSame(3, (int) $movement->quantity);
+        $this->assertSame(1, (int) $movement->quantity_before);
+        $this->assertSame(4, (int) $movement->quantity_after);
+        $this->assertSame('Inventaire / Correction de stock', $movement->reason);
+        $this->assertSame((int) $user->id, (int) $movement->user_id);
+    }
+
+    public function test_product_list_filters_by_warehouse_location_stock_slot(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct(['ref' => 'FILTER-SKU']);
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $this->assertNotNull($belvedere);
+
+        $location = $belvedere->locations()->first();
+        if (! $location) {
+            $location = \App\Models\WarehouseLocation::create([
+                'warehouse_id' => $belvedere->id,
+                'code' => 'BEL-STOCK',
+                'name' => 'Bel Stock',
+                'status' => 'active',
+            ]);
+        }
+
+        app(StockMovementService::class)->adjustPhysicalStock(
+            $product,
+            4,
+            (int) $belvedere->id,
+            (int) $location->id,
+            StockMovement::REASON_INVENTORY_CORRECTION,
+            'test'
+        );
+
+        $this->actingAs($user)->get(route('products.index', [
+            'warehouse_id' => $belvedere->id,
+            'warehouse_location_id' => $location->id,
+            'location_stock_gt_zero' => 1,
+        ]))
+            ->assertOk()
+            ->assertSee('FILTER-SKU');
+    }
+
     public function test_transfer_moves_quantity_without_creating_stock(): void
     {
         $product = $this->stockedProduct();

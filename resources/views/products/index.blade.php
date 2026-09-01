@@ -330,6 +330,12 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="mt-2 flex items-center gap-2" x-show="warehouseId || locationId">
+                            <input type="checkbox" name="location_stock_gt_zero" value="1" id="location_stock_gt_zero"
+                                   @checked(request()->boolean('location_stock_gt_zero'))
+                                   class="rounded border-slate-300 text-[#0a5d8a] focus:ring-[#fdb819]">
+                            <label for="location_stock_gt_zero" class="text-xs text-slate-600">Uniquement les produits avec stock &gt; 0 dans ce dépôt/emplacement</label>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">Statut</label>
@@ -522,6 +528,11 @@
                                             <div><span class="inline-flex mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">En stock</span></div>
                                         @endif
                                         <div class="text-[10px] text-slate-400 mt-0.5">Physique: {{ $product->stock_quantity }}</div>
+                                        @if(request()->filled('warehouse_id') || request()->filled('warehouse_location_id'))
+                                            <div class="text-[10px] font-semibold text-sky-700 mt-0.5">
+                                                Stock filtré : {{ (int) ($product->filtered_location_stock ?? 0) }} unité(s)
+                                            </div>
+                                        @endif
                                         @if($product->relationLoaded('stocks'))
                                             <div class="mt-1.5 flex flex-wrap gap-1">
                                                 @foreach($product->stocks->groupBy('warehouse_id') as $wid => $slots)
@@ -759,9 +770,58 @@
         </form>
         <div class="mt-4 flex flex-wrap gap-2">
             <a id="locationStockMovements" href="#" class="px-3 py-2 border rounded-lg text-sm">Voir les mouvements</a>
+            <button type="button" id="locationStockDeclareBtn" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">+ Ajouter / Déclarer du stock physique</button>
             <button type="button" onclick="document.getElementById('locationTransferForm').classList.toggle('hidden')" class="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm">Dispatcher / Transférer</button>
             <button type="button" onclick="closeLocationStockModal()" class="px-3 py-2 border rounded-lg text-sm">Fermer</button>
         </div>
+    </div>
+</div>
+
+{{-- Modal déclaration stock physique --}}
+<div id="declareStockModal" class="fixed inset-0 bg-slate-900/40 hidden overflow-y-auto h-full w-full z-[60]">
+    <div class="relative top-16 mx-auto mb-10 w-[min(32rem,calc(100%-1.5rem))] border border-slate-200 shadow-xl rounded-xl bg-white p-5">
+        <div class="flex justify-between items-start gap-3 mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-slate-900">Ajouter / Déclarer du stock physique</h3>
+                <p class="text-sm text-slate-500" id="declareStockProductLabel"></p>
+            </div>
+            <button type="button" onclick="closeDeclareStockModal()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <div id="declareStockError" class="hidden mb-3 rounded-lg bg-red-50 text-red-800 text-sm px-3 py-2"></div>
+        <form id="declareStockForm" class="space-y-3">
+            @csrf
+            <div id="declareStockVariantWrap" class="hidden">
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Variante</label>
+                <select name="product_variant_id" id="declareStockVariant" class="w-full rounded-lg border-slate-300 text-sm"></select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Dépôt de destination</label>
+                <select name="warehouse_id" id="declareStockWarehouse" required class="w-full rounded-lg border-slate-300 text-sm"></select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Emplacement <span class="font-normal normal-case">(optionnel)</span></label>
+                <select name="warehouse_location_id" id="declareStockLocation" class="w-full rounded-lg border-slate-300 text-sm">
+                    <option value="">— Aucun emplacement —</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Quantité physique à ajouter / déclarer</label>
+                <input type="number" name="quantity" id="declareStockQuantity" min="1" value="1" required class="w-full rounded-lg border-slate-300 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Motif / origine</label>
+                <select name="reason" id="declareStockReason" required class="w-full rounded-lg border-slate-300 text-sm"></select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Date</label>
+                <input type="date" name="moved_at" id="declareStockDate" required class="w-full rounded-lg border-slate-300 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Note <span class="font-normal normal-case">(optionnelle)</span></label>
+                <textarea name="notes" id="declareStockNotes" rows="2" class="w-full rounded-lg border-slate-300 text-sm" placeholder="Commentaire libre…"></textarea>
+            </div>
+            <button type="submit" id="declareStockSubmit" class="w-full px-3 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">Confirmer l'ajout</button>
+        </form>
     </div>
 </div>
 
@@ -859,6 +919,93 @@ function closeLocationStockModal() {
     if (modal) modal.classList.add('hidden');
 }
 
+var locationStockCache = null;
+
+function todayIsoDate() {
+    var d = new Date();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + m + '-' + day;
+}
+
+function renderLocationStockBody(locations) {
+    var body = document.getElementById('locationStockBody');
+    if (!body) return;
+    body.innerHTML = (locations || []).map(function (loc) {
+        var cls = loc.is_online ? 'bg-emerald-50 text-emerald-900' : 'bg-sky-50 text-sky-900';
+        var dot = loc.is_online ? '🟢 ' : '🔵 ';
+        return '<div class="flex justify-between rounded-lg px-3 py-2 ' + cls + '"><span>' + dot + escapeHtml(loc.name) + '</span><strong>' + loc.quantity + '</strong></div>';
+    }).join('');
+}
+
+function loadDeclareStockLocations(warehouseId, locationsUrl) {
+    var select = document.getElementById('declareStockLocation');
+    if (!select) return;
+    select.innerHTML = '<option value="">— Aucun emplacement —</option>';
+    if (!warehouseId || !locationsUrl) return;
+    fetch(locationsUrl + '?warehouse_id=' + encodeURIComponent(warehouseId), {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    })
+        .then(function (r) { return r.json(); })
+        .then(function (rows) {
+            rows.forEach(function (loc) {
+                var opt = document.createElement('option');
+                opt.value = loc.id;
+                opt.textContent = loc.label || loc.code;
+                select.appendChild(opt);
+            });
+        });
+}
+
+function closeDeclareStockModal() {
+    var modal = document.getElementById('declareStockModal');
+    if (modal) modal.classList.add('hidden');
+    var err = document.getElementById('declareStockError');
+    if (err) err.classList.add('hidden');
+}
+
+function openDeclareStockModal() {
+    if (!locationStockCache) return;
+    var data = locationStockCache;
+    var modal = document.getElementById('declareStockModal');
+    if (!modal) return;
+
+    document.getElementById('declareStockProductLabel').textContent =
+        (data.product.name || '') + (data.product.sku ? ' · ' + data.product.sku : '');
+    document.getElementById('declareStockForm').action = data.declare_url;
+    document.getElementById('declareStockDate').value = todayIsoDate();
+    document.getElementById('declareStockQuantity').value = '1';
+    document.getElementById('declareStockNotes').value = '';
+
+    var whOpts = (data.physical_warehouses || []).map(function (w) {
+        return '<option value="' + w.id + '">' + escapeHtml(w.name) + '</option>';
+    }).join('');
+    var whSelect = document.getElementById('declareStockWarehouse');
+    whSelect.innerHTML = whOpts;
+    loadDeclareStockLocations(whSelect.value, data.locations_url);
+
+    var reasonOpts = (data.reasons || []).map(function (r) {
+        return '<option value="' + escapeHtml(r.value) + '">' + escapeHtml(r.label) + '</option>';
+    }).join('');
+    document.getElementById('declareStockReason').innerHTML = reasonOpts;
+
+    var variantWrap = document.getElementById('declareStockVariantWrap');
+    var variantSelect = document.getElementById('declareStockVariant');
+    if (data.product.has_variants && (data.variants || []).length) {
+        variantWrap.classList.remove('hidden');
+        variantSelect.required = true;
+        variantSelect.innerHTML = (data.variants || []).map(function (v) {
+            return '<option value="' + v.id + '">' + escapeHtml(v.label || v.sku) + '</option>';
+        }).join('');
+    } else {
+        variantWrap.classList.add('hidden');
+        variantSelect.required = false;
+        variantSelect.innerHTML = '';
+    }
+
+    modal.classList.remove('hidden');
+}
+
 function openLocationStockModal(productId) {
     var modal = document.getElementById('locationStockModal');
     if (!modal) return;
@@ -868,18 +1015,14 @@ function openLocationStockModal(productId) {
     })
         .then(function (r) { return r.json(); })
         .then(function (data) {
+            locationStockCache = data;
             document.getElementById('locationStockTitle').textContent = data.product.name;
             document.getElementById('locationStockSku').textContent = data.product.sku || '';
             document.getElementById('locationStockPhysical').textContent = data.physical_total;
             document.getElementById('locationStockMovements').href = data.movements_url;
             document.getElementById('locationTransferForm').action = data.transfer_url;
             document.getElementById('locationTransferProductId').value = data.product.id;
-            var body = document.getElementById('locationStockBody');
-            body.innerHTML = (data.locations || []).map(function (loc) {
-                var cls = loc.is_online ? 'bg-emerald-50 text-emerald-900' : 'bg-sky-50 text-sky-900';
-                var dot = loc.is_online ? '🟢 ' : '🔵 ';
-                return '<div class="flex justify-between rounded-lg px-3 py-2 ' + cls + '"><span>' + dot + escapeHtml(loc.name) + '</span><strong>' + loc.quantity + '</strong></div>';
-            }).join('');
+            renderLocationStockBody(data.locations);
             var opts = (data.warehouses || []).map(function (w) {
                 return '<option value="' + w.id + '">' + escapeHtml(w.name) + '</option>';
             }).join('');
@@ -900,6 +1043,81 @@ function escapeHtml(value) {
 function bindProductListModals() {
     var duplicateModal = document.getElementById('duplicateModal');
     var purchaseHistoryModal = document.getElementById('purchaseHistoryModal');
+    var declareBtn = document.getElementById('locationStockDeclareBtn');
+    var declareForm = document.getElementById('declareStockForm');
+    var declareWarehouse = document.getElementById('declareStockWarehouse');
+    var declareModal = document.getElementById('declareStockModal');
+
+    if (declareBtn && !declareBtn.dataset.bound) {
+        declareBtn.dataset.bound = '1';
+        declareBtn.addEventListener('click', openDeclareStockModal);
+    }
+
+    if (declareWarehouse && !declareWarehouse.dataset.bound) {
+        declareWarehouse.dataset.bound = '1';
+        declareWarehouse.addEventListener('change', function () {
+            if (locationStockCache) {
+                loadDeclareStockLocations(this.value, locationStockCache.locations_url);
+            }
+        });
+    }
+
+    if (declareForm && !declareForm.dataset.bound) {
+        declareForm.dataset.bound = '1';
+        declareForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var err = document.getElementById('declareStockError');
+            var submitBtn = document.getElementById('declareStockSubmit');
+            if (err) err.classList.add('hidden');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Enregistrement…';
+            }
+
+            var formData = new FormData(declareForm);
+            fetch(declareForm.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || formData.get('_token')
+                },
+                body: formData
+            })
+                .then(function (res) { return res.json().then(function (json) { return { ok: res.ok, json: json }; }); })
+                .then(function (result) {
+                    if (!result.ok || !result.json.success) {
+                        throw new Error(result.json.message || 'Erreur lors de la déclaration.');
+                    }
+                    if (locationStockCache) {
+                        locationStockCache.locations = result.json.locations;
+                        locationStockCache.physical_total = result.json.physical_total;
+                    }
+                    renderLocationStockBody(result.json.locations);
+                    document.getElementById('locationStockPhysical').textContent = result.json.physical_total;
+                    closeDeclareStockModal();
+                })
+                .catch(function (error) {
+                    if (err) {
+                        err.textContent = error.message || 'Erreur lors de la déclaration.';
+                        err.classList.remove('hidden');
+                    }
+                })
+                .finally(function () {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = "Confirmer l'ajout";
+                    }
+                });
+        });
+    }
+
+    if (declareModal && !declareModal.dataset.bound) {
+        declareModal.dataset.bound = '1';
+        declareModal.addEventListener('click', function (e) {
+            if (e.target === this) closeDeclareStockModal();
+        });
+    }
 
     if (duplicateModal && !duplicateModal.dataset.bound) {
         duplicateModal.dataset.bound = '1';
@@ -922,6 +1140,7 @@ if (!window.__productListEscapeBound) {
         if (e.key === 'Escape') {
             closeDuplicateModal();
             closePurchaseHistoryModal();
+            closeDeclareStockModal();
             closeLocationStockModal();
         }
     });

@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductStock;
+use App\Models\StockMovement;
 use App\Models\Warehouse;
+use App\Models\WarehouseLocation;
 use App\Services\LocationStockReportService;
 use App\Services\StockMovementService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -124,9 +126,10 @@ class LocationStockController extends Controller
 
     public function productBreakdown(Product $product)
     {
-        $product->load(['stocks.warehouse']);
+        $product->load(['stocks.warehouse', 'variants']);
         $warehouses = Warehouse::query()->active()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
         $locations = $this->stockMovement->locationBreakdown($product);
+        $physicalWarehouses = $warehouses->filter(fn (Warehouse $w) => $w->isPhysical());
 
         return response()->json([
             'product' => [
@@ -134,7 +137,15 @@ class LocationStockController extends Controller
                 'name' => $product->name,
                 'sku' => $product->ref,
                 'image' => $product->image_url,
+                'has_variants' => $product->hasVariants(),
             ],
+            'variants' => $product->hasVariants()
+                ? $product->variants->map(fn ($v) => [
+                    'id' => $v->id,
+                    'label' => $v->name ?: $v->sku,
+                    'sku' => $v->sku,
+                ])->values()
+                : [],
             'locations' => $locations,
             'physical_total' => $this->stockMovement->physicalTotal($product),
             'online_total' => (int) $product->stock_enligne,
@@ -142,10 +153,105 @@ class LocationStockController extends Controller
                 'id' => $w->id,
                 'name' => $w->name,
                 'kind' => $w->kind,
+                'is_physical' => $w->isPhysical(),
             ]),
+            'physical_warehouses' => $physicalWarehouses->map(fn (Warehouse $w) => [
+                'id' => $w->id,
+                'name' => $w->name,
+            ])->values(),
+            'reasons' => collect(StockMovement::PHYSICAL_STOCK_REASONS)
+                ->map(fn ($label, $key) => ['value' => $key, 'label' => $label])
+                ->values(),
+            'locations_url' => route('warehouses.locations.json'),
             'movements_url' => route('stock.movements.index', ['product_id' => $product->id]),
             'transfer_url' => route('stock.transfer.store'),
+            'declare_url' => route('products.declare-stock', $product),
         ]);
+    }
+
+    public function declarePhysicalStock(Request $request, Product $product)
+    {
+        if (! $product->tracksStock()) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'quantity' => 'required|integer|min:1',
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'warehouse_location_id' => 'nullable|exists:warehouse_locations,id',
+            'reason' => ['required', 'string', \Illuminate\Validation\Rule::in(array_keys(StockMovement::PHYSICAL_STOCK_REASONS))],
+            'moved_at' => 'nullable|date',
+            'notes' => 'nullable|string|max:1000',
+            'product_variant_id' => 'nullable|exists:product_variants,id',
+        ]);
+
+        if ($product->hasVariants() && empty($validated['product_variant_id'])) {
+            return $this->declareStockResponse($request, false, 'Veuillez sélectionner une variante.');
+        }
+
+        $warehouse = Warehouse::query()->findOrFail($validated['warehouse_id']);
+        if ($warehouse->isOnline()) {
+            return $this->declareStockResponse($request, false, 'Le stock physique ne peut pas être déclaré sur un dépôt en ligne.');
+        }
+
+        $locationId = ! empty($validated['warehouse_location_id'])
+            ? (int) $validated['warehouse_location_id']
+            : null;
+
+        if ($locationId) {
+            $location = WarehouseLocation::query()->findOrFail($locationId);
+            if ((int) $location->warehouse_id !== (int) $warehouse->id) {
+                return $this->declareStockResponse($request, false, 'L’emplacement sélectionné n’appartient pas au dépôt choisi.');
+            }
+        }
+
+        try {
+            DB::transaction(function () use ($product, $validated, $locationId) {
+                $movedAt = ! empty($validated['moved_at'])
+                    ? Carbon::parse($validated['moved_at'])
+                    : null;
+
+                $this->stockMovement->declarePhysicalStock(
+                    $product,
+                    (int) $validated['quantity'],
+                    (int) $validated['warehouse_id'],
+                    $locationId,
+                    $validated['reason'],
+                    $validated['notes'] ?? null,
+                    $movedAt,
+                    isset($validated['product_variant_id']) ? (int) $validated['product_variant_id'] : null
+                );
+            });
+        } catch (\Throwable $e) {
+            return $this->declareStockResponse($request, false, $e->getMessage());
+        }
+
+        $message = 'Stock physique déclaré : +'.(int) $validated['quantity'].' unité(s) enregistrée(s).';
+
+        if ($request->expectsJson() || $request->ajax()) {
+            $product->refresh()->load(['stocks.warehouse']);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'physical_total' => $this->stockMovement->physicalTotal($product),
+                'online_total' => (int) $product->stock_enligne,
+                'locations' => $this->stockMovement->locationBreakdown($product),
+            ]);
+        }
+
+        return redirect()
+            ->back()
+            ->with('success', $message);
+    }
+
+    protected function declareStockResponse(Request $request, bool $success, string $message)
+    {
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['success' => $success, 'message' => $message], $success ? 200 : 422);
+        }
+
+        return redirect()->back()->withInput()->with($success ? 'success' : 'error', $message);
     }
 
     protected function exportExcel(array $report): StreamedResponse

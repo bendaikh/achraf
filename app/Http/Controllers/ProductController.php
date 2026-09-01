@@ -461,9 +461,10 @@ class ProductController extends Controller
                 (int) $request->input('supplier_id')
             );
         }
-        $this->applyTableFilter($query, $request, 'warehouse_id', 'warehouse_id');
-        $this->applyTableFilter($query, $request, 'warehouse_location_id', 'warehouse_location_id');
-        // Legacy free-text fallback
+
+        $this->applyProductStockLocationFilters($query, $request);
+
+        // Legacy free-text fallback (only when structured stock filters are not used)
         if ($request->filled('depot') && ! $request->filled('warehouse_id')) {
             $this->applyTableFilter($query, $request, 'depot', 'depot');
         }
@@ -479,6 +480,45 @@ class ProductController extends Controller
         if ($request->filled('price_max')) {
             $query->where('sale_price', '<=', (float) $request->input('price_max'));
         }
+    }
+
+    /**
+     * Filter products by physical stock slots (product_stocks), not product default warehouse fields.
+     *
+     * @param  Builder<Product>  $query
+     */
+    protected function applyProductStockLocationFilters(Builder $query, Request $request): void
+    {
+        $warehouseId = $request->filled('warehouse_id') ? $request->integer('warehouse_id') : null;
+        $locationId = $request->filled('warehouse_location_id') ? $request->integer('warehouse_location_id') : null;
+        $onlyInStock = $request->boolean('location_stock_gt_zero');
+
+        if (! $warehouseId && ! $locationId) {
+            return;
+        }
+
+        $query->whereHas('stocks', function (Builder $stockQuery) use ($warehouseId, $locationId, $onlyInStock) {
+            if ($warehouseId) {
+                $stockQuery->where('warehouse_id', $warehouseId);
+            }
+            if ($locationId) {
+                $stockQuery->where('warehouse_location_id', $locationId);
+            } elseif ($warehouseId) {
+                // Dépôt seul : inclure tous les emplacements de ce dépôt
+            }
+            if ($onlyInStock) {
+                $stockQuery->where('quantity', '>', 0);
+            }
+        });
+
+        $query->withSum(['stocks as filtered_location_stock' => function (Builder $stockQuery) use ($warehouseId, $locationId) {
+            if ($warehouseId) {
+                $stockQuery->where('warehouse_id', $warehouseId);
+            }
+            if ($locationId) {
+                $stockQuery->where('warehouse_location_id', $locationId);
+            }
+        }], 'quantity');
     }
 
     /**

@@ -26,7 +26,38 @@ class StockMovement extends Model
 
     public const TYPE_MANUAL_OUT = 'manual_out';
 
+    public const TYPE_PHYSICAL_IN = 'physical_in';
+
+    public const TYPE_STOCK_ADJUSTMENT = 'stock_adjustment';
+
     public const TYPE_ORDER_OUT = 'order_out';
+
+    public const REASON_PURCHASE = 'purchase';
+
+    public const REASON_SUPPLIER_RECEPTION = 'supplier_reception';
+
+    public const REASON_INVENTORY = 'inventory';
+
+    public const REASON_ADJUSTMENT = 'adjustment';
+
+    public const REASON_OTHER = 'other';
+
+    public const REASON_INVENTORY_CORRECTION = 'inventory_correction';
+
+    public const PHYSICAL_STOCK_REASONS = [
+        self::REASON_PURCHASE => 'Achat',
+        self::REASON_SUPPLIER_RECEPTION => 'Réception fournisseur',
+        self::REASON_INVENTORY => 'Inventaire',
+        self::REASON_ADJUSTMENT => 'Ajustement',
+        self::REASON_OTHER => 'Autre',
+    ];
+
+    public const STOCK_ADJUSTMENT_REASONS = [
+        self::REASON_INVENTORY_CORRECTION => 'Inventaire / Correction de stock',
+        self::REASON_PURCHASE => 'Achat',
+        self::REASON_SUPPLIER_RECEPTION => 'Réception fournisseur',
+        self::REASON_OTHER => 'Autre',
+    ];
 
     public const TYPES = [
         self::TYPE_PURCHASE => 'Réception fournisseur',
@@ -39,7 +70,25 @@ class StockMovement extends Model
         self::TYPE_TRANSFER_IN => 'Transfert entrant',
         self::TYPE_MANUAL_IN => 'Ajustement manuel (entrée)',
         self::TYPE_MANUAL_OUT => 'Ajustement manuel (sortie)',
+        self::TYPE_PHYSICAL_IN => 'Entrée stock',
+        self::TYPE_STOCK_ADJUSTMENT => 'Ajustement de stock',
     ];
+
+    public static function physicalStockReasonLabel(?string $reason): string
+    {
+        if (! $reason) {
+            return '—';
+        }
+
+        return self::PHYSICAL_STOCK_REASONS[$reason]
+            ?? self::STOCK_ADJUSTMENT_REASONS[$reason]
+            ?? $reason;
+    }
+
+    public static function stockAdjustmentReasonLabel(?string $reason): string
+    {
+        return self::physicalStockReasonLabel($reason);
+    }
 
     protected $fillable = [
         'product_id',

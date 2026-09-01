@@ -236,30 +236,39 @@
                                 @endif
                             </div>
 
-                            @if($product->stocks->isNotEmpty())
-                                <div class="mt-6">
-                                    <div class="flex items-center justify-between mb-3">
-                                        <h3 class="text-sm font-semibold text-gray-800">STOCK</h3>
+                            @php
+                                $stockMovementService = app(\App\Services\StockMovementService::class);
+                                $stockLocations = $stockMovementService->locationBreakdown($product);
+                                $physicalTotal = $stockMovementService->physicalTotal($product);
+                            @endphp
+                            <div class="mt-6">
+                                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                    <h3 class="text-sm font-semibold text-gray-800">STOCK</h3>
+                                    <div class="flex flex-wrap gap-2">
+                                        <a href="{{ route('stock.movements.index', ['product_id' => $product->id, 'search' => $product->ref]) }}" class="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50">
+                                            Voir les mouvements
+                                        </a>
+                                        <button type="button" onclick="openProductDeclareStock()" class="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">
+                                            + Ajouter / Déclarer du stock physique
+                                        </button>
                                         <a href="{{ route('stock.transfer.create', ['product_id' => $product->id]) }}" class="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800">
                                             Dispatcher / Transférer
                                         </a>
                                     </div>
-                                    <ul class="space-y-2">
-                                        @foreach($product->stocks->groupBy('warehouse_id') as $wid => $slots)
-                                            @php
-                                                $wh = $slots->first()->warehouse;
-                                                if (! $wh) continue;
-                                                $qty = (int) $slots->sum('quantity');
-                                                $dot = $wh->isOnline() ? '🟢' : ($loop->index === 1 ? '🔵' : '🟣');
-                                            @endphp
-                                            <li class="flex items-center justify-between rounded-lg px-3 py-2 text-sm {{ $wh->isOnline() ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-50 text-slate-800' }}">
-                                                <span>{{ $dot }} {{ $wh->name }}@if($slots->first()->location) / {{ $slots->first()->location->code }}@endif</span>
-                                                <strong>{{ $qty }}</strong>
-                                            </li>
-                                        @endforeach
-                                    </ul>
                                 </div>
-                            @endif
+                                <ul id="productStockList" class="space-y-2">
+                                    @foreach($stockLocations as $loc)
+                                        <li class="flex items-center justify-between rounded-lg px-3 py-2 text-sm {{ $loc['is_online'] ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-50 text-slate-800' }}">
+                                            <span>{{ $loc['is_online'] ? '🟢' : '🔵' }} {{ $loc['name'] }}</span>
+                                            <strong>{{ $loc['quantity'] }}</strong>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                                <p class="mt-3 text-sm font-semibold text-slate-800">
+                                    Total des stocks physiques : <span id="productPhysicalTotal">{{ $physicalTotal }}</span>
+                                    <span class="text-xs font-normal text-slate-500">(hors Shopify)</span>
+                                </p>
+                            </div>
                         </div>
                         @elseif($product->isService())
                         <div class="bg-white rounded-lg shadow p-6">
@@ -400,6 +409,178 @@
                 </div>
             </div>
         </main>
+
+@if($product->tracksStock())
+{{-- Modal déclaration stock physique (fiche produit) --}}
+<div id="declareStockModal" class="fixed inset-0 bg-slate-900/40 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-16 mx-auto mb-10 w-[min(32rem,calc(100%-1.5rem))] border border-slate-200 shadow-xl rounded-xl bg-white p-5">
+        <div class="flex justify-between items-start gap-3 mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-slate-900">Ajouter / Déclarer du stock physique</h3>
+                <p class="text-sm text-slate-500">{{ $product->name }} · {{ $product->ref }}</p>
+            </div>
+            <button type="button" onclick="closeProductDeclareStock()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <div id="declareStockError" class="hidden mb-3 rounded-lg bg-red-50 text-red-800 text-sm px-3 py-2"></div>
+        <form id="declareStockForm" action="{{ route('products.declare-stock', $product) }}" method="POST" class="space-y-3">
+            @csrf
+            @if($product->hasVariants())
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Variante</label>
+                <select name="product_variant_id" required class="w-full rounded-lg border-slate-300 text-sm">
+                    @foreach($product->variants as $variant)
+                        <option value="{{ $variant->id }}">{{ $variant->name ?: $variant->sku }}</option>
+                    @endforeach
+                </select>
+            </div>
+            @endif
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Dépôt de destination</label>
+                <select name="warehouse_id" id="declareStockWarehouse" required class="w-full rounded-lg border-slate-300 text-sm">
+                    @foreach(\App\Models\Warehouse::query()->active()->physical()->orderByDesc('is_fulfillment_default')->orderBy('name')->get() as $wh)
+                        <option value="{{ $wh->id }}">{{ $wh->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Emplacement <span class="font-normal normal-case">(optionnel)</span></label>
+                <select name="warehouse_location_id" id="declareStockLocation" class="w-full rounded-lg border-slate-300 text-sm">
+                    <option value="">— Aucun emplacement —</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Quantité physique à ajouter / déclarer</label>
+                <input type="number" name="quantity" min="1" value="1" required class="w-full rounded-lg border-slate-300 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Motif / origine</label>
+                <select name="reason" required class="w-full rounded-lg border-slate-300 text-sm">
+                    @foreach(\App\Models\StockMovement::PHYSICAL_STOCK_REASONS as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Date</label>
+                <input type="date" name="moved_at" id="declareStockDate" value="{{ now()->format('Y-m-d') }}" required class="w-full rounded-lg border-slate-300 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Note <span class="font-normal normal-case">(optionnelle)</span></label>
+                <textarea name="notes" rows="2" class="w-full rounded-lg border-slate-300 text-sm" placeholder="Commentaire libre…"></textarea>
+            </div>
+            <button type="submit" id="declareStockSubmit" class="w-full px-3 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">Confirmer l'ajout</button>
+        </form>
+    </div>
+</div>
+
+<script>
+var productDeclareLocationsUrl = @json(route('warehouses.locations.json'));
+var productLocationStocksUrl = @json(route('products.location-stocks', $product));
+
+function loadProductDeclareLocations(warehouseId) {
+    var select = document.getElementById('declareStockLocation');
+    if (!select) return;
+    select.innerHTML = '<option value="">— Aucun emplacement —</option>';
+    if (!warehouseId) return;
+    fetch(productDeclareLocationsUrl + '?warehouse_id=' + encodeURIComponent(warehouseId), {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    })
+        .then(function (r) { return r.json(); })
+        .then(function (rows) {
+            rows.forEach(function (loc) {
+                var opt = document.createElement('option');
+                opt.value = loc.id;
+                opt.textContent = loc.label || loc.code;
+                select.appendChild(opt);
+            });
+        });
+}
+
+function renderProductStockList(locations) {
+    var list = document.getElementById('productStockList');
+    if (!list) return;
+    list.innerHTML = (locations || []).map(function (loc) {
+        var cls = loc.is_online ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-50 text-slate-800';
+        var dot = loc.is_online ? '🟢' : '🔵';
+        return '<li class="flex items-center justify-between rounded-lg px-3 py-2 text-sm ' + cls + '">' +
+            '<span>' + dot + ' ' + (loc.name || '') + '</span><strong>' + loc.quantity + '</strong></li>';
+    }).join('');
+}
+
+function openProductDeclareStock() {
+    var modal = document.getElementById('declareStockModal');
+    if (!modal) return;
+    var wh = document.getElementById('declareStockWarehouse');
+    if (wh) loadProductDeclareLocations(wh.value);
+    modal.classList.remove('hidden');
+}
+
+function closeProductDeclareStock() {
+    var modal = document.getElementById('declareStockModal');
+    if (modal) modal.classList.add('hidden');
+    var err = document.getElementById('declareStockError');
+    if (err) err.classList.add('hidden');
+}
+
+document.getElementById('declareStockWarehouse')?.addEventListener('change', function () {
+    loadProductDeclareLocations(this.value);
+});
+
+document.getElementById('declareStockForm')?.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var form = this;
+    var err = document.getElementById('declareStockError');
+    var submitBtn = document.getElementById('declareStockSubmit');
+    if (err) err.classList.add('hidden');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Enregistrement…';
+    }
+
+    fetch(form.action, {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: new FormData(form)
+    })
+        .then(function (res) { return res.json().then(function (json) { return { ok: res.ok, json: json }; }); })
+        .then(function (result) {
+            if (!result.ok || !result.json.success) {
+                throw new Error(result.json.message || 'Erreur lors de la déclaration.');
+            }
+            renderProductStockList(result.json.locations);
+            var totalEl = document.getElementById('productPhysicalTotal');
+            if (totalEl) totalEl.textContent = result.json.physical_total;
+            closeProductDeclareStock();
+            form.reset();
+            document.getElementById('declareStockDate').value = @json(now()->format('Y-m-d'));
+        })
+        .catch(function (error) {
+            if (err) {
+                err.textContent = error.message || 'Erreur lors de la déclaration.';
+                err.classList.remove('hidden');
+            }
+        })
+        .finally(function () {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Confirmer l'ajout";
+            }
+        });
+});
+
+document.getElementById('declareStockModal')?.addEventListener('click', function (e) {
+    if (e.target === this) closeProductDeclareStock();
+});
+
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeProductDeclareStock();
+});
+</script>
+@endif
 
 @if($product->isShopifyProduct())
 <!-- Modal de duplication Shopify vers Manuel -->

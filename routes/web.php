@@ -160,6 +160,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/magasin', [StockController::class, 'indexMagasin'])->name('stock.magasin.index');
         Route::get('/magasin/export/{format}', [StockReportController::class, 'exportMagasin'])->name('stock.magasin.export');
         Route::get('/magasin/{product}/edit', [StockController::class, 'editMagasin'])->name('stock.magasin.edit');
+        Route::get('/magasin/{product}/slot-quantity', [StockController::class, 'slotQuantity'])->name('stock.magasin.slot-quantity');
         Route::patch('/magasin/{product}', [StockController::class, 'updateMagasin'])->name('stock.magasin.update');
 
         Route::get('/locations', [LocationStockController::class, 'index'])->name('stock.locations.index');
@@ -174,6 +175,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::get('/products/{product}/location-stocks', [LocationStockController::class, 'productBreakdown'])->name('products.location-stocks');
+    Route::post('/products/{product}/declare-stock', [LocationStockController::class, 'declarePhysicalStock'])->name('products.declare-stock');
 
     Route::get('/api/warehouse-locations', [WarehouseController::class, 'locationsJson'])->name('warehouses.locations.json');
     Route::post('/warehouses', [WarehouseController::class, 'store'])->name('warehouses.store');

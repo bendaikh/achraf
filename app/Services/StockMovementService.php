@@ -8,7 +8,9 @@ use App\Models\ProductVariant;
 use App\Models\Setting;
 use App\Models\StockMovement;
 use App\Models\Warehouse;
+use App\Models\WarehouseLocation;
 use App\Support\StockSettings;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -470,7 +472,8 @@ class StockMovementService
         $locationId = $locationId ?? $product->warehouse_location_id;
 
         $slot = $this->findOrCreateSlot($product->id, $warehouseId, $locationId, false, $resolvedVariantId);
-        $delta = $newQuantity - (int) $slot->quantity;
+        $before = (int) $slot->quantity;
+        $delta = $newQuantity - $before;
 
         if ($delta === 0) {
             return;
@@ -480,9 +483,6 @@ class StockMovementService
         $slot->save();
 
         $field = $this->stockFieldForWarehouse(Warehouse::find($warehouseId), $product, $channel);
-        $before = (int) $slot->quantity;
-        $slot->quantity = $newQuantity;
-        $slot->save();
 
         $this->syncProductAggregateFromSlots($product);
         $product->save();
@@ -505,7 +505,146 @@ class StockMovementService
         );
 
         $this->pushEnligneStockToJumia($product, $field);
-        $this->pushEnligneStockToShopify($product, $field, true, $resolvedVariantId);
+        $this->pushEnligneStockToShopify($product, $field, $field === 'stock_enligne', $resolvedVariantId);
+    }
+
+    /**
+     * Set absolute physical stock on a warehouse/location slot (does not affect Shopify/online stock).
+     */
+    public function adjustPhysicalStock(
+        Product $product,
+        int $newQuantity,
+        int $warehouseId,
+        ?int $locationId,
+        string $reason,
+        ?string $notes = null,
+        ?int $variantId = null
+    ): ?StockMovement {
+        if (! $product->tracksStock()) {
+            throw new RuntimeException('Ce produit ne gère pas de stock.');
+        }
+        if ($newQuantity < 0) {
+            throw new RuntimeException('La quantité ne peut pas être négative.');
+        }
+
+        $warehouse = Warehouse::query()->findOrFail($warehouseId);
+        if ($warehouse->isOnline()) {
+            throw new RuntimeException('Le stock Shopify / en ligne ne peut pas être ajusté depuis cette fonction.');
+        }
+
+        if ($locationId) {
+            $location = WarehouseLocation::query()->findOrFail($locationId);
+            if ((int) $location->warehouse_id !== $warehouseId) {
+                throw new RuntimeException('L’emplacement sélectionné n’appartient pas au dépôt choisi.');
+            }
+        }
+
+        $resolvedVariantId = $this->resolveVariantIdForProduct($product, $variantId);
+        $slot = $this->findOrCreateSlot($product->id, $warehouseId, $locationId, false, $resolvedVariantId);
+        $before = (int) $slot->quantity;
+        $delta = $newQuantity - $before;
+
+        if ($delta === 0) {
+            return null;
+        }
+
+        $slot->quantity = $newQuantity;
+        $slot->save();
+
+        $this->syncProductAggregateFromSlots($product);
+        $product->save();
+
+        $reasonLabel = StockMovement::stockAdjustmentReasonLabel($reason);
+
+        $this->recordMovement(
+            $product,
+            $delta,
+            StockMovement::TYPE_STOCK_ADJUSTMENT,
+            $warehouseId,
+            $locationId,
+            'stock_adjustment',
+            null,
+            null,
+            $notes,
+            null,
+            $before,
+            $newQuantity,
+            $reasonLabel,
+            $resolvedVariantId
+        );
+
+        return StockMovement::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $warehouseId)
+            ->where('type', StockMovement::TYPE_STOCK_ADJUSTMENT)
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * Declare physical stock entry into a warehouse (does not affect Shopify/online stock).
+     */
+    public function declarePhysicalStock(
+        Product $product,
+        int $quantity,
+        int $warehouseId,
+        ?int $locationId,
+        string $reason,
+        ?string $notes = null,
+        ?Carbon $movedAt = null,
+        ?int $variantId = null
+    ): StockMovement {
+        if (! $product->tracksStock()) {
+            throw new RuntimeException('Ce produit ne gère pas de stock.');
+        }
+        if ($quantity <= 0) {
+            throw new RuntimeException('La quantité doit être positive.');
+        }
+
+        $warehouse = Warehouse::query()->findOrFail($warehouseId);
+        if ($warehouse->isOnline()) {
+            throw new RuntimeException('Le stock physique ne peut pas être déclaré sur un dépôt en ligne (Shopify).');
+        }
+
+        if ($locationId) {
+            $location = WarehouseLocation::query()->findOrFail($locationId);
+            if ((int) $location->warehouse_id !== $warehouseId) {
+                throw new RuntimeException('L’emplacement sélectionné n’appartient pas au dépôt choisi.');
+            }
+        }
+
+        $reasonLabel = StockMovement::physicalStockReasonLabel($reason);
+
+        $this->increase(
+            $product,
+            $quantity,
+            'magasin',
+            false,
+            StockMovement::TYPE_PHYSICAL_IN,
+            'physical_declaration',
+            null,
+            null,
+            $warehouseId,
+            $locationId,
+            $notes,
+            null,
+            $variantId
+        );
+
+        $movement = StockMovement::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $warehouseId)
+            ->where('type', StockMovement::TYPE_PHYSICAL_IN)
+            ->latest('id')
+            ->firstOrFail();
+
+        $movement->update([
+            'reason' => $reasonLabel,
+            'notes' => $notes,
+            'moved_at' => $movedAt ?? $movement->moved_at,
+        ]);
+
+        return $movement->fresh();
     }
 
     /**
@@ -699,6 +838,27 @@ class StockMovementService
     public function quantityAtWarehouse(Product $product, int $warehouseId, ?int $locationId = null): int
     {
         return $this->slotQuantity($product->id, $warehouseId, $locationId);
+    }
+
+    public function quantityAtSlot(Product $product, int $warehouseId, ?int $locationId = null, ?int $variantId = null): int
+    {
+        $query = ProductStock::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $warehouseId);
+
+        if ($locationId) {
+            $query->where('warehouse_location_id', $locationId);
+        } else {
+            $query->whereNull('warehouse_location_id');
+        }
+
+        if ($variantId) {
+            $query->where('product_variant_id', $variantId);
+        } else {
+            $query->whereNull('product_variant_id');
+        }
+
+        return (int) ($query->value('quantity') ?? 0);
     }
 
     /**
