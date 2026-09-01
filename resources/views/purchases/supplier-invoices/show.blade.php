@@ -166,12 +166,15 @@
             </form>
         </div>
         @push('scripts')
-        <script>
-        (function () {
-            var warehouses = @json(($warehouses ?? collect())->map(fn ($w) => [
+        @php
+            $invoiceReceiveWarehouses = ($warehouses ?? collect())->map(fn ($w) => [
                 'id' => $w->id,
                 'locations' => $w->locations->map(fn ($l) => ['id' => $l->id, 'label' => $l->displayLabel()])->values(),
-            ])->values());
+            ])->values();
+        @endphp
+        <script>
+        (function () {
+            var warehouses = @json($invoiceReceiveWarehouses);
             function fillLoc(idx, warehouseId) {
                 var select = document.getElementById('invoice_recv_loc_' + idx);
                 if (!select) return;

@@ -290,7 +290,8 @@
 
                             <h4 class="text-sm font-semibold text-gray-900 mb-2">Informations paiement (fichier)</h4>
                             <dl class="text-xs text-gray-700 space-y-1 mb-4">
-                                <div><dt class="inline text-gray-500">Tracking :</dt> <span x-text="selected.file_tracking || '—'"></span></div>
+                                <div><dt class="inline text-gray-500">Tracking :</dt> <span class="font-mono" x-text="selected.file_tracking || '—'"></span></div>
+                                <div><dt class="inline text-gray-500">N° commande :</dt> <span x-text="selected.file_order_ref || '—'"></span></div>
                                 <div><dt class="inline text-gray-500">Client :</dt> <span x-text="selected.client_name || '—'"></span></div>
                                 <div><dt class="inline text-gray-500">Téléphone :</dt> <span x-text="selected.client_phone || '—'"></span></div>
                                 <div><dt class="inline text-gray-500">Ville :</dt> <span x-text="selected.city || '—'"></span></div>
@@ -352,13 +353,14 @@
         <div class="bg-white rounded-xl border border-gray-200 p-4 mb-6 text-xs text-gray-600">
             <p class="font-medium text-gray-800 mb-2">Ordre de recherche des correspondances</p>
             <ol class="list-decimal pl-5 space-y-1">
-                @foreach(\App\Services\PaymentMatchingService::CRITERIA as $key => $criterion)
-                    @if($key !== \App\Services\PaymentMatchingService::CRITERION_MEMORY)
-                        <li>{{ $criterion['label'] }}</li>
-                    @endif
-                @endforeach
+                <li>Tracking / N° colis (priorité absolue)</li>
+                <li>N° commande / référence commande</li>
+                <li>N° facture / référence externe</li>
+                <li>Téléphone client (+ montant)</li>
+                <li>Nom client + téléphone / montant</li>
+                <li>Montant + ville + période (dernier recours, jamais auto-validé seul)</li>
             </ol>
-            <p class="mt-3 text-gray-500">Le tracking absent n'est pas bloquant. L'écart est calculé après prise en compte des frais de livraison.</p>
+            <p class="mt-3 text-gray-500">Traçabilité conservée : ligne fichier → tracking → commande → facture → brut / frais / net → date de paiement.</p>
         </div>
 
         @if($import->isDraft())

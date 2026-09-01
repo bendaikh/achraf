@@ -156,6 +156,22 @@ class PaymentMatchingService
             ];
         }
 
+        // Amount + city + period alone is never a confident shortlist.
+        if ($this->hasOnlyWeakAmountCriteria($top['criteria'] ?? [])) {
+            return [
+                'status' => PaymentImportLine::MATCH_UNMATCHED,
+                'confidence' => self::CONFIDENCE_NONE,
+                'invoice_id' => null,
+                'pos_sale_id' => null,
+                'resolved_tracking' => $context['tracking'] ?? null,
+                'candidates' => [],
+                'criteria' => $top['criteria'],
+                'score' => $top['score'],
+                'confidence_percent' => 0,
+                'notes' => 'Aucune correspondance fiable : le montant/ville/période seuls ne suffisent pas — vérifiez le tracking ou le n° de commande',
+            ];
+        }
+
         if ($top['score'] >= self::MIN_SCORE) {
             return [
                 'status' => PaymentImportLine::MATCH_AMBIGUOUS,
@@ -555,6 +571,16 @@ class PaymentMatchingService
         return $candidates;
     }
 
+    /** Criteria strong enough to auto-validate a unique top candidate. */
+    private const STRONG_CRITERIA = [
+        self::CRITERION_MEMORY,
+        self::CRITERION_TRACKING,
+        self::CRITERION_ORDER,
+        self::CRITERION_INVOICE,
+        self::CRITERION_EXTERNAL,
+        self::CRITERION_PHONE_AMOUNT,
+    ];
+
     protected function isReliableMatch(array $top, ?array $second): bool
     {
         if ($second !== null && ($top['score'] - $second['score']) < self::AMBIGUOUS_SCORE_GAP) {
@@ -563,7 +589,23 @@ class PaymentMatchingService
 
         $criteria = $top['criteria'] ?? [];
 
+        // Golden rule: never auto-validate on amount + city + period alone.
+        if ($this->hasOnlyWeakAmountCriteria($criteria)) {
+            return false;
+        }
+
         if (in_array(self::CRITERION_MEMORY, $criteria, true)) {
+            return true;
+        }
+
+        if (in_array(self::CRITERION_TRACKING, $criteria, true)
+            || in_array(self::CRITERION_ORDER, $criteria, true)
+            || in_array(self::CRITERION_INVOICE, $criteria, true)
+            || in_array(self::CRITERION_EXTERNAL, $criteria, true)) {
+            return true;
+        }
+
+        if (in_array(self::CRITERION_PHONE_AMOUNT, $criteria, true)) {
             return true;
         }
 
@@ -572,19 +614,53 @@ class PaymentMatchingService
             return true;
         }
 
-        if (count($criteria) >= 2 && $top['score'] >= self::AUTO_MATCH_COMBINED_MIN_SCORE) {
+        // Phone alone, or name+amount alone, only when clearly unique and combined.
+        if (in_array(self::CRITERION_PHONE, $criteria, true)
+            && (in_array(self::CRITERION_NAME_AMOUNT, $criteria, true)
+                || in_array(self::CRITERION_NAME_DATE, $criteria, true)
+                || in_array(self::CRITERION_AMOUNT_CITY_PERIOD, $criteria, true))
+            && $top['score'] >= self::AUTO_MATCH_MIN_SCORE) {
             return true;
         }
 
-        if ($top['score'] >= self::AUTO_MATCH_MIN_SCORE) {
+        if (in_array(self::CRITERION_NAME_AMOUNT, $criteria, true)
+            && in_array(self::CRITERION_AMOUNT_CITY_PERIOD, $criteria, true)
+            && $second === null
+            && $top['score'] >= self::AUTO_MATCH_MIN_SCORE) {
             return true;
         }
 
-        if (count($criteria) >= 3 && $top['score'] >= self::MIN_SCORE) {
+        if (count(array_intersect($criteria, self::STRONG_CRITERIA)) >= 1
+            && count($criteria) >= 2
+            && $top['score'] >= self::AUTO_MATCH_COMBINED_MIN_SCORE) {
             return true;
         }
 
         return false;
+    }
+
+    /**
+     * @param  list<string>  $criteria
+     */
+    protected function hasOnlyWeakAmountCriteria(array $criteria): bool
+    {
+        if ($criteria === []) {
+            return true;
+        }
+
+        $strongOrIdentity = [
+            self::CRITERION_MEMORY,
+            self::CRITERION_TRACKING,
+            self::CRITERION_ORDER,
+            self::CRITERION_INVOICE,
+            self::CRITERION_EXTERNAL,
+            self::CRITERION_PHONE_AMOUNT,
+            self::CRITERION_PHONE,
+            self::CRITERION_NAME_AMOUNT,
+            self::CRITERION_NAME_DATE,
+        ];
+
+        return array_intersect($criteria, $strongOrIdentity) === [];
     }
 
     /**

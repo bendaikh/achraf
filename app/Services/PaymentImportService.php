@@ -285,28 +285,129 @@ class PaymentImportService
         return ['created' => $created, 'skipped' => $skipped];
     }
 
-    protected function createMatchedLine(PaymentImport $import, int $lineNumber, array $row, string $scope): PaymentImportLine
+    /**
+     * Extract canonical fields from a carrier/marketplace settlement row.
+     *
+     * @return array{
+     *   tracking: ?string,
+     *   order_ref: ?string,
+     *   invoice_ref: ?string,
+     *   reference: ?string,
+     *   external_ref: ?string,
+     *   client_name: ?string,
+     *   client_phone: ?string,
+     *   city: ?string,
+     *   carrier: ?string,
+     *   delivery_date: ?string,
+     *   pickup_date: ?string,
+     *   payment_date: ?string,
+     *   status: ?string,
+     *   gross_amount: ?float,
+     *   delivery_fees: ?float,
+     *   net_amount: ?float,
+     * }
+     */
+    public function extractRowFields(array $row): array
     {
         $tracking = $this->pickField($row, [
-            'code_d_envoi', 'code_envoi', 'code d’envoi', 'code d\'envoi',
-            'tracking', 'tracking_number', 'n_suivi', 'numero_suivi', 'suivi',
-            'tracking number', 'n° suivi', 'no_suivi',
+            'code_d_envoi', 'code_denvoi', 'code_envoi', 'code denvoi',
+            'code d’envoi', 'code d\'envoi',
+            'tracking', 'tracking_number', 'tracking_n_colis', 'n_colis', 'numero_colis', 'colis',
+            'n_suivi', 'numero_suivi', 'suivi', 'no_suivi', 'awb', 'barcode',
+            'tracking number', 'n° suivi', 'n° colis',
         ]);
-        $orderRef = $this->pickField($row, ['order', 'commande', 'order_number', 'n_commande', 'numero_commande', 'shopify', 'reference_commande']);
-        $invoiceRef = $this->pickField($row, ['invoice', 'facture', 'invoice_number', 'n_facture', 'numero_facture']);
-        $reference = $this->pickField($row, ['reference', 'ref', 'libelle', 'label', 'description', 'motif'])
-            ?? $tracking
-            ?? $orderRef
-            ?? $invoiceRef;
-        // CRBT is the gross customer payment. "Total" is the carrier's net
-        // remittance after fees and must not leave the invoice partially paid.
+        $orderRef = $this->pickField($row, [
+            'order_no', 'order_number', 'n_commande', 'numero_commande', 'reference_commande',
+            'order', 'commande', 'shopify', 'n_order',
+        ]);
+        $invoiceRef = $this->pickField($row, [
+            'invoice', 'facture', 'invoice_number', 'n_facture', 'numero_facture',
+        ]);
+        $reference = $this->pickField($row, [
+            'reference', 'ref', 'libelle', 'label', 'description', 'motif', 'details',
+        ]) ?? $tracking ?? $orderRef ?? $invoiceRef;
+
+        $deliveryFees = $this->parseAmount($this->pickField($row, [
+            'frais', 'fees', 'delivery_fees', 'frais_livraison', 'shipping_fee', 'shipping_fees',
+        ]));
+        $netAmount = $this->parseAmount($this->pickField($row, [
+            'net_encaisse', 'montant_net', 'net', 'net_amount',
+        ]));
+        // Prefer an explicit "Total" column as net when CRBT/gross is present.
+        $totalColumn = $this->parseAmount($this->pickField($row, ['total'], exact: true));
         $amount = $this->extractPaymentAmount($row);
-        $deliveryFees = $this->parseAmount($this->pickField($row, ['frais', 'fees', 'delivery_fees', 'frais_livraison']));
-        $netAmount = $this->parseAmount($this->pickField($row, ['total', 'net', 'net_encaisse', 'montant_net']));
+
+        if ($netAmount === null && $totalColumn !== null && $amount !== null && abs($totalColumn - $amount) > 0.009) {
+            $netAmount = $totalColumn;
+        } elseif ($netAmount === null && $totalColumn !== null && $amount === null) {
+            $netAmount = $totalColumn;
+        }
 
         if ($amount === null && $netAmount !== null && $deliveryFees !== null) {
             $amount = round($netAmount + $deliveryFees, 2);
         }
+
+        return [
+            'tracking' => $tracking,
+            'order_ref' => $orderRef,
+            'invoice_ref' => $invoiceRef,
+            'reference' => $reference,
+            'external_ref' => $this->pickField($row, [
+                'external_id', 'order_id', 'marketplace_id', 'shopify', 'jumia',
+            ]),
+            'client_name' => $this->pickField($row, [
+                'client', 'nom_client', 'nom_destinataire', 'destinataire', 'beneficiaire',
+                'customer', 'customer_name', 'nom', 'name',
+            ]),
+            'client_phone' => $this->pickField($row, [
+                'telephone', 'tel', 'phone', 'mobile', 'gsm', 'whatsapp', 'n_telephone',
+            ]),
+            'city' => $this->pickField($row, ['ville', 'city', 'localite']),
+            'carrier' => $this->pickField($row, [
+                'transporteur', 'carrier', 'marketplace', 'livreur',
+                'shipping_provider', 'shipping provider', 'courier',
+            ]),
+            'delivery_date' => $this->pickField($row, [
+                'date_de_livraison', 'delivery_date', 'date_livraison', 'date_reglement', 'date',
+            ]),
+            'pickup_date' => $this->pickField($row, [
+                'date_de_ramassage', 'pickup_date', 'date_ramassage',
+            ]),
+            'payment_date' => $this->pickField($row, [
+                'date_reglement', 'payment_date', 'transaction_date', 'date_paiement',
+            ]),
+            'status' => $this->pickField($row, ['status', 'statut', 'order_item_status']),
+            'gross_amount' => $amount,
+            'delivery_fees' => $deliveryFees,
+            'net_amount' => $netAmount,
+        ];
+    }
+
+    protected function createMatchedLine(PaymentImport $import, int $lineNumber, array $row, string $scope): PaymentImportLine
+    {
+        $fields = $this->extractRowFields($row);
+        $tracking = $fields['tracking'];
+        $orderRef = $fields['order_ref'];
+        $invoiceRef = $fields['invoice_ref'];
+        $reference = $fields['reference'];
+        $amount = $fields['gross_amount'];
+        $deliveryFees = $fields['delivery_fees'];
+        $netAmount = $fields['net_amount'];
+
+        // Persist canonical keys so the review UI always finds them, even when
+        // the source workbook used odd headers (e.g. "Code denvoi").
+        $row = array_merge($row, array_filter([
+            'tracking' => $tracking,
+            'order' => $orderRef,
+            'commande' => $orderRef,
+            'client' => $fields['client_name'],
+            'telephone' => $fields['client_phone'],
+            'ville' => $fields['city'],
+            'transporteur' => $fields['carrier'],
+            'date_de_livraison' => $fields['delivery_date'],
+            'date_de_ramassage' => $fields['pickup_date'],
+            'status' => $fields['status'],
+        ], fn ($value) => $value !== null && $value !== ''));
 
         $line = PaymentImportLine::create([
             'payment_import_id' => $import->id,
@@ -369,11 +470,15 @@ class PaymentImportService
 
     protected function extractPaymentAmount(array $row): ?float
     {
-        $amount = $this->parseAmount($this->pickField($row, ['crbt', 'contre_remboursement']));
+        // CRBT is the gross customer payment. "Total" is often the carrier's
+        // net remittance after fees and must not leave the invoice partially paid.
+        $amount = $this->parseAmount($this->pickField($row, [
+            'crbt', 'contre_remboursement', 'montant_brut', 'gross_amount', 'montant_ttc',
+        ]));
 
         return $amount ?? $this->parseAmount($this->pickField($row, [
-            'amount', 'montant', 'montant_ttc', 'solde', 'paiement',
-            'encaisse', 'règlement', 'reglement', 'total',
+            'amount', 'montant', 'solde', 'paiement',
+            'encaisse', 'règlement', 'reglement', 'item_price_credit',
         ]));
     }
 
@@ -387,17 +492,19 @@ class PaymentImportService
         ?float $amount,
         PaymentImport $import
     ): void {
+        $fields = $this->extractRowFields($row);
+
         $result = $this->matcher->matchSalesLine([
-            'tracking' => $tracking,
-            'order_ref' => $orderRef,
-            'invoice_ref' => $invoiceRef,
-            'reference' => $reference,
-            'external_ref' => $this->pickField($row, ['external_id', 'order_id', 'marketplace_id', 'shopify', 'jumia']),
-            'client_name' => $this->pickField($row, ['client', 'nom', 'nom_client', 'destinataire', 'beneficiaire', 'customer', 'name']),
-            'client_phone' => $this->pickField($row, ['telephone', 'tel', 'phone', 'mobile', 'gsm', 'whatsapp']),
-            'city' => $this->pickField($row, ['ville', 'city', 'localite']),
-            'delivery_date' => $this->pickField($row, ['date_de_livraison', 'delivery_date', 'date_livraison', 'date']),
-            'pickup_date' => $this->pickField($row, ['date_de_ramassage', 'pickup_date', 'date_ramassage']),
+            'tracking' => $tracking ?? $fields['tracking'],
+            'order_ref' => $orderRef ?? $fields['order_ref'],
+            'invoice_ref' => $invoiceRef ?? $fields['invoice_ref'],
+            'reference' => $reference ?? $fields['reference'],
+            'external_ref' => $fields['external_ref'],
+            'client_name' => $fields['client_name'],
+            'client_phone' => $fields['client_phone'],
+            'city' => $fields['city'],
+            'delivery_date' => $fields['delivery_date'] ?? $fields['payment_date'],
+            'pickup_date' => $fields['pickup_date'],
             'gross_amount' => $amount,
             'delivery_fees' => $line->file_delivery_fees !== null ? (float) $line->file_delivery_fees : null,
             'net_amount' => $line->file_net_amount !== null ? (float) $line->file_net_amount : null,
@@ -512,9 +619,7 @@ class PaymentImportService
 
     protected function resolveCarrierName(PaymentImportLine $line): ?string
     {
-        $raw = $line->file_raw ?? [];
-
-        return $this->pickField($raw, ['transporteur', 'carrier', 'marketplace', 'livreur']);
+        return $this->extractRowFields($line->file_raw ?? [])['carrier'] ?? null;
     }
 
     protected function matchPurchaseLine(
@@ -736,10 +841,21 @@ class PaymentImportService
         }
 
         $header = array_map(fn ($h) => $this->normalizeHeader((string) $h), $rows[0]);
+        // Spreadsheets often expose thousands of empty trailing columns.
+        $lastHeaderIdx = -1;
+        foreach ($header as $idx => $key) {
+            if ($key !== '') {
+                $lastHeaderIdx = $idx;
+            }
+        }
+        if ($lastHeaderIdx < 0) {
+            return [];
+        }
+        $header = array_slice($header, 0, $lastHeaderIdx + 1);
 
         $out = [];
         for ($i = 1; $i < count($rows); $i++) {
-            $row = $rows[$i];
+            $row = array_slice($rows[$i], 0, count($header));
             if ($this->rowIsEmpty($row)) {
                 continue;
             }
@@ -767,17 +883,30 @@ class PaymentImportService
         return true;
     }
 
-    protected function pickField(array $row, array $keys): ?string
+    /**
+     * @param  list<string>  $keys
+     */
+    protected function pickField(array $row, array $keys, bool $exact = false): ?string
     {
         foreach ($keys as $key) {
             $normalized = $this->normalizeHeader((string) $key);
+            $compactAlias = str_replace('_', '', $normalized);
 
             foreach ($row as $rowKey => $value) {
-                if ($rowKey === $normalized || str_contains((string) $rowKey, $normalized)) {
-                    $value = trim((string) $value);
-                    if ($value !== '') {
-                        return $value;
-                    }
+                $rowKey = (string) $rowKey;
+                $compactRow = str_replace('_', '', $rowKey);
+                $matches = $rowKey === $normalized
+                    || $compactRow === $compactAlias
+                    || (! $exact && strlen($normalized) >= 4 && str_contains($rowKey, $normalized))
+                    || (! $exact && strlen($compactAlias) >= 6 && str_contains($compactRow, $compactAlias));
+
+                if (! $matches) {
+                    continue;
+                }
+
+                $value = trim((string) $value);
+                if ($value !== '') {
+                    return $value;
                 }
             }
         }
@@ -787,11 +916,15 @@ class PaymentImportService
 
     protected function normalizeHeader(string $header): string
     {
+        $header = html_entity_decode($header, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $header = preg_replace('/^\xEF\xBB\xBF/', '', trim($header)) ?? trim($header);
+        // Keep "d'envoi" → "d_envoi" even when the apostrophe is missing/odd.
+        $header = str_replace(["'", "'", '′', '`', '´', 'ʼ'], ' ', $header);
 
         return Str::of(Str::ascii($header))
             ->lower()
             ->replaceMatches('/[^a-z0-9]+/', '_')
+            ->replaceMatches('/_+/', '_')
             ->trim('_')
             ->toString();
     }

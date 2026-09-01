@@ -23,8 +23,9 @@ class PaymentImportServiceTest extends TestCase
     {
         $path = tempnam(sys_get_temp_dir(), 'payment-import-').'.xlsx';
         $spreadsheet = new Spreadsheet;
+        // Real carrier exports often lose the apostrophe: "Code denvoi".
         $spreadsheet->getActiveSheet()->fromArray([
-            ['N°', 'Code d\'envoi', 'Date de ramassage', 'Date de livraison', 'Status', 'Ville', 'Crbt', 'Frais', 'Total'],
+            ['N°', 'Code denvoi', 'Date de ramassage', 'Date de livraison', 'Status', 'Ville', 'Crbt', 'Frais', 'Total'],
             [1, 'EGRFTC11849', '2026-08-07', '2026-08-08', 'Livré', 'Tanger', 300, 35, 265],
             [2, 'EGRFTC11868_remboursement', null, null, 'Remboursé', 'ElHajeb VILLE', 0, 219, -219],
         ]);
@@ -37,12 +38,22 @@ class PaymentImportServiceTest extends TestCase
         }
 
         $this->assertCount(2, $rows);
-        $this->assertSame('EGRFTC11849', $rows[0]['code_d_envoi']);
-        $this->assertSame('2026-08-08', $rows[0]['date_de_livraison']);
-        $this->assertSame('Livré', $rows[0]['status']);
-        $this->assertSame(300.0, $this->service()->paymentAmount($rows[0]));
+        $fields = $this->service()->extractRowFields($rows[0]);
+        $this->assertSame('EGRFTC11849', $fields['tracking']);
+        $this->assertSame('2026-08-08', $fields['delivery_date']);
+        $this->assertSame('Livré', $fields['status']);
+        $this->assertSame(300.0, $fields['gross_amount']);
+        $this->assertSame(35.0, $fields['delivery_fees']);
+        $this->assertSame(265.0, $fields['net_amount']);
         $this->assertNull($this->service()->exclusionReason($rows[0], 300.0));
         $this->assertNotNull($this->service()->exclusionReason($rows[1], 0.0));
+    }
+
+    public function test_it_reads_code_d_envoi_with_apostrophe(): void
+    {
+        $row = ['code_d_envoi' => 'EGRFTC12001', 'crbt' => '200', 'status' => 'Livré'];
+        $fields = $this->service()->extractRowFields($row);
+        $this->assertSame('EGRFTC12001', $fields['tracking']);
     }
 
     public function test_crbt_is_used_instead_of_the_net_total(): void
@@ -56,8 +67,10 @@ class PaymentImportServiceTest extends TestCase
             'total' => '395,00',
         ];
 
-        $this->assertSame('EGRFTC12002', $service->field($row, ['code d\'envoi']));
-        $this->assertSame(430.0, $service->paymentAmount($row));
+        $fields = $service->extractRowFields($row);
+        $this->assertSame('EGRFTC12002', $fields['tracking']);
+        $this->assertSame(430.0, $fields['gross_amount']);
+        $this->assertSame(395.0, $fields['net_amount']);
         $this->assertNull($service->exclusionReason($row, 430.0));
     }
 
@@ -69,6 +82,92 @@ class PaymentImportServiceTest extends TestCase
 
         $this->assertSame(PaymentImportLine::AMOUNT_OK, $status);
         $this->assertSame(0.0, $variance);
+    }
+
+    public function test_it_matches_by_tracking_order_code(): void
+    {
+        $client = Client::create(['name' => 'Client Tracking', 'city' => 'Tanger']);
+        $sale = PosSale::create([
+            'client_id' => $client->id,
+            'ticket_number' => 'FTC11849',
+            'total' => 300,
+            'shipping_city' => 'Tanger',
+            'sold_at' => Carbon::parse('2026-08-07'),
+            'status' => PosSale::STATUS_COMPLETED,
+            'payment_method' => PosSale::PAYMENT_CASH,
+        ]);
+        $invoice = Invoice::create([
+            'client_id' => $client->id,
+            'pos_sale_id' => $sale->id,
+            'invoice_number' => 'FA-2026/1849',
+            'invoice_date' => '2026-08-07',
+            'total' => 300,
+            'currency' => 'MAD',
+        ]);
+
+        // Another invoice with same amount/city must not create ambiguity once tracking is present.
+        $otherClient = Client::create(['name' => 'Autre', 'city' => 'Tanger']);
+        $otherSale = PosSale::create([
+            'client_id' => $otherClient->id,
+            'ticket_number' => 'FTC99901',
+            'total' => 300,
+            'shipping_city' => 'Tanger',
+            'sold_at' => Carbon::parse('2026-08-08'),
+            'status' => PosSale::STATUS_COMPLETED,
+            'payment_method' => PosSale::PAYMENT_CASH,
+        ]);
+        Invoice::create([
+            'client_id' => $otherClient->id,
+            'pos_sale_id' => $otherSale->id,
+            'invoice_number' => 'FA-2026/9901',
+            'invoice_date' => '2026-08-08',
+            'total' => 300,
+            'currency' => 'MAD',
+        ]);
+
+        $matcher = app(PaymentMatchingService::class);
+        $result = $matcher->matchSalesLine([
+            'tracking' => 'EGRFTC11849',
+            'gross_amount' => 300.0,
+            'city' => 'Tanger',
+            'delivery_date' => '2026-08-08',
+        ]);
+
+        $this->assertSame(PaymentImportLine::MATCH_MATCHED, $result['status']);
+        $this->assertSame($invoice->id, $result['invoice_id']);
+        $this->assertContains(PaymentMatchingService::CRITERION_ORDER, $result['criteria']);
+    }
+
+    public function test_amount_city_period_alone_never_auto_matches(): void
+    {
+        $client = Client::create(['name' => 'Seul', 'city' => 'Tanger']);
+        $sale = PosSale::create([
+            'client_id' => $client->id,
+            'ticket_number' => 'FTC70001',
+            'total' => 300,
+            'shipping_city' => 'Tanger',
+            'sold_at' => Carbon::parse('2026-08-08'),
+            'status' => PosSale::STATUS_COMPLETED,
+            'payment_method' => PosSale::PAYMENT_CASH,
+        ]);
+        Invoice::create([
+            'client_id' => $client->id,
+            'pos_sale_id' => $sale->id,
+            'invoice_number' => 'FA-2026/7001',
+            'invoice_date' => '2026-08-08',
+            'total' => 300,
+            'currency' => 'MAD',
+        ]);
+
+        $matcher = app(PaymentMatchingService::class);
+        $result = $matcher->matchSalesLine([
+            'gross_amount' => 300.0,
+            'city' => 'Tanger',
+            'delivery_date' => '2026-08-08',
+        ]);
+
+        $this->assertNotSame(PaymentImportLine::MATCH_MATCHED, $result['status']);
+        $this->assertSame(PaymentImportLine::MATCH_UNMATCHED, $result['status']);
     }
 
     public function test_it_matches_by_phone_and_amount(): void

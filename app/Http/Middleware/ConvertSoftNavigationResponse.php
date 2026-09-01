@@ -16,6 +16,8 @@ class ConvertSoftNavigationResponse
     {
         $response = $next($request);
 
+        self::appendVaryHeader($response);
+
         if (! SoftNavigation::wants($request)) {
             return $response;
         }
@@ -46,5 +48,26 @@ class ConvertSoftNavigationResponse
         }
 
         return SoftNavigation::response($payload);
+    }
+
+    private static function appendVaryHeader(Response $response): void
+    {
+        $existing = trim((string) $response->headers->get('Vary', ''));
+        $required = SoftNavigation::HEADER.', Accept, X-Requested-With';
+
+        if ($existing === '') {
+            $response->headers->set('Vary', $required);
+
+            return;
+        }
+
+        foreach (explode(',', $required) as $token) {
+            $token = trim($token);
+            if ($token !== '' && ! str_contains($existing, $token)) {
+                $existing .= ', '.$token;
+            }
+        }
+
+        $response->headers->set('Vary', $existing);
     }
 }

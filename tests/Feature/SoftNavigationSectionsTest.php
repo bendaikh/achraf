@@ -119,4 +119,29 @@ HTML;
         $this->assertStringContainsString("const row = '</option></select></div>';", $payload['html']);
         $this->assertStringNotContainsString('SOFTNAV_SCRIPT_', $payload['html']);
     }
+
+    public function test_full_page_request_with_soft_nav_header_returns_html_not_json(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('products.index'), [
+            SoftNavigation::HEADER => '1',
+        ]);
+
+        $response->assertOk();
+        $response->assertHeader('content-type', 'text/html; charset=UTF-8');
+        $response->assertSee('id="app-page-root"', false);
+        $response->assertSee('app-shell-aside', false);
+    }
+
+    public function test_soft_nav_query_param_alone_does_not_return_json(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('products.index', ['soft_nav' => 1]));
+
+        $response->assertOk();
+        $response->assertHeader('content-type', 'text/html; charset=UTF-8');
+        $response->assertSee('app-shell-aside', false);
+    }
 }

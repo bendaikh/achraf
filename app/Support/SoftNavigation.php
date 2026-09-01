@@ -30,8 +30,13 @@ class SoftNavigation
 
     public static function wants(Request $request): bool
     {
-        return $request->headers->get(self::HEADER) === '1'
-            || $request->boolean('soft_nav');
+        if ($request->headers->get(self::HEADER) !== '1') {
+            return false;
+        }
+
+        // Only the in-app fetch() caller (soft-nav.js) should receive JSON.
+        // Full page loads (refresh, bookmark, new tab, CDN replay) must stay HTML.
+        return $request->ajax() || $request->expectsJson();
     }
 
     /**
@@ -47,15 +52,18 @@ class SoftNavigation
      */
     public static function response(array $payload): JsonResponse
     {
-        return response()->json([
-            'title' => $payload['title'],
-            'page_title' => $payload['page_title'],
-            'url' => $payload['url'],
-            'html' => $payload['html'],
-            'module' => $payload['module'] ?? null,
-            'tabs_html' => $payload['tabs_html'] ?? '',
-            'assets' => $payload['assets'] ?? [],
-        ]);
+        return response()
+            ->json([
+                'title' => $payload['title'],
+                'page_title' => $payload['page_title'],
+                'url' => $payload['url'],
+                'html' => $payload['html'],
+                'module' => $payload['module'] ?? null,
+                'tabs_html' => $payload['tabs_html'] ?? '',
+                'assets' => $payload['assets'] ?? [],
+            ])
+            ->header('Vary', self::HEADER.', Accept, X-Requested-With')
+            ->header('Cache-Control', 'private, no-store, no-cache, must-revalidate');
     }
 
     public static function moduleKey(Request $request): ?string

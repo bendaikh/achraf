@@ -186,14 +186,21 @@ class StockController extends Controller
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        if ($validated['from_location_id']) {
-            $fromLoc = WarehouseLocation::findOrFail($validated['from_location_id']);
+        $fromLocationId = array_key_exists('from_location_id', $validated) && $validated['from_location_id']
+            ? (int) $validated['from_location_id']
+            : null;
+        $toLocationId = array_key_exists('to_location_id', $validated) && $validated['to_location_id']
+            ? (int) $validated['to_location_id']
+            : null;
+
+        if ($fromLocationId) {
+            $fromLoc = WarehouseLocation::findOrFail($fromLocationId);
             if ((int) $fromLoc->warehouse_id !== (int) $validated['from_warehouse_id']) {
                 return back()->withInput()->with('error', 'L’emplacement source n’appartient pas au dépôt source.');
             }
         }
-        if ($validated['to_location_id']) {
-            $toLoc = WarehouseLocation::findOrFail($validated['to_location_id']);
+        if ($toLocationId) {
+            $toLoc = WarehouseLocation::findOrFail($toLocationId);
             if ((int) $toLoc->warehouse_id !== (int) $validated['to_warehouse_id']) {
                 return back()->withInput()->with('error', 'L’emplacement destination n’appartient pas au dépôt destination.');
             }
@@ -205,9 +212,9 @@ class StockController extends Controller
                 $product,
                 (int) $validated['quantity'],
                 (int) $validated['from_warehouse_id'],
-                $validated['from_location_id'] ? (int) $validated['from_location_id'] : null,
+                $fromLocationId,
                 (int) $validated['to_warehouse_id'],
-                $validated['to_location_id'] ? (int) $validated['to_location_id'] : null,
+                $toLocationId,
                 $validated['notes'] ?? null
             );
         } catch (\Throwable $e) {

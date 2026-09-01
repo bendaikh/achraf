@@ -27,14 +27,14 @@
                 <div class="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-900 mb-6">
                     <p class="font-medium mb-2">Colonnes reconnues (en-têtes flexibles) :</p>
                     <ul class="list-disc pl-5 space-y-1">
-                        <li><strong>Code d'envoi</strong> / tracking / n° suivi</li>
-                        <li><strong>commande</strong> / order / n° facture</li>
-                        <li><strong>Crbt</strong> (montant brut) · <strong>Frais</strong> · <strong>Total</strong> (net encaissé)</li>
-                        <li><strong>client</strong> / nom / téléphone / ville / dates</li>
-                        <li><strong>external_id</strong> / order_id / marketplace (Shopify, Jumia…)</li>
-                        <li><strong>Status</strong> transporteur (Livré requis)</li>
+                        <li><strong>Code d'envoi</strong> / Tracking / N° colis / N° suivi</li>
+                        <li><strong>N° commande</strong> / order / N° facture / order_no</li>
+                        <li><strong>Client</strong> · <strong>Téléphone</strong> · <strong>Ville</strong> · <strong>Transporteur</strong></li>
+                        <li><strong>Crbt / Montant brut</strong> · <strong>Frais</strong> · <strong>Total / Net encaissé</strong></li>
+                        <li><strong>Status</strong> transporteur (Livré requis) · dates de livraison / règlement</li>
                     </ul>
-                    <p class="mt-3">Libromart tente automatiquement : tracking → commande → facture → réf. externe → téléphone → nom+montant → nom+date → montant+ville+période. Le tracking absent n'est pas bloquant.</p>
+                    <p class="mt-3">Ordre de rapprochement : <strong>tracking</strong> → n° commande → téléphone → nom+téléphone+montant → montant+ville+période (dernier recours uniquement).</p>
+                    <p class="mt-2 text-blue-800">Règle importante : un paiement n'est jamais validé automatiquement sur le seul critère montant + ville + période.</p>
                     <p class="mt-3">Aucun paiement ni mouvement de trésorerie ne sera créé avant votre validation finale.</p>
                 </div>
                 <button type="submit" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-medium">
