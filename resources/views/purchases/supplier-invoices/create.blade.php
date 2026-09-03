@@ -65,15 +65,16 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Dépôt destination *</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Dépôt destination (défaut) *</label>
                             <select name="warehouse_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">— Choisir —</option>
                                 @foreach($warehouses ?? [] as $warehouse)
                                     <option value="{{ $warehouse->id }}" @selected(old('warehouse_id', $warehouse->is_fulfillment_default) == $warehouse->id)>
                                         {{ $warehouse->isOnline() ? '🟢 ' : '' }}{{ $warehouse->name }}
                                     </option>
                                 @endforeach
                             </select>
-                            <p class="mt-1 text-xs text-gray-500">L’entrée en stock se fait ensuite via « Réceptionner » (ou un BR lié).</p>
+                            <p class="mt-1 text-xs text-gray-500">Surchargeable par ligne. Entrée en stock unique à l’enregistrement (sauf si un BR a déjà alimenté le stock).</p>
                         </div>
 
                         <div>
@@ -110,8 +111,9 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire (TTC) (TTC)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire (TTC)</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe (%)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dépôt / Emplacement</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remise</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
@@ -172,6 +174,7 @@ window.commercialDocConfig = {
 };
 </script>
 @include('partials.commercial-document-form-script')
+@include('purchases.partials.line-stock-allocations')
 <script>
 var itemIndex = 0;
 
@@ -199,6 +202,9 @@ function addItem() {
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
         <td class="px-4 py-3">
+            ${window.purchaseLineStockHtml(itemIndex)}
+        </td>
+        <td class="px-4 py-3">
             ${window.discountRowHtml(itemIndex)}
         </td>
         <td class="px-4 py-3">
@@ -210,9 +216,17 @@ function addItem() {
         </td>
     `;
     tbody.insertBefore(row, tbody.firstChild);
-    
+
     window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex);
-    
+    var defaultWarehouse = document.querySelector('select[name="warehouse_id"]');
+    if (defaultWarehouse && defaultWarehouse.value) {
+        var lineWh = row.querySelector('.purchase-line-warehouse');
+        if (lineWh) {
+            lineWh.value = defaultWarehouse.value;
+            window.purchaseLineWarehouseChanged(itemIndex);
+        }
+    }
+
     itemIndex++;
     calculateCommercialTotal();
 }
@@ -224,7 +238,7 @@ function removeItem(button) {
 
 SoftNav.whenReady(function() {
     addItem();
-    
+
     document.getElementById('invoiceForm').addEventListener('submit', function(e) {
         const itemRows = document.querySelectorAll('#itemsBody tr');
         if (itemRows.length === 0) {

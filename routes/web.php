@@ -221,6 +221,7 @@ Route::middleware('auth')->group(function () {
         Route::post('payments/manual', [SalesPaymentController::class, 'storeManual'])->name('sales.payments.manual');
         Route::get('payments/bulk', [SalesPaymentController::class, 'bulkForm'])->name('sales.payments.bulk');
         Route::post('payments/bulk', [SalesPaymentController::class, 'storeBulk'])->name('sales.payments.bulk.store');
+        Route::get('payments/batch/{batchId}', [SalesPaymentController::class, 'showBatch'])->name('sales.payments.batch.show');
         Route::get('payments/import', [SalesPaymentController::class, 'importForm'])->name('sales.payments.import');
         Route::post('payments/import', [SalesPaymentController::class, 'importStore'])->name('sales.payments.import.store');
         Route::get('payments/import/{paymentImport}', [SalesPaymentController::class, 'importShow'])->name('sales.payments.import.show');

@@ -8,7 +8,7 @@
         <div class="px-8 py-4 flex items-center justify-between">
             <div>
                 <h2 class="text-2xl font-bold text-gray-900">Enregistrer un paiement groupé</h2>
-                <p class="text-sm text-gray-600 mt-1">{{ $invoices->count() }} commande(s) sélectionnée(s)</p>
+                <p class="text-sm text-gray-600 mt-1">{{ $invoices->count() }} commande(s) sélectionnée(s) — saisissez les frais par facture pour conserver le net encaissé</p>
             </div>
             <a href="{{ route('sales.payments.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">Retour</a>
         </div>
@@ -33,10 +33,10 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commande</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tracking</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Déjà encaissé</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Solde</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant à enregistrer</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant facture</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frais livraison</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net encaissé</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trop-perçu</th>
                             </tr>
                         </thead>
@@ -55,14 +55,22 @@
                                     </td>
                                     <td class="px-4 py-3 text-sm font-mono">{{ $invoice->posSale?->primaryTrackingNumber() ?? '—' }}</td>
                                     <td class="px-4 py-3 text-sm">{{ $invoice->client->name ?? '—' }}</td>
-                                    <td class="px-4 py-3 text-sm">{{ number_format($total, 2) }}</td>
-                                    <td class="px-4 py-3 text-sm text-green-600">{{ number_format($paid, 2) }}</td>
                                     <td class="px-4 py-3 text-sm text-red-600">{{ number_format($balance, 2) }}</td>
                                     <td class="px-4 py-3">
-                                        <input type="number" step="0.01" name="payments[{{ $i }}][amount]" value="{{ number_format($balance, 2, '.', '') }}"
-                                            required class="w-32 rounded-lg border-gray-300 text-sm"
+                                        <input type="number" step="0.01" name="payments[{{ $i }}][amount]" id="bulk_amount_{{ $i }}"
+                                            value="{{ number_format($balance, 2, '.', '') }}"
+                                            required class="w-28 rounded-lg border-gray-300 text-sm"
                                             data-balance="{{ $balance }}"
-                                            oninput="toggleOverpay(this, {{ $i }})">
+                                            oninput="bulkRecalc({{ $i }})">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="number" step="0.01" min="0" name="payments[{{ $i }}][delivery_fees]" id="bulk_fees_{{ $i }}"
+                                            class="w-24 rounded-lg border-gray-300 text-sm" placeholder="0.00"
+                                            oninput="bulkRecalc({{ $i }})">
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <input type="number" step="0.01" min="0" name="payments[{{ $i }}][net_received]" id="bulk_net_{{ $i }}"
+                                            readonly class="w-28 rounded-lg border-green-300 bg-green-50 text-sm text-green-800 font-semibold" placeholder="—">
                                     </td>
                                     <td class="px-4 py-3">
                                         <label id="overpay_{{ $i }}" class="hidden text-xs text-amber-700 inline-flex items-center gap-1">
@@ -73,6 +81,15 @@
                                 </tr>
                             @endforeach
                         </tbody>
+                        <tfoot class="bg-gray-50 border-t">
+                            <tr>
+                                <td colspan="4" class="px-4 py-3 text-sm font-medium text-right text-gray-600">Totaux</td>
+                                <td class="px-4 py-3 text-sm font-semibold" id="bulk_total_gross">0.00</td>
+                                <td class="px-4 py-3 text-sm font-semibold" id="bulk_total_fees">0.00</td>
+                                <td class="px-4 py-3 text-sm font-semibold text-green-700" id="bulk_total_net">0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -112,12 +129,43 @@
     </div>
 </main>
 <script>
-function toggleOverpay(input, index) {
-    var balance = parseFloat(input.dataset.balance || '0');
-    var amount = parseFloat(input.value || '0');
-    var el = document.getElementById('overpay_' + index);
-    if (amount > balance + 0.009) el.classList.remove('hidden');
-    else el.classList.add('hidden');
+function bulkRecalc(index) {
+    var amountEl = document.getElementById('bulk_amount_' + index);
+    var feesEl = document.getElementById('bulk_fees_' + index);
+    var netEl = document.getElementById('bulk_net_' + index);
+    var balance = parseFloat(amountEl.dataset.balance || '0');
+    var amount = parseFloat(amountEl.value || '0');
+    var feesRaw = feesEl.value;
+    var overpay = document.getElementById('overpay_' + index);
+
+    if (amount > balance + 0.009) overpay.classList.remove('hidden');
+    else overpay.classList.add('hidden');
+
+    if (feesRaw === '' || feesRaw === null) {
+        netEl.value = '';
+    } else {
+        netEl.value = Math.max(0, amount - parseFloat(feesRaw || '0')).toFixed(2);
+    }
+    updateBulkTotals();
 }
+
+function updateBulkTotals() {
+    var gross = 0, fees = 0, net = 0, count = {{ $invoices->count() }};
+    for (var i = 0; i < count; i++) {
+        gross += parseFloat(document.getElementById('bulk_amount_' + i).value || '0');
+        var f = document.getElementById('bulk_fees_' + i).value;
+        var n = document.getElementById('bulk_net_' + i).value;
+        if (f !== '') fees += parseFloat(f || '0');
+        if (n !== '') net += parseFloat(n || '0');
+        else net += parseFloat(document.getElementById('bulk_amount_' + i).value || '0');
+    }
+    document.getElementById('bulk_total_gross').textContent = gross.toFixed(2);
+    document.getElementById('bulk_total_fees').textContent = fees.toFixed(2);
+    document.getElementById('bulk_total_net').textContent = net.toFixed(2);
+}
+
+@for($i = 0; $i < $invoices->count(); $i++)
+bulkRecalc({{ $i }});
+@endfor
 </script>
 @endsection

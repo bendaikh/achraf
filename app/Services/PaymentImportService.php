@@ -152,8 +152,9 @@ class PaymentImportService
         $lines = $import->lines()->with(['invoice.items', 'invoice.posSale.fulfillments', 'supplierInvoice'])->get();
         $created = 0;
         $skipped = 0;
+        $importBatchId = (string) Str::uuid();
 
-        DB::transaction(function () use ($import, $lines, $meta, &$created, &$skipped) {
+        DB::transaction(function () use ($import, $lines, $meta, $importBatchId, &$created, &$skipped) {
             foreach ($lines as $line) {
                 if ($line->exclude || $line->include_in_validation === false || $line->match_status === PaymentImportLine::MATCH_DUPLICATE) {
                     $skipped++;
@@ -207,23 +208,33 @@ class PaymentImportService
                         continue;
                     }
 
-                    $payment = $this->recorder->recordInvoicePayment($invoice, [
-                        'payment_date' => $meta['payment_date'],
+                    $fees = $line->file_delivery_fees !== null ? round((float) $line->file_delivery_fees, 2) : null;
+                    $net = $line->file_net_amount !== null ? round((float) $line->file_net_amount, 2) : null;
+                    $breakdown = PaymentFeeBreakdown::normalize([
                         'amount' => $amount,
                         'gross_amount' => $amount,
-                        'delivery_fees' => $line->file_delivery_fees !== null ? round((float) $line->file_delivery_fees, 2) : null,
-                        'net_received' => $line->file_net_amount !== null ? round((float) $line->file_net_amount, 2) : null,
+                        'delivery_fees' => $fees,
+                        'net_received' => $net,
+                    ]);
+
+                    $payment = $this->recorder->recordInvoicePayment($invoice, [
+                        'payment_date' => $meta['payment_date'],
+                        'amount' => $breakdown['gross_amount'],
+                        'gross_amount' => $breakdown['gross_amount'],
+                        'delivery_fees' => $breakdown['delivery_fees'],
+                        'net_received' => $breakdown['net_received'],
                         'payment_method' => $meta['payment_method'],
                         'payment_reference' => $meta['payment_reference'] ?? $line->file_reference,
                         'notes' => $this->buildImportPaymentNote($line, $import, $meta),
                         'source' => InvoicePayment::SOURCE_IMPORT,
+                        'payment_batch_id' => $importBatchId,
                         'tracking_number' => $line->resolved_tracking ?? $line->file_tracking,
                         'carrier' => $this->resolveCarrierName($line),
                         'payment_import_id' => $import->id,
                         'payment_import_line_id' => $line->id,
                         'dedupe_key' => $dedupeKey,
                         'allow_overpayment' => $line->allow_overpayment,
-                        'reconciliation_metadata' => $this->buildReconciliationMetadata($line, $import),
+                        'reconciliation_metadata' => $this->buildReconciliationMetadata($line, $import, $breakdown),
                     ]);
 
                     $line->update(['invoice_payment_id' => $payment->id]);
@@ -345,6 +356,12 @@ class PaymentImportService
 
         if ($amount === null && $netAmount !== null && $deliveryFees !== null) {
             $amount = round($netAmount + $deliveryFees, 2);
+        }
+
+        if ($netAmount === null && $amount !== null && $deliveryFees !== null) {
+            $netAmount = round($amount - $deliveryFees, 2);
+        } elseif ($deliveryFees === null && $amount !== null && $netAmount !== null) {
+            $deliveryFees = round($amount - $netAmount, 2);
         }
 
         return [
@@ -599,18 +616,23 @@ class PaymentImportService
     }
 
     /**
+     * @param  array{gross_amount?: ?float, delivery_fees?: ?float, net_received?: ?float}|null  $breakdown
      * @return array<string, mixed>
      */
-    protected function buildReconciliationMetadata(PaymentImportLine $line, PaymentImport $import): array
+    protected function buildReconciliationMetadata(PaymentImportLine $line, PaymentImport $import, ?array $breakdown = null): array
     {
+        $gross = $breakdown['gross_amount'] ?? ($line->file_amount !== null ? round((float) $line->file_amount, 2) : null);
+        $fees = $breakdown['delivery_fees'] ?? ($line->file_delivery_fees !== null ? round((float) $line->file_delivery_fees, 2) : null);
+        $net = $breakdown['net_received'] ?? ($line->file_net_amount !== null ? round((float) $line->file_net_amount, 2) : null);
+
         return [
             'import_file' => $import->file_name,
             'import_line' => $line->row_number,
             'match_criteria' => $line->match_criteria,
             'match_score' => $line->match_score,
-            'gross_amount' => $line->file_amount !== null ? round((float) $line->file_amount, 2) : null,
-            'delivery_fees' => $line->file_delivery_fees !== null ? round((float) $line->file_delivery_fees, 2) : null,
-            'net_received' => $line->file_net_amount !== null ? round((float) $line->file_net_amount, 2) : null,
+            'gross_amount' => $gross,
+            'delivery_fees' => $fees,
+            'net_received' => $net,
             'tracking' => $line->resolved_tracking ?? $line->file_tracking,
             'carrier' => $this->resolveCarrierName($line),
             'order_number' => $line->posSale?->ticket_number,

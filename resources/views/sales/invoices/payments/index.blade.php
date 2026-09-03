@@ -3,6 +3,10 @@
 @section('title', 'Règlement de paiement')
 
 @section('main')
+@php
+    $isFullyPaid = $invoice->remaining_balance <= 0.009;
+    $currency = $invoice->currency;
+@endphp
 <main class="flex-1 w-full min-w-0">
     <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div class="px-8 py-4 flex items-center justify-between">
@@ -14,8 +18,8 @@
                 <a href="{{ route('sales.payments.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
                     Gestion Paiement
                 </a>
-                <a href="{{ route('invoices.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
-                    Retour à la liste
+                <a href="{{ route('invoices.show', $invoice) }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
+                    Voir la facture
                 </a>
             </div>
         </div>
@@ -28,24 +32,37 @@
             </div>
         @endif
 
+        @if($isFullyPaid)
+            <div class="mb-6 bg-green-100 border border-green-300 rounded-xl px-6 py-4 flex items-center gap-3">
+                <svg class="h-6 w-6 text-green-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div>
+                    <p class="text-sm font-bold uppercase tracking-wide text-green-800">Facture entièrement réglée</p>
+                    <p class="text-sm text-green-700 mt-0.5">Statut : RÉGLÉE — aucun nouveau paiement n’est nécessaire.</p>
+                </div>
+            </div>
+        @endif
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 class="text-sm font-medium text-gray-500 mb-2">Montant Total</h3>
-                <p class="text-3xl font-bold text-gray-900">{{ number_format($invoice->computed_total, 2) }} {{ $invoice->currency }}</p>
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Montant facture</h3>
+                <p class="text-3xl font-bold text-gray-900">{{ number_format($invoice->computed_total, 2) }} {{ $currency }}</p>
             </div>
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 class="text-sm font-medium text-gray-500 mb-2">Total Encaissé</h3>
-                <p class="text-3xl font-bold text-green-600">{{ number_format($invoice->total_paid, 2) }} {{ $invoice->currency }}</p>
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Total réglé</h3>
+                <p class="text-3xl font-bold text-green-600">{{ number_format($invoice->total_paid, 2) }} {{ $currency }}</p>
             </div>
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 class="text-sm font-medium text-gray-500 mb-2">Solde Restant</h3>
-                <p class="text-3xl font-bold text-red-600">{{ number_format($invoice->remaining_balance, 2) }} {{ $invoice->currency }}</p>
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Solde restant</h3>
+                <p class="text-3xl font-bold {{ $isFullyPaid ? 'text-green-600' : 'text-red-600' }}">{{ number_format($invoice->remaining_balance, 2) }} {{ $currency }}</p>
             </div>
         </div>
 
+        @if(! $isFullyPaid)
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Ajouter un paiement</h3>
-            <form action="{{ route('invoices.payments.store', $invoice) }}" method="POST" enctype="multipart/form-data">
+            <form action="{{ route('invoices.payments.store', $invoice) }}" method="POST" enctype="multipart/form-data" id="invoicePaymentForm">
                 @csrf
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
@@ -53,9 +70,17 @@
                         <input type="date" name="payment_date" value="{{ date('Y-m-d') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Montant *</label>
-                        <input type="number" step="0.01" name="amount" required value="{{ old('amount', number_format($invoice->remaining_balance, 2, '.', '')) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="0.00">
-                        <p class="text-xs text-gray-500 mt-1">Solde restant : {{ number_format($invoice->remaining_balance, 2) }} {{ $invoice->currency }}</p>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Montant facture *</label>
+                        <input type="number" step="0.01" name="amount" id="pay_amount" required value="{{ old('amount', number_format($invoice->remaining_balance, 2, '.', '')) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="0.00" oninput="recalcPaymentNet()">
+                        <p class="text-xs text-gray-500 mt-1">Solde restant : {{ number_format($invoice->remaining_balance, 2) }} {{ $currency }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Frais livraison / commission</label>
+                        <input type="number" step="0.01" name="delivery_fees" id="pay_fees" value="{{ old('delivery_fees') }}" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="0.00" oninput="recalcPaymentNet()">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Net encaissé</label>
+                        <input type="number" step="0.01" name="net_received" id="pay_net" value="{{ old('net_received') }}" min="0" readonly class="w-full px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-green-800 font-semibold" placeholder="Calculé automatiquement">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Méthode de paiement *</label>
@@ -71,6 +96,10 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Référence</label>
                         <input type="text" name="payment_reference" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="N° chèque, référence...">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Tracking</label>
+                        <input type="text" name="tracking_number" value="{{ old('tracking_number', $invoice->posSale?->primaryTrackingNumber()) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="N° suivi transporteur">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Justificatif de paiement</label>
@@ -94,119 +123,14 @@
                 </div>
             </form>
         </div>
+        @endif
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">Historique des paiements</h3>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead class="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant facture</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Frais livraison</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net encaissé</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Méthode</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tracking</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Créé le</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Justificatif</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        @forelse($invoice->payments as $payment)
-                            <tr class="hover:bg-gray-50 transition duration-150">
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">{{ $payment->payment_date->format('d/m/Y') }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-semibold text-gray-900">{{ number_format($payment->gross_amount ?? $payment->amount, 2) }} {{ $invoice->currency }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">{{ $payment->delivery_fees !== null ? number_format($payment->delivery_fees, 2) : '—' }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">{{ $payment->net_received !== null ? number_format($payment->net_received, 2) : '—' }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">{{ $payment->payment_method }}</div>
-                                    @if($payment->carrier)
-                                        <div class="text-xs text-gray-500">{{ $payment->carrier }}</div>
-                                    @endif
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">{{ $payment->payment_reference ?? '-' }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-mono text-gray-900">{{ $payment->tracking_number ?? ($invoice->posSale?->primaryTrackingNumber() ?? '-') }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">
-                                        @if(($payment->source ?? 'manual') === 'import')
-                                            Import
-                                            @if($payment->paymentImport)
-                                                <div class="text-xs text-gray-500">{{ $payment->paymentImport->original_filename }}</div>
-                                            @endif
-                                        @elseif(($payment->source ?? '') === 'bulk')
-                                            Groupé
-                                        @else
-                                            Manuel
-                                        @endif
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">{{ $payment->user->name ?? '-' }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">{{ $payment->created_at?->format('d/m/Y H:i') ?? '-' }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    @if($payment->payment_file_path)
-                                        <a href="{{ \App\Support\PublicStorage::url($payment->payment_file_path) }}" target="_blank" class="text-blue-600 hover:text-blue-900">
-                                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                            </svg>
-                                        </a>
-                                    @else
-                                        <span class="text-gray-400">-</span>
-                                    @endif
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="text-sm text-gray-900">{{ $payment->notes ?? '-' }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <form action="{{ route('invoices.payments.destroy', [$invoice, $payment]) }}" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce paiement?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-900">
-                                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                            </svg>
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="13" class="px-6 py-12 text-center">
-                                    <div class="flex flex-col items-center">
-                                        <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                                        </svg>
-                                        <p class="mt-2 text-sm text-gray-500">Aucun paiement enregistré</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        @include('sales.invoices.payments.partials.history-table', [
+            'invoice' => $invoice,
+            'payments' => $invoice->payments,
+            'showActions' => true,
+            'compact' => false,
+        ])
 
         @if($invoice->activities->isNotEmpty())
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
@@ -245,4 +169,20 @@
         @endif
     </div>
 </main>
+@if(! $isFullyPaid)
+<script>
+function recalcPaymentNet() {
+    var amount = parseFloat(document.getElementById('pay_amount').value || '0');
+    var feesInput = document.getElementById('pay_fees').value;
+    var netEl = document.getElementById('pay_net');
+    if (feesInput === '' || feesInput === null) {
+        netEl.value = '';
+        return;
+    }
+    var fees = parseFloat(feesInput || '0');
+    netEl.value = Math.max(0, amount - fees).toFixed(2);
+}
+recalcPaymentNet();
+</script>
+@endif
 @endsection

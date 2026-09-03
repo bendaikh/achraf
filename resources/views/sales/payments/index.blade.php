@@ -259,7 +259,8 @@
                                     <option value="{{ $inv->id }}"
                                         data-total="{{ $total }}"
                                         data-paid="{{ $paid }}"
-                                        data-balance="{{ $bal }}">
+                                        data-balance="{{ $bal }}"
+                                        data-tracking="{{ $inv->posSale?->primaryTrackingNumber() ?? '' }}">
                                         {{ $inv->invoice_number }}
                                         @if($inv->posSale) · {{ $inv->posSale->ticket_number }} @endif
                                         @if($inv->posSale?->primaryTrackingNumber()) · {{ $inv->posSale->primaryTrackingNumber() }} @endif
@@ -275,12 +276,22 @@
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Montant *</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Montant facture *</label>
                                 <input type="number" step="0.01" name="amount" id="manual_amount" required class="w-full rounded-lg border-gray-300" oninput="updateManualPaymentTotals()">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
                                 <input type="date" name="payment_date" value="{{ date('Y-m-d') }}" required class="w-full rounded-lg border-gray-300">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Frais livraison / commission</label>
+                                <input type="number" step="0.01" min="0" name="delivery_fees" id="manual_fees" class="w-full rounded-lg border-gray-300" placeholder="0.00" oninput="updateManualPaymentTotals()">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Net encaissé</label>
+                                <input type="number" step="0.01" min="0" name="net_received" id="manual_net" readonly class="w-full rounded-lg border-green-300 bg-green-50 text-green-800 font-semibold" placeholder="Calculé">
                             </div>
                         </div>
                         <div>
@@ -296,6 +307,10 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Référence</label>
                             <input type="text" name="payment_reference" class="w-full rounded-lg border-gray-300" placeholder="N° chèque, bordereau…">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tracking</label>
+                            <input type="text" name="tracking_number" id="manual_tracking" class="w-full rounded-lg border-gray-300" placeholder="N° suivi transporteur">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Commentaire</label>
@@ -329,11 +344,24 @@ function updateManualPaymentTotals() {
     var paid = parseFloat(opt?.dataset?.paid || '0');
     var balance = parseFloat(opt?.dataset?.balance || '0');
     var amount = parseFloat(document.getElementById('manual_amount').value || '0');
+    var feesRaw = document.getElementById('manual_fees').value;
+    var netEl = document.getElementById('manual_net');
 
     document.getElementById('manual_total').textContent = sel.value ? total.toFixed(2) + ' DH' : '—';
     document.getElementById('manual_paid').textContent = sel.value ? paid.toFixed(2) + ' DH' : '—';
     document.getElementById('manual_balance').textContent = sel.value ? balance.toFixed(2) + ' DH' : '—';
     document.getElementById('manual_new_balance').textContent = sel.value ? Math.max(0, balance - amount).toFixed(2) + ' DH' : '—';
+
+    if (feesRaw === '' || feesRaw === null) {
+        netEl.value = '';
+    } else {
+        netEl.value = Math.max(0, amount - parseFloat(feesRaw || '0')).toFixed(2);
+    }
+
+    if (sel.value && opt?.dataset?.tracking) {
+        var trackingEl = document.getElementById('manual_tracking');
+        if (!trackingEl.value) trackingEl.value = opt.dataset.tracking;
+    }
 
     var warn = document.getElementById('manual_overpay_warn');
     if (sel.value && amount > balance + 0.009) {
@@ -345,6 +373,9 @@ function updateManualPaymentTotals() {
     if (sel.value && !document.getElementById('manual_amount').value) {
         document.getElementById('manual_amount').value = balance.toFixed(2);
         document.getElementById('manual_new_balance').textContent = '0.00 DH';
+        if (feesRaw !== '') {
+            netEl.value = Math.max(0, balance - parseFloat(feesRaw || '0')).toFixed(2);
+        }
     }
 }
 

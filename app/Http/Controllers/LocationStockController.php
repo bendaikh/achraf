@@ -162,10 +162,14 @@ class LocationStockController extends Controller
             'reasons' => collect(StockMovement::PHYSICAL_STOCK_REASONS)
                 ->map(fn ($label, $key) => ['value' => $key, 'label' => $label])
                 ->values(),
+            'adjustment_reasons' => collect(StockMovement::STOCK_ADJUSTMENT_REASONS)
+                ->map(fn ($label, $key) => ['value' => $key, 'label' => $label])
+                ->values(),
             'locations_url' => route('warehouses.locations.json'),
             'movements_url' => route('stock.movements.index', ['product_id' => $product->id]),
             'transfer_url' => route('stock.transfer.store'),
             'declare_url' => route('products.declare-stock', $product),
+            'adjust_url' => route('stock.magasin.edit', $product),
         ]);
     }
 
@@ -175,11 +179,21 @@ class LocationStockController extends Controller
             abort(404);
         }
 
+        $mode = $request->input('mode', 'add');
+        $isAdjust = $mode === 'set';
+
         $validated = $request->validate([
-            'quantity' => 'required|integer|min:1',
+            'mode' => 'nullable|in:add,set',
+            'quantity' => $isAdjust ? 'required|integer|min:0' : 'required|integer|min:1',
             'warehouse_id' => 'required|exists:warehouses,id',
             'warehouse_location_id' => 'nullable|exists:warehouse_locations,id',
-            'reason' => ['required', 'string', \Illuminate\Validation\Rule::in(array_keys(StockMovement::PHYSICAL_STOCK_REASONS))],
+            'reason' => [
+                'required',
+                'string',
+                \Illuminate\Validation\Rule::in(array_keys(
+                    $isAdjust ? StockMovement::STOCK_ADJUSTMENT_REASONS : StockMovement::PHYSICAL_STOCK_REASONS
+                )),
+            ],
             'moved_at' => 'nullable|date',
             'notes' => 'nullable|string|max:1000',
             'product_variant_id' => 'nullable|exists:product_variants,id',
@@ -191,7 +205,13 @@ class LocationStockController extends Controller
 
         $warehouse = Warehouse::query()->findOrFail($validated['warehouse_id']);
         if ($warehouse->isOnline()) {
-            return $this->declareStockResponse($request, false, 'Le stock physique ne peut pas être déclaré sur un dépôt en ligne.');
+            return $this->declareStockResponse(
+                $request,
+                false,
+                $isAdjust
+                    ? 'Le stock Shopify / en ligne ne peut pas être ajusté ici.'
+                    : 'Le stock physique ne peut pas être déclaré sur un dépôt en ligne.'
+            );
         }
 
         $locationId = ! empty($validated['warehouse_location_id'])
@@ -206,7 +226,25 @@ class LocationStockController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($product, $validated, $locationId) {
+            DB::transaction(function () use ($product, $validated, $locationId, $isAdjust) {
+                if ($isAdjust) {
+                    $movement = $this->stockMovement->adjustPhysicalStock(
+                        $product,
+                        (int) $validated['quantity'],
+                        (int) $validated['warehouse_id'],
+                        $locationId,
+                        $validated['reason'],
+                        $validated['notes'] ?? null,
+                        isset($validated['product_variant_id']) ? (int) $validated['product_variant_id'] : null
+                    );
+
+                    if (! $movement) {
+                        throw new \RuntimeException('Aucun changement : la quantité est identique au stock actuel.');
+                    }
+
+                    return;
+                }
+
                 $movedAt = ! empty($validated['moved_at'])
                     ? Carbon::parse($validated['moved_at'])
                     : null;
@@ -226,7 +264,9 @@ class LocationStockController extends Controller
             return $this->declareStockResponse($request, false, $e->getMessage());
         }
 
-        $message = 'Stock physique déclaré : +'.(int) $validated['quantity'].' unité(s) enregistrée(s).';
+        $message = $isAdjust
+            ? 'Stock physique ajusté à '.(int) $validated['quantity'].' unité(s). Shopify / En ligne non modifié.'
+            : 'Stock physique déclaré : +'.(int) $validated['quantity'].' unité(s) enregistrée(s).';
 
         if ($request->expectsJson() || $request->ajax()) {
             $product->refresh()->load(['stocks.warehouse']);

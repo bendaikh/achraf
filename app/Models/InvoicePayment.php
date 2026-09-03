@@ -24,6 +24,7 @@ class InvoicePayment extends Model
         'payment_file_path',
         'notes',
         'source',
+        'payment_batch_id',
         'tracking_number',
         'carrier',
         'created_by',
@@ -68,5 +69,92 @@ class InvoicePayment extends Model
     public function posSale(): BelongsTo
     {
         return $this->belongsTo(PosSale::class);
+    }
+
+    /**
+     * Montant facture / CRBT used for invoice balance.
+     */
+    public function resolvedGrossAmount(): float
+    {
+        if ($this->gross_amount !== null) {
+            return (float) $this->gross_amount;
+        }
+
+        $fromImport = $this->paymentImportLine?->file_amount;
+        if ($fromImport !== null) {
+            return (float) $fromImport;
+        }
+
+        return (float) $this->amount;
+    }
+
+    /**
+     * Frais livraison / commission (from payment row or linked import line).
+     */
+    public function resolvedDeliveryFees(): ?float
+    {
+        if ($this->delivery_fees !== null) {
+            return (float) $this->delivery_fees;
+        }
+
+        $fromImport = $this->paymentImportLine?->file_delivery_fees;
+        if ($fromImport !== null) {
+            return (float) $fromImport;
+        }
+
+        $net = $this->net_received ?? $this->paymentImportLine?->file_net_amount;
+        if ($net !== null) {
+            return round($this->resolvedGrossAmount() - (float) $net, 2);
+        }
+
+        return null;
+    }
+
+    /**
+     * Net réellement encaissé (from payment row, import line, or gross − fees).
+     */
+    public function resolvedNetReceived(): ?float
+    {
+        if ($this->net_received !== null) {
+            return (float) $this->net_received;
+        }
+
+        $fromImport = $this->paymentImportLine?->file_net_amount;
+        if ($fromImport !== null) {
+            return (float) $fromImport;
+        }
+
+        $fees = $this->resolvedDeliveryFees();
+        if ($fees !== null) {
+            return round($this->resolvedGrossAmount() - $fees, 2);
+        }
+
+        return null;
+    }
+
+    public function resolvedTrackingNumber(?Invoice $invoice = null): ?string
+    {
+        if ($this->tracking_number) {
+            return $this->tracking_number;
+        }
+
+        $fromImport = $this->paymentImportLine?->resolved_tracking
+            ?? $this->paymentImportLine?->file_tracking;
+        if ($fromImport) {
+            return $fromImport;
+        }
+
+        $invoice ??= $this->invoice;
+
+        return $invoice?->posSale?->primaryTrackingNumber();
+    }
+
+    public function sourceLabel(): string
+    {
+        return match ($this->source ?? self::SOURCE_MANUAL) {
+            self::SOURCE_IMPORT => 'Import',
+            self::SOURCE_BULK => 'Groupé',
+            default => 'Manuel',
+        };
     }
 }

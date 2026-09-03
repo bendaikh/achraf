@@ -13,7 +13,8 @@ use Illuminate\Support\Collection;
 
 /**
  * Moteur unique de suivi de réception pour BC / BL / BR / Facture fournisseur.
- * Source de vérité stock : allocations des BR validés (stock_applied_at).
+ * Source de vérité stock : allocations des documents qui ont déjà comptabilisé
+ * le stock (BR, ou BL / Facture directe avec stock_applied_at) — une seule fois.
  */
 class PurchaseReceiptService
 {
@@ -370,22 +371,77 @@ class PurchaseReceiptService
      */
     protected function receivedQuantities(array $family, ?Model $document = null): Collection
     {
+        $totals = collect();
+
         $receptionIds = $this->familyReceptions($family)->pluck('id');
 
         if ($receptionIds->isEmpty() && $document instanceof Reception && $document->stock_applied_at) {
             $receptionIds = collect([(int) $document->id]);
         }
 
-        if ($receptionIds->isEmpty()) {
-            return collect();
+        if ($receptionIds->isNotEmpty()) {
+            PurchaseStockAllocation::query()
+                ->where('allocatable_type', Reception::class)
+                ->whereIn('allocatable_id', $receptionIds)
+                ->get()
+                ->each(function (PurchaseStockAllocation $allocation) use ($totals) {
+                    $key = $this->lineKey($allocation->product_id, $allocation->product_variant_id);
+                    $totals->put($key, (int) $totals->get($key, 0) + (int) $allocation->quantity);
+                });
         }
 
-        return PurchaseStockAllocation::query()
-            ->where('allocatable_type', Reception::class)
-            ->whereIn('allocatable_id', $receptionIds)
-            ->get()
-            ->groupBy(fn (PurchaseStockAllocation $a) => $this->lineKey($a->product_id, $a->product_variant_id))
-            ->map(fn (Collection $rows) => (int) $rows->sum('quantity'));
+        // BL / Facture créés directement : leurs allocations comptent comme déjà reçues.
+        foreach ($this->directStockDocuments($family, $document) as $stockDocument) {
+            foreach ($stockDocument->stockAllocations as $allocation) {
+                $key = $this->lineKey($allocation->product_id, $allocation->product_variant_id);
+                $totals->put($key, (int) $totals->get($key, 0) + (int) $allocation->quantity);
+            }
+        }
+
+        return $totals;
+    }
+
+    /**
+     * @param  array{purchase_order_ids: Collection<int, int>, delivery_note_ids: Collection<int, int>, invoice_ids: Collection<int, int>}  $family
+     * @return Collection<int, Model>
+     */
+    protected function directStockDocuments(array $family, ?Model $document = null): Collection
+    {
+        $documents = collect();
+
+        if ($family['delivery_note_ids']->isNotEmpty()) {
+            $documents = $documents->merge(
+                SupplierDeliveryNote::query()
+                    ->whereIn('id', $family['delivery_note_ids'])
+                    ->whereNotNull('stock_applied_at')
+                    ->with(['stockAllocations.warehouse'])
+                    ->get()
+            );
+        }
+
+        if ($family['invoice_ids']->isNotEmpty()) {
+            $documents = $documents->merge(
+                SupplierInvoice::query()
+                    ->whereIn('id', $family['invoice_ids'])
+                    ->whereNotNull('stock_applied_at')
+                    ->with(['stockAllocations.warehouse'])
+                    ->get()
+            );
+        }
+
+        if ($document instanceof SupplierDeliveryNote && $document->stock_applied_at
+            && ! $documents->contains(fn (Model $row) => $row instanceof SupplierDeliveryNote && (int) $row->id === (int) $document->id)) {
+            $document->loadMissing(['stockAllocations.warehouse']);
+            $documents->push($document);
+        }
+
+        if ($document instanceof SupplierInvoice && $document->stock_applied_at
+            && ! $documents->contains(fn (Model $row) => $row instanceof SupplierInvoice && (int) $row->id === (int) $document->id)) {
+            $document->loadMissing(['stockAllocations.warehouse']);
+            $documents->push($document);
+        }
+
+        return $documents->values();
     }
 
     /**
@@ -393,16 +449,19 @@ class PurchaseReceiptService
      */
     protected function warehouseByLine(array $family, ?Model $document = null): Collection
     {
-        $receptions = $this->familyReceptions($family);
+        $stockDocuments = $this->familyReceptions($family);
 
-        if ($receptions->isEmpty() && $document instanceof Reception && $document->stock_applied_at) {
+        if ($stockDocuments->isEmpty() && $document instanceof Reception && $document->stock_applied_at) {
             $document->loadMissing(['stockAllocations.warehouse']);
-            $receptions = collect([$document]);
+            $stockDocuments = collect([$document]);
         }
+
+        $stockDocuments = $stockDocuments->merge($this->directStockDocuments($family, $document));
         $byLine = collect();
 
-        foreach ($receptions->reverse() as $reception) {
-            foreach ($reception->stockAllocations as $allocation) {
+        foreach ($stockDocuments->reverse() as $stockDocument) {
+            $stockDocument->loadMissing(['stockAllocations.warehouse']);
+            foreach ($stockDocument->stockAllocations as $allocation) {
                 $key = $this->lineKey($allocation->product_id, $allocation->product_variant_id);
                 if (! $byLine->has($key)) {
                     $byLine->put($key, $allocation->warehouse?->name);

@@ -64,8 +64,11 @@ class SalesPaymentController extends Controller
             'invoice_id' => 'required|exists:invoices,id',
             'payment_date' => 'required|date',
             'amount' => 'required|numeric|min:0.01',
+            'delivery_fees' => 'nullable|numeric|min:0',
+            'net_received' => 'nullable|numeric|min:0',
             'payment_method' => 'required|string',
             'payment_reference' => 'nullable|string|max:255',
+            'tracking_number' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
             'allow_overpayment' => 'sometimes|boolean',
         ]);
@@ -75,12 +78,15 @@ class SalesPaymentController extends Controller
         $this->recorder->recordInvoicePayment($invoice, [
             'payment_date' => $validated['payment_date'],
             'amount' => $validated['amount'],
+            'gross_amount' => $validated['amount'],
+            'delivery_fees' => $validated['delivery_fees'] ?? null,
+            'net_received' => $validated['net_received'] ?? null,
             'payment_method' => $validated['payment_method'],
             'payment_reference' => $validated['payment_reference'] ?? null,
             'notes' => $validated['notes'] ?? null,
             'allow_overpayment' => (bool) ($validated['allow_overpayment'] ?? false),
             'source' => 'manual',
-            'tracking_number' => $invoice->posSale?->primaryTrackingNumber(),
+            'tracking_number' => $validated['tracking_number'] ?? $invoice->posSale?->primaryTrackingNumber(),
         ]);
 
         return redirect()
@@ -119,13 +125,19 @@ class SalesPaymentController extends Controller
             'payments' => 'required|array|min:1',
             'payments.*.invoice_id' => 'required|exists:invoices,id',
             'payments.*.amount' => 'required|numeric|min:0.01',
+            'payments.*.delivery_fees' => 'nullable|numeric|min:0',
+            'payments.*.net_received' => 'nullable|numeric|min:0',
             'payments.*.allow_overpayment' => 'sometimes|boolean',
         ]);
+
+        $batchId = (string) Str::uuid();
 
         $lines = collect($validated['payments'])
             ->map(fn ($row) => [
                 'invoice_id' => (int) $row['invoice_id'],
                 'amount' => $row['amount'],
+                'delivery_fees' => $row['delivery_fees'] ?? null,
+                'net_received' => $row['net_received'] ?? null,
                 'allow_overpayment' => (bool) ($row['allow_overpayment'] ?? false),
             ])
             ->all();
@@ -136,12 +148,35 @@ class SalesPaymentController extends Controller
             'payment_reference' => $validated['payment_reference'] ?? null,
             'notes' => $validated['notes'] ?? null,
             'source' => 'bulk',
-            'bulk_batch' => (string) Str::uuid(),
+            'payment_batch_id' => $batchId,
         ]);
 
         return redirect()
-            ->route('sales.payments.index')
+            ->route('sales.payments.batch.show', $batchId)
             ->with('success', count($payments).' paiement(s) enregistré(s). Trésorerie mise à jour automatiquement.');
+    }
+
+    public function showBatch(string $batchId)
+    {
+        $payments = \App\Models\InvoicePayment::query()
+            ->with(['invoice.client', 'invoice.items', 'invoice.posSale', 'user', 'paymentImport', 'paymentImportLine'])
+            ->where('payment_batch_id', $batchId)
+            ->orderBy('id')
+            ->get();
+
+        if ($payments->isEmpty()) {
+            return redirect()
+                ->route('sales.payments.index')
+                ->with('error', 'Paiement groupé introuvable.');
+        }
+
+        $totals = [
+            'gross' => $payments->sum(fn ($p) => $p->resolvedGrossAmount()),
+            'fees' => $payments->sum(fn ($p) => $p->resolvedDeliveryFees() ?? 0),
+            'net' => $payments->sum(fn ($p) => $p->resolvedNetReceived() ?? $p->resolvedGrossAmount()),
+        ];
+
+        return view('sales.payments.batch', compact('payments', 'batchId', 'totals'));
     }
 
     public function importForm()

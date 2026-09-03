@@ -74,6 +74,20 @@ class PaymentImportServiceTest extends TestCase
         $this->assertNull($service->exclusionReason($row, 430.0));
     }
 
+    public function test_net_is_derived_from_crbt_minus_fees_when_total_missing(): void
+    {
+        $fields = $this->service()->extractRowFields([
+            'code_d_envoi' => 'EGRFTC12003',
+            'status' => 'Livré',
+            'crbt' => '408',
+            'frais' => '35',
+        ]);
+
+        $this->assertSame(408.0, $fields['gross_amount']);
+        $this->assertSame(35.0, $fields['delivery_fees']);
+        $this->assertSame(373.0, $fields['net_amount']);
+    }
+
     public function test_fee_aware_amount_comparison_eliminates_false_discrepancy(): void
     {
         $matcher = app(PaymentMatchingService::class);

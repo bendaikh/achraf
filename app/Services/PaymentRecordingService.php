@@ -35,12 +35,21 @@ class PaymentRecordingService
      *   gross_amount?: ?float,
      *   delivery_fees?: ?float,
      *   net_received?: ?float,
+     *   payment_batch_id?: ?string,
      *   reconciliation_metadata?: array,
      * }  $data
      */
     public function recordInvoicePayment(Invoice $invoice, array $data): InvoicePayment
     {
-        $amount = round((float) $data['amount'], 2);
+        $breakdown = PaymentFeeBreakdown::normalize([
+            'amount' => $data['amount'] ?? null,
+            'gross_amount' => $data['gross_amount'] ?? $data['amount'] ?? null,
+            'delivery_fees' => array_key_exists('delivery_fees', $data) ? $data['delivery_fees'] : null,
+            'net_received' => array_key_exists('net_received', $data) ? $data['net_received'] : null,
+        ]);
+
+        // Invoice balance always uses the gross (montant facture / CRBT).
+        $amount = $breakdown['gross_amount'];
         $allowOverpayment = (bool) ($data['allow_overpayment'] ?? false);
 
         if ($amount <= 0) {
@@ -69,6 +78,7 @@ class PaymentRecordingService
             'amount' => $amount,
             'date' => $data['payment_date'] ?? null,
             'source' => $data['source'] ?? InvoicePayment::SOURCE_MANUAL,
+            'bulk_batch' => $data['payment_batch_id'] ?? $data['bulk_batch'] ?? null,
         ]);
 
         if ($dedupeKey && InvoicePayment::query()->where('dedupe_key', $dedupeKey)->exists()) {
@@ -77,22 +87,19 @@ class PaymentRecordingService
             ]);
         }
 
-        return DB::transaction(function () use ($invoice, $data, $amount, $dedupeKey, $allowOverpayment) {
-            $grossAmount = isset($data['gross_amount']) ? round((float) $data['gross_amount'], 2) : $amount;
-            $deliveryFees = isset($data['delivery_fees']) ? round((float) $data['delivery_fees'], 2) : null;
-            $netReceived = isset($data['net_received']) ? round((float) $data['net_received'], 2) : null;
-
+        return DB::transaction(function () use ($invoice, $data, $amount, $breakdown, $dedupeKey, $allowOverpayment) {
             $payment = $invoice->payments()->create([
                 'payment_date' => $data['payment_date'],
                 'amount' => $amount,
-                'gross_amount' => $grossAmount,
-                'delivery_fees' => $deliveryFees,
-                'net_received' => $netReceived,
+                'gross_amount' => $breakdown['gross_amount'],
+                'delivery_fees' => $breakdown['delivery_fees'],
+                'net_received' => $breakdown['net_received'],
                 'payment_method' => $data['payment_method'],
                 'payment_reference' => $data['payment_reference'] ?? null,
                 'payment_file_path' => $data['payment_file_path'] ?? null,
                 'notes' => $data['notes'] ?? null,
                 'source' => $data['source'] ?? InvoicePayment::SOURCE_MANUAL,
+                'payment_batch_id' => $data['payment_batch_id'] ?? $data['bulk_batch'] ?? null,
                 'tracking_number' => $data['tracking_number'] ?? $invoice->posSale?->primaryTrackingNumber(),
                 'carrier' => $data['carrier'] ?? null,
                 'created_by' => $data['user_id'] ?? $data['created_by'] ?? Auth::id(),
@@ -156,21 +163,33 @@ class PaymentRecordingService
     }
 
     /**
-     * @param  list<array{invoice_id:int, amount:float|int|string, allow_overpayment?:bool, tracking_number?:?string}>  $lines
+     * @param  list<array{
+     *   invoice_id:int,
+     *   amount:float|int|string,
+     *   delivery_fees?:float|int|string|null,
+     *   net_received?:float|int|string|null,
+     *   allow_overpayment?:bool,
+     *   tracking_number?:?string
+     * }>  $lines
      * @return list<InvoicePayment>
      */
     public function recordBulkInvoicePayments(array $lines, array $shared): array
     {
         $payments = [];
+        $batchId = $shared['payment_batch_id'] ?? $shared['bulk_batch'] ?? (string) \Illuminate\Support\Str::uuid();
 
-        DB::transaction(function () use ($lines, $shared, &$payments) {
+        DB::transaction(function () use ($lines, $shared, $batchId, &$payments) {
             foreach ($lines as $line) {
                 $invoice = Invoice::query()->with(['items', 'posSale.fulfillments'])->findOrFail($line['invoice_id']);
                 $payments[] = $this->recordInvoicePayment($invoice, array_merge($shared, [
                     'amount' => $line['amount'],
+                    'gross_amount' => $line['amount'],
+                    'delivery_fees' => $line['delivery_fees'] ?? null,
+                    'net_received' => $line['net_received'] ?? null,
                     'allow_overpayment' => (bool) ($line['allow_overpayment'] ?? false),
                     'tracking_number' => $line['tracking_number'] ?? $invoice->posSale?->primaryTrackingNumber(),
                     'source' => $shared['source'] ?? InvoicePayment::SOURCE_BULK,
+                    'payment_batch_id' => $batchId,
                     'dedupe_key' => $this->buildDedupeKey([
                         'scope' => 'sales',
                         'invoice_id' => $invoice->id,
@@ -179,7 +198,7 @@ class PaymentRecordingService
                         'amount' => round((float) $line['amount'], 2),
                         'date' => $shared['payment_date'] ?? null,
                         'source' => 'bulk',
-                        'bulk_batch' => $shared['bulk_batch'] ?? null,
+                        'bulk_batch' => $batchId,
                     ]),
                 ]));
             }

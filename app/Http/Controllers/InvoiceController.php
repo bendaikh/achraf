@@ -182,7 +182,7 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load('client', 'items', 'posSale', 'payments', 'adjustments', 'creditNotes', 'refunds');
+        $invoice->load('client', 'items', 'posSale', 'payments.user', 'payments.paymentImport', 'payments.paymentImportLine', 'adjustments', 'creditNotes', 'refunds');
         $situation = $this->situation->forInvoice($invoice);
 
         return view('sales.invoices.show', compact('invoice', 'situation'));

@@ -38,7 +38,7 @@
                     <p class="mt-1">
                         @php $paymentStatus = $invoice->computed_payment_status; @endphp
                         @if($paymentStatus === 'paid')
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">Payée</span>
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">FACTURE ENTIÈREMENT RÉGLÉE</span>
                         @elseif($paymentStatus === 'partial')
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">Partiellement payée</span>
                         @else
@@ -46,13 +46,14 @@
                         @endif
                     </p>
                     <p class="mt-2 text-sm text-gray-600">
-                        Encaissé : <span class="font-semibold text-green-600">{{ number_format($invoice->total_paid, 2) }} {{ $invoice->currency }}</span>
-                        — Solde : <span class="font-semibold text-red-600">{{ number_format($invoice->remaining_balance, 2) }} {{ $invoice->currency }}</span>
+                        Montant facture : <span class="font-semibold text-gray-900">{{ number_format($invoice->computed_total, 2) }} {{ $invoice->currency }}</span>
+                        — Total réglé : <span class="font-semibold text-green-600">{{ number_format($invoice->total_paid, 2) }} {{ $invoice->currency }}</span>
+                        — Solde restant : <span class="font-semibold {{ $invoice->remaining_balance <= 0.009 ? 'text-green-600' : 'text-red-600' }}">{{ number_format($invoice->remaining_balance, 2) }} {{ $invoice->currency }}</span>
                     </p>
                 </div>
                 <div class="flex items-center gap-2">
                     <a href="{{ route('invoices.payments.index', $invoice) }}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium transition">
-                        Gérer les paiements
+                        {{ $invoice->remaining_balance <= 0.009 ? 'Voir l’historique des paiements' : 'Gérer les paiements' }}
                     </a>
                     <form action="{{ route('invoices.payment-status', $invoice) }}" method="POST" class="flex items-center gap-2">
                         @csrf
@@ -67,6 +68,17 @@
                     </form>
                 </div>
             </div>
+
+            @if($invoice->payments->isNotEmpty())
+                <div class="p-6 border-b border-gray-200">
+                    @include('sales.invoices.payments.partials.history-table', [
+                        'invoice' => $invoice,
+                        'payments' => $invoice->payments,
+                        'showActions' => false,
+                        'compact' => true,
+                    ])
+                </div>
+            @endif
 
             @include('sales.invoices.partials.situation', ['situation' => $situation, 'invoice' => $invoice])
 

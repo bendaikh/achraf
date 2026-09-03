@@ -118,6 +118,80 @@ class LocationStockManagementTest extends TestCase
         $this->assertSame((int) $user->id, (int) $movement->user_id);
     }
 
+    public function test_physical_stock_can_be_adjusted_to_zero_without_touching_shopify(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct();
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $online = Warehouse::onlineWarehouse();
+        $location = $belvedere->locations()->first() ?? \App\Models\WarehouseLocation::create([
+            'warehouse_id' => $belvedere->id,
+            'code' => 'BEL-ZERO',
+            'name' => 'Bel Zero',
+            'status' => 'active',
+        ]);
+
+        $service = app(StockMovementService::class);
+        $service->adjustPhysicalStock($product, 1, (int) $belvedere->id, (int) $location->id, StockMovement::REASON_INVENTORY_CORRECTION);
+        $service->increase($product, 5, 'enligne', false, StockMovement::TYPE_INVENTORY_ADJUSTMENT, 'shopify', null, null, $online->id);
+
+        $this->actingAs($user)->patch(route('stock.magasin.update', $product), [
+            'quantity' => 0,
+            'warehouse_id' => $belvedere->id,
+            'warehouse_location_id' => $location->id,
+            'reason' => StockMovement::REASON_SALE,
+            'notes' => 'Dernière unité vendue',
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $product->refresh();
+        $this->assertSame(0, $service->quantityAtSlot($product, (int) $belvedere->id, (int) $location->id));
+        $this->assertSame(5, $service->quantityAtWarehouse($product, (int) $online->id));
+        $this->assertSame(5, (int) $product->stock_enligne);
+
+        $movement = StockMovement::query()
+            ->where('product_id', $product->id)
+            ->where('type', StockMovement::TYPE_STOCK_ADJUSTMENT)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($movement);
+        $this->assertSame(1, (int) $movement->quantity_before);
+        $this->assertSame(0, (int) $movement->quantity_after);
+        $this->assertSame(-1, (int) $movement->quantity);
+        $this->assertSame('Vente (sortie)', $movement->reason);
+        $this->assertSame((int) $user->id, (int) $movement->user_id);
+    }
+
+    public function test_declare_modal_set_mode_allows_zero_absolute_quantity(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct();
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $online = Warehouse::onlineWarehouse();
+        $location = $belvedere->locations()->first() ?? \App\Models\WarehouseLocation::create([
+            'warehouse_id' => $belvedere->id,
+            'code' => 'BEL-SET',
+            'name' => 'Bel Set',
+            'status' => 'active',
+        ]);
+
+        $service = app(StockMovementService::class);
+        $service->adjustPhysicalStock($product, 2, (int) $belvedere->id, (int) $location->id, StockMovement::REASON_INVENTORY_CORRECTION);
+        $service->increase($product, 5, 'enligne', false, StockMovement::TYPE_INVENTORY_ADJUSTMENT, 'shopify', null, null, $online->id);
+
+        $this->actingAs($user)->postJson(route('products.declare-stock', $product), [
+            'mode' => 'set',
+            'quantity' => 0,
+            'warehouse_id' => $belvedere->id,
+            'warehouse_location_id' => $location->id,
+            'reason' => StockMovement::REASON_BREAKAGE,
+            'notes' => 'Casse totale',
+        ])->assertOk()->assertJsonPath('success', true);
+
+        $this->assertSame(0, $service->quantityAtSlot($product->fresh(), (int) $belvedere->id, (int) $location->id));
+        $this->assertSame(5, (int) $product->fresh()->stock_enligne);
+    }
+
     public function test_product_list_filters_by_warehouse_location_stock_slot(): void
     {
         $user = User::factory()->create();
@@ -255,7 +329,7 @@ class LocationStockManagementTest extends TestCase
         $this->assertSame(5, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $store->id));
     }
 
-    public function test_delivery_note_does_not_add_stock(): void
+    public function test_delivery_note_adds_stock_once_and_convert_does_not_duplicate(): void
     {
         $user = User::factory()->create();
         $supplier = Supplier::create(['name' => 'Fournisseur BL']);
@@ -278,24 +352,29 @@ class LocationStockManagementTest extends TestCase
                 'tax_rate' => 20,
                 'discount' => 0,
                 'discount_type' => 'fixed',
+                'warehouse_id' => $warehouse->id,
             ]],
         ])->assertRedirect(route('supplier-delivery-notes.index'));
 
-        $this->assertSame(0, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $warehouse->id));
-        $this->assertSame(0, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
+        $this->assertSame(10, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $warehouse->id));
+        $this->assertSame(1, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
 
-        $note = \App\Models\SupplierDeliveryNote::query()->firstOrFail();
+        $deliveryNote = \App\Models\SupplierDeliveryNote::query()->firstOrFail();
+        $this->assertNotNull($deliveryNote->stock_applied_at);
+
         $this->actingAs($user)->postJson(route('supplier-delivery-notes.bulk-convert'), [
-            'ids' => [$note->id],
+            'ids' => [$deliveryNote->id],
             'mode' => 'separate',
         ])->assertOk();
 
-        // Conversion ne crée toujours pas de stock
-        $this->assertSame(0, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $warehouse->id));
-        $this->assertSame(0, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
+        $this->assertSame(10, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $warehouse->id));
+        $this->assertSame(1, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
+
+        $invoice = \App\Models\SupplierInvoice::query()->firstOrFail();
+        $this->assertNotNull($invoice->stock_applied_at);
     }
 
-    public function test_direct_supplier_invoice_stock_only_after_receive_action(): void
+    public function test_direct_supplier_invoice_adds_stock_on_create_without_duplicate_on_receive(): void
     {
         $user = User::factory()->create();
         $supplier = Supplier::create(['name' => 'Fournisseur Facture']);
@@ -309,7 +388,7 @@ class LocationStockManagementTest extends TestCase
             'supplier_id' => $supplier->id,
             'invoice_date' => '2026-08-20',
             'currency' => 'dh - MAD',
-            'warehouse_id' => $online->id,
+            'warehouse_id' => $store->id,
             'items' => [
                 [
                     'product_id' => $productA->id,
@@ -320,6 +399,7 @@ class LocationStockManagementTest extends TestCase
                     'tax_rate' => 20,
                     'discount' => 0,
                     'discount_type' => 'fixed',
+                    'warehouse_id' => $online->id,
                 ],
                 [
                     'product_id' => $productB->id,
@@ -330,13 +410,17 @@ class LocationStockManagementTest extends TestCase
                     'tax_rate' => 20,
                     'discount' => 0,
                     'discount_type' => 'fixed',
+                    'warehouse_id' => $store->id,
                 ],
             ],
         ])->assertRedirect();
 
         $invoice = \App\Models\SupplierInvoice::query()->firstOrFail();
-        $this->assertNull($invoice->stock_applied_at);
-        $this->assertSame(0, app(StockMovementService::class)->quantityAtWarehouse($productA->fresh(), (int) $online->id));
+        $this->assertNotNull($invoice->stock_applied_at);
+        $this->assertSame(10, app(StockMovementService::class)->quantityAtWarehouse($productA->fresh(), (int) $online->id));
+        $this->assertSame(10, app(StockMovementService::class)->quantityAtWarehouse($productB->fresh(), (int) $store->id));
+        $movementCount = StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count();
+        $this->assertSame(2, $movementCount);
 
         $this->actingAs($user)->post(route('supplier-invoices.receive-stock', $invoice), [
             'warehouse_id' => $online->id,
@@ -344,35 +428,14 @@ class LocationStockManagementTest extends TestCase
                 [
                     'product_id' => $productA->id,
                     'quantity' => 10,
-                    'allocations' => [
-                        ['warehouse_id' => $online->id, 'quantity' => 7],
-                        ['warehouse_id' => $store->id, 'quantity' => 3],
-                    ],
-                ],
-                [
-                    'product_id' => $productB->id,
-                    'quantity' => 10,
-                    'allocations' => [
-                        ['warehouse_id' => $online->id, 'quantity' => 10],
-                    ],
+                    'warehouse_id' => $online->id,
                 ],
             ],
-        ])->assertRedirect(route('supplier-invoices.show', $invoice));
+        ])->assertSessionHas('error');
 
-        $this->assertNotNull($invoice->fresh()->stock_applied_at);
-        $this->assertSame(7, app(StockMovementService::class)->quantityAtWarehouse($productA->fresh(), (int) $online->id));
-        $this->assertSame(3, app(StockMovementService::class)->quantityAtWarehouse($productA->fresh(), (int) $store->id));
-        $this->assertSame(10, app(StockMovementService::class)->quantityAtWarehouse($productB->fresh(), (int) $online->id));
-        $this->assertSame(0, app(StockMovementService::class)->quantityAtWarehouse($productB->fresh(), (int) $store->id));
-
-        // Seconde tentative bloquée
-        $this->actingAs($user)->post(route('supplier-invoices.receive-stock', $invoice), [
-            'warehouse_id' => $online->id,
-            'items' => [
-                ['product_id' => $productA->id, 'quantity' => 10],
-            ],
-        ])->assertRedirect();
-        $this->assertSame(7, app(StockMovementService::class)->quantityAtWarehouse($productA->fresh(), (int) $online->id));
+        $this->assertSame(10, app(StockMovementService::class)->quantityAtWarehouse($productA->fresh(), (int) $online->id));
+        $this->assertSame($movementCount, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
+        $this->assertSame(0, Reception::query()->count());
     }
 
     public function test_purchase_order_does_not_increase_physical_stock(): void

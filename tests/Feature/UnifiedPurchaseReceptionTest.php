@@ -107,7 +107,7 @@ class UnifiedPurchaseReceptionTest extends TestCase
         $this->assertSame(PurchaseReceiptService::STATUS_COMPLETE, $receipts->documentReceptionStatus($order));
     }
 
-    public function test_invoice_receive_stock_creates_br_not_direct_stock(): void
+    public function test_direct_invoice_adds_stock_once_and_blocks_receive_stock(): void
     {
         $user = User::factory()->create();
         $supplier = Supplier::create(['name' => 'Fournisseur Facture']);
@@ -134,15 +134,19 @@ class UnifiedPurchaseReceptionTest extends TestCase
 
         $invoice = SupplierInvoice::query()->firstOrFail();
 
+        // Facture directe : entrée en stock unique à la création (pas besoin de BR).
+        $this->assertNotNull($invoice->stock_applied_at);
+        $this->assertSame(10, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $warehouse->id));
+        $this->assertSame(1, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
+
         $this->actingAs($user)->post(route('supplier-invoices.receive-stock', $invoice), [
             'warehouse_id' => $warehouse->id,
             'items' => [
                 ['product_id' => $product->id, 'quantity' => 10],
             ],
-        ])->assertRedirect(route('supplier-invoices.show', $invoice));
+        ])->assertSessionHas('error');
 
-        $this->assertSame(1, Reception::query()->count());
-        $this->assertNotNull($invoice->fresh()->stock_applied_at);
+        $this->assertSame(0, Reception::query()->count());
         $this->assertSame(10, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $warehouse->id));
         $this->assertSame(1, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
     }

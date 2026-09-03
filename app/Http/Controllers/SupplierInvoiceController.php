@@ -74,7 +74,7 @@ class SupplierInvoiceController extends Controller
         $invoiceNumber = 'FSI-' . date('Y') . '/' . str_pad(SupplierInvoice::whereYear('created_at', date('Y'))->count() + 1, 6, '0', STR_PAD_LEFT);
         
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
-        $warehouses = Warehouse::query()->active()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
+        $warehouses = Warehouse::query()->active()->with('locations')->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
         $purchaseOrders = SupplierPurchaseOrder::query()->with('supplier')->orderByDesc('order_date')->limit(200)->get();
 
         return view('purchases.supplier-invoices.create', compact('suppliers', 'products', 'invoiceNumber', 'pricesAreTtc', 'warehouses', 'purchaseOrders'));
@@ -166,14 +166,13 @@ class SupplierInvoiceController extends Controller
 
             $invoice->load('items', 'supplier', 'adjustments');
             $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
-            // Pas d'entrée de stock automatique à la création de facture.
-            // Si un BR a déjà réceptionné : stock_applied_at sera posé à la conversion.
-            // Sinon : action manuelle « Réceptionner / Entrer en stock » (une seule fois).
+            // Facture créée sans BR : entrée en stock unique à la validation. Les conversions / BR liés ne rejouent pas le stock.
+            $this->purchaseStockReceipt->applyIfNeeded($invoice, $validated['items'], $warehouse);
 
             DB::commit();
             $this->attachManagedDocument('supplier-invoices', $invoice, $request->file('invoice_file'));
 
-            return redirect()->route('supplier-invoices.show', $invoice)->with('success', 'Facture fournisseur créée. Utilisez « Réceptionner / Entrer en stock » si aucun BR n’a encore alimenté le stock.');
+            return redirect()->route('supplier-invoices.show', $invoice)->with('success', 'Facture fournisseur créée. Entrée en stock enregistrée (une seule fois).');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->withInput()->with('error', 'Erreur lors de la création de la Facture fournisseur: ' . $e->getMessage());
@@ -188,7 +187,8 @@ class SupplierInvoiceController extends Controller
         $receiptProgress = $this->purchaseReceipts->progressForDocument($supplierInvoice);
         $linkedReceptions = $this->purchaseReceipts->linkedReceptions($supplierInvoice);
         $receptionStatus = $this->purchaseReceipts->documentReceptionStatusLabel($supplierInvoice);
-        $canReceive = $receiptProgress->contains(fn (array $row) => $row['remaining'] > 0);
+        $canReceive = ! $supplierInvoice->stock_applied_at
+            && $receiptProgress->contains(fn (array $row) => $row['remaining'] > 0);
         $warehouses = Warehouse::query()->active()->with('locations')->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
         return view('purchases.supplier-invoices.show', compact(
@@ -202,8 +202,8 @@ class SupplierInvoiceController extends Controller
      */
     public function receiveStock(Request $request, SupplierInvoice $supplierInvoice)
     {
-        if ($supplierInvoice->stock_applied_at && ! $this->purchaseReceipts->progressForDocument($supplierInvoice)->contains(fn (array $row) => $row['remaining'] > 0)) {
-            return back()->with('error', 'Le stock de cette facture a déjà été entièrement réceptionné.');
+        if ($supplierInvoice->stock_applied_at) {
+            return back()->with('error', 'Le stock de cette facture a déjà été comptabilisé. Aucune nouvelle entrée possible.');
         }
 
         $validated = $request->validate([
@@ -269,8 +269,9 @@ class SupplierInvoiceController extends Controller
         $suppliers = Supplier::all();
         $products = collect();
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->with('locations')->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('purchases.supplier-invoices.edit', compact('supplierInvoice', 'suppliers', 'products', 'pricesAreTtc'));
+        return view('purchases.supplier-invoices.edit', compact('supplierInvoice', 'suppliers', 'products', 'pricesAreTtc', 'warehouses'));
     }
 
     public function update(Request $request, SupplierInvoice $supplierInvoice)
@@ -281,7 +282,7 @@ class SupplierInvoiceController extends Controller
             'invoice_date' => 'required|date',
             'due_date' => 'nullable|date',
             'currency' => 'required|string',
-            'stock_location' => 'required|string',
+            'stock_location' => 'nullable|string',
             'commercial_contact' => 'nullable|string',
             'model' => 'nullable|string',
             'remarks' => 'nullable|string',
@@ -298,7 +299,12 @@ class SupplierInvoiceController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ] + $this->adjustmentValidationRules());
+        ] + $this->purchaseStockReceipt->validationRules() + $this->adjustmentValidationRules());
+
+        $warehouse = $this->purchaseStockReceipt->resolveDefaultWarehouse(
+            isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : ($supplierInvoice->warehouse_id ? (int) $supplierInvoice->warehouse_id : null),
+            $validated['stock_location'] ?? $supplierInvoice->stock_location
+        );
 
         DB::beginTransaction();
         try {
@@ -312,7 +318,8 @@ class SupplierInvoiceController extends Controller
                 'invoice_date' => $validated['invoice_date'],
                 'due_date' => $validated['due_date'] ?? null,
                 'currency' => $validated['currency'],
-                'stock_location' => $validated['stock_location'],
+                'stock_location' => $warehouse->name,
+                'warehouse_id' => $warehouse->id,
                 'commercial_contact' => $validated['commercial_contact'] ?? null,
                 'model' => $validated['model'] ?? null,
                 'remarks' => $validated['remarks'] ?? null,

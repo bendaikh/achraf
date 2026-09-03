@@ -101,10 +101,11 @@ Ajuster le stock physique — {{ $product->ref }}
 
             <div>
                 <label for="quantity" class="block text-xs font-semibold uppercase text-slate-500 mb-1">Nouvelle quantité physique <span class="text-red-500">*</span></label>
-                <input type="number" name="quantity" id="quantity" min="0" required
-                       x-model="newQuantity"
+                <input type="number" name="quantity" id="quantity" min="0" step="1" required
+                       x-model.number="newQuantity"
                        class="w-full rounded-lg border-slate-300 text-sm">
-                <p class="mt-1 text-xs text-slate-500">Saisissez la quantité réelle constatée dans cet emplacement.</p>
+                <p class="mt-1 text-xs text-emerald-700 font-medium">Valeur valide : 0 ou plus. Aucune quantité négative.</p>
+                <p class="mt-1 text-xs text-slate-500">Saisissez la quantité réelle constatée dans cet emplacement (ex. dernière unité vendue → 0). Le stock Shopify / En ligne n’est pas modifié.</p>
             </div>
 
             <div>

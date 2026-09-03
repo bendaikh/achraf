@@ -44,6 +44,12 @@ class StockMovement extends Model
 
     public const REASON_INVENTORY_CORRECTION = 'inventory_correction';
 
+    public const REASON_SALE = 'sale';
+
+    public const REASON_BREAKAGE = 'breakage';
+
+    public const REASON_LOSS = 'loss';
+
     public const PHYSICAL_STOCK_REASONS = [
         self::REASON_PURCHASE => 'Achat',
         self::REASON_SUPPLIER_RECEPTION => 'Réception fournisseur',
@@ -54,8 +60,9 @@ class StockMovement extends Model
 
     public const STOCK_ADJUSTMENT_REASONS = [
         self::REASON_INVENTORY_CORRECTION => 'Inventaire / Correction de stock',
-        self::REASON_PURCHASE => 'Achat',
-        self::REASON_SUPPLIER_RECEPTION => 'Réception fournisseur',
+        self::REASON_SALE => 'Vente (sortie)',
+        self::REASON_BREAKAGE => 'Casse',
+        self::REASON_LOSS => 'Perte',
         self::REASON_OTHER => 'Autre',
     ];
 

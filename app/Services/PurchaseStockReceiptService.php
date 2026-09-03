@@ -53,7 +53,8 @@ class PurchaseStockReceiptService
     }
 
     /**
-     * Entrée en stock unique via BR. Idempotente via stock_applied_at.
+     * Entrée en stock unique (BR, BL direct ou Facture directe). Idempotente via stock_applied_at.
+     * Si un document source a déjà alimenté le stock, on relie seulement sans recréer de mouvement.
      *
      * @param  list<array<string, mixed>>  $items
      */
@@ -63,13 +64,20 @@ class PurchaseStockReceiptService
             return;
         }
 
-        // Seuls les BR créent une entrée physique de stock.
-        if (! $document instanceof Reception) {
-            throw new \InvalidArgumentException('L’entrée en stock doit passer par un bon de réception.');
+        if (! $this->canApplyStock($document)) {
+            throw new \InvalidArgumentException('Ce type de document ne peut pas générer d’entrée en stock.');
+        }
+
+        // BR créé depuis un BL/facture qui a déjà comptabilisé le stock → pas de doublon.
+        if ($document instanceof Reception) {
+            $source = $this->findAlreadyAppliedSource($document);
+            if ($source) {
+                $this->attachConvertedDocument(collect([$source]), $document);
+                return;
+            }
         }
 
         $meta = $this->documentMeta($document);
-
         $supplierName = $document->supplier?->name;
 
         foreach ($items as $item) {
@@ -130,6 +138,32 @@ class PurchaseStockReceiptService
         $movements = $this->movementsForDocument($meta['type'], (int) $document->getKey());
         $this->linkMovementsToDocument($movements, $meta['type'], (int) $document->getKey(), $meta['reference']);
         $this->linkMovementsToRelatedDocuments($document, $movements);
+    }
+
+    public function canApplyStock(Model $document): bool
+    {
+        return $document instanceof Reception
+            || $document instanceof SupplierDeliveryNote
+            || $document instanceof SupplierInvoice;
+    }
+
+    protected function findAlreadyAppliedSource(Reception $reception): ?Model
+    {
+        if ($reception->supplier_delivery_note_id) {
+            $note = SupplierDeliveryNote::find($reception->supplier_delivery_note_id);
+            if ($note?->stock_applied_at) {
+                return $note;
+            }
+        }
+
+        if ($reception->source_supplier_invoice_id) {
+            $invoice = SupplierInvoice::find($reception->source_supplier_invoice_id);
+            if ($invoice?->stock_applied_at) {
+                return $invoice;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -236,10 +270,11 @@ class PurchaseStockReceiptService
     /**
      * @param  Collection<int, StockMovement>|iterable<int, StockMovement>  $movements
      */
-    protected function linkMovementsToRelatedDocuments(Reception $reception, iterable $movements): void
+    protected function linkMovementsToRelatedDocuments(Model $document, iterable $movements): void
     {
-        if ($reception->supplier_purchase_order_id) {
-            $po = SupplierPurchaseOrder::find($reception->supplier_purchase_order_id);
+        $poId = $document->getAttribute('supplier_purchase_order_id');
+        if ($poId) {
+            $po = SupplierPurchaseOrder::find($poId);
             if ($po) {
                 $this->linkMovementsToDocument(
                     $movements,
@@ -250,8 +285,12 @@ class PurchaseStockReceiptService
             }
         }
 
-        if ($reception->supplier_delivery_note_id) {
-            $note = SupplierDeliveryNote::find($reception->supplier_delivery_note_id);
+        if (! $document instanceof Reception) {
+            return;
+        }
+
+        if ($document->supplier_delivery_note_id) {
+            $note = SupplierDeliveryNote::find($document->supplier_delivery_note_id);
             if ($note) {
                 $this->linkMovementsToDocument(
                     $movements,
@@ -259,10 +298,13 @@ class PurchaseStockReceiptService
                     (int) $note->id,
                     $note->delivery_number
                 );
+                if (! $note->stock_applied_at) {
+                    $note->update(['stock_applied_at' => now()]);
+                }
             }
         }
 
-        $invoiceIds = collect([$reception->source_supplier_invoice_id, $reception->converted_supplier_invoice_id])
+        $invoiceIds = collect([$document->source_supplier_invoice_id, $document->converted_supplier_invoice_id])
             ->filter()
             ->unique();
 

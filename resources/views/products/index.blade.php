@@ -805,8 +805,22 @@
                 </select>
             </div>
             <div>
-                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Quantité physique à ajouter / déclarer</label>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Type d’opération</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label class="flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50">
+                        <input type="radio" name="mode" value="add" checked class="mt-1" onchange="syncDeclareStockMode()">
+                        <span><span class="font-semibold text-slate-800">Ajouter</span><br><span class="text-xs text-slate-500">Entrée de stock (+)</span></span>
+                    </label>
+                    <label class="flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50">
+                        <input type="radio" name="mode" value="set" class="mt-1" onchange="syncDeclareStockMode()">
+                        <span><span class="font-semibold text-slate-800">Ajuster</span><br><span class="text-xs text-slate-500">Définir la quantité réelle (0 autorisé)</span></span>
+                    </label>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1" id="declareStockQuantityLabel">Quantité physique à ajouter / déclarer</label>
                 <input type="number" name="quantity" id="declareStockQuantity" min="1" value="1" required class="w-full rounded-lg border-slate-300 text-sm">
+                <p id="declareStockQuantityHelp" class="mt-1 text-xs text-slate-500">Minimum 1 pour un ajout.</p>
             </div>
             <div>
                 <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Motif / origine</label>
@@ -957,6 +971,53 @@ function loadDeclareStockLocations(warehouseId, locationsUrl) {
         });
 }
 
+function syncDeclareStockMode() {
+    var modeInput = document.querySelector('#declareStockForm input[name="mode"]:checked');
+    var mode = modeInput ? modeInput.value : 'add';
+    var qty = document.getElementById('declareStockQuantity');
+    var label = document.getElementById('declareStockQuantityHelp');
+    var qtyLabel = document.getElementById('declareStockQuantityLabel');
+    var submitBtn = document.getElementById('declareStockSubmit');
+    var reasonSelect = document.getElementById('declareStockReason');
+    var data = locationStockCache || {};
+
+    if (mode === 'set') {
+        if (qty) {
+            qty.min = '0';
+            if (qty.value === '' || parseInt(qty.value, 10) < 0) qty.value = '0';
+        }
+        if (qtyLabel) qtyLabel.textContent = 'Nouvelle quantité physique';
+        if (label) {
+            label.textContent = 'Valeur valide : 0 ou plus. Le stock Shopify / En ligne n’est pas modifié.';
+            label.className = 'mt-1 text-xs text-emerald-700 font-medium';
+        }
+        if (submitBtn) submitBtn.textContent = 'Confirmer l’ajustement';
+        var adjustReasons = data.adjustment_reasons || [];
+        if (reasonSelect && adjustReasons.length) {
+            reasonSelect.innerHTML = adjustReasons.map(function (r) {
+                return '<option value="' + escapeHtml(r.value) + '">' + escapeHtml(r.label) + '</option>';
+            }).join('');
+        }
+    } else {
+        if (qty) {
+            qty.min = '1';
+            if (!qty.value || parseInt(qty.value, 10) < 1) qty.value = '1';
+        }
+        if (qtyLabel) qtyLabel.textContent = 'Quantité physique à ajouter / déclarer';
+        if (label) {
+            label.textContent = 'Minimum 1 pour un ajout.';
+            label.className = 'mt-1 text-xs text-slate-500';
+        }
+        if (submitBtn) submitBtn.textContent = "Confirmer l'ajout";
+        var addReasons = data.reasons || [];
+        if (reasonSelect && addReasons.length) {
+            reasonSelect.innerHTML = addReasons.map(function (r) {
+                return '<option value="' + escapeHtml(r.value) + '">' + escapeHtml(r.label) + '</option>';
+            }).join('');
+        }
+    }
+}
+
 function closeDeclareStockModal() {
     var modal = document.getElementById('declareStockModal');
     if (modal) modal.classList.add('hidden');
@@ -977,17 +1038,15 @@ function openDeclareStockModal() {
     document.getElementById('declareStockQuantity').value = '1';
     document.getElementById('declareStockNotes').value = '';
 
+    var modeAdd = document.querySelector('#declareStockForm input[name="mode"][value="add"]');
+    if (modeAdd) modeAdd.checked = true;
+
     var whOpts = (data.physical_warehouses || []).map(function (w) {
         return '<option value="' + w.id + '">' + escapeHtml(w.name) + '</option>';
     }).join('');
     var whSelect = document.getElementById('declareStockWarehouse');
     whSelect.innerHTML = whOpts;
     loadDeclareStockLocations(whSelect.value, data.locations_url);
-
-    var reasonOpts = (data.reasons || []).map(function (r) {
-        return '<option value="' + escapeHtml(r.value) + '">' + escapeHtml(r.label) + '</option>';
-    }).join('');
-    document.getElementById('declareStockReason').innerHTML = reasonOpts;
 
     var variantWrap = document.getElementById('declareStockVariantWrap');
     var variantSelect = document.getElementById('declareStockVariant');
@@ -1003,6 +1062,7 @@ function openDeclareStockModal() {
         variantSelect.innerHTML = '';
     }
 
+    syncDeclareStockMode();
     modal.classList.remove('hidden');
 }
 
@@ -1106,7 +1166,7 @@ function bindProductListModals() {
                 .finally(function () {
                     if (submitBtn) {
                         submitBtn.disabled = false;
-                        submitBtn.textContent = "Confirmer l'ajout";
+                        syncDeclareStockMode();
                     }
                 });
         });

@@ -66,11 +66,16 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Emplacement du stock *</label>
-                            <select name="stock_location" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="Stock magasin" {{ $supplierInvoice->stock_location == 'Stock magasin' ? 'selected' : '' }}>Stock magasin</option>
-                                <option value="Stock en ligne" {{ $supplierInvoice->stock_location == 'Stock en ligne' ? 'selected' : '' }}>Stock en ligne</option>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Dépôt destination (défaut) *</label>
+                            <select name="warehouse_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">— Choisir —</option>
+                                @foreach($warehouses ?? [] as $warehouse)
+                                    <option value="{{ $warehouse->id }}" @selected(old('warehouse_id', $supplierInvoice->warehouse_id ?? $warehouse->is_fulfillment_default) == $warehouse->id)>
+                                        {{ $warehouse->isOnline() ? '🟢 ' : '' }}{{ $warehouse->name }}
+                                    </option>
+                                @endforeach
                             </select>
+                            <p class="mt-1 text-xs text-gray-500">Surchargeable par ligne. Le stock n’est pas rejoué si déjà comptabilisé.</p>
                         </div>
 
                         <div>
@@ -109,6 +114,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire (TTC)</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe (%)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dépôt / Emplacement</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remise</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
@@ -169,6 +175,7 @@ window.commercialDocConfig = {
 };
 </script>
 @include('partials.commercial-document-form-script')
+@include('purchases.partials.line-stock-allocations')
 <script>
 var itemIndex = 0;
 
@@ -197,6 +204,9 @@ function addItemWithData(data) {
         <td class="px-4 py-3">
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="${data.tax_rate || 20}" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
+        <td class="px-4 py-3">
+            ${window.purchaseLineStockHtml(itemIndex)}
+        </td>
         <td class="px-4 py-3">${window.discountRowHtmlWithData(itemIndex, data)}</td>
         <td class="px-4 py-3">
             <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
@@ -209,6 +219,14 @@ function addItemWithData(data) {
     tbody.insertBefore(row, tbody.firstChild);
     
     window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex, window.selectedCommercialProduct(data));
+    var defaultWarehouse = document.querySelector('select[name="warehouse_id"]');
+    if (defaultWarehouse && defaultWarehouse.value) {
+        var lineWh = row.querySelector('.purchase-line-warehouse');
+        if (lineWh) {
+            lineWh.value = defaultWarehouse.value;
+            window.purchaseLineWarehouseChanged(itemIndex);
+        }
+    }
     
     itemIndex++;
     calculateCommercialTotal();

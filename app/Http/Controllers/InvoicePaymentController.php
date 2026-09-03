@@ -21,6 +21,7 @@ class InvoicePaymentController extends Controller
             'posSale.fulfillments',
             'payments.user',
             'payments.paymentImport',
+            'payments.paymentImportLine',
             'items',
             'adjustments',
             'activities.actor',
@@ -34,8 +35,11 @@ class InvoicePaymentController extends Controller
         $validated = $request->validate([
             'payment_date' => 'required|date',
             'amount' => 'required|numeric|min:0.01',
+            'delivery_fees' => 'nullable|numeric|min:0',
+            'net_received' => 'nullable|numeric|min:0',
             'payment_method' => 'required|string',
             'payment_reference' => 'nullable|string',
+            'tracking_number' => 'nullable|string|max:255',
             'payment_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
             'notes' => 'nullable|string',
             'allow_overpayment' => 'sometimes|boolean',
@@ -51,13 +55,16 @@ class InvoicePaymentController extends Controller
         $this->recorder->recordInvoicePayment($invoice, [
             'payment_date' => $validated['payment_date'],
             'amount' => $validated['amount'],
+            'gross_amount' => $validated['amount'],
+            'delivery_fees' => $validated['delivery_fees'] ?? null,
+            'net_received' => $validated['net_received'] ?? null,
             'payment_method' => $validated['payment_method'],
             'payment_reference' => $validated['payment_reference'] ?? null,
             'payment_file_path' => $filePath,
             'notes' => $validated['notes'] ?? null,
             'allow_overpayment' => (bool) ($validated['allow_overpayment'] ?? false),
             'source' => 'manual',
-            'tracking_number' => $invoice->posSale?->primaryTrackingNumber(),
+            'tracking_number' => $validated['tracking_number'] ?? $invoice->posSale?->primaryTrackingNumber(),
         ]);
 
         return redirect()->route('invoices.payments.index', $invoice)->with('success', 'Paiement ajouté avec succès!');

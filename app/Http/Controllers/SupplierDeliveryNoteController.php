@@ -56,7 +56,7 @@ class SupplierDeliveryNoteController extends Controller
         $products = collect();
         $deliveryNumber = DocumentNumberService::preview('bon_livraison_fournisseur');
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
-        $warehouses = Warehouse::query()->active()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
+        $warehouses = Warehouse::query()->active()->with('locations')->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
         $purchaseOrders = SupplierPurchaseOrder::query()->with('supplier')->orderByDesc('order_date')->limit(200)->get();
 
         return view('purchases.supplier-delivery-notes.create', compact('suppliers', 'products', 'deliveryNumber', 'pricesAreTtc', 'warehouses', 'purchaseOrders'));
@@ -103,14 +103,14 @@ class SupplierDeliveryNoteController extends Controller
             $deliveryNote->update(['subtotal' => $subtotal, 'total' => $subtotal]);
             $deliveryNote->load('supplier');
             $this->purchasePriceSync->syncLastPurchasePrices($validated['items']);
-            // Le BL est un document logistique : il n'augmente pas le stock.
-            // L'entrée physique se fait uniquement au BR (ou via « Réceptionner » sur une facture directe).
+            // BL direct = réception physique : une seule entrée en stock. Les conversions suivantes ne rejouent pas le stock.
+            $this->purchaseStockReceipt->applyIfNeeded($deliveryNote, $validated['items'], $warehouse);
 
             DB::commit();
 
             DocumentNumberService::advanceAfterUse('bon_livraison_fournisseur', $validated['delivery_number']);
 
-            return redirect()->route('supplier-delivery-notes.index')->with('success', 'Bon de livraison créé. Aucune entrée de stock (réservée au bon de réception).');
+            return redirect()->route('supplier-delivery-notes.index')->with('success', 'Bon de livraison créé. Entrée en stock enregistrée (une seule fois).');
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -125,7 +125,8 @@ class SupplierDeliveryNoteController extends Controller
         $linkedReceptions = $this->purchaseReceipts->linkedReceptions($supplierDeliveryNote);
         $documentChain = app(PurchaseDocumentChainService::class)->forDeliveryNote($supplierDeliveryNote);
         $receptionStatus = $this->purchaseReceipts->documentReceptionStatusLabel($supplierDeliveryNote);
-        $canReceive = $receiptProgress->contains(fn (array $row) => $row['remaining'] > 0);
+        $canReceive = ! $supplierDeliveryNote->stock_applied_at
+            && $receiptProgress->contains(fn (array $row) => $row['remaining'] > 0);
 
         return view('purchases.supplier-delivery-notes.show', compact(
             'supplierDeliveryNote', 'receiptProgress', 'linkedReceptions', 'documentChain', 'receptionStatus', 'canReceive'
@@ -148,13 +149,19 @@ class SupplierDeliveryNoteController extends Controller
             'discount_type' => $item->discount_type ?? 'fixed',
         ])->values();
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->with('locations')->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('purchases.supplier-delivery-notes.edit', compact('supplierDeliveryNote', 'suppliers', 'products', 'existingItems', 'pricesAreTtc'));
+        return view('purchases.supplier-delivery-notes.edit', compact('supplierDeliveryNote', 'suppliers', 'products', 'existingItems', 'pricesAreTtc', 'warehouses'));
     }
 
     public function update(Request $request, SupplierDeliveryNote $supplierDeliveryNote)
     {
         $validated = $this->validateSupplierDeliveryNote($request, $supplierDeliveryNote);
+
+        $warehouse = $this->purchaseStockReceipt->resolveDefaultWarehouse(
+            isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : ($supplierDeliveryNote->warehouse_id ? (int) $supplierDeliveryNote->warehouse_id : null),
+            $validated['stock_location'] ?? $supplierDeliveryNote->stock_location
+        );
 
         DB::beginTransaction();
         try {
@@ -166,7 +173,8 @@ class SupplierDeliveryNoteController extends Controller
                 'reference' => $validated['reference'] ?? null,
                 'currency' => $validated['currency'],
                 'status' => $validated['status'],
-                'stock_location' => $validated['stock_location'],
+                'stock_location' => $warehouse->name,
+                'warehouse_id' => $warehouse->id,
                 'model' => $validated['model'] ?? null,
                 'remarks' => $validated['remarks'] ?? null,
             ]);
