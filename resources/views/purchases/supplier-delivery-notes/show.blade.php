@@ -93,6 +93,7 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf / SKU</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Origine BR</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qté BL</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Réceptionné</th>
@@ -108,6 +109,7 @@
                         @php $progress = ($receiptProgress ?? collect())->first(fn ($row) => (int)($row['product_id'] ?? 0) === (int)($item->product_id ?? 0) && (int)($row['product_variant_id'] ?? 0) === (int)($item->product_variant_id ?? 0)); @endphp
                         <tr>
                             <td class="px-4 py-3 text-sm text-gray-900">{{ $item->ref ?? '-' }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ $item->source_document_reference ?? '-' }}</td>
                             <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $item->designation }}</td>
                             <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $item->quantity }}</td>
                             <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $progress['received'] ?? 0 }}</td>

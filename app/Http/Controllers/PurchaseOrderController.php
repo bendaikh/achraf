@@ -9,6 +9,8 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Setting;
 use App\Services\DocumentNumberService;
+use App\Services\SalesDocumentChainService;
+use App\Services\SalesDocumentConversionService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use Illuminate\Http\Request;
@@ -20,7 +22,7 @@ class PurchaseOrderController extends Controller
 
     public function index(Request $request)
     {
-        $query = PurchaseOrder::with('client');
+        $query = PurchaseOrder::with(['client', 'convertedDeliveryNote', 'convertedInvoice']);
 
         $this->applyTableSearch($query, $request, ['reference', 'client.name']);
         $this->applyTableDateRange($query, $request, 'order_date');
@@ -125,9 +127,10 @@ class PurchaseOrderController extends Controller
 
     public function show(PurchaseOrder $purchaseOrder)
     {
-        $purchaseOrder->load('client', 'items');
+        $purchaseOrder->load(['client', 'items', 'sourceQuotes', 'convertedDeliveryNote', 'convertedInvoice']);
+        $documentChain = app(SalesDocumentChainService::class)->forPurchaseOrder($purchaseOrder);
 
-        return view('sales.purchase-orders.show', compact('purchaseOrder'));
+        return view('sales.purchase-orders.show', compact('purchaseOrder', 'documentChain'));
     }
 
     public function print(PurchaseOrder $purchaseOrder)
@@ -164,5 +167,33 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->delete();
 
         return redirect()->route('purchase-orders.index')->with('success', 'Bon de commande supprimé avec succès!');
+    }
+
+    public function bulkConvert(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:purchase_orders,id',
+            'mode' => 'required|in:separate,combined',
+            'target' => 'required|in:delivery_note,invoice',
+        ]);
+
+        $orders = PurchaseOrder::with('items')
+            ->whereIn('id', $validated['ids'])
+            ->orderBy('order_date')
+            ->get();
+
+        $converter = app(SalesDocumentConversionService::class);
+
+        try {
+            $created = $converter->convert($orders, $validated['mode'], $validated['target']);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => $converter->successMessage($validated['target'], $created->count()),
+            'redirect_url' => $converter->redirectUrl($validated['target']),
+        ]);
     }
 }

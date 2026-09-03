@@ -9,6 +9,8 @@ use App\Models\Product;
 use App\Models\Quote;
 use App\Models\Setting;
 use App\Services\DocumentNumberService;
+use App\Services\SalesDocumentChainService;
+use App\Services\SalesDocumentConversionService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use App\Support\LineItemPersistence;
@@ -21,7 +23,7 @@ class QuoteController extends Controller
 
     public function index(Request $request)
     {
-        $query = Quote::with('client');
+        $query = Quote::with(['client', 'convertedPurchaseOrder', 'convertedDeliveryNote', 'convertedInvoice']);
 
         $this->applyTableSearch($query, $request, ['quote_number', 'client.name']);
         $this->applyTableDateRange($query, $request, 'quote_date');
@@ -89,9 +91,10 @@ class QuoteController extends Controller
 
     public function show(Quote $quote)
     {
-        $quote->load('client', 'items');
+        $quote->load(['client', 'items', 'convertedPurchaseOrder', 'convertedDeliveryNote', 'convertedInvoice']);
+        $documentChain = app(SalesDocumentChainService::class)->forQuote($quote);
 
-        return view('sales.quotes.show', compact('quote'));
+        return view('sales.quotes.show', compact('quote', 'documentChain'));
     }
 
     public function edit(Quote $quote)
@@ -222,5 +225,33 @@ class QuoteController extends Controller
         }
 
         return $subtotal;
+    }
+
+    public function bulkConvert(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:quotes,id',
+            'mode' => 'required|in:separate,combined',
+            'target' => 'required|in:purchase_order,delivery_note,invoice',
+        ]);
+
+        $quotes = Quote::with('items')
+            ->whereIn('id', $validated['ids'])
+            ->orderBy('quote_date')
+            ->get();
+
+        $converter = app(SalesDocumentConversionService::class);
+
+        try {
+            $created = $converter->convert($quotes, $validated['mode'], $validated['target']);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => $converter->successMessage($validated['target'], $created->count()),
+            'redirect_url' => $converter->redirectUrl($validated['target']),
+        ]);
     }
 }

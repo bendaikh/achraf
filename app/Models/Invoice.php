@@ -65,6 +65,21 @@ class Invoice extends Model
         return $this->morphMany(InvoiceItem::class, 'itemable');
     }
 
+    public function sourceQuotes()
+    {
+        return $this->hasMany(Quote::class, 'converted_invoice_id');
+    }
+
+    public function sourcePurchaseOrders()
+    {
+        return $this->hasMany(PurchaseOrder::class, 'converted_invoice_id');
+    }
+
+    public function sourceDeliveryNotes()
+    {
+        return $this->hasMany(DeliveryNote::class, 'converted_invoice_id');
+    }
+
     public function creditNotes()
     {
         return $this->hasMany(CreditNote::class);

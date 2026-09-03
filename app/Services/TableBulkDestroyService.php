@@ -144,6 +144,11 @@ class TableBulkDestroyService
                     if ($invoice->creditNotes()->exists()) {
                         return 'liée à un avoir';
                     }
+                    if (Quote::query()->where('converted_invoice_id', $invoice->id)->exists()
+                        || PurchaseOrder::query()->where('converted_invoice_id', $invoice->id)->exists()
+                        || DeliveryNote::query()->where('converted_invoice_id', $invoice->id)->exists()) {
+                        return 'issue d’une conversion (devis/BC/BL)';
+                    }
 
                     return null;
                 },
@@ -156,16 +161,42 @@ class TableBulkDestroyService
                 'model' => Quote::class,
                 'label' => 'quote_number',
                 'files' => $deleteDocumentFile,
+                'block' => function (Quote $quote) {
+                    if ($quote->isConvertedToPurchaseOrder()) {
+                        return 'déjà converti en bon de commande';
+                    }
+                    if ($quote->isConvertedToDeliveryNote()) {
+                        return 'déjà converti en bon de livraison';
+                    }
+                    if ($quote->isConvertedToInvoice()) {
+                        return 'déjà converti en facture';
+                    }
+
+                    return null;
+                },
             ],
             'purchase-orders' => [
                 'model' => PurchaseOrder::class,
                 'label' => 'reference',
                 'files' => $deleteDocumentFile,
+                'block' => function (PurchaseOrder $order) {
+                    if ($order->isConvertedToDeliveryNote()) {
+                        return 'déjà converti en bon de livraison';
+                    }
+                    if ($order->isConvertedToInvoice()) {
+                        return 'déjà converti en facture';
+                    }
+
+                    return null;
+                },
             ],
             'delivery-notes' => [
                 'model' => DeliveryNote::class,
                 'label' => 'delivery_number',
                 'files' => $deleteDocumentFile,
+                'block' => function (DeliveryNote $note) {
+                    return $note->isConvertedToInvoice() ? 'déjà converti en facture' : null;
+                },
             ],
             'credit-notes' => [
                 'model' => CreditNote::class,
@@ -196,7 +227,14 @@ class TableBulkDestroyService
                 'label' => 'delivery_number',
                 'files' => $deleteDocumentFile,
                 'block' => function (SupplierDeliveryNote $note) {
-                    return $note->isConverted() ? 'déjà converti en facture fournisseur' : null;
+                    if ($note->isConverted()) {
+                        return 'déjà converti en facture fournisseur';
+                    }
+                    if (Reception::query()->where('converted_supplier_delivery_note_id', $note->id)->exists()) {
+                        return 'issue d’une conversion (BR)';
+                    }
+
+                    return null;
                 },
             ],
             'receptions' => [
@@ -204,7 +242,14 @@ class TableBulkDestroyService
                 'label' => 'reception_number',
                 'files' => $deleteDocumentFile,
                 'block' => function (Reception $reception) {
-                    return $reception->isConverted() ? 'déjà converti en facture fournisseur' : null;
+                    if ($reception->isConverted()) {
+                        return 'déjà converti en facture fournisseur';
+                    }
+                    if ($reception->isConvertedToDeliveryNote()) {
+                        return 'déjà converti en bon de livraison';
+                    }
+
+                    return null;
                 },
             ],
             'supplier-purchase-orders' => [

@@ -70,6 +70,9 @@
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-devise column-devise" data-lm-col="devise">
                                     Devise
                                 </th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-conversion column-conversion" data-lm-col="conversion">
+                                    Conversion
+                                </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">
                                     Total
                                 </th>
@@ -96,6 +99,13 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-devise column-devise" data-lm-col="devise">
                                         <div class="text-sm text-gray-900">{{ $invoice->currency }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-conversion column-conversion" data-lm-col="conversion">
+                                        <x-sales-conversion-status :badges="array_values(array_filter([
+                                            $invoice->isConvertedToPurchaseOrder() ? 'BC' : null,
+                                            $invoice->isConvertedToDeliveryNote() ? 'BL' : null,
+                                            $invoice->isConvertedToInvoice() ? 'Facture' : null,
+                                        ]))" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($invoice->total, 2) }}</div>
@@ -132,7 +142,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-6 py-12 text-center">
+                                    <td colspan="9" class="px-6 py-12 text-center">
                                         <div class="flex flex-col items-center">
                                             <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -154,5 +164,53 @@
                 <x-table-pagination :paginator="$quotes" :bordered="false" item-label="devis" />
             </div>
         </div>
+
+        <x-sales-convert-modal
+            table-id="quotes"
+            title="Convertir les devis"
+            item-label="devis"
+            :route="route('quotes.bulk-convert')"
+            :targets="[
+                [
+                    'key' => 'purchase_order',
+                    'heading' => 'Convertir en bon de commande',
+                    'description' => 'Créez un ou plusieurs bons de commande à partir des devis sélectionnés.',
+                    'border' => 'border-emerald-200',
+                    'bg' => 'bg-emerald-50/60',
+                    'titleClass' => 'text-emerald-950',
+                    'textClass' => 'text-emerald-800/80',
+                    'separateLabel' => 'Convertir chaque devis en un bon de commande distinct',
+                    'separateHint' => 'Un bon de commande sera créé pour chaque devis sélectionné.',
+                    'combinedLabel' => 'Convertir tous les devis sélectionnés en un seul bon de commande',
+                    'combinedHint' => 'Les lignes seront fusionnées, avec la référence du devis d’origine sur chaque ligne.',
+                ],
+                [
+                    'key' => 'delivery_note',
+                    'heading' => 'Convertir en bon de livraison',
+                    'description' => 'Créez un ou plusieurs bons de livraison à partir des devis sélectionnés.',
+                    'border' => 'border-orange-200',
+                    'bg' => 'bg-orange-50/60',
+                    'titleClass' => 'text-orange-950',
+                    'textClass' => 'text-orange-800/80',
+                    'separateLabel' => 'Convertir chaque devis en un bon de livraison distinct',
+                    'separateHint' => 'Un bon de livraison sera créé pour chaque devis sélectionné.',
+                    'combinedLabel' => 'Convertir tous les devis sélectionnés en un seul bon de livraison',
+                    'combinedHint' => 'Les lignes seront fusionnées, avec la référence du devis d’origine sur chaque ligne.',
+                ],
+                [
+                    'key' => 'invoice',
+                    'heading' => 'Convertir en facture',
+                    'description' => 'Créez une ou plusieurs factures à partir des devis sélectionnés.',
+                    'border' => 'border-indigo-200',
+                    'bg' => 'bg-indigo-50/60',
+                    'titleClass' => 'text-indigo-950',
+                    'textClass' => 'text-indigo-800/80',
+                    'separateLabel' => 'Convertir chaque devis en une facture distincte',
+                    'separateHint' => 'Une facture sera créée pour chaque devis sélectionné.',
+                    'combinedLabel' => 'Convertir tous les devis sélectionnés en une seule facture',
+                    'combinedHint' => 'Les lignes seront fusionnées, avec la référence du devis d’origine sur chaque ligne.',
+                ],
+            ]"
+        />
     </main>
 @endsection

@@ -13,6 +13,7 @@ class Reception extends Model
         'reception_number', 'supplier_id', 'supplier_purchase_order_id',
         'supplier_delivery_note_id', 'source_supplier_invoice_id',
         'converted_supplier_invoice_id', 'converted_at',
+        'converted_supplier_delivery_note_id', 'converted_to_delivery_note_at',
         'reference', 'reception_date', 'delivery_date',
         'currency', 'status', 'stock_location', 'warehouse_id', 'model', 'remarks',
         'subtotal', 'discount', 'adjustment', 'total', 'document_file_path', 'stock_applied_at',
@@ -22,6 +23,7 @@ class Reception extends Model
         'reception_date' => 'date',
         'delivery_date' => 'date',
         'converted_at' => 'datetime',
+        'converted_to_delivery_note_at' => 'datetime',
         'stock_applied_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
@@ -39,9 +41,19 @@ class Reception extends Model
         return $this->belongsTo(SupplierInvoice::class, 'converted_supplier_invoice_id');
     }
 
+    public function convertedSupplierDeliveryNote()
+    {
+        return $this->belongsTo(SupplierDeliveryNote::class, 'converted_supplier_delivery_note_id');
+    }
+
     public function isConverted(): bool
     {
         return $this->converted_supplier_invoice_id !== null;
+    }
+
+    public function isConvertedToDeliveryNote(): bool
+    {
+        return $this->converted_supplier_delivery_note_id !== null;
     }
 
     public function items()

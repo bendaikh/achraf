@@ -120,7 +120,7 @@ class SupplierDeliveryNoteController extends Controller
 
     public function show(SupplierDeliveryNote $supplierDeliveryNote)
     {
-        $supplierDeliveryNote->load(['supplier', 'items.product', 'items.variant', 'warehouse', 'purchaseOrder']);
+        $supplierDeliveryNote->load(['supplier', 'items.product', 'items.variant', 'warehouse', 'purchaseOrder', 'convertedFromReceptions']);
         $receiptProgress = $this->purchaseReceipts->progressForDocument($supplierDeliveryNote);
         $linkedReceptions = $this->purchaseReceipts->linkedReceptions($supplierDeliveryNote);
         $documentChain = app(PurchaseDocumentChainService::class)->forDeliveryNote($supplierDeliveryNote);

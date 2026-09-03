@@ -70,6 +70,9 @@
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-devise column-devise" data-lm-col="devise">
                                     Devise
                                 </th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-conversion column-conversion" data-lm-col="conversion">
+                                    Conversion
+                                </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">
                                     Total
                                 </th>
@@ -96,6 +99,12 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-devise column-devise" data-lm-col="devise">
                                         <div class="text-sm text-gray-900">{{ $invoice->currency }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-conversion column-conversion" data-lm-col="conversion">
+                                        <x-sales-conversion-status :badges="array_values(array_filter([
+                                            $invoice->isConvertedToDeliveryNote() ? 'BL' : null,
+                                            $invoice->isConvertedToInvoice() ? 'Facture' : null,
+                                        ]))" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($invoice->total, 2) }}</div>
@@ -132,7 +141,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-6 py-12 text-center">
+                                    <td colspan="9" class="px-6 py-12 text-center">
                                         <div class="flex flex-col items-center">
                                             <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -154,5 +163,40 @@
                 <x-table-pagination :paginator="$purchaseOrders" :bordered="false" item-label="bons de commande" />
             </div>
         </div>
+
+        <x-sales-convert-modal
+            table-id="purchase-orders"
+            title="Convertir les bons de commande"
+            item-label="bon de commande"
+            :route="route('purchase-orders.bulk-convert')"
+            :targets="[
+                [
+                    'key' => 'delivery_note',
+                    'heading' => 'Convertir en bon de livraison',
+                    'description' => 'Créez un ou plusieurs bons de livraison à partir des BC sélectionnés.',
+                    'border' => 'border-orange-200',
+                    'bg' => 'bg-orange-50/60',
+                    'titleClass' => 'text-orange-950',
+                    'textClass' => 'text-orange-800/80',
+                    'separateLabel' => 'Convertir chaque bon de commande en un bon de livraison distinct',
+                    'separateHint' => 'Un bon de livraison sera créé pour chaque BC sélectionné.',
+                    'combinedLabel' => 'Convertir tous les BC sélectionnés en un seul bon de livraison',
+                    'combinedHint' => 'Les lignes seront fusionnées, avec la référence du BC d’origine sur chaque ligne.',
+                ],
+                [
+                    'key' => 'invoice',
+                    'heading' => 'Convertir en facture',
+                    'description' => 'Créez une ou plusieurs factures à partir des BC sélectionnés.',
+                    'border' => 'border-indigo-200',
+                    'bg' => 'bg-indigo-50/60',
+                    'titleClass' => 'text-indigo-950',
+                    'textClass' => 'text-indigo-800/80',
+                    'separateLabel' => 'Convertir chaque bon de commande en une facture distincte',
+                    'separateHint' => 'Une facture sera créée pour chaque BC sélectionné.',
+                    'combinedLabel' => 'Convertir tous les BC sélectionnés en une seule facture',
+                    'combinedHint' => 'Les lignes seront fusionnées, avec la référence du BC d’origine sur chaque ligne.',
+                ],
+            ]"
+        />
     </main>
 @endsection

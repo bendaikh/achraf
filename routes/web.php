@@ -237,16 +237,19 @@ Route::middleware('auth')->group(function () {
         Route::post('quotes/import', [DocumentImportController::class, 'import'])->defaults('type', 'quotes')->name('quotes.import');
         Route::get('quotes/{quote}/print', [QuoteController::class, 'print'])->name('quotes.print');
         Route::get('quotes/{quote}/pdf', [QuoteController::class, 'downloadPdf'])->name('quotes.pdf');
+        Route::post('quotes/bulk-convert', [QuoteController::class, 'bulkConvert'])->name('quotes.bulk-convert');
         Route::resource('quotes', QuoteController::class);
         Route::get('purchase-orders/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'purchase-orders')->name('purchase-orders.import.template');
         Route::post('purchase-orders/import', [DocumentImportController::class, 'import'])->defaults('type', 'purchase-orders')->name('purchase-orders.import');
         Route::get('purchase-orders/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('purchase-orders.print');
         Route::get('purchase-orders/{purchaseOrder}/pdf', [PurchaseOrderController::class, 'downloadPdf'])->name('purchase-orders.pdf');
+        Route::post('purchase-orders/bulk-convert', [PurchaseOrderController::class, 'bulkConvert'])->name('purchase-orders.bulk-convert');
         Route::resource('purchase-orders', PurchaseOrderController::class);
         Route::get('delivery-notes/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'delivery-notes')->name('delivery-notes.import.template');
         Route::post('delivery-notes/import', [DocumentImportController::class, 'import'])->defaults('type', 'delivery-notes')->name('delivery-notes.import');
         Route::get('delivery-notes/{deliveryNote}/print', [DeliveryNoteController::class, 'print'])->name('delivery-notes.print');
         Route::get('delivery-notes/{deliveryNote}/pdf', [DeliveryNoteController::class, 'downloadPdf'])->name('delivery-notes.pdf');
+        Route::post('delivery-notes/bulk-convert', [DeliveryNoteController::class, 'bulkConvert'])->name('delivery-notes.bulk-convert');
         Route::resource('delivery-notes', DeliveryNoteController::class);
         Route::get('credit-notes/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'credit-notes')->name('credit-notes.import.template');
         Route::post('credit-notes/import', [DocumentImportController::class, 'import'])->defaults('type', 'credit-notes')->name('credit-notes.import');
@@ -293,6 +296,7 @@ Route::middleware('auth')->group(function () {
         Route::post('supplier-delivery-notes/bulk-convert', [SupplierDeliveryNoteController::class, 'bulkConvert'])->name('supplier-delivery-notes.bulk-convert');
         Route::resource('supplier-delivery-notes', SupplierDeliveryNoteController::class);
         Route::post('receptions/bulk-convert', [ReceptionController::class, 'bulkConvert'])->name('receptions.bulk-convert');
+        Route::post('receptions/bulk-convert-delivery-notes', [ReceptionController::class, 'bulkConvertToDeliveryNotes'])->name('receptions.bulk-convert-delivery-notes');
         Route::get('receptions/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'receptions')->name('receptions.import.template');
         Route::post('receptions/import', [DocumentImportController::class, 'import'])->defaults('type', 'receptions')->name('receptions.import');
         Route::resource('receptions', ReceptionController::class);

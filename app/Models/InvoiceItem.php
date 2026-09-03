@@ -15,6 +15,7 @@ class InvoiceItem extends Model
         'ref',
         'designation',
         'description',
+        'source_document_reference',
         'quantity',
         'unit_price',
         'tax_rate',

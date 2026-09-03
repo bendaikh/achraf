@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\Setting;
 use App\Services\DocumentNumberService;
 use App\Services\InvoiceSituationService;
+use App\Services\SalesDocumentChainService;
 use App\Services\StockMovementService;
 use App\Support\InvoiceCommercialStatus;
 use App\Support\CommercialDocumentView;
@@ -182,10 +183,11 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load('client', 'items', 'posSale', 'payments.user', 'payments.paymentImport', 'payments.paymentImportLine', 'adjustments', 'creditNotes', 'refunds');
+        $invoice->load('client', 'items', 'posSale', 'payments.user', 'payments.paymentImport', 'payments.paymentImportLine', 'adjustments', 'creditNotes', 'refunds', 'sourceQuotes', 'sourcePurchaseOrders', 'sourceDeliveryNotes');
         $situation = $this->situation->forInvoice($invoice);
+        $documentChain = app(SalesDocumentChainService::class)->forInvoice($invoice);
 
-        return view('sales.invoices.show', compact('invoice', 'situation'));
+        return view('sales.invoices.show', compact('invoice', 'situation', 'documentChain'));
     }
 
     public function edit(Invoice $invoice)

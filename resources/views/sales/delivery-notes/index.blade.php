@@ -75,6 +75,7 @@
                                     default-direction="desc"
                                 />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">Statut</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-conversion column-conversion" data-lm-col="conversion">Conversion</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">Total</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-bl_genere column-bl_genere" data-lm-col="bl_genere">BL généré</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-bl_signe column-bl_signe" data-lm-col="bl_signe">BL signé</th>
@@ -99,6 +100,11 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
                                         <div class="text-sm text-gray-900">{{ $deliveryNote->status }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-conversion column-conversion" data-lm-col="conversion">
+                                        <x-sales-conversion-status :badges="array_values(array_filter([
+                                            $deliveryNote->isConvertedToInvoice() ? 'Facture' : null,
+                                        ]))" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($deliveryNote->total, 2) }}</div>
@@ -141,7 +147,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="px-6 py-12 text-center">
+                                    <td colspan="11" class="px-6 py-12 text-center">
                                         <div class="flex flex-col items-center">
                                             <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -161,5 +167,27 @@
 
             <x-table-pagination :paginator="$deliveryNotes" :bordered="false" item-label="bons de livraison" />
         </div>
+
+        <x-sales-convert-modal
+            table-id="delivery-notes"
+            title="Convertir les bons de livraison"
+            item-label="bon de livraison"
+            :route="route('delivery-notes.bulk-convert')"
+            :targets="[
+                [
+                    'key' => 'invoice',
+                    'heading' => 'Convertir en facture',
+                    'description' => 'Créez une ou plusieurs factures à partir des BL sélectionnés.',
+                    'border' => 'border-indigo-200',
+                    'bg' => 'bg-indigo-50/60',
+                    'titleClass' => 'text-indigo-950',
+                    'textClass' => 'text-indigo-800/80',
+                    'separateLabel' => 'Convertir chaque bon de livraison en une facture distincte',
+                    'separateHint' => 'Une facture sera créée pour chaque BL sélectionné.',
+                    'combinedLabel' => 'Convertir tous les BL sélectionnés en une seule facture',
+                    'combinedHint' => 'Les lignes seront fusionnées, avec la référence du BL d’origine sur chaque ligne.',
+                ],
+            ]"
+        />
     </main>
 @endsection

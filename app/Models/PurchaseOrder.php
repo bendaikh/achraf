@@ -13,6 +13,8 @@ class PurchaseOrder extends Model
         'expiry_date',
         'currency',
         'status',
+        'converted_delivery_note_id', 'converted_to_delivery_note_at',
+        'converted_invoice_id', 'converted_to_invoice_at',
         'model',
         'matricule',
         'remarks',
@@ -27,6 +29,8 @@ class PurchaseOrder extends Model
     protected $casts = [
         'order_date' => 'date',
         'expiry_date' => 'date',
+        'converted_to_delivery_note_at' => 'datetime',
+        'converted_to_invoice_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
         'adjustment' => 'decimal:2',
@@ -41,5 +45,30 @@ class PurchaseOrder extends Model
     public function items()
     {
         return $this->morphMany(InvoiceItem::class, 'itemable');
+    }
+
+    public function convertedDeliveryNote()
+    {
+        return $this->belongsTo(DeliveryNote::class, 'converted_delivery_note_id');
+    }
+
+    public function convertedInvoice()
+    {
+        return $this->belongsTo(Invoice::class, 'converted_invoice_id');
+    }
+
+    public function sourceQuotes()
+    {
+        return $this->hasMany(Quote::class, 'converted_purchase_order_id');
+    }
+
+    public function isConvertedToDeliveryNote(): bool
+    {
+        return $this->converted_delivery_note_id !== null;
+    }
+
+    public function isConvertedToInvoice(): bool
+    {
+        return $this->converted_invoice_id !== null;
     }
 }

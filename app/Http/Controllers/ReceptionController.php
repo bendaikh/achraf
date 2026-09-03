@@ -40,7 +40,7 @@ class ReceptionController extends Controller
 
     public function index(Request $request)
     {
-        $query = Reception::with(['supplier', 'convertedSupplierInvoice']);
+        $query = Reception::with(['supplier', 'convertedSupplierInvoice', 'convertedSupplierDeliveryNote']);
 
         $this->applyTableSearch($query, $request, ['reception_number', 'reference', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'reception_date');
@@ -128,7 +128,7 @@ class ReceptionController extends Controller
 
     public function show(Reception $reception)
     {
-        $reception->load(['supplier', 'items', 'warehouse', 'purchaseOrder', 'deliveryNote', 'sourceSupplierInvoice', 'convertedSupplierInvoice', 'stockAllocations.warehouse', 'stockAllocations.location']);
+        $reception->load(['supplier', 'items', 'warehouse', 'purchaseOrder', 'deliveryNote', 'sourceSupplierInvoice', 'convertedSupplierInvoice', 'convertedSupplierDeliveryNote', 'stockAllocations.warehouse', 'stockAllocations.location']);
         $documentChain = app(PurchaseDocumentChainService::class)->forReception($reception);
         $receiptProgress = $this->purchaseReceipts->progressForDocument($reception);
         $linkedReceptions = $this->purchaseReceipts->linkedReceptions($reception);
@@ -369,6 +369,122 @@ class ReceptionController extends Controller
         return $invoice;
     }
 
+    public function bulkConvertToDeliveryNotes(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:receptions,id',
+            'mode' => 'required|in:separate,combined',
+        ]);
+
+        $receptions = Reception::with('items')
+            ->whereIn('id', $validated['ids'])
+            ->orderBy('reception_date')
+            ->get();
+
+        $alreadyConverted = $receptions->filter(fn (Reception $reception) => $reception->isConvertedToDeliveryNote());
+        if ($alreadyConverted->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Un ou plusieurs bons de réception sélectionnés ont déjà été convertis en bon de livraison.',
+            ], 422);
+        }
+
+        if ($validated['mode'] === 'combined' && $receptions->pluck('supplier_id')->unique()->count() > 1) {
+            return response()->json([
+                'message' => 'Les bons sélectionnés doivent appartenir au même fournisseur pour créer un seul bon de livraison.',
+            ], 422);
+        }
+
+        $createdNotes = DB::transaction(function () use ($receptions, $validated) {
+            if ($validated['mode'] === 'combined') {
+                return collect([$this->createSupplierDeliveryNoteFromReceptions($receptions)]);
+            }
+
+            return $receptions->map(fn (Reception $reception) => $this->createSupplierDeliveryNoteFromReceptions(collect([$reception])));
+        });
+
+        return response()->json([
+            'message' => $createdNotes->count().' bon(s) de livraison créé(s) avec succès.',
+            'redirect_url' => route('supplier-delivery-notes.index'),
+            'delivery_note_ids' => $createdNotes->pluck('id')->values(),
+        ]);
+    }
+
+    protected function createSupplierDeliveryNoteFromReceptions($receptions): SupplierDeliveryNote
+    {
+        /** @var Reception $first */
+        $first = $receptions->first();
+        $originLabels = $receptions
+            ->map(fn (Reception $reception) => $this->receptionOriginLabel($reception))
+            ->values();
+        $reference = $receptions
+            ->pluck('reception_number')
+            ->implode(', ');
+
+        $deliveryNote = SupplierDeliveryNote::create([
+            'delivery_number' => $this->nextSupplierDeliveryNoteNumber(),
+            'supplier_id' => $first->supplier_id,
+            'supplier_purchase_order_id' => $first->supplier_purchase_order_id,
+            'delivery_date' => ($first->delivery_date ?? $first->reception_date)?->toDateString() ?? now()->toDateString(),
+            'expected_reception_date' => $first->reception_date?->toDateString(),
+            'reference' => $reference,
+            'currency' => $first->currency,
+            'status' => $first->status ?: 'accepté',
+            'stock_location' => $first->stock_location,
+            'warehouse_id' => $first->warehouse_id,
+            'model' => $first->model,
+            'remarks' => 'Généré depuis Bon(s) de Réception: '.$originLabels->implode(', '),
+            'subtotal' => 0,
+            'discount' => 0,
+            'adjustment' => 0,
+            'total' => 0,
+        ]);
+
+        DocumentNumberService::advanceAfterUse('bon_livraison_fournisseur', $deliveryNote->delivery_number);
+
+        $subtotal = 0;
+
+        foreach ($receptions as $reception) {
+            foreach ($reception->items as $item) {
+                $deliveryNote->items()->create([
+                    'product_id' => $item->product_id,
+                    'product_variant_id' => $item->product_variant_id,
+                    'ref' => $item->ref,
+                    'designation' => $item->designation,
+                    'description' => $item->description,
+                    'source_document_reference' => $this->receptionOriginLabel($reception),
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'tax_rate' => $item->tax_rate,
+                    'discount' => $item->discount,
+                    'discount_type' => $item->discount_type,
+                    'line_total' => $item->line_total,
+                ]);
+
+                $subtotal += (float) $item->line_total;
+            }
+        }
+
+        $deliveryNote->update([
+            'subtotal' => $subtotal,
+            'total' => $subtotal,
+        ]);
+
+        $deliveryNote->load('items');
+        $this->purchasePriceSync->syncLastPurchasePrices($deliveryNote->items);
+
+        foreach ($receptions as $reception) {
+            $reception->update([
+                'converted_supplier_delivery_note_id' => $deliveryNote->id,
+                'converted_to_delivery_note_at' => now(),
+            ]);
+        }
+
+        $this->purchaseStockReceipt->attachConvertedDocument($receptions, $deliveryNote);
+
+        return $deliveryNote;
+    }
+
     protected function receptionOriginLabel(Reception $reception): string
     {
         if ($reception->reference) {
@@ -389,5 +505,17 @@ class ReceptionController extends Controller
         } while (SupplierInvoice::where('invoice_number', $number)->exists());
 
         return $number;
+    }
+
+    protected function nextSupplierDeliveryNoteNumber(): string
+    {
+        do {
+            $number = DocumentNumberService::preview('bon_livraison_fournisseur');
+            if (! SupplierDeliveryNote::where('delivery_number', $number)->exists()) {
+                return $number;
+            }
+
+            DocumentNumberService::advanceAfterUse('bon_livraison_fournisseur', $number);
+        } while (true);
     }
 }

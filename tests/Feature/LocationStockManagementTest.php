@@ -294,6 +294,108 @@ class LocationStockManagementTest extends TestCase
         $this->assertSame(1, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
     }
 
+    public function test_reception_converts_to_delivery_note_without_duplicating_stock(): void
+    {
+        $user = User::factory()->create();
+        $supplier = Supplier::create(['name' => 'AZMI FRERES']);
+        $product = $this->stockedProduct();
+        $warehouse = Warehouse::fulfillmentWarehouse();
+
+        $this->actingAs($user)->post(route('receptions.store'), [
+            'reception_number' => 'BR-TEST-BL-1',
+            'supplier_id' => $supplier->id,
+            'reception_date' => '2026-08-19',
+            'currency' => 'dh - MAD',
+            'status' => 'accepté',
+            'warehouse_id' => $warehouse->id,
+            'items' => [[
+                'product_id' => $product->id,
+                'ref' => $product->ref,
+                'designation' => $product->name,
+                'quantity' => 10,
+                'unit_price' => 50,
+                'tax_rate' => 20,
+                'discount' => 0,
+                'discount_type' => 'fixed',
+            ]],
+        ])->assertRedirect();
+
+        $reception = Reception::query()->firstOrFail();
+        $this->actingAs($user)->postJson(route('receptions.bulk-convert-delivery-notes'), [
+            'ids' => [$reception->id],
+            'mode' => 'separate',
+        ])->assertOk();
+
+        $reception->refresh();
+        $this->assertNotNull($reception->converted_supplier_delivery_note_id);
+        $this->assertNull($reception->converted_supplier_invoice_id);
+
+        $note = \App\Models\SupplierDeliveryNote::query()->firstOrFail();
+        $this->assertSame(10, (int) $note->items()->first()->quantity);
+        $this->assertSame($reception->reception_number, $note->items()->first()->source_document_reference);
+        $this->assertNotNull($note->stock_applied_at);
+        $this->assertSame(10, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $warehouse->id));
+        $this->assertSame(1, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
+
+        $this->actingAs($user)->postJson(route('receptions.bulk-convert-delivery-notes'), [
+            'ids' => [$reception->id],
+            'mode' => 'separate',
+        ])->assertStatus(422);
+
+        $this->actingAs($user)->postJson(route('receptions.bulk-convert'), [
+            'ids' => [$reception->id],
+            'mode' => 'separate',
+        ])->assertOk();
+
+        $this->assertNotNull($reception->fresh()->converted_supplier_invoice_id);
+        $this->assertSame(1, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
+    }
+
+    public function test_combined_receptions_convert_to_one_delivery_note_with_origin_on_lines(): void
+    {
+        $user = User::factory()->create();
+        $supplier = Supplier::create(['name' => 'Fournisseur combiné']);
+        $product = $this->stockedProduct();
+        $warehouse = Warehouse::fulfillmentWarehouse();
+
+        foreach (['BR-COMB-1', 'BR-COMB-2'] as $number) {
+            $this->actingAs($user)->post(route('receptions.store'), [
+                'reception_number' => $number,
+                'supplier_id' => $supplier->id,
+                'reception_date' => '2026-08-19',
+                'currency' => 'dh - MAD',
+                'status' => 'accepté',
+                'warehouse_id' => $warehouse->id,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'ref' => $product->ref,
+                    'designation' => $product->name,
+                    'quantity' => 4,
+                    'unit_price' => 10,
+                    'tax_rate' => 20,
+                    'discount' => 0,
+                    'discount_type' => 'fixed',
+                ]],
+            ])->assertRedirect();
+        }
+
+        $ids = Reception::query()->orderBy('id')->pluck('id')->all();
+        $this->actingAs($user)->postJson(route('receptions.bulk-convert-delivery-notes'), [
+            'ids' => $ids,
+            'mode' => 'combined',
+        ])->assertOk();
+
+        $this->assertSame(1, \App\Models\SupplierDeliveryNote::query()->count());
+        $note = \App\Models\SupplierDeliveryNote::query()->firstOrFail();
+        $this->assertCount(2, $note->items);
+        $this->assertEqualsCanonicalizing(
+            ['BR-COMB-1', 'BR-COMB-2'],
+            $note->items->pluck('source_document_reference')->all()
+        );
+        $this->assertSame(8, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $warehouse->id));
+        $this->assertSame(2, StockMovement::query()->where('type', StockMovement::TYPE_PURCHASE)->count());
+    }
+
     public function test_split_reception_distributes_quantities(): void
     {
         $user = User::factory()->create();

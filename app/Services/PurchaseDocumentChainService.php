@@ -77,7 +77,15 @@ class PurchaseDocumentChainService
             }
         }
 
-        if ($reception->supplier_delivery_note_id) {
+        if ($reception->converted_supplier_delivery_note_id) {
+            $note = SupplierDeliveryNote::find($reception->converted_supplier_delivery_note_id);
+            if ($note) {
+                $chain[] = $this->deliveryNoteNode($note);
+            }
+        }
+
+        if ($reception->supplier_delivery_note_id
+            && (int) $reception->supplier_delivery_note_id !== (int) $reception->converted_supplier_delivery_note_id) {
             $note = SupplierDeliveryNote::find($reception->supplier_delivery_note_id);
             if ($note) {
                 $chain[] = $this->deliveryNoteNode($note);

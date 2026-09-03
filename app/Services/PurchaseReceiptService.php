@@ -263,6 +263,9 @@ class PurchaseReceiptService
             if ($document->supplier_delivery_note_id) {
                 $blIds->push($document->supplier_delivery_note_id);
             }
+            if ($document->converted_supplier_delivery_note_id) {
+                $blIds->push($document->converted_supplier_delivery_note_id);
+            }
             if ($document->source_supplier_invoice_id) {
                 $invoiceIds->push($document->source_supplier_invoice_id);
             }
@@ -298,6 +301,17 @@ class PurchaseReceiptService
                     ->whereNotNull('converted_supplier_invoice_id')
                     ->pluck('converted_supplier_invoice_id')
             );
+            $invoiceIds = $invoiceIds->merge(
+                Reception::query()
+                    ->whereIn('converted_supplier_delivery_note_id', $blIds)
+                    ->whereNotNull('converted_supplier_invoice_id')
+                    ->pluck('converted_supplier_invoice_id')
+            );
+            $poIds = $poIds->merge(
+                Reception::query()
+                    ->whereIn('converted_supplier_delivery_note_id', $blIds)
+                    ->pluck('supplier_purchase_order_id')
+            );
         }
 
         if ($invoiceIds->isNotEmpty()) {
@@ -312,6 +326,11 @@ class PurchaseReceiptService
                 SupplierDeliveryNote::query()->whereIn('converted_supplier_invoice_id', $invoiceIds)->pluck('supplier_purchase_order_id')
             )->merge(
                 Reception::query()->whereIn('converted_supplier_invoice_id', $invoiceIds)->pluck('supplier_purchase_order_id')
+            );
+            $blIds = $blIds->merge(
+                Reception::query()
+                    ->whereIn('converted_supplier_invoice_id', $invoiceIds)
+                    ->pluck('converted_supplier_delivery_note_id')
             );
         }
 
@@ -344,9 +363,11 @@ class PurchaseReceiptService
             }
 
             if ($family['delivery_note_ids']->isNotEmpty()) {
-                $hasCondition
-                    ? $q->orWhereIn('supplier_delivery_note_id', $family['delivery_note_ids'])
-                    : $q->whereIn('supplier_delivery_note_id', $family['delivery_note_ids']);
+                $method = $hasCondition ? 'orWhere' : 'where';
+                $q->{$method}(function ($sub) use ($family) {
+                    $sub->whereIn('supplier_delivery_note_id', $family['delivery_note_ids'])
+                        ->orWhereIn('converted_supplier_delivery_note_id', $family['delivery_note_ids']);
+                });
                 $hasCondition = true;
             }
 

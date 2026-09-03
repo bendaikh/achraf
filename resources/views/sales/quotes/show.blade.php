@@ -68,6 +68,8 @@
                 </div>
             </div>
 
+            @include('purchases.partials.document-chain')
+
             <!-- Items Table -->
             <div class="p-6 border-b border-gray-200">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Articles</h3>

@@ -50,6 +50,7 @@ class LineItemPersistence
             'ref' => $item['ref'] ?? null,
             'designation' => $item['designation'],
             'description' => $item['description'] ?? null,
+            'source_document_reference' => $item['source_document_reference'] ?? null,
             'quantity' => $item['quantity'],
             'unit_price' => $item['unit_price'],
             'tax_rate' => $item['tax_rate'],

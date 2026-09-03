@@ -9,6 +9,8 @@ use App\Models\Client;
 use App\Models\DeliveryNote;
 use App\Models\Product;
 use App\Services\DocumentNumberService;
+use App\Services\SalesDocumentChainService;
+use App\Services\SalesDocumentConversionService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use App\Models\Setting;
@@ -22,7 +24,7 @@ class DeliveryNoteController extends Controller
 
     public function index(Request $request)
     {
-        $query = DeliveryNote::with('client');
+        $query = DeliveryNote::with(['client', 'convertedInvoice']);
 
         $this->applyTableSearch($query, $request, ['delivery_number', 'reference', 'client.name']);
         $this->applyTableDateRange($query, $request, 'delivery_date');
@@ -89,9 +91,10 @@ class DeliveryNoteController extends Controller
 
     public function show(DeliveryNote $deliveryNote)
     {
-        $deliveryNote->load('client', 'items');
+        $deliveryNote->load(['client', 'items', 'sourceQuotes', 'sourcePurchaseOrders', 'convertedInvoice']);
+        $documentChain = app(SalesDocumentChainService::class)->forDeliveryNote($deliveryNote);
 
-        return view('sales.delivery-notes.show', compact('deliveryNote'));
+        return view('sales.delivery-notes.show', compact('deliveryNote', 'documentChain'));
     }
 
     public function edit(DeliveryNote $deliveryNote)
@@ -241,5 +244,33 @@ class DeliveryNoteController extends Controller
         }
 
         return $subtotal;
+    }
+
+    public function bulkConvert(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:delivery_notes,id',
+            'mode' => 'required|in:separate,combined',
+            'target' => 'required|in:invoice',
+        ]);
+
+        $notes = DeliveryNote::with('items')
+            ->whereIn('id', $validated['ids'])
+            ->orderBy('delivery_date')
+            ->get();
+
+        $converter = app(SalesDocumentConversionService::class);
+
+        try {
+            $created = $converter->convert($notes, $validated['mode'], $validated['target']);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => $converter->successMessage($validated['target'], $created->count()),
+            'redirect_url' => $converter->redirectUrl($validated['target']),
+        ]);
     }
 }

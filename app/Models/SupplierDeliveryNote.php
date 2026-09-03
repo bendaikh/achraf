@@ -67,4 +67,9 @@ class SupplierDeliveryNote extends Model
     {
         return $this->hasMany(Reception::class, 'supplier_delivery_note_id');
     }
+
+    public function convertedFromReceptions()
+    {
+        return $this->hasMany(Reception::class, 'converted_supplier_delivery_note_id');
+    }
 }
