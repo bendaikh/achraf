@@ -95,12 +95,41 @@
         });
     }
 
+    function pinFixedColumnOrder(order) {
+        var middle = [];
+        var hasSelect = false;
+        var hasActions = false;
+
+        (order || []).forEach(function (key) {
+            if (key === 'select') {
+                hasSelect = true;
+                return;
+            }
+            if (key === 'actions') {
+                hasActions = true;
+                return;
+            }
+            middle.push(key);
+        });
+
+        var pinned = [];
+        if (hasSelect) {
+            pinned.push('select');
+        }
+        pinned = pinned.concat(middle);
+        if (hasActions) {
+            pinned.push('actions');
+        }
+        return pinned;
+    }
+
     function reorderColumns(table, order) {
         var theadRow = table.querySelector('thead tr');
         if (!theadRow) {
             return;
         }
 
+        order = pinFixedColumnOrder(order);
         var bodyRows = table.querySelectorAll('tbody tr');
 
         order.forEach(function (key) {
@@ -225,7 +254,7 @@
                 }
                 order.splice(from, 1);
                 order.splice(to, 0, dragKey);
-                config.order = order;
+                config.order = pinFixedColumnOrder(order);
                 instance.payload[viewport] = config;
                 renderPickerList(instance);
                 applyConfig(instance, viewport);

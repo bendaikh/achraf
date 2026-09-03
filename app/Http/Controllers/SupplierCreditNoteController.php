@@ -127,6 +127,107 @@ class SupplierCreditNoteController extends Controller
         return view('purchases.supplier-credit-notes.show', compact('supplierCreditNote'));
     }
 
+    public function edit(SupplierCreditNote $supplierCreditNote)
+    {
+        $supplierCreditNote->load(['supplier', 'items']);
+        $suppliers = Supplier::all();
+        $products = collect();
+        $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $existingItems = $supplierCreditNote->items->map(fn ($item) => [
+            'product_id' => $item->product_id,
+            'ref' => $item->ref,
+            'designation' => $item->designation,
+            'quantity' => $item->quantity,
+            'unit_price' => (float) $item->display_unit_price_ttc,
+            'tax_rate' => $item->tax_rate,
+            'discount' => $item->discount,
+            'discount_type' => $item->discount_type ?? 'fixed',
+        ])->values();
+
+        return view('purchases.supplier-credit-notes.edit', compact(
+            'supplierCreditNote',
+            'suppliers',
+            'products',
+            'pricesAreTtc',
+            'existingItems'
+        ));
+    }
+
+    public function update(Request $request, SupplierCreditNote $supplierCreditNote)
+    {
+        $validated = $request->validate([
+            'credit_note_number' => 'required|string|unique:supplier_credit_notes,credit_note_number,'.$supplierCreditNote->id,
+            'supplier_id' => 'required|exists:suppliers,id',
+            'credit_note_date' => 'required|date',
+            'invoice' => 'nullable|string',
+            'currency' => 'required|string',
+            'stock_location' => 'required|string',
+            'model' => 'nullable|string',
+            'remarks' => 'nullable|string',
+            'items' => 'required|array',
+            'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.ref' => 'nullable|string',
+            'items.*.designation' => 'required|string',
+            'items.*.quantity' => 'required|numeric|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.tax_rate' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:fixed,percent',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $supplierCreditNote->update([
+                'credit_note_number' => $validated['credit_note_number'],
+                'supplier_id' => $validated['supplier_id'],
+                'credit_note_date' => $validated['credit_note_date'],
+                'invoice' => $validated['invoice'] ?? null,
+                'currency' => $validated['currency'],
+                'stock_location' => $validated['stock_location'],
+                'model' => $validated['model'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
+            ]);
+
+            $supplierCreditNote->items()->delete();
+
+            $subtotal = 0;
+            foreach ($validated['items'] as $item) {
+                $computed = LineItemCalculator::compute($item, 'purchase');
+
+                $supplierCreditNote->items()->create([
+                    'product_id' => $item['product_id'] ?? null,
+                    'ref' => $item['ref'] ?? null,
+                    'designation' => $item['designation'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'tax_rate' => $item['tax_rate'],
+                    'discount' => $computed['discount'],
+                    'discount_type' => $computed['discount_type'],
+                    'line_total' => $computed['line_total'],
+                ]);
+                $subtotal += $computed['line_total'];
+            }
+
+            $amountApplied = $supplierCreditNote->amount_applied;
+            if ($subtotal + 0.0001 < $amountApplied) {
+                throw new \RuntimeException(
+                    'Le total de l\'avoir ('.number_format($subtotal, 2).') ne peut pas être inférieur au montant déjà affecté ('.number_format($amountApplied, 2).').'
+                );
+            }
+
+            $supplierCreditNote->update(['subtotal' => $subtotal, 'total' => $subtotal]);
+
+            DB::commit();
+
+            return redirect()->route('supplier-credit-notes.index')
+                ->with('success', 'Avoir fournisseur modifié avec succès!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return back()->withInput()->with('error', 'Erreur: '.$e->getMessage());
+        }
+    }
+
     public function destroy(SupplierCreditNote $supplierCreditNote)
     {
         $supplierCreditNote->delete();

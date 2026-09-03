@@ -214,7 +214,6 @@ class TableColumnPreferenceService
     {
         $columns = $this->columnsFor($tableKey);
         $knownKeys = array_column($columns, 'key');
-        $locked = collect($columns)->filter(fn ($c) => $c['locked'] ?? false)->pluck('key')->all();
 
         $order = array_values(array_unique(array_filter(
             $config['order'] ?? [],
@@ -226,6 +225,8 @@ class TableColumnPreferenceService
                 $order[] = $key;
             }
         }
+
+        $order = $this->pinFixedColumns($order, $knownKeys);
 
         $visible = [];
         foreach ($columns as $column) {
@@ -262,5 +263,26 @@ class TableColumnPreferenceService
             'visible' => array_merge($defaults['visible'], $saved['visible'] ?? []),
             'widths' => array_merge($defaults['widths'], $saved['widths'] ?? []),
         ]);
+    }
+
+    /**
+     * Keep the selection column first and Actions last, even when saved
+     * preferences predate newly added columns.
+     *
+     * @param  list<string>  $order
+     * @param  list<string>  $knownKeys
+     * @return list<string>
+     */
+    protected function pinFixedColumns(array $order, array $knownKeys): array
+    {
+        $pinnedStart = in_array('select', $knownKeys, true) ? ['select'] : [];
+        $pinnedEnd = in_array('actions', $knownKeys, true) ? ['actions'] : [];
+
+        $middle = array_values(array_filter(
+            $order,
+            fn ($key) => $key !== 'select' && $key !== 'actions'
+        ));
+
+        return array_values(array_unique([...$pinnedStart, ...$middle, ...$pinnedEnd]));
     }
 }

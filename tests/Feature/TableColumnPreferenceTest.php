@@ -77,4 +77,34 @@ class TableColumnPreferenceTest extends TestCase
         $response->assertJsonPath('config.visible.ref', true);
         $response->assertJsonPath('config.visible.actions', true);
     }
+
+    public function test_actions_column_stays_at_the_end_when_new_columns_are_merged(): void
+    {
+        $user = User::factory()->create();
+
+        UserTablePreference::create([
+            'user_id' => $user->id,
+            'table_key' => 'expenses-with-invoice',
+            'viewport' => 'desktop',
+            'config' => [
+                'order' => ['select', 'reference', 'date', 'total', 'statut', 'actions'],
+                'visible' => [],
+                'widths' => [],
+            ],
+        ]);
+
+        $order = $this->actingAs($user)
+            ->getJson(route('table-columns.show', 'expenses-with-invoice'))
+            ->assertOk()
+            ->json('desktop.order');
+
+        $this->assertSame('select', $order[0]);
+        $this->assertSame('actions', $order[array_key_last($order)]);
+        $this->assertContains('designation', $order);
+        $this->assertContains('categorie', $order);
+        $this->assertLessThan(
+            array_search('actions', $order, true),
+            array_search('designation', $order, true)
+        );
+    }
 }

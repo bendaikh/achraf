@@ -15,6 +15,9 @@
                     :print-route="route('supplier-credit-notes.print', $supplierCreditNote)"
                     :pdf-route="route('supplier-credit-notes.pdf', $supplierCreditNote)"
                 />
+                <a href="{{ route('supplier-credit-notes.edit', $supplierCreditNote) }}" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150">
+                    Modifier
+                </a>
                 <a href="{{ route('supplier-credit-notes.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
                     Retour à la liste
                 </a>
