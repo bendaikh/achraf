@@ -168,6 +168,8 @@ class SalesReturnService
             $creditNote = CreditNote::create([
                 'credit_note_number' => DocumentNumberService::generate('avoir'),
                 'client_id' => $invoice->client_id,
+                'collaborator_id' => $invoice->collaborator_id,
+                'created_by_user_id' => $params['actor']?->id,
                 'invoice_id' => $invoice->id,
                 'pos_sale_id' => $sale?->id,
                 'source' => $params['source'] ?? $sale?->source,
@@ -227,6 +229,8 @@ class SalesReturnService
             }
 
             $this->situation->syncCommercialStatus($invoice);
+
+            app(\App\Services\Access\CommissionService::class)->applyCreditNote($creditNote->fresh());
 
             $invoice->recordActivity(
                 'credit_note_created',

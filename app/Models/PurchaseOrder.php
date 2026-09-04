@@ -6,9 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class PurchaseOrder extends Model
 {
+    use Concerns\HasCommercialAttribution;
+
     protected $fillable = [
         'reference',
         'client_id',
+        'collaborator_id',
+        'created_by_user_id',
         'order_date',
         'expiry_date',
         'currency',

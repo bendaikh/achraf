@@ -93,6 +93,11 @@ class Employee extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function collaborator(): HasOne
+    {
+        return $this->hasOne(Collaborator::class);
+    }
+
     public function contracts(): HasMany
     {
         return $this->hasMany(EmployeeContract::class)->orderByDesc('start_date');

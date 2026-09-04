@@ -8,9 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 class DeliveryNote extends Model
 {
     use HasManagedDocuments;
+    use Concerns\HasCommercialAttribution;
 
     protected $fillable = [
-        'delivery_number', 'client_id', 'delivery_date', 'shipping_date',
+        'delivery_number', 'client_id', 'collaborator_id', 'created_by_user_id', 'delivery_date', 'shipping_date',
         'reference', 'currency', 'status',
         'converted_invoice_id', 'converted_to_invoice_at',
         'stock_location', 'model', 'matricule',

@@ -31,6 +31,8 @@
             </div>
         @endif
 
+        @include('access.partials.commercial-attribution', ['document' => $invoice, 'documentType' => 'invoice'])
+
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="p-6 border-b border-gray-200 flex flex-wrap items-center justify-between gap-4">
                 <div>

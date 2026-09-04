@@ -23,9 +23,22 @@ class AuthController extends Controller
         ]);
 
         if (Auth::attempt($credentials, $request->filled('remember'))) {
+            $user = Auth::user();
+
+            if (! $user->isAccountActive()) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return back()->withErrors([
+                    'email' => 'Ce compte est inactif ou suspendu. Contactez un administrateur.',
+                ])->withInput($request->only('email'));
+            }
+
+            $user->forceFill(['last_login_at' => now()])->save();
             $request->session()->regenerate();
 
-            if (Auth::user()->isSuperAdmin()) {
+            if ($user->isSuperAdmin()) {
                 return redirect()->intended('dashboard')->with('success', 'Welcome back, Super Admin!');
             }
 

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class Invoice extends Model
 {
     use HasDocumentAdjustments;
+    use Concerns\HasCommercialAttribution;
 
     public const PAYMENT_UNPAID = 'unpaid';
 
@@ -19,6 +20,8 @@ class Invoice extends Model
     protected $fillable = [
         'invoice_number',
         'client_id',
+        'collaborator_id',
+        'created_by_user_id',
         'pos_sale_id',
         'is_auto_generated',
         'invoice_date',

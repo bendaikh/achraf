@@ -6,9 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Quote extends Model
 {
+    use Concerns\HasCommercialAttribution;
+
     protected $fillable = [
         'quote_number',
         'client_id',
+        'collaborator_id',
+        'created_by_user_id',
         'quote_date',
         'expiry_date',
         'currency',

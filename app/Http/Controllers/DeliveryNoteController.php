@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\AppliesCommercialAttribution;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\Storage;
 
 class DeliveryNoteController extends Controller
 {
-    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+    use AppliesCommercialAttribution, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function index(Request $request)
     {
@@ -71,7 +72,7 @@ class DeliveryNoteController extends Controller
                 'discount' => 0,
                 'adjustment' => 0,
                 'total' => 0,
-            ]);
+            ] + $this->commercialCreateAttributes($request));
 
             $subtotal = $this->syncItems($deliveryNote, $validated['items']);
             $deliveryNote->update([
@@ -217,7 +218,7 @@ class DeliveryNoteController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ]);
+        ] + $this->commercialValidationRules());
     }
 
     protected function syncItems(DeliveryNote $deliveryNote, array $items): float

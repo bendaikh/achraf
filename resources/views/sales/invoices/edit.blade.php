@@ -73,10 +73,12 @@
                             <input type="text" name="stock_location" value="{{ old('stock_location', $invoice->stock_location) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Contact commercial</label>
-                            <input type="text" name="commercial_contact" value="{{ old('commercial_contact', $invoice->commercial_contact) }}" placeholder="Achraf Qassoudi" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
+                            <x-commercial-select :selected="old('collaborator_id', $invoice->collaborator_id)" />
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Contact commercial (texte libre)</label>
+                                <input type="text" name="commercial_contact" value="{{ old('commercial_contact', $invoice->commercial_contact) }}" placeholder="Note libre optionnelle" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Modèle</label>

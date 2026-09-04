@@ -135,6 +135,10 @@ class SalesDocumentConversionService
             $this->stampConverted($source, $document);
         }
 
+        if ($document instanceof Invoice) {
+            app(\App\Services\Access\CommissionService::class)->syncForInvoice($document->fresh());
+        }
+
         return $document;
     }
 
@@ -150,6 +154,9 @@ class SalesDocumentConversionService
         return PurchaseOrder::create([
             'reference' => DocumentNumberService::generate('bc_client'),
             'client_id' => $first->client_id,
+            'collaborator_id' => app(\App\Services\Access\CommercialAttributionService::class)->collaboratorIdFromSources($sources)
+                ?? $first->collaborator_id,
+            'created_by_user_id' => auth()->id(),
             'order_date' => now()->toDateString(),
             'expiry_date' => $first->expiry_date?->toDateString(),
             'currency' => $first->currency,
@@ -176,6 +183,9 @@ class SalesDocumentConversionService
         return DeliveryNote::create([
             'delivery_number' => DocumentNumberService::generate('bon_livraison'),
             'client_id' => $first->client_id,
+            'collaborator_id' => app(\App\Services\Access\CommercialAttributionService::class)->collaboratorIdFromSources($sources)
+                ?? $first->collaborator_id,
+            'created_by_user_id' => auth()->id(),
             'delivery_date' => now()->toDateString(),
             'shipping_date' => now()->toDateString(),
             'reference' => $this->sourceNumbers($sources)->implode(', '),
@@ -204,6 +214,9 @@ class SalesDocumentConversionService
         return Invoice::create([
             'invoice_number' => DocumentNumberService::generate('facture'),
             'client_id' => $first->client_id,
+            'collaborator_id' => app(\App\Services\Access\CommercialAttributionService::class)->collaboratorIdFromSources($sources)
+                ?? $first->collaborator_id,
+            'created_by_user_id' => auth()->id(),
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'currency' => $first->currency,

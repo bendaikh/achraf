@@ -147,6 +147,9 @@ class Navigation
                     ['label' => 'Factures', 'route' => 'invoices.index', 'active' => ['invoices.*']],
                     ['label' => 'Avoirs', 'route' => 'credit-notes.index', 'active' => ['credit-notes.*']],
                     ['label' => 'Gestion Paiement', 'route' => 'sales.payments.index', 'active' => ['sales.payments.*', 'invoices.payments.*']],
+                    ['label' => 'Commissions', 'route' => 'access.commissions.index', 'active' => ['access.commissions.*']],
+                    ['label' => 'Mon tableau commercial', 'route' => 'access.dashboard.commercial', 'active' => ['access.dashboard.commercial']],
+                    ['label' => 'Équipe commerciale', 'route' => 'access.dashboard.team', 'active' => ['access.dashboard.team'], 'roles' => ['superadmin', 'admin', 'administrateur', 'responsable-commercial']],
                 ],
             ],
             [
@@ -159,6 +162,22 @@ class Navigation
                 'children' => [
                     ['label' => 'Shopify', 'route' => 'integrations.shopify.edit', 'active' => ['integrations.shopify.*']],
                     ['label' => 'Jumia', 'route' => 'integrations.jumia.edit', 'active' => ['integrations.jumia.*']],
+                ],
+            ],
+            [
+                'label' => 'Administration',
+                'route' => 'access.collaborators.index',
+                'key' => 'access',
+                'soft_nav' => true,
+                'active' => ['access.*'],
+                'roles' => ['superadmin', 'admin', 'administrateur'],
+                'icon' => ['M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
+                'children' => [
+                    ['label' => 'Collaborateurs', 'route' => 'access.collaborators.index', 'active' => ['access.collaborators.*'], 'roles' => ['superadmin', 'admin', 'administrateur']],
+                    ['label' => 'Utilisateurs', 'route' => 'access.users.index', 'active' => ['access.users.*'], 'roles' => ['superadmin', 'admin', 'administrateur']],
+                    ['label' => 'Rôles & permissions', 'route' => 'access.roles.index', 'active' => ['access.roles.*'], 'roles' => ['superadmin', 'admin', 'administrateur']],
+                    ['label' => 'Journal d\'activité', 'route' => 'access.activity.index', 'active' => ['access.activity.*'], 'roles' => ['superadmin', 'admin', 'administrateur']],
+                    ['label' => 'Commissions', 'route' => 'access.commissions.index', 'active' => ['access.commissions.*'], 'roles' => ['superadmin', 'admin', 'administrateur']],
                 ],
             ],
             [

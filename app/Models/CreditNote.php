@@ -9,9 +9,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CreditNote extends Model
 {
+    use Concerns\HasCommercialAttribution;
+
     protected $fillable = [
         'credit_note_number',
         'client_id',
+        'collaborator_id',
+        'created_by_user_id',
         'invoice_id',
         'pos_sale_id',
         'source',

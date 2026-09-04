@@ -48,6 +48,14 @@ use App\Http\Controllers\TableColumnPreferenceController;
 use App\Http\Controllers\TableExportController;
 use App\Http\Controllers\Hr\AttendanceController;
 use App\Http\Controllers\Hr\CompensationController;
+use App\Http\Controllers\Access\ActivityLogController;
+use App\Http\Controllers\Access\CollaboratorController;
+use App\Http\Controllers\Access\CommercialDashboardController;
+use App\Http\Controllers\Access\CommercialReassignmentController;
+use App\Http\Controllers\Access\CommissionController;
+use App\Http\Controllers\Access\CommissionSettlementController;
+use App\Http\Controllers\Access\RoleController;
+use App\Http\Controllers\Access\UserAccountController;
 use App\Http\Controllers\Hr\EmployeeContractController;
 use App\Http\Controllers\Hr\EmployeeController;
 use App\Http\Controllers\Hr\EmployeeExitController;
@@ -395,6 +403,40 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings/depenses', [SettingsController::class, 'depenses'])->name('settings.depenses');
     Route::get('/settings/stock', [SettingsController::class, 'stock'])->name('settings.stock');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
+
+    // Administration — Collaborateurs / Utilisateurs / Rôles / Permissions
+    Route::middleware('access')->prefix('administration')->name('access.')->group(function () {
+        Route::post('/collaborateurs/sync-hr', [CollaboratorController::class, 'syncFromHr'])->name('collaborators.sync-hr');
+        Route::resource('collaborateurs', CollaboratorController::class)
+            ->parameters(['collaborateurs' => 'collaborator'])
+            ->names('collaborators')
+            ->except(['destroy']);
+
+        Route::resource('utilisateurs', UserAccountController::class)
+            ->parameters(['utilisateurs' => 'user'])
+            ->names('users')
+            ->except(['destroy']);
+
+        Route::post('/roles/{role}/duplicate', [RoleController::class, 'duplicate'])->name('roles.duplicate');
+        Route::resource('roles', RoleController::class)->except(['destroy']);
+
+        Route::get('/journal', [ActivityLogController::class, 'index'])->name('activity.index');
+    });
+
+    // Commissions & commercial dashboards (commerciaux + admin)
+    Route::prefix('administration')->name('access.')->group(function () {
+        Route::get('/commissions', [CommissionController::class, 'index'])->name('commissions.index');
+        Route::get('/commissions/regles', [CommissionController::class, 'rules'])->middleware('access')->name('commissions.rules');
+        Route::post('/commissions/regles', [CommissionController::class, 'storeRule'])->middleware('access')->name('commissions.rules.store');
+        Route::post('/commissions/valider', [CommissionController::class, 'validateSelected'])->middleware('access')->name('commissions.validate');
+        Route::post('/commissions/payer', [CommissionController::class, 'markPaid'])->middleware('access')->name('commissions.pay');
+        Route::post('/commissions/lier-paie', [CommissionSettlementController::class, 'linkPayroll'])->middleware('access')->name('commissions.link-payroll');
+        Route::post('/commissions/reglement-freelance', [CommissionSettlementController::class, 'freelancePayout'])->middleware('access')->name('commissions.freelance-payout');
+
+        Route::post('/commercial/reattribuer', [CommercialReassignmentController::class, 'store'])->name('commercial.reassign');
+        Route::get('/tableau-commercial', [CommercialDashboardController::class, 'mine'])->name('dashboard.commercial');
+        Route::get('/equipe-commerciale', [CommercialDashboardController::class, 'team'])->middleware('access')->name('dashboard.team');
+    });
 
     Route::post('/export/table-destroy', TableBulkDestroyController::class)->name('table.bulk-destroy');
     Route::post('/export/table', [TableExportController::class, 'export'])->name('table.export');

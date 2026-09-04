@@ -103,6 +103,7 @@ class PaymentRecordingService
                 'tracking_number' => $data['tracking_number'] ?? $invoice->posSale?->primaryTrackingNumber(),
                 'carrier' => $data['carrier'] ?? null,
                 'created_by' => $data['user_id'] ?? $data['created_by'] ?? Auth::id(),
+                'collaborator_id' => $invoice->collaborator_id,
                 'pos_sale_id' => $invoice->pos_sale_id,
                 'payment_import_id' => $data['payment_import_id'] ?? null,
                 'payment_import_row_id' => $data['payment_import_line_id'] ?? $data['payment_import_row_id'] ?? null,
@@ -113,6 +114,8 @@ class PaymentRecordingService
             $invoice->refresh();
             $invoice->load('items');
             $invoice->syncPaymentStatus();
+
+            app(\App\Services\Access\CommissionService::class)->syncForInvoice($invoice);
 
             if (($data['source'] ?? '') === InvoicePayment::SOURCE_IMPORT && ! empty($data['reconciliation_metadata'])) {
                 $this->recordImportReconciliationActivity($invoice, $payment, $data['reconciliation_metadata']);

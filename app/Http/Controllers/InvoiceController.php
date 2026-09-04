@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\AppliesCommercialAttribution;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
@@ -10,6 +11,7 @@ use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Services\Access\CommissionService;
 use App\Services\DocumentNumberService;
 use App\Services\InvoiceSituationService;
 use App\Services\SalesDocumentChainService;
@@ -22,11 +24,12 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
-    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView, SyncsDocumentAdjustments;
+    use AppliesCommercialAttribution, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView, SyncsDocumentAdjustments;
 
     public function __construct(
         protected StockMovementService $stockMovement,
-        protected InvoiceSituationService $situation
+        protected InvoiceSituationService $situation,
+        protected CommissionService $commissions,
     ) {}
 
     public function index(Request $request)
@@ -110,7 +113,7 @@ class InvoiceController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ] + $this->adjustmentValidationRules());
+        ] + $this->adjustmentValidationRules() + $this->commercialValidationRules());
 
         DB::beginTransaction();
         try {
@@ -131,7 +134,7 @@ class InvoiceController extends Controller
                 'adjustment' => 0,
                 'total' => 0,
                 'payment_status' => Invoice::PAYMENT_UNPAID,
-            ]);
+            ] + $this->commercialCreateAttributes($request));
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
@@ -161,6 +164,8 @@ class InvoiceController extends Controller
                 strict: false
             );
 
+            $this->commissions->syncForInvoice($invoice->fresh());
+
             DB::commit();
 
             $redirect = redirect()->route('invoices.index')->with('success', 'Facture créée avec succès!');
@@ -183,7 +188,7 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load('client', 'items', 'posSale', 'payments.user', 'payments.paymentImport', 'payments.paymentImportLine', 'adjustments', 'creditNotes', 'refunds', 'sourceQuotes', 'sourcePurchaseOrders', 'sourceDeliveryNotes');
+        $invoice->load('client', 'items', 'posSale', 'payments.user', 'payments.paymentImport', 'payments.paymentImportLine', 'adjustments', 'creditNotes', 'refunds', 'sourceQuotes', 'sourcePurchaseOrders', 'sourceDeliveryNotes', 'commercial', 'createdByUser');
         $situation = $this->situation->forInvoice($invoice);
         $documentChain = app(SalesDocumentChainService::class)->forInvoice($invoice);
 
@@ -233,10 +238,13 @@ class InvoiceController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ] + $this->adjustmentValidationRules());
+        ] + $this->adjustmentValidationRules() + $this->commercialValidationRules());
 
         DB::beginTransaction();
         try {
+            $oldCollaboratorId = $invoice->collaborator_id;
+            $newCollaboratorId = $request->filled('collaborator_id') ? (int) $request->input('collaborator_id') : null;
+
             $invoice->update([
                 'client_id' => $validated['client_id'],
                 'invoice_date' => $validated['invoice_date'],
@@ -249,6 +257,17 @@ class InvoiceController extends Controller
                 'remarks' => $validated['remarks'] ?? null,
                 'conditions' => $validated['conditions'] ?? null,
             ]);
+
+            if ($newCollaboratorId && (int) $oldCollaboratorId !== $newCollaboratorId) {
+                app(\App\Services\Access\CommercialAttributionService::class)->reassign(
+                    $invoice,
+                    $newCollaboratorId,
+                    'Modification fiche facture',
+                    $request->user(),
+                );
+            } elseif ($newCollaboratorId && ! $oldCollaboratorId) {
+                $invoice->update(['collaborator_id' => $newCollaboratorId]);
+            }
 
             $invoice->items()->delete();
 
@@ -273,6 +292,8 @@ class InvoiceController extends Controller
             }
 
             $this->persistDocumentTotals($invoice, $subtotal, $validated['adjustments'] ?? []);
+
+            $this->commissions->syncForInvoice($invoice->fresh());
 
             DB::commit();
 

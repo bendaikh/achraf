@@ -28,6 +28,7 @@ class InvoicePayment extends Model
         'tracking_number',
         'carrier',
         'created_by',
+        'collaborator_id',
         'payment_import_id',
         'payment_import_row_id',
         'dedupe_key',
