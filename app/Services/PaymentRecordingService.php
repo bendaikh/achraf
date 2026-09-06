@@ -58,7 +58,9 @@ class PaymentRecordingService
             ]);
         }
 
-        $remaining = round($invoice->remaining_balance, 2);
+        // Inclut la livraison facturée au client si absente du total lignes facture
+        // (ne confond pas avec les frais retenus par le transporteur).
+        $remaining = round($invoice->collectibleRemainingBalance(), 2);
         if ($amount > $remaining + 0.009 && ! $allowOverpayment) {
             throw ValidationException::withMessages([
                 'amount' => sprintf(

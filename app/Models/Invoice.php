@@ -157,6 +157,67 @@ class Invoice extends Model
         return max(0, $this->computed_total - $this->total_paid);
     }
 
+    /**
+     * Livraison facturée au client sur la commande liée (distincte des frais transporteur retenus).
+     */
+    public function clientShippingAmount(): float
+    {
+        $order = $this->posSale;
+        if (! $order) {
+            return 0.0;
+        }
+
+        return max(0.0, round((float) $order->shipping_amount, 2));
+    }
+
+    /**
+     * Total à encaisser côté client = produits + livraison facturée au client.
+     * Si la facture n'inclut pas encore la livraison commande, on l'ajoute pour le rapprochement.
+     * Ne double-compte pas lorsque le total facture est déjà aligné sur le total commande.
+     */
+    public function collectibleTotal(): float
+    {
+        $invoiceTotal = round($this->computed_total, 2);
+        $shipping = $this->clientShippingAmount();
+
+        if ($shipping < 0.01) {
+            return $invoiceTotal;
+        }
+
+        $order = $this->posSale;
+        if (! $order) {
+            return $invoiceTotal;
+        }
+
+        $orderTotal = round((float) $order->total, 2);
+
+        // Facture déjà au total commande (livraison incluse).
+        if (abs($invoiceTotal - $orderTotal) < 0.01) {
+            return $invoiceTotal;
+        }
+
+        // Écart facture ↔ commande = exactement la livraison client.
+        if (abs(($orderTotal - $invoiceTotal) - $shipping) < 0.01) {
+            return round($invoiceTotal + $shipping, 2);
+        }
+
+        // Facture ≈ montant produits seuls (total commande − livraison).
+        $productsOnly = round($orderTotal - $shipping, 2);
+        if (abs($invoiceTotal - $productsOnly) < 0.01) {
+            return round($invoiceTotal + $shipping, 2);
+        }
+
+        return $invoiceTotal;
+    }
+
+    /**
+     * Solde encore à encaisser auprès du client (livraison client comprise si absente de la facture).
+     */
+    public function collectibleRemainingBalance(): float
+    {
+        return max(0.0, round($this->collectibleTotal() - $this->total_paid, 2));
+    }
+
     public function getComputedPaymentStatusAttribute(): string
     {
         if ($this->total_paid <= 0) {

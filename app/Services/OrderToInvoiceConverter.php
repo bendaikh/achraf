@@ -114,6 +114,26 @@ class OrderToInvoiceConverter
             $linesSubtotal += $computed['line_total'];
         }
 
+        $shippingAmount = round((float) ($order->shipping_amount ?? 0), 2);
+        if ($shippingAmount > 0.009) {
+            InvoiceItem::create([
+                'itemable_type' => Invoice::class,
+                'itemable_id' => $invoice->id,
+                'product_id' => null,
+                'ref' => 'LIVRAISON',
+                'designation' => 'Frais de livraison',
+                'description' => 'Livraison facturée au client',
+                'quantity' => 1,
+                'unit_price' => $shippingAmount,
+                'tax_rate' => 0,
+                'discount' => 0,
+                'discount_type' => 'fixed',
+                'line_total' => $shippingAmount,
+            ]);
+
+            $linesSubtotal += $shippingAmount;
+        }
+
         $taxes = DocumentTaxBreakdown::fromDocument($invoice, $invoice->items()->get());
 
         $invoice->update([

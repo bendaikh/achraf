@@ -98,6 +98,100 @@ class PaymentImportServiceTest extends TestCase
         $this->assertSame(0.0, $variance);
     }
 
+    public function test_client_shipping_is_not_treated_as_overpayment(): void
+    {
+        $matcher = app(PaymentMatchingService::class);
+
+        // 152 CRBT = 112 produits + 40 livraison client ; 35 frais transporteur ; net 117
+        [$status, $variance] = $matcher->compareAmountsWithFees(152.0, 35.0, 117.0, 152.0);
+
+        $this->assertSame(PaymentImportLine::AMOUNT_OK, $status);
+        $this->assertSame(0.0, $variance);
+    }
+
+    public function test_collectible_total_adds_client_shipping_missing_from_invoice(): void
+    {
+        $client = Client::create(['name' => 'Client Livraison', 'city' => 'Casablanca']);
+        $sale = PosSale::create([
+            'client_id' => $client->id,
+            'ticket_number' => 'FAST12445',
+            'subtotal' => 112,
+            'shipping_amount' => 40,
+            'total' => 152,
+            'shipping_city' => 'Casablanca',
+            'sold_at' => Carbon::parse('2026-09-01'),
+            'status' => PosSale::STATUS_COMPLETED,
+            'payment_method' => PosSale::PAYMENT_CASH,
+        ]);
+        $invoice = Invoice::create([
+            'client_id' => $client->id,
+            'pos_sale_id' => $sale->id,
+            'invoice_number' => 'FA-2026/004373',
+            'invoice_date' => '2026-09-01',
+            'total' => 112,
+            'currency' => 'MAD',
+        ]);
+
+        $this->assertSame(112.0, $invoice->computed_total);
+        $this->assertSame(40.0, $invoice->clientShippingAmount());
+        $this->assertSame(152.0, $invoice->collectibleTotal());
+        $this->assertSame(152.0, $invoice->collectibleRemainingBalance());
+
+        $matcher = app(PaymentMatchingService::class);
+        [$status, $variance] = $matcher->compareAmountsWithFees(
+            152.0,
+            35.0,
+            117.0,
+            $invoice->collectibleRemainingBalance()
+        );
+
+        $this->assertSame(PaymentImportLine::AMOUNT_OK, $status);
+        $this->assertSame(0.0, $variance);
+    }
+
+    public function test_collectible_total_unchanged_when_shipping_already_in_invoice_or_free(): void
+    {
+        $client = Client::create(['name' => 'Client OK', 'city' => 'Rabat']);
+
+        $saleWithShipping = PosSale::create([
+            'client_id' => $client->id,
+            'ticket_number' => 'FAST20001',
+            'shipping_amount' => 40,
+            'total' => 152,
+            'sold_at' => Carbon::parse('2026-09-01'),
+            'status' => PosSale::STATUS_COMPLETED,
+            'payment_method' => PosSale::PAYMENT_CASH,
+        ]);
+        $invoiceAligned = Invoice::create([
+            'client_id' => $client->id,
+            'pos_sale_id' => $saleWithShipping->id,
+            'invoice_number' => 'FA-2026/20001',
+            'invoice_date' => '2026-09-01',
+            'total' => 152,
+            'currency' => 'MAD',
+        ]);
+        $this->assertSame(152.0, $invoiceAligned->collectibleTotal());
+
+        $saleFree = PosSale::create([
+            'client_id' => $client->id,
+            'ticket_number' => 'FAST20002',
+            'shipping_amount' => 0,
+            'total' => 112,
+            'sold_at' => Carbon::parse('2026-09-01'),
+            'status' => PosSale::STATUS_COMPLETED,
+            'payment_method' => PosSale::PAYMENT_CASH,
+        ]);
+        $invoiceFree = Invoice::create([
+            'client_id' => $client->id,
+            'pos_sale_id' => $saleFree->id,
+            'invoice_number' => 'FA-2026/20002',
+            'invoice_date' => '2026-09-01',
+            'total' => 112,
+            'currency' => 'MAD',
+        ]);
+        $this->assertSame(112.0, $invoiceFree->collectibleTotal());
+    }
+
     public function test_it_matches_by_tracking_order_code(): void
     {
         $client = Client::create(['name' => 'Client Tracking', 'city' => 'Tanger']);

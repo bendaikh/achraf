@@ -561,8 +561,8 @@ class PaymentMatchingService
                 'invoice_number' => $invoice->invoice_number,
                 'order_number' => $invoice->posSale?->ticket_number,
                 'client_name' => $invoice->client?->name,
-                'amount' => round($invoice->computed_total, 2),
-                'remaining' => round($invoice->remaining_balance, 2),
+                'amount' => round($invoice->collectibleTotal(), 2),
+                'remaining' => round($invoice->collectibleRemainingBalance(), 2),
             ];
             $candidate['confidence_percent'] = $this->confidencePercent($candidate);
             $candidates[] = $candidate;
@@ -695,10 +695,15 @@ class PaymentMatchingService
 
     protected function amountMatchesInvoice(float $amount, Invoice $invoice): bool
     {
-        $total = round($invoice->computed_total, 2);
-        $remaining = round($invoice->remaining_balance, 2);
+        $total = round($invoice->collectibleTotal(), 2);
+        $remaining = round($invoice->collectibleRemainingBalance(), 2);
+        $invoiceOnly = round($invoice->computed_total, 2);
+        $invoiceRemaining = round($invoice->remaining_balance, 2);
 
-        return abs($amount - $total) < 0.02 || abs($amount - $remaining) < 0.02;
+        return abs($amount - $total) < 0.02
+            || abs($amount - $remaining) < 0.02
+            || abs($amount - $invoiceOnly) < 0.02
+            || abs($amount - $invoiceRemaining) < 0.02;
     }
 
     protected function normalizePhone(?string $phone): ?string
@@ -788,6 +793,11 @@ class PaymentMatchingService
     /**
      * Compare payment amounts accounting for carrier delivery fees.
      *
+     * Montant attendu = total à encaisser client (produits + livraison facturée au client).
+     * Les frais transporteur ne servent qu'à dériver / vérifier le net reversé :
+     *   net attendu ≈ montant attendu − frais transporteur.
+     * Ils ne doivent jamais être confondus avec la livraison facturée au client.
+     *
      * @return array{0:string,1:float,2:float}
      */
     public function compareAmountsWithFees(?float $grossAmount, ?float $deliveryFees, ?float $netAmount, float $expectedInvoiceAmount): array
@@ -812,6 +822,7 @@ class PaymentMatchingService
             return [PaymentImportLine::AMOUNT_OK, 0.0, $expectedInvoiceAmount];
         }
 
+        // Cohérence net : si brut ≠ attendu mais net ≈ attendu − frais transporteur, pas d'écart.
         if ($deliveryFees !== null && $netAmount !== null) {
             $expectedNet = round($expectedInvoiceAmount - $deliveryFees, 2);
             $netDiff = round($netAmount - $expectedNet, 2);

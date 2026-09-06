@@ -76,7 +76,7 @@ class PaymentImportService
     public function attachInvoiceToLine(PaymentImportLine $line, Invoice $invoice): PaymentImportLine
     {
         $invoice->load(['items', 'payments', 'posSale.fulfillments']);
-        $expected = round($invoice->remaining_balance, 2);
+        $expected = round($invoice->collectibleRemainingBalance(), 2);
         $amount = $line->file_amount !== null ? round((float) $line->file_amount, 2) : $expected;
         $fees = $line->file_delivery_fees !== null ? round((float) $line->file_delivery_fees, 2) : null;
         $net = $line->file_net_amount !== null ? round((float) $line->file_net_amount, 2) : null;
@@ -576,14 +576,14 @@ class PaymentImportService
                 'match_score' => $result['score'],
                 'exclude' => true,
                 'include_in_validation' => false,
-                'expected_amount' => round($invoice->remaining_balance, 2),
+                'expected_amount' => round($invoice->collectibleRemainingBalance(), 2),
                 'notes' => 'Paiement déjà enregistré pour cette référence/tracking',
             ]);
 
             return;
         }
 
-        $expected = round($invoice->remaining_balance, 2);
+        $expected = round($invoice->collectibleRemainingBalance(), 2);
         $payAmount = $amount ?? $expected;
         $fees = $line->file_delivery_fees !== null ? (float) $line->file_delivery_fees : null;
         $net = $line->file_net_amount !== null ? (float) $line->file_net_amount : null;

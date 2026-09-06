@@ -95,4 +95,86 @@ class OrderToInvoiceConverterTest extends TestCase
         $this->assertEquals(430.0, (float) $invoice->total);
         $this->assertEquals(430.0, $invoice->computed_total);
     }
+
+    public function test_convert_includes_client_shipping_as_invoice_line(): void
+    {
+        Setting::set('shopify_price_type', 'ttc');
+
+        $client = Client::create(['name' => 'Shipping Client']);
+        $order = PosSale::create([
+            'ticket_number' => 'FAST12445',
+            'client_id' => $client->id,
+            'sold_at' => now(),
+            'currency' => 'dh - MAD',
+            'subtotal' => 93.33,
+            'discount' => 0,
+            'tax_total' => 18.67,
+            'shipping_amount' => 40,
+            'total' => 152,
+            'payment_method' => 'cash',
+            'status' => 'completed',
+            'payment_status' => 'unpaid',
+            'fulfillment_status' => 'fulfilled',
+        ]);
+
+        PosSaleItem::create([
+            'pos_sale_id' => $order->id,
+            'designation' => 'Produit',
+            'quantity' => 1,
+            'unit_price' => 93.33,
+            'tax_rate' => 20,
+            'discount' => 0,
+            'line_total' => 112,
+        ]);
+
+        $invoice = app(OrderToInvoiceConverter::class)->convert($order);
+        $invoice->load('items');
+
+        $this->assertCount(2, $invoice->items);
+        $shippingLine = $invoice->items->firstWhere('ref', 'LIVRAISON');
+        $this->assertNotNull($shippingLine);
+        $this->assertEquals(40.0, (float) $shippingLine->line_total);
+        $this->assertEquals(152.0, (float) $invoice->total);
+        $this->assertEquals(152.0, $invoice->computed_total);
+        $this->assertEquals(152.0, $invoice->collectibleTotal());
+    }
+
+    public function test_convert_skips_shipping_line_when_free_delivery(): void
+    {
+        Setting::set('shopify_price_type', 'ttc');
+
+        $client = Client::create(['name' => 'Free Ship Client']);
+        $order = PosSale::create([
+            'ticket_number' => 'FAST12446',
+            'client_id' => $client->id,
+            'sold_at' => now(),
+            'currency' => 'dh - MAD',
+            'subtotal' => 93.33,
+            'discount' => 0,
+            'tax_total' => 18.67,
+            'shipping_amount' => 0,
+            'total' => 112,
+            'payment_method' => 'cash',
+            'status' => 'completed',
+            'payment_status' => 'unpaid',
+            'fulfillment_status' => 'fulfilled',
+        ]);
+
+        PosSaleItem::create([
+            'pos_sale_id' => $order->id,
+            'designation' => 'Produit',
+            'quantity' => 1,
+            'unit_price' => 93.33,
+            'tax_rate' => 20,
+            'discount' => 0,
+            'line_total' => 112,
+        ]);
+
+        $invoice = app(OrderToInvoiceConverter::class)->convert($order);
+        $invoice->load('items');
+
+        $this->assertCount(1, $invoice->items);
+        $this->assertNull($invoice->items->firstWhere('ref', 'LIVRAISON'));
+        $this->assertEquals(112.0, $invoice->collectibleTotal());
+    }
 }

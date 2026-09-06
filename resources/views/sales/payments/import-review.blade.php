@@ -106,6 +106,13 @@
                                             'criteria' => $line->match_criteria,
                                         ]);
                                     }
+                                    $clientShippingAmount = round((float) ($line->posSale?->shipping_amount ?? $line->invoice?->posSale?->shipping_amount ?? 0), 2);
+                                    $expectedCollectible = $line->expected_amount !== null
+                                        ? round((float) $line->expected_amount, 2)
+                                        : null;
+                                    $productsAmount = $expectedCollectible !== null
+                                        ? round(max(0, $expectedCollectible - $clientShippingAmount), 2)
+                                        : null;
                                     $linePayload = [
                                         'line_number' => $line->line_number,
                                         'match_status' => $line->match_status,
@@ -120,6 +127,8 @@
                                         'file_delivery_fees' => $line->file_delivery_fees,
                                         'file_net_amount' => $line->file_net_amount,
                                         'expected_amount' => $line->expected_amount,
+                                        'products_amount' => $productsAmount,
+                                        'client_shipping_amount' => $clientShippingAmount,
                                         'amount_variance' => $line->amount_variance,
                                         'amount_status' => $line->amount_status,
                                         'confidence_percent' => $confidencePercent,
@@ -297,7 +306,7 @@
                                 <div><dt class="inline text-gray-500">Ville :</dt> <span x-text="selected.city || '—'"></span></div>
                                 <div><dt class="inline text-gray-500">Transporteur :</dt> <span x-text="selected.carrier || '—'"></span></div>
                                 <div><dt class="inline text-gray-500">Montant brut :</dt> <span x-text="formatMoney(selected.file_amount)"></span></div>
-                                <div><dt class="inline text-gray-500">Frais livraison :</dt> <span x-text="formatMoney(selected.file_delivery_fees)"></span></div>
+                                <div><dt class="inline text-gray-500">Frais transporteur :</dt> <span x-text="formatMoney(selected.file_delivery_fees)"></span></div>
                                 <div><dt class="inline text-gray-500">Net encaissé :</dt> <span x-text="formatMoney(selected.file_net_amount)"></span></div>
                                 <div><dt class="inline text-gray-500">Date :</dt> <span x-text="selected.delivery_date || '—'"></span></div>
                             </dl>
@@ -309,7 +318,12 @@
                                         <div><dt class="inline text-gray-500">Facture :</dt> <span x-text="selected.invoice_number"></span></div>
                                         <div><dt class="inline text-gray-500">Commande :</dt> <span x-text="selected.order_number || '—'"></span></div>
                                         <div><dt class="inline text-gray-500">Client :</dt> <span x-text="selected.invoice_client || '—'"></span></div>
-                                        <div><dt class="inline text-gray-500">Montant attendu :</dt> <span x-text="formatMoney(selected.expected_amount)"></span></div>
+                                        <div><dt class="inline text-gray-500">Montant produits :</dt> <span x-text="formatMoney(selected.products_amount)"></span></div>
+                                        <div><dt class="inline text-gray-500">Livraison facturée au client :</dt> <span x-text="formatMoney(selected.client_shipping_amount)"></span></div>
+                                        <div><dt class="inline text-gray-500">Total facture (attendu) :</dt>
+                                            <span class="font-medium" :class="selected.amount_status === 'ok' ? 'text-green-700' : 'text-gray-900'"
+                                                x-text="formatMoney(selected.expected_amount)"></span>
+                                        </div>
                                         <div><dt class="inline text-gray-500">Écart après frais :</dt>
                                             <span class="font-medium" :class="selected.amount_status === 'ok' ? 'text-green-700' : 'text-amber-700'"
                                                 x-text="selected.amount_status === 'ok' ? '0,00 DH' : formatMoney(selected.amount_variance)"></span>
