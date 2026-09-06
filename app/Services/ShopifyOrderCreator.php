@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\PosSale;
+use App\Models\PosSaleItem;
+use App\Models\Product;
 use App\Models\ShopifyIntegration;
 use Illuminate\Support\Facades\DB;
 
@@ -47,7 +49,7 @@ class ShopifyOrderCreator
                 throw new \RuntimeException('L’intégration Shopify n’est pas configurée ou activée.');
             }
 
-            $order->loadMissing(['client', 'items.variant', 'creator', 'assignedUser']);
+            $order->loadMissing(['client', 'items.variant', 'items.product.variants', 'creator', 'assignedUser']);
             $client = new ShopifyApiClient($integration);
 
             // Recover safely after an ambiguous timeout: the remote order may
@@ -82,31 +84,42 @@ class ShopifyOrderCreator
         }
     }
 
-    private function payload(PosSale $order): array
+    /**
+     * Build the Shopify Admin API order payload for a Libromart-created order.
+     *
+     * @return array<string, mixed>
+     */
+    public function payload(PosSale $order): array
     {
-        $lineItems = $order->items->map(function ($item) {
-            $discountedUnitPriceTtc = $item->quantity > 0
-                ? (float) $item->line_total / $item->quantity
-                : 0;
+        $lineItems = $order->items->map(function (PosSaleItem $item) {
+            $taxRate = (float) $item->tax_rate;
+            $lineTotalTtc = (float) $item->line_total;
+            // Libromart line_total is TTC; Shopify line price must be HT when taxes are exclusive.
+            $lineTotalHt = $taxRate > 0
+                ? $lineTotalTtc / (1 + ($taxRate / 100))
+                : $lineTotalTtc;
+            $unitPriceHt = $item->quantity > 0
+                ? $lineTotalHt / $item->quantity
+                : 0.0;
+
             $line = [
                 'quantity' => $item->quantity,
-                'price' => number_format($discountedUnitPriceTtc, 2, '.', ''),
+                'price' => number_format($unitPriceHt, 2, '.', ''),
                 'title' => $item->designation,
                 'sku' => $item->ref,
-                'taxable' => (float) $item->tax_rate > 0,
+                'taxable' => $taxRate > 0,
             ];
 
-            if ($item->shopify_variant_id) {
-                $line['variant_id'] = (int) $item->shopify_variant_id;
-                unset($line['title'], $line['sku']);
+            $shopifyVariantId = $this->resolveShopifyVariantId($item);
+            if ($shopifyVariantId) {
+                // Keep the real Shopify product/variant link so the order shows the catalog photo.
+                $line['variant_id'] = (int) $shopifyVariantId;
             }
 
-            if ((float) $item->tax_rate > 0) {
-                $lineTotalTtc = (float) $item->line_total;
-                $lineTotalHt = $lineTotalTtc / (1 + ((float) $item->tax_rate / 100));
+            if ($taxRate > 0) {
                 $line['tax_lines'] = [[
                     'price' => number_format($lineTotalTtc - $lineTotalHt, 2, '.', ''),
-                    'rate' => (float) $item->tax_rate / 100,
+                    'rate' => $taxRate / 100,
                     'title' => 'TVA',
                 ]];
             }
@@ -114,8 +127,20 @@ class ShopifyOrderCreator
             return $line;
         })->all();
 
+        $noteAttributes = [
+            ['name' => 'libromart_order_id', 'value' => (string) $order->id],
+            ['name' => 'libromart_order_number', 'value' => (string) $order->ticket_number],
+            ['name' => 'libromart_creation_token', 'value' => (string) $order->creation_token],
+            ['name' => 'libromart_created_by_user_id', 'value' => (string) $order->created_by_user_id],
+            ['name' => 'libromart_assigned_user_id', 'value' => (string) $order->assigned_user_id],
+            ['name' => 'Créée depuis Libromart par', 'value' => (string) ($order->creator?->name ?: '—')],
+            ['name' => 'Commercial', 'value' => (string) ($order->assignedUser?->name ?: '—')],
+            ['name' => 'N° commande Libromart', 'value' => (string) $order->ticket_number],
+        ];
+
         $payload = [
             'line_items' => $lineItems,
+            'taxes_included' => false,
             'currency' => $this->currencyCode($order->currency),
             'financial_status' => $this->financialStatus($order->payment_status),
             'send_receipt' => false,
@@ -126,13 +151,7 @@ class ShopifyOrderCreator
                 ['Libromart', 'Libromart-'.$order->ticket_number]
             ))),
             'note' => $order->delivery_note ?: $order->internal_note,
-            'note_attributes' => [
-                ['name' => 'libromart_order_id', 'value' => (string) $order->id],
-                ['name' => 'libromart_order_number', 'value' => $order->ticket_number],
-                ['name' => 'libromart_creation_token', 'value' => (string) $order->creation_token],
-                ['name' => 'libromart_created_by_user_id', 'value' => (string) $order->created_by_user_id],
-                ['name' => 'libromart_assigned_user_id', 'value' => (string) $order->assigned_user_id],
-            ],
+            'note_attributes' => $noteAttributes,
         ];
 
         if ($order->client) {
@@ -165,6 +184,46 @@ class ShopifyOrderCreator
         }
 
         return array_filter($payload, fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function resolveShopifyVariantId(PosSaleItem $item): ?string
+    {
+        if (filled($item->shopify_variant_id)) {
+            return (string) $item->shopify_variant_id;
+        }
+
+        if (filled($item->variant?->shopify_variant_id)) {
+            return (string) $item->variant->shopify_variant_id;
+        }
+
+        $product = $item->relationLoaded('product')
+            ? $item->product
+            : ($item->product_id ? Product::query()->with('variants')->find($item->product_id) : null);
+
+        if (! $product) {
+            return null;
+        }
+
+        $variants = $product->relationLoaded('variants')
+            ? $product->variants
+            : $product->variants()->get();
+
+        if ($item->ref) {
+            $bySku = $variants->first(
+                fn ($variant) => filled($variant->shopify_variant_id)
+                    && strcasecmp((string) $variant->sku, (string) $item->ref) === 0
+            );
+            if ($bySku) {
+                return (string) $bySku->shopify_variant_id;
+            }
+        }
+
+        $withShopifyId = $variants->filter(fn ($variant) => filled($variant->shopify_variant_id));
+        if ($withShopifyId->count() === 1) {
+            return (string) $withShopifyId->first()->shopify_variant_id;
+        }
+
+        return null;
     }
 
     private function linkOrder(PosSale $order, array $shopifyOrder, ?int $actorUserId): void

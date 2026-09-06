@@ -64,10 +64,11 @@ class VariantCatalogSearch
         return array_merge([
             'id' => (string) $product->id,
             'product_id' => $product->id,
-            'product_variant_id' => null,
+            // Keep the default/single variant so Shopify sync can link the catalog image.
+            'product_variant_id' => $variant?->id,
             'text' => $label,
             'name' => $product->name,
-            'variant' => null,
+            'variant' => $variant?->full_title,
             'ref' => $sku,
             'barcode' => $variant?->barcode ?: $product->barcode,
             'vat_category' => $product->vat_category,

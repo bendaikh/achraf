@@ -152,9 +152,20 @@ class OrderController extends Controller
             ->get();
 
         $rows = VariantCatalogSearch::expandProducts($products, 'sale')->map(function (array $row) {
-            $row['tax_rate'] = $this->defaultTaxRate(Product::find($row['product_id']));
+            $product = Product::query()->find($row['product_id']);
 
-            return $row;
+            return [
+                'key' => (string) ($row['id'] ?? ($row['product_id'].'-'.($row['product_variant_id'] ?? '0'))),
+                'product_id' => $row['product_id'],
+                'variant_id' => $row['product_variant_id'] ?? null,
+                'name' => $row['name'] ?? '',
+                'variant' => $row['variant'] ?? null,
+                'sku' => $row['ref'] ?? null,
+                'price' => (float) ($row['sale_price'] ?? 0),
+                'tax_rate' => $this->defaultTaxRate($product),
+                'stock' => $row['stock'] ?? null,
+                'shopify_variant_id' => $row['shopify_variant_id'] ?? null,
+            ];
         });
 
         return response()->json(['products' => $rows]);
@@ -212,12 +223,17 @@ class OrderController extends Controller
             $taxTotal = 0.0;
 
             foreach ($validated['items'] as $input) {
-                $product = Product::query()->findOrFail($input['product_id']);
-                $variant = ! empty($input['variant_id'])
-                    ? ProductVariant::query()
+                $product = Product::query()->with('variants')->findOrFail($input['product_id']);
+                if (! empty($input['variant_id'])) {
+                    $variant = ProductVariant::query()
                         ->where('product_id', $product->id)
-                        ->findOrFail($input['variant_id'])
-                    : null;
+                        ->findOrFail($input['variant_id']);
+                } else {
+                    // Single-variant Shopify products still need the variant ID for catalog photos.
+                    $variant = $product->variants->count() === 1
+                        ? $product->variants->first()
+                        : null;
+                }
 
                 $quantity = (int) $input['quantity'];
                 $priceTtc = (float) ($variant?->price ?? $product->sale_price ?? 0);

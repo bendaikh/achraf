@@ -346,10 +346,19 @@ class Product extends Model
 
     /**
      * Get the full URL for the product image.
+     * Prefer a local file that actually exists; fall back to the Shopify CDN URL.
      */
     public function getImageUrlAttribute(): ?string
     {
-        return \App\Support\PublicStorage::url($this->image);
+        if ($this->image && \Illuminate\Support\Facades\Storage::disk('public')->exists($this->image)) {
+            return \App\Support\PublicStorage::url($this->image);
+        }
+
+        if (filled($this->shopify_image_url)) {
+            return $this->shopify_image_url;
+        }
+
+        return null;
     }
 
     public function invoiceItems(): HasMany

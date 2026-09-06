@@ -108,29 +108,25 @@ class ShopifyProductImporter
             // Download and store image if available
             if ($imageUrl) {
                 try {
-                    // For new products, always download the image
-                    // For existing products, download if the image URL has changed
-                    $shouldDownload = ! $existing;
+                    $localImageMissing = $existing
+                        && filled($existing->image)
+                        && ! Storage::disk('public')->exists($existing->image);
 
-                    if ($existing) {
-                        // Check if we need to update the image
-                        // We'll store the Shopify image URL to compare
-                        $currentShopifyImageUrl = $existing->shopify_image_url ?? null;
-
-                        // Download if:
-                        // 1. No image exists yet
-                        // 2. The Shopify image URL has changed
-                        // 3. The stored URL is different (first time storing URL)
-                        if (! $existing->image || $currentShopifyImageUrl !== $imageUrl) {
-                            $shouldDownload = true;
-                        }
-                    }
+                    // Download for new products, missing local files, or changed Shopify URLs.
+                    $shouldDownload = ! $existing
+                        || ! filled($existing->image)
+                        || $localImageMissing
+                        || ($existing->shopify_image_url ?? null) !== $imageUrl;
 
                     if ($shouldDownload) {
                         $imagePath = $this->downloadImage($imageUrl, $externalId);
                         if ($imagePath) {
                             $data['image'] = $imagePath;
-                            $data['shopify_image_url'] = $imageUrl; // Store URL for comparison
+                            $data['shopify_image_url'] = $imageUrl;
+
+                            if ($existing && filled($existing->image) && $existing->image !== $imagePath) {
+                                Storage::disk('public')->delete($existing->image);
+                            }
 
                             if ($existing) {
                                 Log::info('Updated Shopify product image', [
@@ -139,9 +135,15 @@ class ShopifyProductImporter
                                     'new_image' => $imagePath,
                                 ]);
                             }
+                        } elseif ($localImageMissing) {
+                            // Avoid keeping a broken local path that 404s in the UI.
+                            $repaired = $this->findExistingLocalImage($externalId);
+                            $data['image'] = $repaired;
+                            $data['shopify_image_url'] = $imageUrl;
+                        } else {
+                            $data['shopify_image_url'] = $imageUrl;
                         }
                     } else {
-                        // Keep existing image
                         $data['shopify_image_url'] = $imageUrl;
                     }
                 } catch (\Exception $e) {
@@ -328,27 +330,37 @@ class ShopifyProductImporter
     }
 
     /**
-     * Download and store product image from URL
+     * Download and store product image from URL.
+     * Returns the storage path only when the file was actually written.
      */
     private function downloadImage(string $url, string $productId): ?string
     {
         try {
-            $contents = file_get_contents($url);
-            if ($contents === false) {
+            $contents = @file_get_contents($url);
+            if ($contents === false || $contents === '') {
                 return null;
             }
 
-            // Generate filename from URL
-            $extension = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION);
-            if (! $extension || ! in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+            $extension = pathinfo((string) parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION);
+            if (! $extension || ! in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
                 $extension = 'jpg';
             }
 
             $filename = 'shopify-'.$productId.'-'.time().'.'.$extension;
             $path = 'products/'.$filename;
 
-            // Store in public disk
-            Storage::disk('public')->put($path, $contents);
+            if (! Storage::disk('public')->put($path, $contents)) {
+                Log::error('Failed to store Shopify product image on disk', [
+                    'url' => $url,
+                    'path' => $path,
+                ]);
+
+                return null;
+            }
+
+            if (! Storage::disk('public')->exists($path)) {
+                return null;
+            }
 
             return $path;
         } catch (\Exception $e) {
@@ -359,6 +371,22 @@ class ShopifyProductImporter
 
             return null;
         }
+    }
+
+    /**
+     * Reuse an older local Shopify image for this product when the DB path is missing.
+     */
+    private function findExistingLocalImage(string $productId): ?string
+    {
+        $files = glob(storage_path('app/public/products/shopify-'.$productId.'-*')) ?: [];
+        if ($files === []) {
+            return null;
+        }
+
+        natsort($files);
+        $latest = end($files);
+
+        return $latest ? 'products/'.basename($latest) : null;
     }
 
     /**
