@@ -15,6 +15,9 @@
                     :print-route="route('supplier-invoices.print', $supplierInvoice)"
                     :pdf-route="route('supplier-invoices.pdf', $supplierInvoice)"
                 />
+                <a href="{{ route('supplier-invoices.edit', $supplierInvoice) }}" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg hover:bg-[#084d72] transition duration-150">
+                    Modifier
+                </a>
                 <a href="{{ route('supplier-invoices.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
                     Retour à la liste
                 </a>

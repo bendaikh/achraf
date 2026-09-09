@@ -471,5 +471,146 @@
             });
     };
 
+    /**
+     * Pack nested PHP-style arrays (items[0][x], adjustments[1][y], …) into a
+     * single *_json field so large commercial forms are not blocked by WAF
+     * (Hostinger hCDN returns plain "Forbidden" above ~400 POST fields).
+     */
+    function parsePhpBracketName(name) {
+        var parts = [];
+        var re = /([^\[\]]+)|\[([^\]]*)\]/g;
+        var match;
+        var first = true;
+        while ((match = re.exec(name))) {
+            if (match[1] !== undefined && first) {
+                parts.push(match[1]);
+                first = false;
+            } else if (match[2] !== undefined) {
+                parts.push(match[2]);
+            }
+        }
+        return parts;
+    }
+
+    function isNumericKey(key) {
+        return key !== '' && String(Number(key)) === String(key);
+    }
+
+    function assignPhpPath(target, parts, value) {
+        var cur = target;
+        for (var i = 0; i < parts.length - 1; i++) {
+            var part = parts[i];
+            var next = parts[i + 1];
+            if (cur[part] == null) {
+                cur[part] = isNumericKey(next) || next === '' ? {} : {};
+            }
+            cur = cur[part];
+        }
+        var last = parts[parts.length - 1];
+        if (last === '') {
+            var len = Object.keys(cur).filter(isNumericKey).length;
+            cur[len] = value;
+        } else {
+            cur[last] = value;
+        }
+    }
+
+    function densify(value) {
+        if (Array.isArray(value)) {
+            return value.map(densify);
+        }
+        if (!value || typeof value !== 'object') {
+            return value;
+        }
+        var keys = Object.keys(value);
+        var numericKeys = keys.filter(isNumericKey);
+        if (numericKeys.length && numericKeys.length === keys.length) {
+            return numericKeys
+                .map(Number)
+                .sort(function (a, b) { return a - b; })
+                .map(function (k) { return densify(value[k]); });
+        }
+        var out = {};
+        keys.forEach(function (k) {
+            out[k] = densify(value[k]);
+        });
+        return out;
+    }
+
+    window.compactCommercialFormArrays = function (form, roots) {
+        if (!form) return;
+        roots = roots || ['items', 'adjustments'];
+
+        roots.forEach(function (root) {
+            form.querySelectorAll('input[name="' + root + '_json"]').forEach(function (el) {
+                el.remove();
+            });
+        });
+
+        var bucket = {};
+        roots.forEach(function (root) {
+            bucket[root] = {};
+        });
+
+        var fields = form.querySelectorAll('input[name], select[name], textarea[name]');
+        fields.forEach(function (el) {
+            var name = el.getAttribute('name');
+            if (!name) return;
+            var root = roots.find(function (r) {
+                return name === r || name.indexOf(r + '[') === 0;
+            });
+            if (!root) return;
+            if (el.type === 'file') return;
+            if ((el.type === 'checkbox' || el.type === 'radio') && !el.checked) return;
+
+            var parts = parsePhpBracketName(name);
+            if (!parts.length || parts[0] !== root) return;
+
+            assignPhpPath(bucket[root], parts.slice(1), el.value);
+            el.disabled = true;
+        });
+
+        roots.forEach(function (root) {
+            var packed = densify(bucket[root]);
+            if (!Array.isArray(packed)) {
+                packed = Object.keys(packed || {}).length ? densify(bucket[root]) : [];
+            }
+            if (!Array.isArray(packed)) {
+                packed = [];
+            }
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = root + '_json';
+            input.value = JSON.stringify(packed);
+            form.appendChild(input);
+        });
+    };
+
+    window.bindCommercialFormArrayCompaction = function (form, roots) {
+        if (!form || form.dataset.compactArraysBound === '1') return;
+        form.dataset.compactArraysBound = '1';
+        form.addEventListener('submit', function () {
+            window.compactCommercialFormArrays(form, roots);
+        });
+    };
+
+    function bootFormArrayCompaction() {
+        document.querySelectorAll('form[data-compact-nested], form#invoiceForm').forEach(function (form) {
+            var roots = (form.getAttribute('data-compact-nested') || 'items,adjustments')
+                .split(',')
+                .map(function (s) { return s.trim(); })
+                .filter(Boolean);
+            window.bindCommercialFormArrayCompaction(form, roots);
+        });
+    }
+
+    if (window.SoftNav && typeof SoftNav.whenReady === 'function') {
+        SoftNav.whenReady(bootFormArrayCompaction);
+    } else if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootFormArrayCompaction);
+    } else {
+        bootFormArrayCompaction();
+    }
+
     window.calculateTotal = window.calculateCommercialTotal;
 })();

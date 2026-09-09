@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\AppliesCommercialAttribution;
+use App\Http\Controllers\Concerns\ExpandsCompactedFormArrays;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
@@ -24,7 +25,7 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
-    use AppliesCommercialAttribution, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView, SyncsDocumentAdjustments;
+    use AppliesCommercialAttribution, ExpandsCompactedFormArrays, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView, SyncsDocumentAdjustments;
 
     public function __construct(
         protected StockMovementService $stockMovement,
@@ -92,6 +93,8 @@ class InvoiceController extends Controller
 
     public function store(Request $request)
     {
+        $this->expandCompactedFormArrays($request);
+
         $validated = $request->validate([
             'client_id' => 'required|exists:clients,id',
             'invoice_date' => 'required|date',
@@ -217,6 +220,8 @@ class InvoiceController extends Controller
 
     public function update(Request $request, Invoice $invoice)
     {
+        $this->expandCompactedFormArrays($request);
+
         $validated = $request->validate([
             'client_id' => 'required|exists:clients,id',
             'invoice_date' => 'required|date',

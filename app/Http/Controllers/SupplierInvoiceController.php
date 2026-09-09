@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\AttachesManagedDocuments;
+use App\Http\Controllers\Concerns\ExpandsCompactedFormArrays;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
@@ -27,7 +28,7 @@ use Illuminate\Support\Facades\Storage;
 
 class SupplierInvoiceController extends Controller
 {
-    use AttachesManagedDocuments, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView, SyncsDocumentAdjustments;
+    use AttachesManagedDocuments, ExpandsCompactedFormArrays, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView, SyncsDocumentAdjustments;
 
     public function __construct(
         protected StockMovementService $stockMovement,
@@ -82,6 +83,8 @@ class SupplierInvoiceController extends Controller
 
     public function store(Request $request)
     {
+        $this->expandCompactedFormArrays($request);
+
         $validated = $request->validate([
             'invoice_number' => 'required|string|unique:supplier_invoices,invoice_number',
             'supplier_id' => 'required|exists:suppliers,id',
@@ -206,6 +209,8 @@ class SupplierInvoiceController extends Controller
             return back()->with('error', 'Le stock de cette facture a déjà été comptabilisé. Aucune nouvelle entrée possible.');
         }
 
+        $this->expandCompactedFormArrays($request, ['items']);
+
         $validated = $request->validate([
             'items' => 'required|array',
             'items.*.product_id' => 'nullable|exists:products,id',
@@ -276,6 +281,8 @@ class SupplierInvoiceController extends Controller
 
     public function update(Request $request, SupplierInvoice $supplierInvoice)
     {
+        $this->expandCompactedFormArrays($request);
+
         $validated = $request->validate([
             'invoice_number' => 'required|string|unique:supplier_invoices,invoice_number,' . $supplierInvoice->id,
             'supplier_id' => 'required|exists:suppliers,id',
