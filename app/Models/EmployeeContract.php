@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class EmployeeContract extends Model
 {
@@ -42,10 +43,12 @@ class EmployeeContract extends Model
         'end_date',
         'job_title',
         'workplace',
+        'department_name',
         'salary',
         'trial_start_date',
         'trial_end_date',
         'status',
+        'is_amendment',
         'previous_contract_id',
         'notes',
     ];
@@ -56,6 +59,7 @@ class EmployeeContract extends Model
         'trial_start_date' => 'date',
         'trial_end_date' => 'date',
         'salary' => 'decimal:2',
+        'is_amendment' => 'boolean',
     ];
 
     public function employee(): BelongsTo
@@ -73,6 +77,11 @@ class EmployeeContract extends Model
         return $this->hasMany(self::class, 'previous_contract_id');
     }
 
+    public function auditLogs(): MorphMany
+    {
+        return $this->morphMany(HrAuditLog::class, 'auditable')->latest();
+    }
+
     public function typeLabel(): string
     {
         return self::TYPES[$this->type] ?? $this->type;
@@ -81,5 +90,10 @@ class EmployeeContract extends Model
     public function statusLabel(): string
     {
         return self::STATUSES[$this->status] ?? $this->status;
+    }
+
+    public function kindLabel(): string
+    {
+        return $this->is_amendment ? 'Avenant' : 'Contrat';
     }
 }

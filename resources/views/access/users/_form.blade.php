@@ -87,17 +87,27 @@
 <script type="application/json" id="role-permission-map">@json($rolePermissionMap ?? [])</script>
 <script>
 (() => {
-    const select = document.getElementById('primary_role_id');
-    const mapEl = document.getElementById('role-permission-map');
-    if (!select || !mapEl) return;
-    let map = {};
-    try { map = JSON.parse(mapEl.textContent || '{}'); } catch (e) { return; }
+    function initRolePermissionSync() {
+        const select = document.getElementById('primary_role_id');
+        const mapEl = document.getElementById('role-permission-map');
+        if (!select || !mapEl || select.dataset.rolePermBound === '1') return;
+        select.dataset.rolePermBound = '1';
 
-    select.addEventListener('change', () => {
-        const ids = new Set((map[select.value] || []).map(String));
-        document.querySelectorAll('[data-permission-matrix] input[name="permissions[]"]').forEach((el) => {
-            el.checked = ids.has(String(el.value));
+        let map = {};
+        try { map = JSON.parse(mapEl.textContent || '{}'); } catch (e) { return; }
+
+        select.addEventListener('change', () => {
+            const ids = new Set((map[select.value] || []).map(String));
+            document.querySelectorAll('[data-permission-matrix] input[name="permissions[]"]').forEach((el) => {
+                el.checked = ids.has(String(el.value));
+            });
         });
-    });
+    }
+
+    if (window.SoftNav && typeof SoftNav.whenReady === 'function') {
+        SoftNav.whenReady(initRolePermissionSync);
+    } else {
+        initRolePermissionSync();
+    }
 })();
 </script>

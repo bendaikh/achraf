@@ -61,22 +61,40 @@ class EmployeeService
     public function addContract(Employee $employee, array $data, bool $renew = false, ?int $userId = null): EmployeeContract
     {
         return DB::transaction(function () use ($employee, $data, $renew, $userId) {
+            $employee->loadMissing('department');
+
+            // Snapshot from fiche — never keep a live link that would rewrite history later.
+            $data['job_title'] = $data['job_title'] ?? $employee->job_title;
+            $data['workplace'] = $data['workplace'] ?? $employee->workplace;
+            $data['department_name'] = $data['department_name'] ?? $employee->department?->name;
+            $data['start_date'] = $data['start_date'] ?? $employee->hire_date?->toDateString();
+            if (! array_key_exists('salary', $data) || $data['salary'] === null || $data['salary'] === '') {
+                $data['salary'] = $employee->currentSalary()?->base_salary;
+            }
+
             $current = $employee->contracts()->where('status', EmployeeContract::STATUS_EN_COURS)->first();
             if ($current && $renew) {
                 $current->update(['status' => EmployeeContract::STATUS_RENOUVELE]);
                 $data['previous_contract_id'] = $current->id;
             }
 
+            $data['is_amendment'] = (bool) ($data['is_amendment'] ?? false);
             $contract = $employee->contracts()->create($data);
+
+            $title = $contract->is_amendment
+                ? 'Avenant contrat '.$contract->typeLabel()
+                : 'Début contrat '.$contract->typeLabel();
+
             $this->timeline->record(
                 $employee,
                 'contract',
-                'Début contrat '.$contract->typeLabel(),
+                $title,
                 $contract->start_date,
-                $contract->job_title,
+                trim(($contract->job_title ?? '').($contract->salary ? ' — '.number_format((float) $contract->salary, 2, ',', ' ').' MAD' : '')),
                 $contract,
                 $userId
             );
+            $this->audit->log($contract, 'create', null, null, null, $title, $userId);
 
             return $contract;
         });

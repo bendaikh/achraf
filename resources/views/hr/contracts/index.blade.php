@@ -30,20 +30,44 @@
     <div class="bg-white rounded-lg shadow overflow-x-auto">
         <table data-lm-table="hr-contracts" class="min-w-full text-sm">
             <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr>
-                <th class="px-4 py-3 text-left lm-col lm-col-salarie column-salarie" data-lm-col="salarie">Salarié</th><th class="px-4 py-3 text-left lm-col lm-col-type column-type" data-lm-col="type">Type</th><th class="px-4 py-3 text-left lm-col lm-col-debut column-debut" data-lm-col="debut">Début</th><th class="px-4 py-3 text-left lm-col lm-col-fin column-fin" data-lm-col="fin">Fin</th><th class="px-4 py-3 text-left lm-col lm-col-statut column-statut" data-lm-col="statut">Essai</th><th class="px-4 py-3 text-left lm-col lm-col-actions column-actions" data-lm-col="actions">Statut</th>
+                <th class="px-4 py-3 text-left">Salarié</th>
+                <th class="px-4 py-3 text-left">Type</th>
+                <th class="px-4 py-3 text-left">Début</th>
+                <th class="px-4 py-3 text-left">Fin</th>
+                <th class="px-4 py-3 text-left">Fonction</th>
+                <th class="px-4 py-3 text-left">Salaire brut contractuel</th>
+                <th class="px-4 py-3 text-left">Statut</th>
+                <th class="px-4 py-3 text-right">Actions</th>
             </tr></thead>
             <tbody>
                 @forelse($contracts as $contract)
-                    <tr class="border-t hover:bg-gray-50">
-                        <td class="px-4 py-3 lm-col lm-col-salarie column-salarie" data-lm-col="salarie"><a class="text-[#0a5d8a] font-medium" href="{{ route('hr.employees.show', [$contract->employee, 'tab' => 'contrat']) }}">{{ $contract->employee?->matricule }} — {{ $contract->employee?->fullName() }}</a></td>
-                        <td class="px-4 py-3 lm-col lm-col-type column-type" data-lm-col="type">{{ $contract->typeLabel() }}</td>
-                        <td class="px-4 py-3 lm-col lm-col-debut column-debut" data-lm-col="debut">{{ $contract->start_date?->format('d/m/Y') }}</td>
-                        <td class="px-4 py-3 lm-col lm-col-fin column-fin" data-lm-col="fin">{{ $contract->end_date?->format('d/m/Y') ?: '—' }}</td>
-                        <td class="px-4 py-3 lm-col lm-col-statut column-statut" data-lm-col="statut">{{ $contract->trial_end_date?->format('d/m/Y') ?: '—' }}</td>
-                        <td class="px-4 py-3 lm-col lm-col-actions column-actions" data-lm-col="actions">{{ $contract->statusLabel() }}</td>
+                    <tr class="border-t hover:bg-gray-50" x-data="{ open: false }">
+                        <td class="px-4 py-3">
+                            <a class="text-[#0a5d8a] font-medium" href="{{ route('hr.employees.show', [$contract->employee, 'tab' => 'contrat']) }}">
+                                {{ $contract->employee?->matricule }} — {{ $contract->employee?->fullName() }}
+                            </a>
+                            @if($contract->is_amendment)
+                                <span class="ml-1 inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">Avenant</span>
+                            @endif
+                        </td>
+                        <td class="px-4 py-3">{{ $contract->typeLabel() }}</td>
+                        <td class="px-4 py-3">{{ $contract->start_date?->format('d/m/Y') }}</td>
+                        <td class="px-4 py-3">{{ $contract->end_date?->format('d/m/Y') ?: '—' }}</td>
+                        <td class="px-4 py-3">{{ $contract->job_title ?: '—' }}</td>
+                        <td class="px-4 py-3">{{ $contract->salary ? number_format((float) $contract->salary, 2, ',', ' ').' MAD' : '—' }}</td>
+                        <td class="px-4 py-3">{{ $contract->statusLabel() }}</td>
+                        <td class="px-4 py-3 text-right relative">
+                            <button type="button" @click="open = !open" class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50" aria-label="Actions">⋯</button>
+                            <div x-show="open" @click.outside="open = false" x-cloak class="absolute right-4 z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 text-left shadow-lg">
+                                <a href="{{ route('hr.contracts.show', $contract) }}" class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Voir</a>
+                                <a href="{{ route('hr.contracts.edit', $contract) }}" class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Modifier</a>
+                                <a href="{{ route('hr.contracts.edit', $contract) }}?avenant=1" class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Avenant / nouvelle version</a>
+                                <a href="{{ route('hr.contracts.show', $contract) }}?tab=historique" class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Historique</a>
+                            </div>
+                        </td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Aucun contrat.</td></tr>
+                    <tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">Aucun contrat.</td></tr>
                 @endforelse
             </tbody>
         </table>

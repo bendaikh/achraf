@@ -81,22 +81,31 @@
 @unless($readonly)
 <script>
 (() => {
-    const root = document.querySelector('[data-permission-matrix]');
-    if (!root) return;
+    function initPermissionMatrix() {
+        const root = document.querySelector('[data-permission-matrix]');
+        if (!root || root.dataset.permMatrixBound === '1') return;
+        root.dataset.permMatrixBound = '1';
 
-    const boxes = () => Array.from(root.querySelectorAll('input[type="checkbox"][name="permissions[]"]'));
+        const boxes = () => Array.from(root.querySelectorAll('input[type="checkbox"][name="permissions[]"]'));
 
-    root.querySelectorAll('[data-perm-action]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const mode = btn.getAttribute('data-perm-action');
-            boxes().forEach((el) => {
-                const action = el.getAttribute('data-perm-action-type');
-                if (mode === 'all') el.checked = true;
-                else if (mode === 'none') el.checked = false;
-                else if (mode === 'readonly') el.checked = action === 'voir';
+        root.querySelectorAll('[data-perm-action]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const mode = btn.getAttribute('data-perm-action');
+                boxes().forEach((el) => {
+                    const action = el.getAttribute('data-perm-action-type');
+                    if (mode === 'all') el.checked = true;
+                    else if (mode === 'none') el.checked = false;
+                    else if (mode === 'readonly') el.checked = action === 'voir';
+                });
             });
         });
-    });
+    }
+
+    if (window.SoftNav && typeof SoftNav.whenReady === 'function') {
+        SoftNav.whenReady(initPermissionMatrix);
+    } else {
+        initPermissionMatrix();
+    }
 })();
 </script>
 @endunless

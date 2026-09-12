@@ -14,6 +14,8 @@ class AttendanceRecord extends Model
 
     public const STATUS_LEAVE = 'leave';
 
+    public const STATUS_SICK = 'sick';
+
     public const STATUS_REST = 'rest';
 
     public const STATUS_HOLIDAY = 'holiday';
@@ -23,10 +25,22 @@ class AttendanceRecord extends Model
     public const STATUSES = [
         self::STATUS_PRESENT => 'Présent',
         self::STATUS_ABSENT => 'Absent',
-        self::STATUS_LEAVE => 'Congé',
+        self::STATUS_LEAVE => 'Congé payé',
+        self::STATUS_SICK => 'Congé maladie',
         self::STATUS_REST => 'Repos',
         self::STATUS_HOLIDAY => 'Jour férié',
         self::STATUS_LATE => 'Retard',
+    ];
+
+    /** Statuses available in the monthly entry grid. */
+    public const ENTRY_STATUSES = [
+        self::STATUS_PRESENT => 'Présent',
+        self::STATUS_REST => 'Repos',
+        self::STATUS_LEAVE => 'Congé payé',
+        self::STATUS_SICK => 'Congé maladie',
+        self::STATUS_ABSENT => 'Absent',
+        self::STATUS_LATE => 'Retard',
+        self::STATUS_HOLIDAY => 'Jour férié',
     ];
 
     public const SOURCE_MANUAL = 'manual';
@@ -90,9 +104,30 @@ class AttendanceRecord extends Model
 
     public function workedHoursLabel(): string
     {
-        $hours = intdiv($this->worked_minutes, 60);
-        $minutes = $this->worked_minutes % 60;
+        return self::minutesLabel((int) $this->worked_minutes);
+    }
 
-        return sprintf('%dh%02d', $hours, $minutes);
+    public static function minutesLabel(int $minutes): string
+    {
+        $sign = $minutes < 0 ? '-' : '';
+        $minutes = abs($minutes);
+        $hours = intdiv($minutes, 60);
+        $mins = $minutes % 60;
+
+        return sprintf('%s%dh%02d', $sign, $hours, $mins);
+    }
+
+    public static function statusBadgeClass(string $status): string
+    {
+        return match ($status) {
+            self::STATUS_PRESENT => 'bg-emerald-100 text-emerald-800 border-emerald-200',
+            self::STATUS_REST => 'bg-slate-100 text-slate-600 border-slate-200',
+            self::STATUS_LEAVE => 'bg-violet-100 text-violet-800 border-violet-200',
+            self::STATUS_SICK => 'bg-purple-50 text-purple-700 border-purple-200',
+            self::STATUS_ABSENT => 'bg-red-100 text-red-700 border-red-200',
+            self::STATUS_LATE => 'bg-amber-100 text-amber-800 border-amber-200',
+            self::STATUS_HOLIDAY => 'bg-sky-100 text-sky-800 border-sky-200',
+            default => 'bg-gray-100 text-gray-700 border-gray-200',
+        };
     }
 }

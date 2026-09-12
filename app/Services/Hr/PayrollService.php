@@ -136,16 +136,69 @@ class PayrollService
 
         $this->movements->syncFromPayrollPayment($record);
 
+        // Recover installment advances / retenues using amounts computed on the slip.
+        $avanceRows = $slip->breakdown['avance_rows'] ?? [];
+        if ($avanceRows === []) {
+            // Legacy one-shot: recover matching period advances fully.
+            PayrollAdjustment::query()
+                ->where('employee_id', $slip->employee_id)
+                ->where('period_year', $run->period_year)
+                ->where('period_month', $run->period_month)
+                ->where('type', PayrollAdjustment::TYPE_AVANCE)
+                ->whereNull('recovered_at')
+                ->where(function ($q) {
+                    $q->whereNull('monthly_amount')->orWhere('monthly_amount', 0);
+                })
+                ->update([
+                    'remaining_amount' => 0,
+                    'status' => PayrollAdjustment::STATUS_TERMINE,
+                    'end_date' => now()->toDateString(),
+                    'recovered_at' => now(),
+                ]);
+        } else {
+            foreach ($avanceRows as $row) {
+                $adj = PayrollAdjustment::query()->find($row['id'] ?? null);
+                if (! $adj) {
+                    continue;
+                }
+                $deducted = (float) ($row['amount'] ?? 0);
+                $remaining = max(0, round((float) ($adj->remaining_amount ?? $adj->amount) - $deducted, 2));
+                $payload = ['remaining_amount' => $remaining];
+                if ($remaining <= 0) {
+                    $payload['remaining_amount'] = 0;
+                    $payload['status'] = PayrollAdjustment::STATUS_TERMINE;
+                    $payload['end_date'] = now()->toDateString();
+                    $payload['recovered_at'] = now();
+                }
+                $adj->update($payload);
+            }
+        }
+
+        // Same installment logic for retenues with monthly_amount.
         PayrollAdjustment::query()
             ->where('employee_id', $slip->employee_id)
-            ->where('period_year', $run->period_year)
-            ->where('period_month', $run->period_month)
-            ->where('type', PayrollAdjustment::TYPE_AVANCE)
+            ->where('type', PayrollAdjustment::TYPE_RETENUE)
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', PayrollAdjustment::STATUS_ACTIF);
+            })
+            ->whereNotNull('monthly_amount')
+            ->where('monthly_amount', '>', 0)
             ->whereNull('recovered_at')
-            ->update([
-                'remaining_amount' => 0,
-                'recovered_at' => now(),
-            ]);
+            ->get()
+            ->each(function (PayrollAdjustment $adj) use ($run) {
+                $part = $adj->installmentForPeriod($run->period_year, $run->period_month);
+                if ($part <= 0) {
+                    return;
+                }
+                $remaining = max(0, round((float) ($adj->remaining_amount ?? $adj->amount) - $part, 2));
+                $payload = ['remaining_amount' => $remaining];
+                if ($remaining <= 0) {
+                    $payload['status'] = PayrollAdjustment::STATUS_TERMINE;
+                    $payload['end_date'] = now()->toDateString();
+                    $payload['recovered_at'] = now();
+                }
+                $adj->update($payload);
+            });
 
         $this->timeline->record(
             $slip->employee,

@@ -40,16 +40,30 @@ class CompensationItem extends Model
     public const RECURRENCES = [
         self::RECURRENCE_PONCTUEL => 'Ponctuel',
         self::RECURRENCE_RECURRENT => 'Mensuel',
-        self::RECURRENCE_PERIODIQUE => 'Périodique',
+        self::RECURRENCE_PERIODIQUE => 'Récurrent jusqu\'à une date',
+    ];
+
+    public const STATUS_ACTIF = 'actif';
+
+    public const STATUS_SUSPENDU = 'suspendu';
+
+    public const STATUS_ARRETE = 'arrete';
+
+    public const STATUSES = [
+        self::STATUS_ACTIF => 'Actif',
+        self::STATUS_SUSPENDU => 'Suspendu',
+        self::STATUS_ARRETE => 'Arrêté',
     ];
 
     protected $fillable = [
         'employee_id',
         'kind',
         'recurrence',
+        'status',
         'amount',
         'start_date',
         'end_date',
+        'status_effective_date',
         'notes',
     ];
 
@@ -57,6 +71,7 @@ class CompensationItem extends Model
         'amount' => 'decimal:2',
         'start_date' => 'date',
         'end_date' => 'date',
+        'status_effective_date' => 'date',
     ];
 
     public function employee(): BelongsTo
@@ -69,9 +84,24 @@ class CompensationItem extends Model
         return self::KINDS[$this->kind] ?? $this->kind;
     }
 
+    public function recurrenceLabel(): string
+    {
+        return self::RECURRENCES[$this->recurrence] ?? $this->recurrence;
+    }
+
+    public function statusLabel(): string
+    {
+        return self::STATUSES[$this->status ?? self::STATUS_ACTIF] ?? ($this->status ?? 'Actif');
+    }
+
     public function isPrime(): bool
     {
         return str_starts_with($this->kind, 'prime_');
+    }
+
+    public function isActive(): bool
+    {
+        return ($this->status ?? self::STATUS_ACTIF) === self::STATUS_ACTIF;
     }
 
     public function appliesTo(\DateTimeInterface $from, \DateTimeInterface $to): bool

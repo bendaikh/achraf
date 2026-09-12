@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAbsence;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Services\Hr\AttendanceService;
 use App\Services\Hr\LeaveBalanceService;
 use App\Services\Hr\HrTimelineService;
 use Illuminate\Http\Request;
@@ -56,7 +57,7 @@ class LeaveController extends Controller
         return back()->with('success', 'Demande de congé enregistrée.');
     }
 
-    public function review(Request $request, LeaveRequest $leave, LeaveBalanceService $balances)
+    public function review(Request $request, LeaveRequest $leave, LeaveBalanceService $balances, AttendanceService $attendance)
     {
         $validated = $request->validate([
             'status' => 'required|in:approved,rejected,cancelled',
@@ -73,8 +74,10 @@ class LeaveController extends Controller
 
         if ($validated['status'] === LeaveRequest::STATUS_APPROVED) {
             $balances->applyApprovedLeave($leave);
+            $attendance->syncLeaveToAttendance($leave, $request->user()?->id);
         } elseif ($previous === LeaveRequest::STATUS_APPROVED) {
             $balances->reverseApprovedLeave($leave);
+            $attendance->clearLeaveFromAttendance($leave, $request->user()?->id);
         }
 
         app(HrTimelineService::class)->record(
@@ -86,10 +89,10 @@ class LeaveController extends Controller
             $leave
         );
 
-        return back()->with('success', 'Statut du congé mis à jour.');
+        return back()->with('success', 'Statut du congé mis à jour. Les présences ont été synchronisées.');
     }
 
-    public function storeAbsence(Request $request, HrTimelineService $timeline)
+    public function storeAbsence(Request $request, HrTimelineService $timeline, AttendanceService $attendance)
     {
         $validated = $request->validate([
             'employee_id' => 'required|exists:employees,id',
@@ -105,9 +108,10 @@ class LeaveController extends Controller
         $validated['impacts_payroll'] = $request->boolean('impacts_payroll', true);
         $absence = EmployeeAbsence::create($validated);
 
+        $attendance->syncAbsenceToAttendance($absence, $request->user()?->id);
         $timeline->record($absence->employee, 'absence', $absence->typeLabel(), $absence->start_date, $absence->comment, $absence);
 
-        return back()->with('success', 'Absence enregistrée.');
+        return back()->with('success', 'Absence enregistrée et reportée dans Présences & Pointage.');
     }
 
     public function storeBalance(Request $request, Employee $employee, LeaveBalanceService $balances)

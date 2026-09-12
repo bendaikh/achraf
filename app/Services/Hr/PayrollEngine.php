@@ -72,14 +72,46 @@ class PayrollEngine
             ->where('period_year', $periodStart->year)
             ->where('period_month', $periodStart->month)
             ->where('type', PayrollAdjustment::TYPE_RETENUE)
+            ->where(function ($q) {
+                $q->whereNull('monthly_amount')->orWhere('monthly_amount', 0);
+            })
             ->sum('amount');
 
-        $avanceQuery = PayrollAdjustment::query()
+        PayrollAdjustment::query()
             ->where('employee_id', $employee->id)
-            ->where('period_year', $periodStart->year)
-            ->where('period_month', $periodStart->month)
-            ->where('type', PayrollAdjustment::TYPE_AVANCE);
-        $avances = (float) ($avanceQuery->get()->sum(fn ($row) => (float) ($row->remaining_amount ?? $row->amount)));
+            ->where('type', PayrollAdjustment::TYPE_RETENUE)
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', PayrollAdjustment::STATUS_ACTIF);
+            })
+            ->whereNotNull('monthly_amount')
+            ->where('monthly_amount', '>', 0)
+            ->get()
+            ->each(function (PayrollAdjustment $row) use (&$retenues, $periodStart) {
+                $retenues += $row->installmentForPeriod($periodStart->year, $periodStart->month);
+            });
+
+        $avances = 0.0;
+        $avanceRows = [];
+        PayrollAdjustment::query()
+            ->where('employee_id', $employee->id)
+            ->where('type', PayrollAdjustment::TYPE_AVANCE)
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', PayrollAdjustment::STATUS_ACTIF);
+            })
+            ->whereNull('recovered_at')
+            ->get()
+            ->each(function (PayrollAdjustment $row) use (&$avances, &$avanceRows, $periodStart) {
+                $part = $row->installmentForPeriod($periodStart->year, $periodStart->month);
+                if ($part <= 0) {
+                    return;
+                }
+                $avances += $part;
+                $avanceRows[] = [
+                    'id' => $row->id,
+                    'amount' => $part,
+                    'remaining_before' => (float) ($row->remaining_amount ?? $row->amount),
+                ];
+            });
 
         $regularisations = (float) PayrollAdjustment::query()
             ->where('employee_id', $employee->id)
@@ -119,6 +151,7 @@ class PayrollEngine
             'absence_deduction' => $absenceDeduction,
             'retenues' => round($retenues, 2),
             'avances' => round($avances, 2),
+            'avance_rows' => $avanceRows,
             'regularisations' => round($regularisations, 2),
             'gross' => $computed['gross'],
             'employee_cnss' => $computed['employee_cnss'],

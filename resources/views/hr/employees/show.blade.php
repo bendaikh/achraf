@@ -80,29 +80,93 @@
         </div>
 
         <div x-show="tab === 'contrat'" x-cloak class="space-y-6">
+            @php
+                $prefillSalary = $employee->currentSalary()?->base_salary;
+            @endphp
+            <div class="bg-sky-50 border border-sky-200 rounded-xl p-4 text-sm text-sky-900">
+                Les champs ci-dessous sont préremplis depuis la fiche salarié. Vous pouvez les modifier avant enregistrement.
+                Une fois créé, le contrat conserve sa propre copie (historique figé).
+            </div>
             <form method="POST" action="{{ route('hr.employees.contracts.store', $employee) }}" class="bg-white rounded-xl border p-5 grid grid-cols-1 md:grid-cols-3 gap-3">
                 @csrf
-                <select name="type" class="{{ $input }}" required>
-                    @foreach(\App\Models\EmployeeContract::TYPES as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach
-                </select>
-                <input type="date" name="start_date" class="{{ $input }}" required>
-                <input type="date" name="end_date" class="{{ $input }}" placeholder="Fin">
-                <input type="text" name="job_title" class="{{ $input }}" placeholder="Fonction">
-                <input type="text" name="workplace" class="{{ $input }}" placeholder="Lieu de travail">
-                <input type="number" step="0.01" name="salary" class="{{ $input }}" placeholder="Salaire contractuel">
-                <input type="date" name="trial_start_date" class="{{ $input }}" title="Début période d’essai">
-                <input type="date" name="trial_end_date" class="{{ $input }}" title="Fin période d’essai">
-                <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="renew" value="1"> Renouveler le contrat en cours (l’ancien reste)</label>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Type</label>
+                    <select name="type" class="{{ $input }}" required>
+                        @foreach(\App\Models\EmployeeContract::TYPES as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Date de début (= date d’entrée)</label>
+                    <input type="date" name="start_date" value="{{ old('start_date', $employee->hire_date?->format('Y-m-d')) }}" class="{{ $input }}" required>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Date de fin</label>
+                    <input type="date" name="end_date" value="{{ old('end_date') }}" class="{{ $input }}">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Fonction / Poste</label>
+                    <input type="text" name="job_title" value="{{ old('job_title', $employee->job_title) }}" class="{{ $input }}" placeholder="Fonction">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Lieu de travail</label>
+                    <input type="text" name="workplace" value="{{ old('workplace', $employee->workplace) }}" class="{{ $input }}" placeholder="Lieu de travail">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Service</label>
+                    <input type="text" name="department_name" value="{{ old('department_name', $employee->department?->name) }}" class="{{ $input }}" placeholder="Service">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Salaire brut contractuel</label>
+                    <input type="number" step="0.01" name="salary" value="{{ old('salary', $prefillSalary) }}" class="{{ $input }}" placeholder="Salaire brut contractuel">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Début période d’essai</label>
+                    <input type="date" name="trial_start_date" value="{{ old('trial_start_date') }}" class="{{ $input }}">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Fin période d’essai</label>
+                    <input type="date" name="trial_end_date" value="{{ old('trial_end_date') }}" class="{{ $input }}">
+                </div>
+                <label class="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" name="renew" value="1"> Renouveler / avenant (l’ancien contrat reste)</label>
+                <input type="hidden" name="is_amendment" value="0">
                 <button class="md:col-span-3 px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm">Ajouter un contrat</button>
             </form>
             <div class="bg-white rounded-xl border overflow-hidden">
                 <table class="min-w-full text-sm">
-                    <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="px-4 py-2 text-left">Type</th><th class="px-4 py-2 text-left">Début</th><th class="px-4 py-2 text-left">Fin</th><th class="px-4 py-2 text-left">Fonction</th><th class="px-4 py-2 text-left">Salaire</th><th class="px-4 py-2 text-left">Statut</th></tr></thead>
+                    <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Type</th>
+                            <th class="px-4 py-2 text-left">Début</th>
+                            <th class="px-4 py-2 text-left">Fin</th>
+                            <th class="px-4 py-2 text-left">Fonction</th>
+                            <th class="px-4 py-2 text-left">Salaire brut contractuel</th>
+                            <th class="px-4 py-2 text-left">Statut</th>
+                            <th class="px-4 py-2 text-right">Actions</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         @forelse($employee->contracts as $contract)
-                            <tr class="border-t"><td class="px-4 py-2">{{ $contract->typeLabel() }}</td><td class="px-4 py-2">{{ $contract->start_date?->format('d/m/Y') }}</td><td class="px-4 py-2">{{ $contract->end_date?->format('d/m/Y') ?: '—' }}</td><td class="px-4 py-2">{{ $contract->job_title }}</td><td class="px-4 py-2">{{ $contract->salary ? $fmt($contract->salary).' MAD' : '—' }}</td><td class="px-4 py-2">{{ $contract->statusLabel() }}</td></tr>
+                            <tr class="border-t" x-data="{ open: false }">
+                                <td class="px-4 py-2">
+                                    {{ $contract->typeLabel() }}
+                                    @if($contract->is_amendment)<span class="text-[10px] text-amber-700 ml-1">avenant</span>@endif
+                                </td>
+                                <td class="px-4 py-2">{{ $contract->start_date?->format('d/m/Y') }}</td>
+                                <td class="px-4 py-2">{{ $contract->end_date?->format('d/m/Y') ?: '—' }}</td>
+                                <td class="px-4 py-2">{{ $contract->job_title }}</td>
+                                <td class="px-4 py-2">{{ $contract->salary ? $fmt($contract->salary).' MAD' : '—' }}</td>
+                                <td class="px-4 py-2">{{ $contract->statusLabel() }}</td>
+                                <td class="px-4 py-2 text-right relative">
+                                    <button type="button" @click="open = !open" class="px-2 py-1 border rounded text-gray-600">⋯</button>
+                                    <div x-show="open" @click.outside="open = false" x-cloak class="absolute right-2 z-10 mt-1 w-44 rounded-lg border bg-white shadow text-left">
+                                        <a href="{{ route('hr.contracts.show', $contract) }}" class="block px-3 py-2 hover:bg-gray-50">Voir</a>
+                                        <a href="{{ route('hr.contracts.edit', $contract) }}" class="block px-3 py-2 hover:bg-gray-50">Modifier</a>
+                                        <a href="{{ route('hr.contracts.edit', $contract) }}?avenant=1" class="block px-3 py-2 hover:bg-gray-50">Avenant</a>
+                                    </div>
+                                </td>
+                            </tr>
                         @empty
-                            <tr><td colspan="6" class="px-4 py-6 text-center text-gray-500">Aucun contrat.</td></tr>
+                            <tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">Aucun contrat.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -118,6 +182,13 @@
                 <label class="text-xs text-gray-500">Date d’effet</label>
                 <input type="date" name="effective_from" value="{{ now()->toDateString() }}" class="{{ $input }} mb-3 max-w-xs">
                 @php $currentSchedules = $employee->currentSchedules(); @endphp
+                <div class="grid grid-cols-5 gap-2 text-xs font-medium text-gray-500 mb-1 px-0.5">
+                    <span>Jour</span>
+                    <span>Entrée</span>
+                    <span>Sortie</span>
+                    <span>Pause (min)</span>
+                    <span>Repos</span>
+                </div>
                 <div class="space-y-2">
                     @foreach(\App\Models\EmployeeSchedule::WEEKDAYS as $day => $label)
                         @php $row = $currentSchedules[$day] ?? $employee->schedules->firstWhere('weekday', $day); @endphp
@@ -126,7 +197,7 @@
                             <span>{{ $label }}</span>
                             <input type="time" name="days[{{ $day }}][start_time]" value="{{ $row?->start_time ? substr($row->start_time, 0, 5) : '' }}" class="{{ $input }}">
                             <input type="time" name="days[{{ $day }}][end_time]" value="{{ $row?->end_time ? substr($row->end_time, 0, 5) : '' }}" class="{{ $input }}">
-                            <input type="number" name="days[{{ $day }}][break_minutes]" value="{{ $row?->break_minutes ?? 60 }}" class="{{ $input }}">
+                            <input type="number" name="days[{{ $day }}][break_minutes]" value="{{ $row?->break_minutes ?? 60 }}" class="{{ $input }}" title="Pause (min)" placeholder="Pause (min)">
                             <label class="flex items-center gap-1"><input type="checkbox" name="days[{{ $day }}][is_off]" value="1" @checked($row?->is_off)> Repos</label>
                         </div>
                     @endforeach
@@ -249,8 +320,8 @@
                 </select>
                 <input type="number" step="0.01" name="amount" class="{{ $input }}" placeholder="Montant" required>
                 <input type="date" name="start_date" class="{{ $input }}" required>
-                <input type="date" name="end_date" class="{{ $input }}">
-                <button class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm">Ajouter</button>
+                <input type="date" name="end_date" class="{{ $input }}" placeholder="Fin (vide = sans fin)">
+                <button class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm">Ajouter prime / indemnité</button>
             </form>
             <form method="POST" action="{{ route('hr.adjustments.store') }}" class="bg-white rounded-xl border p-5 grid grid-cols-1 md:grid-cols-3 gap-3">
                 @csrf
@@ -258,17 +329,29 @@
                 <select name="type" class="{{ $input }}">
                     @foreach(\App\Models\PayrollAdjustment::TYPES as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach
                 </select>
-                <input type="number" step="0.01" name="amount" class="{{ $input }}" required>
+                <input type="number" step="0.01" name="amount" class="{{ $input }}" placeholder="Montant initial" required>
+                <input type="number" step="0.01" name="monthly_amount" class="{{ $input }}" placeholder="Retenue mensuelle (ex. 500)">
                 <input type="number" name="period_year" value="{{ now()->year }}" class="{{ $input }}">
                 <input type="number" name="period_month" value="{{ now()->month }}" min="1" max="12" class="{{ $input }}">
+                <input type="date" name="start_date" value="{{ now()->startOfMonth()->toDateString() }}" class="{{ $input }}">
                 <input type="text" name="reason" class="{{ $input }}" placeholder="Motif">
                 <input type="text" name="payment_method" class="{{ $input }}" placeholder="Moyen de paiement (avance)">
                 <input type="text" name="reference" class="{{ $input }}" placeholder="Référence">
-                <button class="px-4 py-2 bg-white border rounded-lg text-sm">Retenue / avance</button>
+                <button class="md:col-span-3 px-4 py-2 bg-white border rounded-lg text-sm">Retenue / avance (suivi du solde)</button>
             </form>
             <ul class="bg-white rounded-xl border divide-y text-sm">
                 @foreach($employee->compensationItems as $item)
-                    <li class="px-4 py-3">{{ $item->kindLabel() }} — {{ $fmt($item->amount) }} MAD — {{ $item->recurrence }} dès {{ $item->start_date?->format('d/m/Y') }}</li>
+                    <li class="px-4 py-3 flex flex-wrap justify-between gap-2">
+                        <span>{{ $item->kindLabel() }} — {{ $fmt($item->amount) }} MAD — {{ $item->recurrenceLabel() }} dès {{ $item->start_date?->format('d/m/Y') }}{{ $item->end_date ? ' → '.$item->end_date->format('d/m/Y') : '' }} · {{ $item->statusLabel() }}</span>
+                        <a href="{{ route('hr.compensations.index') }}" class="text-[#0a5d8a]">Gérer</a>
+                    </li>
+                @endforeach
+                @foreach($employee->payrollAdjustments as $adj)
+                    <li class="px-4 py-3 text-gray-700">
+                        {{ $adj->typeLabel() }} — initial {{ $fmt($adj->amount) }} MAD
+                        @if($adj->monthly_amount) · {{ $fmt($adj->monthly_amount) }}/mois @endif
+                        · solde {{ $fmt($adj->remaining_amount ?? $adj->amount) }} MAD · {{ $adj->statusLabel() }}
+                    </li>
                 @endforeach
             </ul>
         </div>
