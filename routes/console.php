@@ -45,6 +45,11 @@ Schedule::command('exports:process --max=2')
     ->everyMinute()
     ->withoutOverlapping();
 
+Schedule::command('payments:process-imports --max=1')
+    ->everyMinute()
+    ->withoutOverlapping(15)
+    ->appendOutputTo(storage_path('logs/payment-imports.log'));
+
 Schedule::command('expenses:generate-recurring')
     ->dailyAt('00:05')
     ->withoutOverlapping()

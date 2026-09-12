@@ -233,6 +233,7 @@ Route::middleware('auth')->group(function () {
         Route::get('payments/import', [SalesPaymentController::class, 'importForm'])->name('sales.payments.import');
         Route::post('payments/import', [SalesPaymentController::class, 'importStore'])->name('sales.payments.import.store');
         Route::get('payments/import/{paymentImport}', [SalesPaymentController::class, 'importShow'])->name('sales.payments.import.show');
+        Route::get('payments/import/{paymentImport}/status', [SalesPaymentController::class, 'importStatus'])->name('sales.payments.import.status');
         Route::patch('payments/import/{paymentImport}/lines/{line}', [SalesPaymentController::class, 'importUpdateLine'])->name('sales.payments.import.line');
         Route::post('payments/import/{paymentImport}/validate', [SalesPaymentController::class, 'importValidate'])->name('sales.payments.import.validate');
         Route::get('refunds/create', [ClientRefundController::class, 'create'])->name('sales.refunds.create');
@@ -281,6 +282,7 @@ Route::middleware('auth')->group(function () {
         Route::get('payments/import', [PurchasePaymentController::class, 'importForm'])->name('purchases.payments.import');
         Route::post('payments/import', [PurchasePaymentController::class, 'importStore'])->name('purchases.payments.import.store');
         Route::get('payments/import/{paymentImport}', [PurchasePaymentController::class, 'importShow'])->name('purchases.payments.import.show');
+        Route::get('payments/import/{paymentImport}/status', [PurchasePaymentController::class, 'importStatus'])->name('purchases.payments.import.status');
         Route::patch('payments/import/{paymentImport}/lines/{line}', [PurchasePaymentController::class, 'importUpdateLine'])->name('purchases.payments.import.line');
         Route::post('payments/import/{paymentImport}/validate', [PurchasePaymentController::class, 'importValidate'])->name('purchases.payments.import.validate');
         Route::get('payments/{payment}', [PurchasePaymentController::class, 'show'])->name('purchases.payments.show');

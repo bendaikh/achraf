@@ -11,6 +11,11 @@
                 <p class="text-sm text-gray-600 mt-1">Compte fournisseur · factures · avoirs · chèques · avances</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
+                @include('partials.payment-imports-panel', [
+                    'paymentImports' => $paymentImports ?? collect(),
+                    'showRoute' => 'purchases.payments.import.show',
+                    'statusRoute' => 'purchases.payments.import.status',
+                ])
                 <button type="button" onclick="document.getElementById('manualPaymentModal').classList.remove('hidden')"
                     class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg hover:bg-[#084a6e] transition text-sm font-medium">
                     + Paiement manuel

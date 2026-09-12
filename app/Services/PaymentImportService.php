@@ -11,9 +11,11 @@ use App\Models\SupplierInvoicePayment;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Throwable;
 
 class PaymentImportService
 {
@@ -23,7 +25,11 @@ class PaymentImportService
         protected PaymentMatchMemoryService $matchMemories
     ) {}
 
-    public function createDraftFromUpload(UploadedFile $file, string $scope = PaymentImport::SCOPE_SALES): PaymentImport
+    /**
+     * Store the uploaded file and create a pending import for background analysis.
+     * Parsing/matching happens later in processQueuedImport() to avoid gateway timeouts.
+     */
+    public function queueFromUpload(UploadedFile $file, string $scope = PaymentImport::SCOPE_SALES): PaymentImport
     {
         $extension = strtolower($file->getClientOriginalExtension());
         if (! in_array($extension, ['csv', 'xlsx', 'xls'], true)) {
@@ -34,28 +40,109 @@ class PaymentImportService
 
         $contents = file_get_contents($file->getRealPath());
         $hash = hash('sha256', $contents ?: '');
-
         $path = $file->store('payment_imports', 'local');
 
-        $rows = $this->parseFile($file->getRealPath(), $extension);
-
-        $import = PaymentImport::create([
+        return PaymentImport::create([
             'scope' => $scope,
-            'status' => PaymentImport::STATUS_DRAFT,
+            'status' => PaymentImport::STATUS_PENDING,
             'file_name' => $file->getClientOriginalName(),
             'file_path' => $path,
             'file_type' => $extension,
             'file_hash' => $hash,
             'uploaded_by' => Auth::id(),
             'uploaded_at' => now(),
-            'total_rows' => count($rows),
+            'total_rows' => 0,
+            'progress' => 0,
+            'processed_rows' => 0,
+            'error_message' => null,
         ]);
+    }
 
-        foreach ($rows as $index => $row) {
-            $this->createMatchedLine($import, $index + 1, $row, $scope);
+    /**
+     * @deprecated Use queueFromUpload() + processQueuedImport() to avoid HTTP timeouts.
+     */
+    public function createDraftFromUpload(UploadedFile $file, string $scope = PaymentImport::SCOPE_SALES): PaymentImport
+    {
+        $import = $this->queueFromUpload($file, $scope);
+
+        return $this->processQueuedImport($import);
+    }
+
+    /**
+     * Parse and match all rows for a pending import. Safe to call from a scheduler
+     * or after the HTTP response has been sent.
+     */
+    public function processQueuedImport(PaymentImport $import): PaymentImport
+    {
+        $claimed = PaymentImport::query()
+            ->whereKey($import->id)
+            ->where('status', PaymentImport::STATUS_PENDING)
+            ->update([
+                'status' => PaymentImport::STATUS_PROCESSING,
+                'progress' => 1,
+                'error_message' => null,
+            ]);
+
+        if (! $claimed) {
+            return $import->fresh(['lines']) ?? $import;
         }
 
-        $this->refreshCounts($import);
+        $import->refresh();
+
+        if (! function_exists('set_time_limit') || ! @set_time_limit(0)) {
+            @ini_set('max_execution_time', '0');
+        }
+
+        try {
+            if (! $import->file_path || ! Storage::disk('local')->exists($import->file_path)) {
+                throw new \RuntimeException('Fichier d\'import introuvable sur le serveur.');
+            }
+
+            $absolutePath = Storage::disk('local')->path($import->file_path);
+            $extension = strtolower((string) ($import->file_type ?: pathinfo($import->file_path, PATHINFO_EXTENSION)));
+            $rows = $this->parseFile($absolutePath, $extension);
+            $total = count($rows);
+
+            $import->update([
+                'total_rows' => $total,
+                'processed_rows' => 0,
+                'progress' => $total === 0 ? 95 : 5,
+            ]);
+
+            // Clear any leftover lines if a previous attempt left the import mid-way.
+            $import->lines()->delete();
+
+            foreach ($rows as $index => $row) {
+                $this->createMatchedLine($import, $index + 1, $row, $import->scope);
+
+                $processed = $index + 1;
+                if ($processed === $total || $processed % 25 === 0) {
+                    $import->update([
+                        'processed_rows' => $processed,
+                        'progress' => min(95, 5 + (int) floor(($processed / max(1, $total)) * 90)),
+                    ]);
+                }
+            }
+
+            $this->refreshCounts($import);
+
+            $import->update([
+                'status' => PaymentImport::STATUS_DRAFT,
+                'progress' => 100,
+                'processed_rows' => $total,
+                'error_message' => null,
+            ]);
+        } catch (Throwable $exception) {
+            $import->update([
+                'status' => PaymentImport::STATUS_FAILED,
+                'error_message' => Str::limit($exception->getMessage(), 2000),
+                'progress' => 0,
+            ]);
+
+            report($exception);
+
+            throw $exception;
+        }
 
         return $import->fresh(['lines']);
     }

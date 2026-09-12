@@ -54,8 +54,9 @@ class SalesPaymentController extends Controller
             ->get()
             ->filter(fn (Invoice $inv) => $inv->remaining_balance > 0.009)
             ->values();
+        $paymentImports = PaymentImport::recentForScope(PaymentImport::SCOPE_SALES);
 
-        return view('sales.payments.index', compact('invoices', 'stats', 'unpaidInvoices'));
+        return view('sales.payments.index', compact('invoices', 'stats', 'unpaidInvoices', 'paymentImports'));
     }
 
     public function storeManual(Request $request)
@@ -181,7 +182,9 @@ class SalesPaymentController extends Controller
 
     public function importForm()
     {
-        return view('sales.payments.import');
+        $paymentImports = PaymentImport::recentForScope(PaymentImport::SCOPE_SALES);
+
+        return view('sales.payments.import', compact('paymentImports'));
     }
 
     public function importStore(Request $request)
@@ -190,14 +193,29 @@ class SalesPaymentController extends Controller
             'file' => 'required|file|mimes:csv,txt,xlsx,xls|max:10240',
         ]);
 
-        $import = $this->importService->createDraftFromUpload(
+        $import = $this->importService->queueFromUpload(
             $request->file('file'),
             PaymentImport::SCOPE_SALES
         );
 
+        $importId = $import->id;
+        dispatch(function () use ($importId) {
+            $import = PaymentImport::query()->find($importId);
+            if (! $import || ! $import->isPending()) {
+                return;
+            }
+
+            try {
+                app(PaymentImportService::class)->processQueuedImport($import);
+            } catch (\Throwable $exception) {
+                // Failure is persisted on the import; avoid breaking the response lifecycle.
+                report($exception);
+            }
+        })->afterResponse();
+
         return redirect()
             ->route('sales.payments.import.show', $import)
-            ->with('success', 'Fichier analysé. Vérifiez les correspondances avant validation.');
+            ->with('success', 'Fichier reçu. Analyse en cours en arrière-plan…');
     }
 
     public function importShow(PaymentImport $paymentImport)
@@ -211,16 +229,26 @@ class SalesPaymentController extends Controller
             'validator',
         ]);
 
-        $searchableInvoices = Invoice::query()
-            ->with(['client', 'posSale'])
-            ->latest('invoice_date')
-            ->limit(300)
-            ->get();
+        $searchableInvoices = $paymentImport->isDraft()
+            ? Invoice::query()
+                ->with(['client', 'posSale'])
+                ->latest('invoice_date')
+                ->limit(300)
+                ->get()
+            : collect();
 
         return view('sales.payments.import-review', [
             'import' => $paymentImport,
             'searchableInvoices' => $searchableInvoices,
+            'statusUrl' => route('sales.payments.import.status', $paymentImport),
         ]);
+    }
+
+    public function importStatus(PaymentImport $paymentImport)
+    {
+        abort_unless($paymentImport->scope === PaymentImport::SCOPE_SALES, 404);
+
+        return response()->json($paymentImport->fresh()->statusPayload());
     }
 
     public function importUpdateLine(Request $request, PaymentImport $paymentImport, PaymentImportLine $line)

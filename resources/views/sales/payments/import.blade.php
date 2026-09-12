@@ -10,7 +10,14 @@
                 <h2 class="text-2xl font-bold text-gray-900">Importer un fichier de règlement</h2>
                 <p class="text-sm text-gray-600 mt-1">CSV ou XLSX · rapprochement multi-critères · brouillon avant validation</p>
             </div>
-            <a href="{{ route('sales.payments.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm">Retour</a>
+            <div class="flex items-center gap-2">
+                @include('partials.payment-imports-panel', [
+                    'paymentImports' => $paymentImports ?? collect(),
+                    'showRoute' => 'sales.payments.import.show',
+                    'statusRoute' => 'sales.payments.import.status',
+                ])
+                <a href="{{ route('sales.payments.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm">Retour</a>
+            </div>
         </div>
     </header>
 
@@ -35,7 +42,7 @@
                     </ul>
                     <p class="mt-3">Ordre de rapprochement : <strong>tracking</strong> → n° commande → téléphone → nom+téléphone+montant → montant+ville+période (dernier recours uniquement).</p>
                     <p class="mt-2 text-blue-800">Règle importante : un paiement n'est jamais validé automatiquement sur le seul critère montant + ville + période.</p>
-                    <p class="mt-3">Aucun paiement ni mouvement de trésorerie ne sera créé avant votre validation finale.</p>
+                    <p class="mt-3">L’analyse du fichier se fait <strong>en arrière-plan</strong> (évite les erreurs 504 sur les gros fichiers). Aucun paiement ni mouvement de trésorerie ne sera créé avant votre validation finale.</p>
                 </div>
                 <button type="submit" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-medium">
                     Analyser le fichier

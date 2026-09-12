@@ -3,15 +3,15 @@
 @section('title', 'Contrôle import règlement')
 
 @section('main')
-<main class="flex-1 w-full min-w-0" x-data="importReview()">
+<main class="flex-1 w-full min-w-0" x-data="importReview(@js($import->statusPayload()), @js($statusUrl ?? route('sales.payments.import.status', $import)))">
     <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div class="px-8 py-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
                 <h2 class="text-2xl font-bold text-gray-900">Contrôle avant validation</h2>
                 <p class="text-sm text-gray-600 mt-1">
                     {{ $import->original_filename }}
-                    · {{ $import->status === 'draft' ? 'Brouillon' : 'Validé' }}
-                    · {{ $import->lines_count }} ligne(s)
+                    · <span x-text="statusLabelText()"></span>
+                    · <span x-text="(status.total_rows || 0) + ' ligne(s)'"></span>
                 </p>
             </div>
             <a href="{{ route('sales.payments.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm">Retour</a>
@@ -28,6 +28,35 @@
             </div>
         @endif
 
+        <div x-show="isAnalyzing" x-cloak class="mb-6 bg-white rounded-xl border border-blue-200 p-6">
+            <div class="flex items-start gap-3">
+                <div class="mt-1 h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-lg font-semibold text-gray-900">Analyse en cours en arrière-plan</h3>
+                    <p class="text-sm text-gray-600 mt-1">
+                        Le fichier est traité hors de la requête HTTP pour éviter les erreurs 504.
+                        Cette page se rafraîchira automatiquement dès que le rapprochement sera terminé.
+                    </p>
+                    <div class="mt-4">
+                        <div class="flex justify-between text-xs text-gray-600 mb-1">
+                            <span x-text="progressLabel()"></span>
+                            <span x-text="(status.progress || 0) + '%'"></span>
+                        </div>
+                        <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
+                            <div class="h-full bg-[#0a5d8a] transition-all duration-500" :style="'width:' + (status.progress || 0) + '%'"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="status.failed" x-cloak class="mb-6 bg-red-50 border border-red-200 rounded-xl p-6">
+            <h3 class="text-lg font-semibold text-red-800">Échec de l’analyse</h3>
+            <p class="text-sm text-red-700 mt-2" x-text="status.error_message || 'Une erreur est survenue pendant le traitement du fichier.'"></p>
+            <a href="{{ route('sales.payments.import') }}" class="inline-block mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm">Réessayer avec un autre fichier</a>
+        </div>
+
+        <div x-show="!isAnalyzing && !status.failed">
         <div class="mb-6 bg-white rounded-xl border border-gray-200 p-4">
             <div class="flex flex-wrap items-center gap-2 text-xs font-medium text-gray-600">
                 <span class="px-3 py-1 rounded-full bg-blue-50 text-blue-800">1. Import fichier</span>
@@ -420,13 +449,75 @@
                 </form>
             </div>
         @endif
+        </div>
     </div>
 </main>
 
 <script>
-function importReview() {
+function importReview(initialStatus, statusUrl) {
     return {
         selected: null,
+        status: initialStatus || {},
+        statusUrl: statusUrl,
+        pollTimer: null,
+        get isAnalyzing() {
+            return this.status.status === 'pending' || this.status.status === 'processing';
+        },
+        init() {
+            if (this.isAnalyzing) {
+                this.startPolling();
+            }
+        },
+        startPolling() {
+            this.stopPolling();
+            this.pollTimer = setInterval(() => this.pollStatus(), 2500);
+            this.pollStatus();
+        },
+        stopPolling() {
+            if (this.pollTimer) {
+                clearInterval(this.pollTimer);
+                this.pollTimer = null;
+            }
+        },
+        async pollStatus() {
+            try {
+                const response = await fetch(this.statusUrl, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+                this.status = data;
+                if (data.ready || data.failed) {
+                    this.stopPolling();
+                    if (data.ready) {
+                        window.location.reload();
+                    }
+                }
+            } catch (e) {
+                // Keep polling; transient network errors are fine.
+            }
+        },
+        statusLabelText() {
+            return {
+                pending: 'En file d’attente',
+                processing: 'Analyse en cours',
+                draft: 'Brouillon',
+                validated: 'Validé',
+                cancelled: 'Annulé',
+                failed: 'Échec',
+            }[this.status.status] || this.status.status;
+        },
+        progressLabel() {
+            const processed = this.status.processed_rows || 0;
+            const total = this.status.total_rows || 0;
+            if (total > 0) {
+                return processed + ' / ' + total + ' lignes traitées';
+            }
+            return this.status.status === 'pending'
+                ? 'En attente du démarrage…'
+                : 'Lecture et rapprochement du fichier…';
+        },
         selectLine(line) {
             this.selected = line;
         },
