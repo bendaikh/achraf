@@ -416,7 +416,7 @@
                     <ul class="text-sm text-sky-900/80 space-y-1 list-disc list-inside">
                         <li>Congés validés pré-remplis</li>
                         <li>Absences synchronisées</li>
-                        <li>Week-ends en repos par défaut</li>
+                        <li>Repos selon le planning du salarié</li>
                         <li>Totaux mis à jour en temps réel</li>
                     </ul>
                 </div>
@@ -528,18 +528,28 @@ function attendancePage(payload) {
             this.refreshSummary();
         },
         applySchedule(allEmptyOnly = false) {
+            // Applique le planning versionné jour par jour (schedule_* déjà résolu
+            // côté serveur via EmployeeSchedule::forEmployeeOnDate). Ne touche pas
+            // aux jours verrouillés (congés/absences) ni aux jours sans planning applicable.
             const targets = allEmptyOnly
                 ? this.days.filter((d) => !d.locked && !d.has_record)
                 : this.selectedDays();
             targets.forEach((day) => {
-                if (!day.schedule_in && !day.schedule_out) {
+                if (day.schedule_is_off) {
+                    day.status = 'rest';
+                    day.clock_in = null;
+                    day.clock_out = null;
+                } else if (day.schedule_in || day.schedule_out) {
+                    day.status = 'present';
+                    day.clock_in = day.schedule_in;
+                    day.clock_out = day.schedule_out;
+                } else if (day.has_schedule) {
                     day.status = 'rest';
                     day.clock_in = null;
                     day.clock_out = null;
                 } else {
-                    day.status = 'present';
-                    day.clock_in = day.schedule_in;
-                    day.clock_out = day.schedule_out;
+                    // Aucune version de planning pour cette date : ne pas inventer un Repos week-end.
+                    return;
                 }
                 this.recalcDay(day, false);
             });

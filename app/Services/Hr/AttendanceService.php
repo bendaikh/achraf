@@ -302,14 +302,10 @@ class AttendanceService
 
             if ($record) {
                 $recordId = $record->id;
-                $status = $record->status;
-                $clockIn = $record->clock_in ? substr((string) $record->clock_in, 0, 5) : null;
-                $clockOut = $record->clock_out ? substr((string) $record->clock_out, 0, 5) : null;
-                $notes = $record->notes;
-                $worked = (int) $record->worked_minutes;
-                $late = (int) $record->late_minutes;
-                $overtime = (int) $record->overtime_minutes;
-            } elseif ($leave) {
+            }
+
+            // Congés / absences validés restent prioritaires (même si un pointage existe déjà).
+            if ($leave) {
                 $locked = true;
                 $lockSource = 'leave';
                 $typeName = mb_strtolower((string) ($leave->leaveType?->name ?? ''));
@@ -319,6 +315,8 @@ class AttendanceService
                     ? AttendanceRecord::STATUS_SICK
                     : ($paid ? AttendanceRecord::STATUS_LEAVE : AttendanceRecord::STATUS_ABSENT);
                 $notes = 'Congé (depuis module congés)'.($leave->leaveType ? ' — '.$leave->leaveType->name : '');
+                $clockIn = null;
+                $clockOut = null;
             } elseif ($absence) {
                 $locked = true;
                 $lockSource = 'absence';
@@ -326,7 +324,18 @@ class AttendanceService
                     ? AttendanceRecord::STATUS_SICK
                     : AttendanceRecord::STATUS_ABSENT;
                 $notes = $absence->typeLabel().($absence->comment ? ' — '.$absence->comment : '');
-            } elseif ($schedule?->is_off || (! $schedule && $weekday >= 6)) {
+                $clockIn = null;
+                $clockOut = null;
+            } elseif ($record) {
+                $status = $record->status;
+                $clockIn = $record->clock_in ? substr((string) $record->clock_in, 0, 5) : null;
+                $clockOut = $record->clock_out ? substr((string) $record->clock_out, 0, 5) : null;
+                $notes = $record->notes;
+                $worked = (int) $record->worked_minutes;
+                $late = (int) $record->late_minutes;
+                $overtime = (int) $record->overtime_minutes;
+            } elseif ($schedule?->is_off) {
+                // Repos uniquement si le planning applicable à cette date le dit (pas de week-end calendaire forcé).
                 $status = AttendanceRecord::STATUS_REST;
             } else {
                 $status = AttendanceRecord::STATUS_PRESENT;
@@ -341,7 +350,7 @@ class AttendanceService
                 ? substr((string) $schedule->end_time, 0, 5)
                 : null;
             $breakMinutes = (int) ($schedule?->break_minutes ?? 0);
-            $scheduleIsOff = (bool) ($schedule?->is_off || (! $schedule && $weekday >= 6));
+            $scheduleIsOff = (bool) ($schedule?->is_off);
 
             $days[] = [
                 'date' => $key,
@@ -363,6 +372,7 @@ class AttendanceService
                 'schedule_in' => $scheduleIn,
                 'schedule_out' => $scheduleOut,
                 'schedule_is_off' => $scheduleIsOff,
+                'has_schedule' => $schedule !== null,
                 'has_record' => (bool) $record,
             ];
         }

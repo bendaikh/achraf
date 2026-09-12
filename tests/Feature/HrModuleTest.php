@@ -162,6 +162,126 @@ class HrModuleTest extends TestCase
         $this->assertSame(AttendanceRecord::STATUS_LATE, $record->status);
     }
 
+    public function test_month_grid_applies_versioned_schedule_per_weekday_without_calendar_weekend_force(): void
+    {
+        $employee = Employee::factory()->create(['hire_date' => '2026-01-01']);
+        $service = app(AttendanceService::class);
+        $service->seedDefaultSchedule($employee);
+
+        // Nouvelle version au 12/09/2026 : samedi travaillé, dimanche repos.
+        $service->applyScheduleVersion($employee, [
+            ['weekday' => 1, 'start_time' => '09:00', 'end_time' => '18:30', 'break_minutes' => 60, 'is_off' => false],
+            ['weekday' => 2, 'start_time' => '09:00', 'end_time' => '18:30', 'break_minutes' => 60, 'is_off' => false],
+            ['weekday' => 3, 'start_time' => '09:00', 'end_time' => '18:30', 'break_minutes' => 60, 'is_off' => false],
+            ['weekday' => 4, 'start_time' => '09:00', 'end_time' => '18:30', 'break_minutes' => 60, 'is_off' => false],
+            ['weekday' => 5, 'start_time' => '09:00', 'end_time' => '18:30', 'break_minutes' => 60, 'is_off' => false],
+            ['weekday' => 6, 'start_time' => '09:00', 'end_time' => '12:30', 'break_minutes' => 0, 'is_off' => false],
+            ['weekday' => 7, 'start_time' => null, 'end_time' => null, 'break_minutes' => 0, 'is_off' => true],
+        ], '2026-09-12');
+
+        $grid = $service->buildMonthGrid($employee, 2026, 9);
+        $byDate = collect($grid['days'])->keyBy('date');
+
+        // Samedi 05/09 : ancienne version (seed) → repos.
+        $before = $byDate['2026-09-05'];
+        $this->assertTrue($before['schedule_is_off']);
+        $this->assertTrue($before['has_schedule']);
+        $this->assertNull($before['schedule_in']);
+        $this->assertSame(AttendanceRecord::STATUS_REST, $before['status']);
+
+        // Samedi 12/09 : nouvelle version → 09:00–12:30, pas un week-end forcé.
+        $onEffective = $byDate['2026-09-12'];
+        $this->assertFalse($onEffective['schedule_is_off']);
+        $this->assertSame('09:00', $onEffective['schedule_in']);
+        $this->assertSame('12:30', $onEffective['schedule_out']);
+        $this->assertSame(0, $onEffective['break_minutes']);
+        $this->assertSame(AttendanceRecord::STATUS_PRESENT, $onEffective['status']);
+
+        // Dimanche 13/09 : repos uniquement via planning.
+        $sunday = $byDate['2026-09-13'];
+        $this->assertTrue($sunday['schedule_is_off']);
+        $this->assertSame(AttendanceRecord::STATUS_REST, $sunday['status']);
+
+        // Lundi 14/09 : horaires semaine nouvelle version.
+        $monday = $byDate['2026-09-14'];
+        $this->assertSame('09:00', $monday['schedule_in']);
+        $this->assertSame('18:30', $monday['schedule_out']);
+        $this->assertSame(60, $monday['break_minutes']);
+    }
+
+    public function test_month_grid_does_not_invent_weekend_rest_when_no_schedule_exists(): void
+    {
+        $employee = Employee::factory()->create(['hire_date' => '2026-01-01']);
+        // Pas de seed : aucune ligne employee_schedules.
+        $grid = app(AttendanceService::class)->buildMonthGrid($employee, 2026, 9);
+        $saturday = collect($grid['days'])->firstWhere('date', '2026-09-05');
+
+        $this->assertFalse($saturday['has_schedule']);
+        $this->assertFalse($saturday['schedule_is_off']);
+        $this->assertNotSame(AttendanceRecord::STATUS_REST, $saturday['status']);
+    }
+
+    public function test_month_grid_locks_approved_leave_even_when_attendance_record_exists(): void
+    {
+        $employee = Employee::factory()->create(['hire_date' => '2026-01-01']);
+        $service = app(AttendanceService::class);
+        $service->seedDefaultSchedule($employee);
+
+        AttendanceRecord::create([
+            'employee_id' => $employee->id,
+            'work_date' => '2026-09-15',
+            'status' => AttendanceRecord::STATUS_PRESENT,
+            'clock_in' => '09:00:00',
+            'clock_out' => '18:30:00',
+            'source' => AttendanceRecord::SOURCE_MANUAL,
+        ]);
+
+        $type = LeaveType::query()->where('code', 'cp')->first()
+            ?? LeaveType::create([
+                'name' => 'Congés payés',
+                'code' => 'cp',
+                'paid' => true,
+                'requires_justification' => false,
+                'impacts_balance' => true,
+                'impacts_payroll' => true,
+            ]);
+
+        LeaveRequest::create([
+            'employee_id' => $employee->id,
+            'leave_type_id' => $type->id,
+            'start_date' => '2026-09-15',
+            'end_date' => '2026-09-15',
+            'days' => 1,
+            'status' => LeaveRequest::STATUS_APPROVED,
+        ]);
+
+        $day = collect($service->buildMonthGrid($employee, 2026, 9)['days'])
+            ->firstWhere('date', '2026-09-15');
+
+        $this->assertTrue($day['locked']);
+        $this->assertSame('leave', $day['lock_source']);
+        $this->assertSame(AttendanceRecord::STATUS_LEAVE, $day['status']);
+        $this->assertNull($day['clock_in']);
+        $this->assertNull($day['clock_out']);
+
+        // Appliquer horaires ne doit pas écraser ce jour (verrouillage côté grille).
+        $saved = $service->saveMonth($employee, 2026, 9, [[
+            'work_date' => '2026-09-15',
+            'status' => AttendanceRecord::STATUS_PRESENT,
+            'clock_in' => '09:00',
+            'clock_out' => '18:30',
+        ]], 'Test écrasement interdit');
+
+        $this->assertSame(1, $saved);
+        $record = AttendanceRecord::query()
+            ->where('employee_id', $employee->id)
+            ->whereDate('work_date', '2026-09-15')
+            ->first();
+        $this->assertSame(AttendanceRecord::STATUS_LEAVE, $record->status);
+        $this->assertNull($record->clock_in);
+        $this->assertNull($record->clock_out);
+    }
+
     public function test_prepare_month_pulls_primes_and_advances(): void
     {
         $this->actingAs(User::factory()->create());
