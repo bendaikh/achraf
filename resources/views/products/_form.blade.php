@@ -126,8 +126,8 @@
         <div class="xl:col-span-2 space-y-6">
 
             {{-- Form card header --}}
-            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2"
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm">
+                <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 rounded-t-2xl"
                      :class="isService() ? 'bg-violet-50/60' : (isNonStocked() ? 'bg-amber-50/60' : 'bg-blue-50/60')">
                     <div class="flex items-center gap-2">
                         <span class="inline-flex h-6 w-6 items-center justify-center rounded-full text-white text-xs font-bold"
@@ -502,28 +502,54 @@
                             <p x-show="selected.length === 0" class="text-sm text-slate-400 italic">Aucun produit compatible lié.</p>
                         </div>
 
-                        <div class="relative">
+                        <div class="relative" x-ref="searchAnchor">
                             <div class="flex gap-2">
-                                <input type="search" x-model="query" @input.debounce.300ms="search()" @keydown.enter.prevent="search()"
+                                <input type="search" x-model="query"
+                                       @input.debounce.300ms="search()"
+                                       @keydown.enter.prevent="search()"
+                                       @keydown.escape.prevent="open = false"
+                                       @focus="if (results.length) { open = true; $nextTick(() => updateDropdownPosition()) }"
                                        placeholder="Rechercher un produit…"
-                                       class="{{ $field }} flex-1">
+                                       class="{{ $field }} flex-1 min-w-0"
+                                       autocomplete="off">
                                 <button type="button" @click="search()" class="shrink-0 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50">
                                     Rechercher
                                 </button>
                             </div>
-                            <div x-show="open && results.length" x-cloak @click.outside="open = false"
-                                 class="absolute z-20 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg max-h-64 overflow-y-auto">
-                                <template x-for="hit in results" :key="hit.id">
-                                    <button type="button" @click="add(hit)"
-                                            class="w-full text-left px-3 py-2.5 hover:bg-slate-50 flex items-center gap-3 border-b border-slate-100 last:border-0">
-                                        <div class="min-w-0 flex-1">
-                                            <p class="text-sm font-medium text-slate-900 truncate" x-text="hit.name"></p>
-                                            <p class="text-xs text-slate-500" x-text="'Réf. : ' + (hit.ref || '—')"></p>
-                                        </div>
-                                        <span class="text-xs font-semibold text-[#0a5d8a]">+ Ajouter</span>
-                                    </button>
-                                </template>
-                            </div>
+
+                            <template x-teleport="body">
+                                <div
+                                    x-show="open && results.length"
+                                    x-cloak
+                                    x-ref="compatDropdown"
+                                    @click.outside="
+                                        if ($refs.searchAnchor && $refs.searchAnchor.contains($event.target)) return;
+                                        open = false;
+                                    "
+                                    @keydown.escape.window="open = false"
+                                    :style="dropdownStyle"
+                                    class="fixed z-[200] rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden"
+                                >
+                                    <div class="overflow-y-auto overscroll-contain" :style="dropdownListStyle">
+                                        <template x-for="hit in results" :key="hit.id">
+                                            <button type="button" @click="add(hit)"
+                                                    class="w-full text-left px-3 py-2.5 hover:bg-slate-50 active:bg-slate-100 flex items-start gap-3 border-b border-slate-100 last:border-0">
+                                                <div class="min-w-0 flex-1">
+                                                    <p class="text-sm font-medium text-slate-900 break-words leading-snug" x-text="hit.name"></p>
+                                                    <p class="text-xs text-slate-500 mt-0.5" x-text="'Réf. : ' + (hit.ref || '—')"></p>
+                                                    <p class="text-xs mt-0.5 font-medium"
+                                                       :class="Number(hit.stock ?? hit.available_stock) > 0 ? 'text-emerald-700' : 'text-red-600'"
+                                                       x-text="'Stock disponible : ' + (hit.stock ?? hit.available_stock ?? '—')"></p>
+                                                </div>
+                                                <span class="shrink-0 inline-flex items-center self-center px-2.5 py-1.5 rounded-lg bg-[#0a5d8a] text-white text-xs font-semibold whitespace-nowrap">
+                                                    Ajouter
+                                                </span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+
                             <p x-show="searching" class="mt-1 text-xs text-slate-400">Recherche…</p>
                             <p x-show="!searching && queried && results.length === 0" class="mt-1 text-xs text-slate-400">Aucun produit trouvé.</p>
                         </div>
@@ -602,6 +628,52 @@ function productCompatiblesPicker(config) {
         open: false,
         searching: false,
         queried: false,
+        dropdownStyle: '',
+        dropdownListStyle: 'max-height: 16rem;',
+        init() {
+            var self = this;
+            this._onReposition = function () {
+                if (self.open && self.results.length) {
+                    self.updateDropdownPosition();
+                }
+            };
+            window.addEventListener('resize', this._onReposition);
+            window.addEventListener('scroll', this._onReposition, true);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', this._onReposition);
+                window.visualViewport.addEventListener('scroll', this._onReposition);
+            }
+        },
+        destroy() {
+            window.removeEventListener('resize', this._onReposition);
+            window.removeEventListener('scroll', this._onReposition, true);
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', this._onReposition);
+                window.visualViewport.removeEventListener('scroll', this._onReposition);
+            }
+        },
+        updateDropdownPosition() {
+            var anchor = this.$refs.searchAnchor;
+            if (!anchor) return;
+            var rect = anchor.getBoundingClientRect();
+            var gap = 4;
+            var left = Math.max(8, Math.min(rect.left, window.innerWidth - 16));
+            var width = Math.min(rect.width, window.innerWidth - left - 8);
+            var spaceBelow = window.innerHeight - rect.bottom - 12;
+            var spaceAbove = rect.top - 12;
+            var openBelow = spaceBelow >= 140 || spaceBelow >= spaceAbove;
+            var available = openBelow ? spaceBelow : spaceAbove;
+            var maxH = Math.max(100, Math.min(280, available));
+            var top = openBelow
+                ? (rect.bottom + gap)
+                : Math.max(8, rect.top - gap - maxH);
+            this.dropdownStyle = [
+                'top: ' + top + 'px',
+                'left: ' + left + 'px',
+                'width: ' + width + 'px',
+            ].join('; ');
+            this.dropdownListStyle = 'max-height: ' + maxH + 'px;';
+        },
         selectedIds() {
             return this.selected.map(function (item) { return Number(item.id); });
         },
@@ -661,16 +733,19 @@ function productCompatiblesPicker(config) {
                         if (acc.some(function (r) { return Number(r.id) === pid; })) {
                             return acc;
                         }
+                        var stock = row.stock ?? row.available_stock ?? null;
                         acc.push({
                             id: pid,
                             name: row.name || row.text,
                             ref: row.ref,
                             image_url: row.image_url || null,
-                            stock: row.stock,
+                            stock: stock,
+                            available_stock: stock,
                         });
                         return acc;
                     }, []);
                     self.open = true;
+                    self.$nextTick(function () { self.updateDropdownPosition(); });
                 })
                 .catch(function () {
                     self.results = [];
