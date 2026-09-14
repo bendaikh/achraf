@@ -46,15 +46,27 @@ class SupplierAccountService
 
     public function creditNoteRemaining(SupplierCreditNote $creditNote): float
     {
+        if ($creditNote->isManuallyConsumed()) {
+            return 0.0;
+        }
+
         return max(0, $this->money((float) $creditNote->total - $this->creditNoteApplied($creditNote)));
     }
 
     public function availableCreditsTotal(Supplier $supplier): float
     {
-        $total = $this->money($supplier->creditNotes()->sum('total'));
+        $usableIds = $supplier->creditNotes()
+            ->whereNull('manually_consumed_at')
+            ->select('id');
+
+        $total = $this->money(
+            $supplier->creditNotes()
+                ->whereNull('manually_consumed_at')
+                ->sum('total')
+        );
         $applied = $this->money(
             SupplierCreditNoteAllocation::query()
-                ->whereIn('supplier_credit_note_id', $supplier->creditNotes()->select('id'))
+                ->whereIn('supplier_credit_note_id', $usableIds)
                 ->sum('amount')
         );
 
@@ -248,6 +260,7 @@ class SupplierAccountService
     public function availableCreditsPayload(Supplier $supplier): array
     {
         return $supplier->creditNotes()
+            ->whereNull('manually_consumed_at')
             ->with('allocations')
             ->orderBy('credit_note_date')
             ->orderBy('id')
@@ -319,6 +332,7 @@ class SupplierAccountService
      *   invoice_ids?: list<int>,
      *   cash_allocations?: array<int, float|int|string>,
      *   use_credits?: bool,
+     *   credit_note_ids?: list<int>|null,
      *   use_advances?: bool,
      *   source?: string,
      *   user_id?: ?int,
@@ -345,6 +359,13 @@ class SupplierAccountService
             ->filter()
             ->unique()
             ->values();
+        $selectedCreditIds = array_key_exists('credit_note_ids', $data)
+            ? collect($data['credit_note_ids'] ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->filter()
+                ->unique()
+                ->values()
+            : null;
 
         if ($cashAmount < 0) {
             throw ValidationException::withMessages([
@@ -358,7 +379,7 @@ class SupplierAccountService
             ]);
         }
 
-        return DB::transaction(function () use ($supplier, $data, $cashAmount, $useCredits, $useAdvances, $invoiceIds) {
+        return DB::transaction(function () use ($supplier, $data, $cashAmount, $useCredits, $useAdvances, $invoiceIds, $selectedCreditIds) {
             $invoices = SupplierInvoice::query()
                 ->where('supplier_id', $supplier->id)
                 ->whereIn('id', $invoiceIds->all())
@@ -381,12 +402,24 @@ class SupplierAccountService
 
             $creditPlan = [];
             if ($useCredits) {
-                $credits = SupplierCreditNote::query()
+                $creditsQuery = SupplierCreditNote::query()
                     ->where('supplier_id', $supplier->id)
+                    ->whereNull('manually_consumed_at')
                     ->orderBy('credit_note_date')
-                    ->orderBy('id')
-                    ->lockForUpdate()
-                    ->get();
+                    ->orderBy('id');
+
+                if ($selectedCreditIds !== null) {
+                    $creditsQuery->whereIn('id', $selectedCreditIds->all());
+                }
+
+                $credits = $creditsQuery->lockForUpdate()->get();
+
+                if ($selectedCreditIds !== null && $selectedCreditIds->isNotEmpty()
+                    && $credits->count() !== $selectedCreditIds->count()) {
+                    throw ValidationException::withMessages([
+                        'credit_note_ids' => 'Un ou plusieurs avoirs sélectionnés ne sont pas disponibles pour ce fournisseur.',
+                    ]);
+                }
 
                 foreach ($credits as $credit) {
                     $available = $this->creditNoteRemaining($credit);

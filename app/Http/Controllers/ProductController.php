@@ -10,6 +10,7 @@ use App\Models\ShopifyIntegration;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use App\Services\ProductCompatibilityService;
 use App\Services\ProductPurchaseHistoryService;
 use App\Services\StockMovementService;
 use App\Support\IntelligentSearch;
@@ -30,14 +31,60 @@ class ProductController extends Controller
 
     public function __construct(
         protected StockMovementService $stockMovement,
-        protected ProductPurchaseHistoryService $purchaseHistoryService
+        protected ProductPurchaseHistoryService $purchaseHistoryService,
+        protected ProductCompatibilityService $compatibilityService
     ) {}
 
     public function index(Request $request)
     {
-        $query = Product::query()->with(['primarySupplier', 'variants', 'warehouse', 'warehouseLocation', 'stocks.warehouse']);
+        $this->rememberLocationStockFilterPreference($request);
 
-        $this->applyProductFilters($query, $request);
+        $searchTerm = trim((string) $request->input('search', ''));
+        $resultType = (string) $request->input('result_type', 'all');
+        if (! in_array($resultType, ['all', 'products', 'compatibles'], true)) {
+            $resultType = 'all';
+        }
+
+        $matchedIds = collect();
+        $compatibleIds = collect();
+        $searchTabCounts = ['all' => 0, 'products' => 0, 'compatibles' => 0];
+
+        if ($searchTerm !== '') {
+            $matchQuery = Product::query();
+            $this->applyProductFilters($matchQuery, $request, withSearch: true);
+            $matchedIds = $matchQuery->pluck('id')->map(fn ($id) => (int) $id)->values();
+            $compatibleIds = $this->compatibilityService->compatibleIdsOfMany($matchedIds);
+            $searchTabCounts = [
+                'products' => $matchedIds->count(),
+                'compatibles' => $compatibleIds->count(),
+                'all' => $matchedIds->merge($compatibleIds)->unique()->count(),
+            ];
+        }
+
+        $query = Product::query()->with([
+            'primarySupplier',
+            'variants',
+            'warehouse',
+            'warehouseLocation',
+            'stocks.warehouse',
+            'compatibleProducts.warehouse',
+            'compatibleProducts.warehouseLocation',
+        ]);
+
+        if ($searchTerm !== '' && $resultType === 'compatibles') {
+            $this->applyProductFilters($query, $request, withSearch: false);
+            if ($compatibleIds->isEmpty()) {
+                $query->whereRaw('0 = 1');
+            } else {
+                $query->whereIn('id', $compatibleIds->all());
+            }
+        } elseif ($searchTerm !== '' && $resultType === 'all' && $compatibleIds->isNotEmpty()) {
+            $unionIds = $matchedIds->merge($compatibleIds)->unique()->values()->all();
+            $this->applyProductFilters($query, $request, withSearch: false);
+            $query->whereIn('id', $unionIds);
+        } else {
+            $this->applyProductFilters($query, $request, withSearch: true);
+        }
 
         $query->withCount('variants');
         $this->applyTableSort($query, $request, [
@@ -48,12 +95,25 @@ class ProductController extends Controller
         $products = $this->paginateTable($query, $request, 20);
         $this->purchaseHistoryService->attachLastSuppliers($products->getCollection());
 
+        $compatibleIdSet = $compatibleIds->flip();
+        $matchedIdSet = $matchedIds->flip();
+        $products->getCollection()->transform(function (Product $product) use ($compatibleIdSet, $matchedIdSet, $searchTerm) {
+            $product->setAttribute(
+                'is_compatibility_hit',
+                $searchTerm !== ''
+                    && $compatibleIdSet->has($product->id)
+                    && ! $matchedIdSet->has($product->id)
+            );
+
+            return $product;
+        });
+
         $stats = $this->productStats();
         $filterOptions = $this->filterOptions();
         $shopifyIntegration = ShopifyIntegration::first();
 
         return view('products.index', array_merge(
-            compact('products', 'shopifyIntegration'),
+            compact('products', 'shopifyIntegration', 'searchTabCounts', 'resultType', 'searchTerm'),
             $stats,
             $filterOptions
         ));
@@ -79,7 +139,7 @@ class ProductController extends Controller
 
         $query->orderBy('name');
 
-        $paginator = $query->with('variants')->paginate(
+        $paginator = $query->with(['variants', 'warehouse', 'warehouseLocation', 'compatibleProducts.warehouse', 'compatibleProducts.warehouseLocation'])->paginate(
             $perPage,
             [
                 'id',
@@ -92,6 +152,15 @@ class ProductController extends Controller
                 'cost_price_ht',
                 'cost_price_ttc',
                 'last_purchase_price',
+                'image',
+                'shopify_image_url',
+                'stock_quantity',
+                'stock_reserved',
+                'item_kind',
+                'warehouse_id',
+                'warehouse_location_id',
+                'depot',
+                'location',
             ],
             'page',
             $page
@@ -100,10 +169,32 @@ class ProductController extends Controller
         $priceMode = $request->input('price_mode', 'sale');
         $rows = VariantCatalogSearch::expandProducts($paginator->getCollection(), $priceMode);
 
+        $compatByProduct = $paginator->getCollection()->mapWithKeys(function (Product $product) {
+            return [
+                $product->id => $product->compatibleProducts->map(fn (Product $c) => [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'ref' => $c->ref,
+                    'image_url' => $c->image_url,
+                    'available_stock' => $c->availableStock(),
+                    'stock_status' => $c->stockStatus(),
+                    'stock_status_label' => $c->stock_status_label,
+                    'depot' => $c->warehouse?->name ?: ($c->depot ?: null),
+                    'location' => $c->warehouseLocation?->code ?: ($c->location ?: null),
+                    'badge' => 'Compatible / équivalent',
+                ])->values(),
+            ];
+        });
+
         return response()->json([
-            'results' => $rows->map(fn (array $row) => array_merge($row, [
-                'id' => $row['id'],
-            ]))->values(),
+            'results' => $rows->map(function (array $row) use ($compatByProduct) {
+                $productId = (int) ($row['product_id'] ?? $row['id'] ?? 0);
+
+                return array_merge($row, [
+                    'id' => $row['id'],
+                    'compatibles' => $compatByProduct->get($productId, collect())->values(),
+                ]);
+            })->values(),
             'pagination' => [
                 'more' => $paginator->hasMorePages(),
             ],
@@ -170,6 +261,8 @@ class ProductController extends Controller
     {
         $validated = $this->validateProduct($request);
         $validated = $this->normalizeByItemKind($validated);
+        $compatibleIds = $request->input('compatible_ids', $validated['compatible_ids'] ?? []);
+        unset($validated['compatible_ids']);
 
         if ($request->hasFile('image')) {
             $validated['image'] = $request->file('image')->store('products', 'public');
@@ -179,7 +272,7 @@ class ProductController extends Controller
         $locationId = $validated['warehouse_location_id'] ?? null;
         $qty = isset($validated['stock_quantity']) ? (int) $validated['stock_quantity'] : 0;
 
-        $product = DB::transaction(function () use ($validated, $warehouseId, $locationId, $qty) {
+        $product = DB::transaction(function () use ($validated, $warehouseId, $locationId, $qty, $compatibleIds) {
             $product = Product::create($validated);
             if ($product->tracksStock()) {
                 $this->stockMovement->syncProductFromWarehouseAssignment(
@@ -190,6 +283,8 @@ class ProductController extends Controller
                 );
                 $product->save();
             }
+
+            $this->compatibilityService->sync($product, is_array($compatibleIds) ? $compatibleIds : []);
 
             return $product;
         });
@@ -209,6 +304,8 @@ class ProductController extends Controller
             'stocks.warehouse',
             'stocks.location',
             'stocks.variant',
+            'compatibleProducts.warehouse',
+            'compatibleProducts.warehouseLocation',
         ]);
 
         $variantStockBreakdown = app(\App\Services\StockMovementService::class)
@@ -219,6 +316,8 @@ class ProductController extends Controller
 
     public function edit(Product $product)
     {
+        $product->load(['compatibleProducts.warehouse', 'compatibleProducts.warehouseLocation']);
+
         return view('products.edit', array_merge($this->formData(), compact('product')));
     }
 
@@ -226,6 +325,8 @@ class ProductController extends Controller
     {
         $validated = $this->validateProduct($request, $product);
         $validated = $this->normalizeByItemKind($validated, $product);
+        $compatibleIds = $request->input('compatible_ids', $validated['compatible_ids'] ?? []);
+        unset($validated['compatible_ids']);
 
         if ($request->hasFile('image')) {
             if ($product->image) {
@@ -238,7 +339,7 @@ class ProductController extends Controller
         $locationId = $validated['warehouse_location_id'] ?? null;
         $qty = array_key_exists('stock_quantity', $validated) ? (int) $validated['stock_quantity'] : null;
 
-        DB::transaction(function () use ($product, $validated, $warehouseId, $locationId, $qty) {
+        DB::transaction(function () use ($product, $validated, $warehouseId, $locationId, $qty, $compatibleIds) {
             $previousWarehouseId = $product->warehouse_id ? (int) $product->warehouse_id : null;
             $previousLocationId = $product->warehouse_location_id ? (int) $product->warehouse_location_id : null;
 
@@ -254,6 +355,8 @@ class ProductController extends Controller
                 );
             }
             $product->save();
+
+            $this->compatibilityService->sync($product, is_array($compatibleIds) ? $compatibleIds : []);
         });
 
         return redirect()->route('products.index')
@@ -423,9 +526,81 @@ class ProductController extends Controller
     }
 
     /**
+     * Bulk-assign default warehouse/location without moving physical stock.
+     */
+    public function bulkAssignWarehouse(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:products,id',
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'warehouse_location_id' => [
+                'required',
+                'exists:warehouse_locations,id',
+                function ($attribute, $value, $fail) use ($request) {
+                    $belongs = WarehouseLocation::query()
+                        ->where('id', $value)
+                        ->where('warehouse_id', $request->input('warehouse_id'))
+                        ->exists();
+                    if (! $belongs) {
+                        $fail('L’emplacement doit appartenir au dépôt sélectionné.');
+                    }
+                },
+            ],
+        ]);
+
+        $warehouseId = (int) $validated['warehouse_id'];
+        $locationId = (int) $validated['warehouse_location_id'];
+        $ids = collect($validated['ids'])->map(fn ($id) => (int) $id)->unique()->values();
+
+        $productsWithStockElsewhere = [];
+
+        DB::transaction(function () use ($ids, $warehouseId, $locationId, &$productsWithStockElsewhere) {
+            $products = Product::query()->whereIn('id', $ids)->with('stocks')->get();
+
+            foreach ($products as $product) {
+                if (! $product->tracksStock()) {
+                    continue;
+                }
+
+                if ($product->hasPhysicalStockOutsideWarehouse($warehouseId)) {
+                    $productsWithStockElsewhere[] = $product->ref ?: $product->name;
+                }
+
+                $this->stockMovement->assignDefaultWarehouseWithoutMovingStock(
+                    $product,
+                    $warehouseId,
+                    $locationId
+                );
+                $product->save();
+            }
+        });
+
+        $count = $ids->count();
+        $message = $count.' article(s) mis à jour : dépôt / emplacement par défaut affecté (stock physique non déplacé).';
+
+        if ($productsWithStockElsewhere !== []) {
+            $refs = implode(', ', array_slice($productsWithStockElsewhere, 0, 8));
+            $extra = count($productsWithStockElsewhere) > 8 ? '…' : '';
+            $message .= ' Attention : stock physique ailleurs pour '.$refs.$extra.'. Utilisez « Transférer le stock » pour déplacer les quantités.';
+        }
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'stock_elsewhere_count' => count($productsWithStockElsewhere),
+                'transfer_url' => route('stock.transfer.create'),
+            ]);
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
      * @param  Builder<Product>  $query
      */
-    protected function applyProductFilters($query, Request $request): void
+    protected function applyProductFilters($query, Request $request, bool $withSearch = true): void
     {
         if ($request->filled('source')) {
             $source = $request->input('source');
@@ -450,7 +625,9 @@ class ProductController extends Controller
             };
         }
 
-        $this->applyTableSearch($query, $request, \App\Support\IntelligentSearch::PRODUCT_COLUMNS);
+        if ($withSearch) {
+            $this->applyTableSearch($query, $request, \App\Support\IntelligentSearch::PRODUCT_COLUMNS);
+        }
         $this->applyTableFilter($query, $request, 'status', 'status');
         $this->applyTableFilter($query, $request, 'product_type_category', 'category');
         $this->applyTableFilter($query, $request, 'product_category', 'subcategory');
@@ -479,6 +656,31 @@ class ProductController extends Controller
         }
         if ($request->filled('price_max')) {
             $query->where('sale_price', '<=', (float) $request->input('price_max'));
+        }
+    }
+
+    /**
+     * Persist the "stock > 0 in depot/location" checkbox choice in session.
+     */
+    protected function rememberLocationStockFilterPreference(Request $request): void
+    {
+        if ($request->has('product_filters')) {
+            $checked = $request->boolean('location_stock_gt_zero');
+            session(['products.location_stock_gt_zero' => $checked]);
+            if (! $request->has('location_stock_gt_zero')) {
+                $request->merge(['location_stock_gt_zero' => '0']);
+            }
+
+            return;
+        }
+
+        // Tab / bookmark navigation: restore last preference when filtering by depot.
+        if (
+            ($request->filled('warehouse_id') || $request->filled('warehouse_location_id'))
+            && ! $request->has('location_stock_gt_zero')
+            && session('products.location_stock_gt_zero')
+        ) {
+            $request->merge(['location_stock_gt_zero' => '1']);
         }
     }
 
@@ -694,6 +896,8 @@ class ProductController extends Controller
             'billing_unit' => ['nullable', Rule::in(array_keys(Product::BILLING_UNITS))],
             'technician_required' => 'nullable|boolean',
             'description' => 'nullable|string',
+            'compatible_ids' => 'nullable|array',
+            'compatible_ids.*' => 'integer|exists:products,id',
         ]);
     }
 

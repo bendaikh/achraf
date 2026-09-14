@@ -25,7 +25,8 @@ class SupplierCreditNoteController extends Controller
 
     public function index(Request $request)
     {
-        $query = SupplierCreditNote::with('supplier');
+        $query = SupplierCreditNote::with(['supplier', 'manuallyConsumedBy'])
+            ->withSum('allocations as allocations_sum', 'amount');
 
         $this->applyTableSearch($query, $request, ['credit_note_number', 'supplier.name']);
         $this->applyTableDateRange($query, $request, 'credit_note_date');
@@ -122,9 +123,54 @@ class SupplierCreditNoteController extends Controller
 
     public function show(SupplierCreditNote $supplierCreditNote)
     {
-        $supplierCreditNote->load(['supplier', 'items', 'allocations.invoice']);
+        $supplierCreditNote->load(['supplier', 'items', 'allocations.invoice', 'manuallyConsumedBy']);
 
         return view('purchases.supplier-credit-notes.show', compact('supplierCreditNote'));
+    }
+
+    public function markConsumed(Request $request, SupplierCreditNote $supplierCreditNote)
+    {
+        if ($supplierCreditNote->isManuallyConsumed()) {
+            return back()->with('error', 'Cet avoir est déjà marqué comme consommé.');
+        }
+
+        if ($supplierCreditNote->amount_available <= 0.009) {
+            return back()->with('error', 'Cet avoir est déjà entièrement consommé via des règlements.');
+        }
+
+        $validated = $request->validate([
+            'manually_consumed_date' => 'required|date',
+            'manually_consumed_note' => 'nullable|string|max:1000',
+        ]);
+
+        $supplierCreditNote->update([
+            'manually_consumed_at' => now(),
+            'manually_consumed_date' => $validated['manually_consumed_date'],
+            'manually_consumed_note' => $validated['manually_consumed_note'] ?? null,
+            'manually_consumed_by' => $request->user()?->id,
+        ]);
+
+        return redirect()
+            ->route('supplier-credit-notes.show', $supplierCreditNote)
+            ->with('success', 'Avoir marqué comme déjà consommé. Il n’apparaîtra plus dans les avoirs disponibles au paiement.');
+    }
+
+    public function unmarkConsumed(SupplierCreditNote $supplierCreditNote)
+    {
+        if (! $supplierCreditNote->isManuallyConsumed()) {
+            return back()->with('error', 'Cet avoir n’est pas marqué comme consommé manuellement.');
+        }
+
+        $supplierCreditNote->update([
+            'manually_consumed_at' => null,
+            'manually_consumed_date' => null,
+            'manually_consumed_note' => null,
+            'manually_consumed_by' => null,
+        ]);
+
+        return redirect()
+            ->route('supplier-credit-notes.show', $supplierCreditNote)
+            ->with('success', 'Marquage « déjà consommé » annulé. L’avoir est de nouveau disponible au paiement.');
     }
 
     public function edit(SupplierCreditNote $supplierCreditNote)

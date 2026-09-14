@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Support\StockSettings;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
@@ -129,6 +130,37 @@ class Product extends Model
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class)->orderByDesc('moved_at');
+    }
+
+    /**
+     * Produits compatibles / équivalents (liaison commerciale, stocks indépendants).
+     */
+    public function compatibleProducts(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            self::class,
+            'product_compatibilities',
+            'product_id',
+            'compatible_product_id'
+        )->withTimestamps();
+    }
+
+    /**
+     * Physical stock exists in a warehouse other than the given default depot.
+     */
+    public function hasPhysicalStockOutsideWarehouse(?int $warehouseId): bool
+    {
+        if (! $this->tracksStock()) {
+            return false;
+        }
+
+        $query = $this->stocks()->where('quantity', '>', 0);
+
+        if ($warehouseId) {
+            $query->where('warehouse_id', '!=', $warehouseId);
+        }
+
+        return $query->exists();
     }
 
     public function isStocked(): bool

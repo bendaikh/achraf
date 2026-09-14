@@ -155,6 +155,48 @@
                         </div>
 
                         <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between gap-3 mb-4">
+                                <h2 class="text-lg font-semibold text-gray-900">Produits compatibles / équivalents</h2>
+                                <a href="{{ route('products.edit', $product) }}" class="text-xs font-semibold text-[#0a5d8a] hover:underline">Gérer</a>
+                            </div>
+                            @if($product->compatibleProducts->isEmpty())
+                                <p class="text-sm text-gray-500 italic">Aucun produit compatible lié.</p>
+                            @else
+                                <div class="space-y-3">
+                                    @foreach($product->compatibleProducts as $compatible)
+                                        <a href="{{ route('products.show', $compatible) }}"
+                                           class="flex items-center gap-3 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/40 transition px-3 py-2.5">
+                                            @if($compatible->image_url)
+                                                <img src="{{ $compatible->image_url }}" alt="" class="h-12 w-12 rounded-lg object-cover border border-slate-200 shrink-0">
+                                            @else
+                                                <div class="h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 shrink-0">
+                                                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                                                </div>
+                                            @endif
+                                            <div class="min-w-0 flex-1">
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <p class="font-medium text-gray-900 truncate">{{ $compatible->name }}</p>
+                                                    <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">Compatible / équivalent</span>
+                                                </div>
+                                                <p class="text-xs text-gray-500 mt-0.5">Réf. : {{ $compatible->ref }}</p>
+                                                <p class="text-xs mt-1 {{ $compatible->isOutOfStock() ? 'text-red-600' : 'text-emerald-700' }}">
+                                                    {{ $compatible->stock_status_label }}
+                                                    @if($compatible->tracksStock())
+                                                        · Disponible : {{ $compatible->available_stock }}
+                                                        · {{ $compatible->warehouse?->name ?: ($compatible->depot ?: '—') }}
+                                                        / {{ $compatible->warehouseLocation?->code ?: ($compatible->location ?: '—') }}
+                                                    @endif
+                                                </p>
+                                            </div>
+                                            <svg class="h-4 w-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                        </a>
+                                    @endforeach
+                                </div>
+                                <p class="mt-3 text-xs text-slate-500">Les compatibilités ne mélangent pas les stocks : chaque produit garde son propre stock.</p>
+                            @endif
+                        </div>
+
+                        <div class="bg-white rounded-lg shadow p-6">
                             <h2 class="text-lg font-semibold text-gray-900 mb-4">Tarification</h2>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 @if($product->cost_price_ht !== null)

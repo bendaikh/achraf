@@ -50,6 +50,7 @@
             </div>
 
             <div class="bg-white rounded-xl border p-6 grid sm:grid-cols-2 gap-4">
+                <input type="hidden" name="credit_notes_mode" value="1">
                 <div>
                     <label class="block text-sm font-medium mb-1">Date *</label>
                     <input type="date" name="payment_date" value="{{ old('payment_date', $payment->payment_date?->format('Y-m-d')) }}" required class="w-full rounded-lg border-gray-300">
@@ -80,9 +81,31 @@
                     <input type="file" name="payment_file" accept=".pdf,.jpg,.jpeg,.png" class="w-full rounded-lg border-gray-300">
                 </div>
                 <label class="flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm sm:col-span-2">
-                    <input type="checkbox" name="use_credits" value="1" x-model="useCredits" class="mt-0.5 rounded">
-                    <span>Utiliser les avoirs disponibles ({{ $fmt($statement['available_credits']) }} DH)</span>
+                    <input type="checkbox" name="use_credits" value="1" x-model="useCredits" @change="toggleAllCredits(useCredits)" class="mt-0.5 rounded">
+                    <span>Utiliser les avoirs disponibles — cochez les avoirs à déduire ci-dessous</span>
                 </label>
+                <div class="sm:col-span-2 rounded-lg border border-emerald-100 overflow-hidden" x-show="credits.length">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                            <tr>
+                                <th class="px-3 py-2 text-left">Sel.</th>
+                                <th class="px-3 py-2 text-left">Nº Avoir</th>
+                                <th class="px-3 py-2 text-right">Solde</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <template x-for="credit in credits" :key="credit.id">
+                                <tr :class="credit.selected && useCredits ? 'bg-emerald-50' : ''">
+                                    <td class="px-3 py-2">
+                                        <input type="checkbox" name="credit_note_ids[]" :value="credit.id" x-model="credit.selected" :disabled="!useCredits" class="rounded border-gray-300">
+                                    </td>
+                                    <td class="px-3 py-2" x-text="credit.number"></td>
+                                    <td class="px-3 py-2 text-right text-emerald-700 font-medium" x-text="money(credit.remaining) + ' DH'"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
                 <label class="flex items-start gap-2 bg-sky-50 border border-sky-200 rounded-lg p-3 text-sm sm:col-span-2">
                     <input type="hidden" name="use_advances" value="0">
                     <input type="checkbox" name="use_advances" value="1" x-model="useAdvances" class="mt-0.5 rounded">
@@ -124,10 +147,11 @@
 <script>
 function supplierSettle() {
     const invoices = @json($openInvoices).map(inv => ({ ...inv, selected: inv.selected !== false }));
-    const creditPool = {{ (float) $statement['available_credits'] }};
+    const credits = @json($credits).map(c => ({ ...c, selected: true }));
     const advancePool = {{ (float) $statement['available_advances'] }};
     return {
         invoices,
+        credits,
         method: '{{ old('payment_method', $payment->payment_method) }}',
         useCredits: true,
         useAdvances: true,
@@ -135,10 +159,23 @@ function supplierSettle() {
         money(n) { return (Number(n) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
         selected() { return this.invoices.filter(i => i.selected); },
         selectedTotal() { return this.selected().reduce((s, i) => s + i.remaining, 0); },
-        creditsUsed() { return this.useCredits ? Math.min(creditPool, this.selectedTotal()) : 0; },
+        selectedCreditPool() {
+            if (!this.useCredits) return 0;
+            return this.credits.filter(c => c.selected).reduce((s, c) => s + c.remaining, 0);
+        },
+        creditsUsed() { return Math.min(this.selectedCreditPool(), this.selectedTotal()); },
         advancesUsed() {
             const after = Math.max(0, this.selectedTotal() - this.creditsUsed());
             return this.useAdvances ? Math.min(advancePool, after) : 0;
+        },
+        toggleAllCredits(force) {
+            const next = typeof force === 'boolean' ? force : !this.credits.every(c => c.selected);
+            this.credits.forEach(c => c.selected = next);
+            if (typeof force === 'boolean') {
+                this.useCredits = force;
+            } else if (next) {
+                this.useCredits = true;
+            }
         },
     };
 }

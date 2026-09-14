@@ -234,6 +234,58 @@ class SupplierAccountServiceTest extends TestCase
         $this->assertEquals(10000.0, collect($rows)->sum('cash_applied'));
     }
 
+    public function test_only_selected_credit_notes_are_applied(): void
+    {
+        $supplier = Supplier::create(['name' => 'Select credits']);
+        $invoice = $this->invoice($supplier, 'FA-SEL', 3000);
+        $keep = $this->credit($supplier, 'AV-1400', 1400);
+        $skip = $this->credit($supplier, 'AV-1507', 1507.20);
+        $service = app(SupplierAccountService::class);
+
+        $service->recordSettlement($supplier, [
+            'payment_date' => '2026-09-14',
+            'amount' => 1600,
+            'payment_method' => 'Virement bancaire',
+            'invoice_ids' => [$invoice->id],
+            'use_credits' => true,
+            'credit_note_ids' => [$keep->id],
+        ]);
+
+        $this->assertSame(0.0, $service->invoiceRemaining($invoice->refresh()));
+        $this->assertSame(0.0, $service->creditNoteRemaining($keep->refresh()));
+        $this->assertSame(1507.20, $service->creditNoteRemaining($skip->refresh()));
+        $this->assertSame(1507.20, $service->availableCreditsTotal($supplier));
+    }
+
+    public function test_manually_consumed_credit_is_excluded_from_payment(): void
+    {
+        $supplier = Supplier::create(['name' => 'History']);
+        $invoice = $this->invoice($supplier, 'FA-NEW', 2000);
+        $credit = $this->credit($supplier, 'AV-OLD', 1400);
+        $credit->update([
+            'manually_consumed_at' => now(),
+            'manually_consumed_date' => '2026-01-15',
+            'manually_consumed_note' => 'Ancienne facture hors Libromart',
+        ]);
+        $service = app(SupplierAccountService::class);
+
+        $this->assertSame(0.0, $service->creditNoteRemaining($credit->fresh()));
+        $this->assertSame(0.0, $service->availableCreditsTotal($supplier));
+        $this->assertSame([], $service->availableCreditsPayload($supplier));
+
+        $service->recordSettlement($supplier, [
+            'payment_date' => '2026-09-14',
+            'amount' => 2000,
+            'payment_method' => 'Virement bancaire',
+            'invoice_ids' => [$invoice->id],
+            'use_credits' => true,
+        ]);
+
+        $this->assertSame(0.0, $service->invoiceRemaining($invoice->refresh()));
+        $this->assertSame(0, $credit->fresh()->allocations()->count());
+        $this->assertSame(SupplierCreditNote::STATUS_CONSUMED, $credit->fresh()->consumptionStatus());
+    }
+
     private function invoice(Supplier $supplier, string $number, float $total): SupplierInvoice
     {
         return SupplierInvoice::create([

@@ -233,11 +233,15 @@
         {{-- Filters --}}
         <div class="bg-white rounded-xl border border-slate-200 p-4 mb-6" x-data="{ more: {{ request()->hasAny(['price_min','price_max','vat_category','date_from','date_to','service_category']) ? 'true' : 'false' }} }">
             <form method="GET" action="{{ route('products.index') }}" data-list-page class="space-y-4">
+                <input type="hidden" name="product_filters" value="1">
                 @if($currentKind !== '')
                     <input type="hidden" name="item_kind" value="{{ $currentKind }}">
                 @endif
                 @if($currentSource !== '')
                     <input type="hidden" name="source" value="{{ $currentSource }}">
+                @endif
+                @if(request()->filled('result_type'))
+                    <input type="hidden" name="result_type" value="{{ request('result_type') }}">
                 @endif
                 @if(request()->filled('sort'))
                     <input type="hidden" name="sort" value="{{ request('sort') }}">
@@ -402,8 +406,33 @@
 
         <x-table-list-toolbar table-id="products" />
 
+        @if(($searchTerm ?? '') !== '')
+            @php
+                $searchTabs = [
+                    'all' => ['label' => 'Tous', 'count' => $searchTabCounts['all'] ?? 0],
+                    'products' => ['label' => 'Produits', 'count' => $searchTabCounts['products'] ?? 0],
+                    'compatibles' => ['label' => 'Compatibles', 'count' => $searchTabCounts['compatibles'] ?? 0],
+                ];
+            @endphp
+            <div class="mb-4 flex flex-wrap items-center gap-2">
+                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 mr-1">Résultats recherche :</span>
+                @foreach($searchTabs as $tabKey => $tab)
+                    @php $active = (string) ($resultType ?? 'all') === (string) $tabKey; @endphp
+                    <a href="{{ $filterUrl(['result_type' => $tabKey === 'all' ? null : $tabKey, 'search' => $searchTerm]) }}"
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition {{ $active ? 'bg-[#0a5d8a] text-white border-[#0a5d8a]' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300' }}">
+                        {{ $tab['label'] }}
+                        <span class="inline-flex min-w-[1.25rem] justify-center px-1 py-0.5 rounded-full text-[10px] font-semibold {{ $active ? 'bg-white/20' : 'bg-slate-100 text-slate-600' }}">{{ $tab['count'] }}</span>
+                    </a>
+                @endforeach
+            </div>
+        @endif
 
-        <x-table-bulk-bar export-type="products" item-label="article(s)" />
+        <x-table-bulk-bar export-type="products" item-label="article(s)">
+            <button type="button" onclick="openBulkAssignWarehouseModal()"
+                class="inline-flex items-center px-4 py-2 bg-[#0a5d8a] text-white rounded-lg hover:bg-[#074866] transition text-sm font-medium">
+                Affecter dépôt / emplacement
+            </button>
+        </x-table-bulk-bar>
 
         {{-- Table --}}
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -434,11 +463,14 @@
                                 $stockStatus = $product->stockStatus();
                                 $available = $product->availableStock();
                             @endphp
-                            <tr class="hover:bg-slate-50/80">
+                            <tr class="hover:bg-slate-50/80 {{ !empty($product->is_compatibility_hit) ? 'bg-amber-50/70 ring-1 ring-inset ring-amber-200' : '' }}">
                                 <x-table-checkbox-cell export-type="products" :id="$product->id" />
 
                                 {{-- Source --}}
                                 <td class="px-3 py-3 whitespace-nowrap lm-col lm-col-source column-source" data-lm-col="source">
+                                    @if(!empty($product->is_compatibility_hit))
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 mb-1">Compatible / équivalent</span>
+                                    @endif
                                     @if($product->isShopifyProduct())
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Shopify</span>
                                     @else
@@ -501,6 +533,40 @@
                                     @endif
                                     @if($product->variants_count > 1)
                                         <span class="mt-1 inline-flex text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">{{ $product->variants_count }} variantes</span>
+                                    @endif
+                                    @if(empty($product->is_compatibility_hit) && $product->relationLoaded('compatibleProducts') && $product->compatibleProducts->isNotEmpty())
+                                        <div class="mt-2 space-y-1.5">
+                                            @foreach($product->compatibleProducts->take(3) as $compatible)
+                                                <a href="{{ route('products.show', $compatible) }}"
+                                                   class="flex items-start gap-2 rounded-lg border border-dashed border-amber-300 bg-amber-50/80 px-2 py-1.5 hover:bg-amber-50 transition">
+                                                    @if($compatible->image_url)
+                                                        <img src="{{ $compatible->image_url }}" alt="" class="h-8 w-8 rounded object-cover border border-amber-200 shrink-0">
+                                                    @else
+                                                        <div class="h-8 w-8 rounded bg-white border border-amber-200 flex items-center justify-center text-amber-400 shrink-0">
+                                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                                                        </div>
+                                                    @endif
+                                                    <div class="min-w-0 flex-1">
+                                                        <div class="flex flex-wrap items-center gap-1">
+                                                            <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Compatible / équivalent</span>
+                                                        </div>
+                                                        <div class="text-xs font-medium text-slate-800 truncate">{{ $compatible->name }}</div>
+                                                        <div class="text-[10px] text-slate-500">Réf. : {{ $compatible->ref }}</div>
+                                                        <div class="text-[10px] mt-0.5 {{ $compatible->isOutOfStock() ? 'text-red-600' : 'text-emerald-700' }}">
+                                                            {{ $compatible->stock_status_label }}
+                                                            @if($compatible->tracksStock())
+                                                                · Qty {{ $compatible->available_stock }}
+                                                                · {{ $compatible->warehouse?->name ?: ($compatible->depot ?: '—') }}
+                                                                / {{ $compatible->warehouseLocation?->code ?: ($compatible->location ?: '—') }}
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </a>
+                                            @endforeach
+                                            @if($product->compatibleProducts->count() > 3)
+                                                <div class="text-[10px] text-slate-500">+ {{ $product->compatibleProducts->count() - 3 }} autre(s)</div>
+                                            @endif
+                                        </div>
                                     @endif
                                 </td>
 
@@ -711,7 +777,68 @@
     </div>
 </div>
 
+{{-- Modal affectation groupée dépôt / emplacement --}}
+<div id="bulkAssignWarehouseModal" class="fixed inset-0 bg-slate-900/40 hidden overflow-y-auto h-full w-full z-50" role="dialog" aria-modal="true">
+    <div class="relative top-16 mx-auto mb-10 w-[min(28rem,calc(100%-1.5rem))] border border-slate-200 shadow-xl rounded-xl bg-white p-5"
+         x-data="{
+            warehouseId: '',
+            locationId: '',
+            allLocations: @js(($warehouses ?? collect())->flatMap(fn ($w) => $w->locations->map(fn ($l) => [
+                'id' => (string) $l->id,
+                'warehouse_id' => (string) $w->id,
+                'label' => $l->displayLabel(),
+            ]))->values()),
+            get filteredLocations() {
+                if (!this.warehouseId) return [];
+                return this.allLocations.filter(l => String(l.warehouse_id) === String(this.warehouseId));
+            },
+            onWarehouseChange() {
+                const ok = this.filteredLocations.some(l => String(l.id) === String(this.locationId));
+                if (!ok) this.locationId = '';
+            }
+         }">
+        <div class="flex justify-between items-start gap-3 mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-slate-900">Affecter dépôt / emplacement</h3>
+                <p class="text-sm text-slate-500 mt-0.5"><span id="bulkAssignCount">0</span> produit(s) sélectionné(s)</p>
+            </div>
+            <button type="button" onclick="closeBulkAssignWarehouseModal()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+        <div id="bulkAssignError" class="hidden mb-3 rounded-lg bg-red-50 text-red-800 text-sm px-3 py-2"></div>
+        <form id="bulkAssignWarehouseForm" class="space-y-3" onsubmit="return submitBulkAssignWarehouse(event)">
+            @csrf
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Dépôt *</label>
+                <select name="warehouse_id" x-model="warehouseId" @change="onWarehouseChange()" required class="w-full rounded-lg border-slate-300 text-sm">
+                    <option value="">Sélectionner…</option>
+                    @foreach(($warehouses ?? []) as $warehouse)
+                        <option value="{{ $warehouse->id }}">{{ $warehouse->displayLabel() }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Emplacement *</label>
+                <select name="warehouse_location_id" x-model="locationId" required class="w-full rounded-lg border-slate-300 text-sm" :disabled="!warehouseId">
+                    <option value="">Sélectionner…</option>
+                    <template x-for="loc in filteredLocations" :key="loc.id">
+                        <option :value="loc.id" x-text="loc.label"></option>
+                    </template>
+                </select>
+            </div>
+            <div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-900 space-y-1.5">
+                <p><strong>Affectation ≠ transfert de stock.</strong> Seul le dépôt / emplacement de rattachement (par défaut) est mis à jour.</p>
+                <p>Le stock physique déjà présent ailleurs n’est <strong>pas</strong> déplacé. Pour déplacer des quantités, utilisez <a href="{{ route('stock.transfer.create') }}" class="underline font-semibold">Transférer le stock</a>.</p>
+            </div>
+            <div class="flex justify-end gap-2 pt-1">
+                <button type="button" onclick="closeBulkAssignWarehouseModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm">Annuler</button>
+                <button type="submit" id="bulkAssignSubmit" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-semibold hover:bg-[#074866]">Appliquer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {{-- Modal historique fournisseurs / achats --}}
+
 <div id="purchaseHistoryModal" class="fixed inset-0 bg-slate-900/40 hidden overflow-y-auto h-full w-full z-50" role="dialog" aria-modal="true" aria-labelledby="purchaseHistoryTitle">
     <div class="relative top-10 sm:top-16 mx-auto mb-10 w-[min(56rem,calc(100%-1.5rem))] border border-slate-200 shadow-xl rounded-xl bg-white">
         <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100">
@@ -840,6 +967,102 @@
 </div>
 
 <script>
+function openBulkAssignWarehouseModal() {
+    var ids = typeof getSelectedTableIds === 'function' ? getSelectedTableIds('products') : [];
+    if (!ids.length) {
+        alert('Sélectionnez au moins un produit.');
+        return;
+    }
+    var modal = document.getElementById('bulkAssignWarehouseModal');
+    var countEl = document.getElementById('bulkAssignCount');
+    var err = document.getElementById('bulkAssignError');
+    if (countEl) countEl.textContent = String(ids.length);
+    if (err) {
+        err.classList.add('hidden');
+        err.textContent = '';
+    }
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeBulkAssignWarehouseModal() {
+    var modal = document.getElementById('bulkAssignWarehouseModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function submitBulkAssignWarehouse(event) {
+    event.preventDefault();
+    var ids = typeof getSelectedTableIds === 'function' ? getSelectedTableIds('products') : [];
+    if (!ids.length) {
+        alert('Sélectionnez au moins un produit.');
+        return false;
+    }
+    var form = document.getElementById('bulkAssignWarehouseForm');
+    var err = document.getElementById('bulkAssignError');
+    var btn = document.getElementById('bulkAssignSubmit');
+    var warehouseId = form.querySelector('[name="warehouse_id"]').value;
+    var locationId = form.querySelector('[name="warehouse_location_id"]').value;
+    if (!warehouseId || !locationId) {
+        if (err) {
+            err.textContent = 'Choisissez un dépôt et un emplacement.';
+            err.classList.remove('hidden');
+        }
+        return false;
+    }
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Application…';
+    }
+    var token = form.querySelector('[name="_token"]')?.value
+        || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        || '';
+
+    fetch(@json(route('products.bulk-assign-warehouse')), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': token
+        },
+        body: JSON.stringify({
+            ids: ids.map(Number),
+            warehouse_id: Number(warehouseId),
+            warehouse_location_id: Number(locationId)
+        })
+    })
+        .then(function (res) {
+            return res.json().then(function (data) {
+                if (!res.ok) {
+                    var msg = data.message || (data.errors ? Object.values(data.errors).flat().join(' ') : null) || 'Échec de l’affectation.';
+                    throw new Error(msg);
+                }
+                return data;
+            });
+        })
+        .then(function (data) {
+            closeBulkAssignWarehouseModal();
+            if (typeof clearTableSelection === 'function') clearTableSelection('products');
+            alert(data.message || 'Affectation effectuée.');
+            window.location.reload();
+        })
+        .catch(function (error) {
+            if (err) {
+                err.textContent = error.message || 'Erreur réseau.';
+                err.classList.remove('hidden');
+            } else {
+                alert(error.message || 'Erreur réseau.');
+            }
+        })
+        .finally(function () {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Appliquer';
+            }
+        });
+
+    return false;
+}
+
 function openDuplicateModal(productId, productName, productRef) {
     var modal = document.getElementById('duplicateModal');
     if (!modal) return;

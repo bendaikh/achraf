@@ -57,6 +57,9 @@
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">
                                     Total
                                 </th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">
+                                    Statut
+                                </th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-document column-document" data-lm-col="document">
                                     Document
                                 </th>
@@ -87,6 +90,11 @@
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-total column-total" data-lm-col="total">
                                         <div class="text-sm font-semibold text-gray-900">{{ number_format($supplierCreditNote->total, 2) }}</div>
                                     </td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut column-statut" data-lm-col="statut">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $supplierCreditNote->consumptionStatusBadgeClass() }}">
+                                            {{ $supplierCreditNote->consumptionStatusLabel() }}
+                                        </span>
+                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-document column-document" data-lm-col="document">
                                         <x-managed-document-actions type="supplier-credit-notes" :id="$supplierCreditNote->id" />
                                     </td>
@@ -107,6 +115,13 @@
                                                 :print-route="route('supplier-credit-notes.print', $supplierCreditNote)"
                                                 :pdf-route="route('supplier-credit-notes.pdf', $supplierCreditNote)"
                                             />
+                                            @if(! $supplierCreditNote->isManuallyConsumed() && $supplierCreditNote->amount_available > 0.009)
+                                                <a href="{{ route('supplier-credit-notes.show', $supplierCreditNote) }}#mark-consumed"
+                                                   class="text-amber-700 hover:text-amber-900 text-xs font-medium whitespace-nowrap"
+                                                   title="Marquer comme déjà consommé">
+                                                    Consommé
+                                                </a>
+                                            @endif
                                             <form action="{{ route('supplier-credit-notes.destroy', $supplierCreditNote) }}" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cet avoir?')" class="inline">
                                                 @csrf
                                                 @method('DELETE')
@@ -121,7 +136,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="px-6 py-12 text-center">
+                                    <td colspan="10" class="px-6 py-12 text-center">
                                         <div class="flex flex-col items-center">
                                             <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>

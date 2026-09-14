@@ -835,6 +835,37 @@ class StockMovementService
         $this->syncProductAggregateFromSlots($product);
     }
 
+    /**
+     * Update only the product's default warehouse/location labels.
+     * Never moves existing physical stock between slots — use transfer() for that.
+     */
+    public function assignDefaultWarehouseWithoutMovingStock(
+        Product $product,
+        ?int $warehouseId,
+        ?int $locationId
+    ): void {
+        $product->warehouse_id = $warehouseId;
+        $product->warehouse_location_id = $locationId;
+
+        if ($warehouseId) {
+            $warehouse = Warehouse::find($warehouseId);
+            $product->depot = $warehouse?->name;
+        } else {
+            $product->depot = null;
+        }
+
+        if ($locationId) {
+            $location = WarehouseLocation::find($locationId);
+            $product->location = $location?->code;
+        } else {
+            $product->location = null;
+        }
+
+        if ($product->tracksStock() && $warehouseId) {
+            $this->findOrCreateSlot($product->id, $warehouseId, $locationId);
+        }
+    }
+
     public function quantityAtWarehouse(Product $product, int $warehouseId, ?int $locationId = null): int
     {
         return $this->slotQuantity($product->id, $warehouseId, $locationId);

@@ -213,6 +213,8 @@ class PurchasePaymentController extends Controller
             'notes' => 'nullable|string',
             'invoice_ids' => 'nullable|array',
             'invoice_ids.*' => 'integer|exists:supplier_invoices,id',
+            'credit_note_ids' => 'nullable|array',
+            'credit_note_ids.*' => 'integer|exists:supplier_credit_notes,id',
             'use_credits' => 'sometimes|boolean',
             'use_advances' => 'sometimes|boolean',
             'payment_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
@@ -233,6 +235,12 @@ class PurchasePaymentController extends Controller
             ]);
         }
 
+        $creditNoteIds = $request->exists('credit_notes_mode')
+            ? ($validated['credit_note_ids'] ?? [])
+            : null;
+        $useCredits = $request->boolean('use_credits')
+            && ($creditNoteIds === null || count($creditNoteIds) > 0);
+
         $header = $this->accounts->recordSettlement($supplier, [
             'payment_date' => $validated['payment_date'],
             'amount' => $validated['amount'] ?? 0,
@@ -240,7 +248,8 @@ class PurchasePaymentController extends Controller
             'payment_reference' => $validated['payment_reference'] ?? ($validated['cheque_number'] ?? null),
             'notes' => $validated['notes'] ?? null,
             'invoice_ids' => $validated['invoice_ids'] ?? [],
-            'use_credits' => $request->boolean('use_credits'),
+            'credit_note_ids' => $creditNoteIds,
+            'use_credits' => $useCredits,
             'use_advances' => $request->has('use_advances') ? $request->boolean('use_advances') : true,
             'cheque_number' => $validated['cheque_number'] ?? null,
             'cheque_bank' => $validated['cheque_bank'] ?? null,
@@ -464,6 +473,8 @@ class PurchasePaymentController extends Controller
             'notes' => 'nullable|string',
             'invoice_ids' => 'nullable|array',
             'invoice_ids.*' => 'integer|exists:supplier_invoices,id',
+            'credit_note_ids' => 'nullable|array',
+            'credit_note_ids.*' => 'integer|exists:supplier_credit_notes,id',
             'use_credits' => 'sometimes|boolean',
             'use_advances' => 'sometimes|boolean',
             'reason' => 'nullable|string|max:500',
@@ -481,6 +492,12 @@ class PurchasePaymentController extends Controller
             || collect($validated['invoice_ids'] ?? [])->map(fn ($id) => (int) $id)->sort()->values()->all()
                 !== $payment->allocations->pluck('supplier_invoice_id')->merge($payment->creditNoteAllocations->pluck('supplier_invoice_id'))->unique()->sort()->values()->all();
 
+        $creditNoteIds = $request->exists('credit_notes_mode')
+            ? ($validated['credit_note_ids'] ?? [])
+            : null;
+        $useCredits = $request->boolean('use_credits')
+            && ($creditNoteIds === null || count($creditNoteIds) > 0);
+
         $this->accounts->updateSettlement($payment, [
             'payment_date' => $validated['payment_date'],
             'amount' => $validated['amount'] ?? $payment->amount,
@@ -488,7 +505,8 @@ class PurchasePaymentController extends Controller
             'payment_reference' => $validated['payment_reference'] ?? ($validated['cheque_number'] ?? $payment->payment_reference),
             'notes' => $validated['notes'] ?? null,
             'invoice_ids' => $validated['invoice_ids'] ?? [],
-            'use_credits' => $request->boolean('use_credits'),
+            'credit_note_ids' => $creditNoteIds,
+            'use_credits' => $useCredits,
             'use_advances' => $request->has('use_advances') ? $request->boolean('use_advances') : true,
             'cheque_number' => $validated['cheque_number'] ?? null,
             'cheque_bank' => $validated['cheque_bank'] ?? null,

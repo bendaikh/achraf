@@ -146,6 +146,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/products-categories', [ProductController::class, 'categories'])->name('products.categories');
     Route::put('/products-categories', [ProductController::class, 'updateCategories'])->name('products.categories.update');
     Route::post('/products/sync-shopify', [ProductController::class, 'syncShopify'])->name('products.sync-shopify');
+    Route::post('/products/bulk-assign-warehouse', [ProductController::class, 'bulkAssignWarehouse'])->name('products.bulk-assign-warehouse');
     Route::get('/products/{product}/purchase-history', [ProductController::class, 'purchaseHistory'])->name('products.purchase-history');
     Route::post('/products/{product}/duplicate-to-manual', [ProductController::class, 'duplicateToManual'])->name('products.duplicate-to-manual');
     Route::post('/products/{product}/duplicate', [ProductController::class, 'duplicate'])->name('products.duplicate');
@@ -323,6 +324,8 @@ Route::middleware('auth')->group(function () {
         Route::post('supplier-invoices/{supplierInvoice}/payments', [SupplierInvoicePaymentController::class, 'store'])->name('supplier-invoices.payments.store');
         Route::delete('supplier-invoices/{supplierInvoice}/payments/{payment}', [SupplierInvoicePaymentController::class, 'destroy'])->name('supplier-invoices.payments.destroy');
         Route::resource('supplier-credit-notes', SupplierCreditNoteController::class);
+        Route::post('supplier-credit-notes/{supplierCreditNote}/mark-consumed', [SupplierCreditNoteController::class, 'markConsumed'])->name('supplier-credit-notes.mark-consumed');
+        Route::post('supplier-credit-notes/{supplierCreditNote}/unmark-consumed', [SupplierCreditNoteController::class, 'unmarkConsumed'])->name('supplier-credit-notes.unmark-consumed');
         Route::get('supplier-credit-notes/{supplierCreditNote}/print', [SupplierCreditNoteController::class, 'print'])->name('supplier-credit-notes.print');
         Route::get('supplier-credit-notes/{supplierCreditNote}/pdf', [SupplierCreditNoteController::class, 'downloadPdf'])->name('supplier-credit-notes.pdf');
     });

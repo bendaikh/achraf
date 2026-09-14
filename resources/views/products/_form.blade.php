@@ -448,6 +448,87 @@
                                 placeholder="Description libre…">{{ old('description', $isEdit ? $product->description : '') }}</textarea>
                         </div>
                     </div>
+
+                    {{-- Produits compatibles / équivalents --}}
+                    <div
+                        x-data="productCompatiblesPicker({
+                            searchUrl: @js(route('catalog.products.search')),
+                            excludeId: @js($isEdit ? (int) $product->id : null),
+                            initial: @js(($isEdit ? $product->compatibleProducts : collect())->map(fn ($p) => [
+                                'id' => $p->id,
+                                'name' => $p->name,
+                                'ref' => $p->ref,
+                                'image_url' => $p->image_url,
+                                'available_stock' => $p->availableStock(),
+                                'stock_status_label' => $p->stock_status_label,
+                                'depot' => $p->warehouse?->name ?: ($p->depot ?: null),
+                                'location' => $p->warehouseLocation?->code ?: ($p->location ?: null),
+                            ])->values()),
+                        })"
+                    >
+                        <h3 class="text-sm font-semibold text-slate-900 mb-1 flex items-center gap-2">
+                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                            Produits compatibles / équivalents
+                        </h3>
+                        <p class="text-xs text-slate-500 mb-3">Liaison bidirectionnelle automatique. Les stocks et SKU restent indépendants.</p>
+
+                        <template x-for="item in selected" :key="item.id">
+                            <input type="hidden" name="compatible_ids[]" :value="item.id">
+                        </template>
+
+                        <div class="space-y-2 mb-3">
+                            <template x-for="item in selected" :key="'row-'+item.id">
+                                <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                                    <template x-if="item.image_url">
+                                        <img :src="item.image_url" alt="" class="h-11 w-11 rounded-lg object-cover border border-slate-200 shrink-0">
+                                    </template>
+                                    <template x-if="!item.image_url">
+                                        <div class="h-11 w-11 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                                        </div>
+                                    </template>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <p class="text-sm font-medium text-slate-900 truncate" x-text="item.name"></p>
+                                            <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Compatible / équivalent</span>
+                                        </div>
+                                        <p class="text-xs text-slate-500" x-text="'Réf. : ' + (item.ref || '—')"></p>
+                                    </div>
+                                    <button type="button" @click="remove(item.id)" class="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Supprimer la liaison">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                </div>
+                            </template>
+                            <p x-show="selected.length === 0" class="text-sm text-slate-400 italic">Aucun produit compatible lié.</p>
+                        </div>
+
+                        <div class="relative">
+                            <div class="flex gap-2">
+                                <input type="search" x-model="query" @input.debounce.300ms="search()" @keydown.enter.prevent="search()"
+                                       placeholder="Rechercher un produit…"
+                                       class="{{ $field }} flex-1">
+                                <button type="button" @click="search()" class="shrink-0 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50">
+                                    Rechercher
+                                </button>
+                            </div>
+                            <div x-show="open && results.length" x-cloak @click.outside="open = false"
+                                 class="absolute z-20 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg max-h-64 overflow-y-auto">
+                                <template x-for="hit in results" :key="hit.id">
+                                    <button type="button" @click="add(hit)"
+                                            class="w-full text-left px-3 py-2.5 hover:bg-slate-50 flex items-center gap-3 border-b border-slate-100 last:border-0">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-sm font-medium text-slate-900 truncate" x-text="hit.name"></p>
+                                            <p class="text-xs text-slate-500" x-text="'Réf. : ' + (hit.ref || '—')"></p>
+                                        </div>
+                                        <span class="text-xs font-semibold text-[#0a5d8a]">+ Ajouter</span>
+                                    </button>
+                                </template>
+                            </div>
+                            <p x-show="searching" class="mt-1 text-xs text-slate-400">Recherche…</p>
+                            <p x-show="!searching && queried && results.length === 0" class="mt-1 text-xs text-slate-400">Aucun produit trouvé.</p>
+                        </div>
+                        <p class="mt-2 text-xs text-slate-500">Exemple : lier F40 ↔ F70 une seule fois ; la relation apparaît automatiquement sur les deux fiches.</p>
+                    </div>
                 </div>
             </section>
         </div>
@@ -509,3 +590,96 @@
         </aside>
     </div>
 </div>
+
+<script>
+function productCompatiblesPicker(config) {
+    return {
+        searchUrl: config.searchUrl,
+        excludeId: config.excludeId,
+        selected: Array.isArray(config.initial) ? config.initial.slice() : [],
+        query: '',
+        results: [],
+        open: false,
+        searching: false,
+        queried: false,
+        selectedIds() {
+            return this.selected.map(function (item) { return Number(item.id); });
+        },
+        add(hit) {
+            var id = Number(hit.id);
+            if (!id || (this.excludeId && id === Number(this.excludeId))) return;
+            if (this.selectedIds().includes(id)) {
+                this.open = false;
+                this.query = '';
+                this.results = [];
+                return;
+            }
+            this.selected.push({
+                id: id,
+                name: hit.name || hit.text || '',
+                ref: hit.ref || '',
+                image_url: hit.image_url || null,
+                available_stock: hit.available_stock ?? hit.stock ?? null,
+                stock_status_label: hit.stock_status_label || null,
+                depot: hit.depot || null,
+                location: hit.location || null,
+            });
+            this.open = false;
+            this.query = '';
+            this.results = [];
+        },
+        remove(id) {
+            var target = Number(id);
+            this.selected = this.selected.filter(function (item) { return Number(item.id) !== target; });
+        },
+        search() {
+            var term = (this.query || '').trim();
+            if (term.length < 1) {
+                this.results = [];
+                this.open = false;
+                this.queried = false;
+                return;
+            }
+            var self = this;
+            this.searching = true;
+            this.queried = true;
+            fetch(this.searchUrl + '?q=' + encodeURIComponent(term), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    var rows = Array.isArray(data.results) ? data.results : [];
+                    var taken = self.selectedIds();
+                    self.results = rows.filter(function (row) {
+                        var pid = Number(row.product_id || row.id);
+                        if (!pid) return false;
+                        if (self.excludeId && pid === Number(self.excludeId)) return false;
+                        if (taken.includes(pid)) return false;
+                        return true;
+                    }).reduce(function (acc, row) {
+                        var pid = Number(row.product_id || row.id);
+                        if (acc.some(function (r) { return Number(r.id) === pid; })) {
+                            return acc;
+                        }
+                        acc.push({
+                            id: pid,
+                            name: row.name || row.text,
+                            ref: row.ref,
+                            image_url: row.image_url || null,
+                            stock: row.stock,
+                        });
+                        return acc;
+                    }, []);
+                    self.open = true;
+                })
+                .catch(function () {
+                    self.results = [];
+                    self.open = true;
+                })
+                .finally(function () {
+                    self.searching = false;
+                });
+        }
+    };
+}
+</script>
