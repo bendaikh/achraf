@@ -9,6 +9,7 @@ use App\Models\DeliveryNote;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quote;
+use App\Support\InvoiceCommercialStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -115,8 +116,15 @@ class CommercialDashboardController extends Controller
                 ->where('invoices.collaborator_id', $collaboratorId)
                 ->whereBetween('invoice_payments.payment_date', [$from, $to])
                 ->sum('invoice_payments.amount'),
-            'annulees' => (clone $invoices)->where('status', 'annulé')->count(),
-            'retours_amount' => 0,
+            'annulees' => (clone $orders)->where('status', 'annulé')->count(),
+            'retours_amount' => (float) (clone $invoices)
+                ->whereIn('commercial_status', [
+                    InvoiceCommercialStatus::PARTIAL_RETURN,
+                    InvoiceCommercialStatus::TOTAL_RETURN,
+                    InvoiceCommercialStatus::PARTIAL_REFUND,
+                    InvoiceCommercialStatus::FULLY_REFUNDED,
+                ])
+                ->sum('total'),
             'commission_a_venir' => (float) $sumStatus(Commission::STATUS_A_VENIR),
             'commission_acquise' => (float) $sumStatus(Commission::STATUS_ACQUISE),
             'commission_validee' => (float) $sumStatus(Commission::STATUS_VALIDEE),
