@@ -34,7 +34,7 @@
                 </div>
             @endif
 
-            <form action="{{ route('receptions.update', $reception) }}" method="POST" id="receptionForm">
+            <form action="{{ route('receptions.update', $reception) }}" method="POST" id="receptionForm" data-compact-nested="items">
                 @csrf
                 @method('PUT')
 

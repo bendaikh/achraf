@@ -23,7 +23,7 @@
                 </div>
             @endif
 
-            <form action="{{ route('supplier-purchase-orders.update', $supplierPurchaseOrder) }}" method="POST" id="purchaseOrderForm">
+            <form action="{{ route('supplier-purchase-orders.update', $supplierPurchaseOrder) }}" method="POST" id="purchaseOrderForm" data-compact-nested="items">
                 @csrf
                 @method('PUT')
                 
@@ -168,6 +168,7 @@
     </main>
 
 @push('scripts')
+@include('partials.commercial-document-form-script')
 <script>
 var itemIndex = {{ count($supplierPurchaseOrder->items) }};
 

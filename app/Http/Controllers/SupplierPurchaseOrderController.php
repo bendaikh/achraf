@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ExpandsCompactedFormArrays;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\DB;
 
 class SupplierPurchaseOrderController extends Controller
 {
-    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+    use ExpandsCompactedFormArrays, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function __construct(
         protected ProductPurchasePriceService $purchasePriceSync,
@@ -54,6 +55,8 @@ class SupplierPurchaseOrderController extends Controller
 
     public function store(Request $request)
     {
+        $this->expandCompactedFormArrays($request, ['items']);
+
         $validated = $request->validate([
             'order_number' => 'required|string|unique:supplier_purchase_orders,order_number',
             'supplier_id' => 'required|exists:suppliers,id',
@@ -149,6 +152,8 @@ class SupplierPurchaseOrderController extends Controller
 
     public function update(Request $request, SupplierPurchaseOrder $supplierPurchaseOrder)
     {
+        $this->expandCompactedFormArrays($request, ['items']);
+
         $validated = $request->validate([
             'order_number' => 'required|string|unique:supplier_purchase_orders,order_number,'.$supplierPurchaseOrder->id,
             'supplier_id' => 'required|exists:suppliers,id',

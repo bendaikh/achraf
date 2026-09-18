@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ExpandsCompactedFormArrays;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
@@ -25,7 +26,7 @@ use Illuminate\Support\Facades\Storage;
 
 class SupplierDeliveryNoteController extends Controller
 {
-    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+    use ExpandsCompactedFormArrays, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function __construct(
         protected ProductPurchasePriceService $purchasePriceSync,
@@ -235,6 +236,9 @@ class SupplierDeliveryNoteController extends Controller
 
     protected function validateSupplierDeliveryNote(Request $request, ?SupplierDeliveryNote $supplierDeliveryNote = null): array
     {
+        // Pack items into items_json on the client to avoid Hostinger WAF "Forbidden" on large POSTs.
+        $this->expandCompactedFormArrays($request, ['items']);
+
         $uniqueRule = 'unique:supplier_delivery_notes,delivery_number';
         if ($supplierDeliveryNote) {
             $uniqueRule .= ','.$supplierDeliveryNote->id;

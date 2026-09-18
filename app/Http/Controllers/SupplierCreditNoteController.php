@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ExpandsCompactedFormArrays;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
@@ -17,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class SupplierCreditNoteController extends Controller
 {
-    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+    use ExpandsCompactedFormArrays, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function __construct(
         protected StockMovementService $stockMovement
@@ -51,6 +52,8 @@ class SupplierCreditNoteController extends Controller
 
     public function store(Request $request)
     {
+        $this->expandCompactedFormArrays($request, ['items']);
+
         $validated = $request->validate([
             'credit_note_number' => 'required|string|unique:supplier_credit_notes,credit_note_number',
             'supplier_id' => 'required|exists:suppliers,id',
@@ -201,6 +204,8 @@ class SupplierCreditNoteController extends Controller
 
     public function update(Request $request, SupplierCreditNote $supplierCreditNote)
     {
+        $this->expandCompactedFormArrays($request, ['items']);
+
         $validated = $request->validate([
             'credit_note_number' => 'required|string|unique:supplier_credit_notes,credit_note_number,'.$supplierCreditNote->id,
             'supplier_id' => 'required|exists:suppliers,id',

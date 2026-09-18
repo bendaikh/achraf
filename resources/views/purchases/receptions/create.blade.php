@@ -33,7 +33,7 @@
                 </div>
             @endif
 
-            <form action="{{ route('receptions.store') }}" method="POST" id="quoteForm">
+            <form action="{{ route('receptions.store') }}" method="POST" id="quoteForm" data-compact-nested="items">
                 @csrf
                 @if(!empty($prefill['supplier_purchase_order_id']))
                     <input type="hidden" name="supplier_purchase_order_id" value="{{ $prefill['supplier_purchase_order_id'] }}">

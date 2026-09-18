@@ -112,7 +112,7 @@
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-6 mb-6">
             <h3 class="text-lg font-semibold text-amber-900 mb-2">Réception rapide depuis la facture</h3>
             <p class="text-sm text-amber-800 mb-4">Crée automatiquement un bon de réception (BR) — seule entrée physique autorisée en stock.</p>
-            <form method="POST" action="{{ route('supplier-invoices.receive-stock', $supplierInvoice) }}" class="space-y-4">
+            <form method="POST" action="{{ route('supplier-invoices.receive-stock', $supplierInvoice) }}" class="space-y-4" data-compact-nested="items">
                 @csrf
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Dépôt défaut</label>
@@ -169,6 +169,7 @@
             </form>
         </div>
         @push('scripts')
+        @include('partials.commercial-document-form-script')
         @php
             $invoiceReceiveWarehouses = ($warehouses ?? collect())->map(fn ($w) => [
                 'id' => $w->id,

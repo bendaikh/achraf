@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\AppliesCommercialAttribution;
+use App\Http\Controllers\Concerns\ExpandsCompactedFormArrays;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\DB;
 
 class QuoteController extends Controller
 {
-    use AppliesCommercialAttribution, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+    use AppliesCommercialAttribution, ExpandsCompactedFormArrays, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function index(Request $request)
     {
@@ -192,6 +193,8 @@ class QuoteController extends Controller
 
     protected function validateQuote(Request $request): array
     {
+        $this->expandCompactedFormArrays($request);
+
         return $request->validate([
             'client_id' => 'required|exists:clients,id',
             'quote_date' => 'required|date',

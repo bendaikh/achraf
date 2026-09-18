@@ -34,7 +34,7 @@
                 </div>
             @endif
 
-            <form action="{{ route('supplier-delivery-notes.update', $supplierDeliveryNote) }}" method="POST" id="supplierDeliveryNoteForm">
+            <form action="{{ route('supplier-delivery-notes.update', $supplierDeliveryNote) }}" method="POST" id="supplierDeliveryNoteForm" data-compact-nested="items">
                 @csrf
                 @method('PUT')
 

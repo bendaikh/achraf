@@ -23,7 +23,7 @@
                 </div>
             @endif
 
-            <form action="{{ route('credit-notes.update', $creditNote) }}" method="POST" id="creditNoteForm">
+            <form action="{{ route('credit-notes.update', $creditNote) }}" method="POST" id="creditNoteForm" data-compact-nested="items">
                 @csrf
                 @method('PUT')
 

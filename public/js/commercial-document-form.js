@@ -594,13 +594,47 @@
         });
     };
 
+    function collectFormsNeedingCompaction() {
+        var forms = [];
+        var seen = new Set();
+
+        function add(form) {
+            if (!form || form.tagName !== 'FORM' || seen.has(form)) return;
+            seen.add(form);
+            forms.push(form);
+        }
+
+        document.querySelectorAll('form[data-compact-nested], form#invoiceForm').forEach(add);
+        document.querySelectorAll('form #itemsBody, form #adjustmentsBody').forEach(function (el) {
+            add(el.closest('form'));
+        });
+        document.querySelectorAll('form [name^="items["], form [name^="adjustments["]').forEach(function (el) {
+            add(el.closest('form'));
+        });
+
+        return forms;
+    }
+
+    function rootsForForm(form) {
+        var attr = form.getAttribute('data-compact-nested');
+        if (attr) {
+            return attr.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+        }
+
+        var roots = [];
+        if (form.querySelector('#itemsBody, [name^="items["]')) {
+            roots.push('items');
+        }
+        if (form.querySelector('#adjustmentsBody, [name^="adjustments["]')) {
+            roots.push('adjustments');
+        }
+
+        return roots.length ? roots : ['items', 'adjustments'];
+    }
+
     function bootFormArrayCompaction() {
-        document.querySelectorAll('form[data-compact-nested], form#invoiceForm').forEach(function (form) {
-            var roots = (form.getAttribute('data-compact-nested') || 'items,adjustments')
-                .split(',')
-                .map(function (s) { return s.trim(); })
-                .filter(Boolean);
-            window.bindCommercialFormArrayCompaction(form, roots);
+        collectFormsNeedingCompaction().forEach(function (form) {
+            window.bindCommercialFormArrayCompaction(form, rootsForForm(form));
         });
     }
 

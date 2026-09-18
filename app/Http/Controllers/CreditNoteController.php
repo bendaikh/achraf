@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ExpandsCompactedFormArrays;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\DB;
 
 class CreditNoteController extends Controller
 {
-    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+    use ExpandsCompactedFormArrays, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function __construct(
         protected StockMovementService $stockMovement,
@@ -207,6 +208,8 @@ class CreditNoteController extends Controller
 
     protected function validateCreditNote(Request $request): array
     {
+        $this->expandCompactedFormArrays($request);
+
         return $request->validate([
             'client_id' => 'required|exists:clients,id',
             'invoice_id' => 'nullable|exists:invoices,id',

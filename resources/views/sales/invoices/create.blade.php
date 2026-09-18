@@ -23,7 +23,7 @@
                 </div>
             @endif
 
-            <form action="{{ route('invoices.store') }}" method="POST" id="invoiceForm">
+            <form action="{{ route('invoices.store') }}" method="POST" id="invoiceForm" data-compact-nested="items,adjustments">
                 @csrf
                 
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">

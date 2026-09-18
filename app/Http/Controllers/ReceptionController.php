@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ExpandsCompactedFormArrays;
 use App\Http\Controllers\Concerns\FiltersIndexTables;
 use App\Http\Controllers\Concerns\GeneratesCommercialPdf;
 use App\Http\Controllers\Concerns\PreparesPrintView;
@@ -28,7 +29,7 @@ use Illuminate\Support\Facades\Storage;
 
 class ReceptionController extends Controller
 {
-    use FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+    use ExpandsCompactedFormArrays, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
 
     public function __construct(
         protected StockMovementService $stockMovement,
@@ -89,6 +90,8 @@ class ReceptionController extends Controller
 
     public function store(Request $request)
     {
+        $this->expandCompactedFormArrays($request, ['items']);
+
         $validated = $request->validate([
             'reception_number' => 'required|string|unique:receptions,reception_number',
             'supplier_id' => 'required|exists:suppliers,id',
@@ -148,6 +151,8 @@ class ReceptionController extends Controller
 
     public function update(Request $request, Reception $reception)
     {
+        $this->expandCompactedFormArrays($request, ['items']);
+
         $validated = $request->validate([
             'reception_number' => 'required|string|unique:receptions,reception_number,' . $reception->id,
             'supplier_id' => 'required|exists:suppliers,id',

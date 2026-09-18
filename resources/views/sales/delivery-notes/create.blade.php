@@ -34,7 +34,7 @@
                 </div>
             @endif
 
-            <form action="{{ route('delivery-notes.store') }}" method="POST" id="deliveryNoteForm">
+            <form action="{{ route('delivery-notes.store') }}" method="POST" id="deliveryNoteForm" data-compact-nested="items">
                 @csrf
                 
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
