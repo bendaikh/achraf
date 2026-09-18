@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\OrderSource;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -199,6 +201,40 @@ class PosSale extends Model
     public function isPaidAndFulfilled(): bool
     {
         return $this->payment_status === 'paid' && $this->fulfillment_status === 'fulfilled';
+    }
+
+    /**
+     * True comptoir POS only (Commande ≠ POS).
+     */
+    public function isTruePos(): bool
+    {
+        return ! OrderSource::isChannel($this->source);
+    }
+
+    public function isChannelOrder(): bool
+    {
+        return OrderSource::isChannel($this->source);
+    }
+
+    /**
+     * @param  Builder<PosSale>  $query
+     * @return Builder<PosSale>
+     */
+    public function scopeTruePos(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->whereNull('source')
+                ->orWhereNotIn('source', OrderSource::channelSources());
+        });
+    }
+
+    /**
+     * @param  Builder<PosSale>  $query
+     * @return Builder<PosSale>
+     */
+    public function scopeChannelOrders(Builder $query): Builder
+    {
+        return $query->whereIn('source', OrderSource::channelSources());
     }
 
     public static function paymentLabels(): array

@@ -219,15 +219,8 @@ function addItemWithData(data) {
     tbody.insertBefore(row, tbody.firstChild);
     
     window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex, window.selectedCommercialProduct(data));
-    var defaultWarehouse = document.querySelector('select[name="warehouse_id"]');
-    if (defaultWarehouse && defaultWarehouse.value) {
-        var lineWh = row.querySelector('.purchase-line-warehouse');
-        if (lineWh) {
-            lineWh.value = defaultWarehouse.value;
-            window.purchaseLineWarehouseChanged(itemIndex);
-        }
-    }
-    
+    window.purchaseSeedLineWarehouseFromHeader(itemIndex);
+
     itemIndex++;
     calculateCommercialTotal();
 }

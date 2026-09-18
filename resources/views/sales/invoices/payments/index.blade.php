@@ -4,7 +4,7 @@
 
 @section('main')
 @php
-    $isFullyPaid = $invoice->remaining_balance <= 0.009;
+    $isFullyPaid = $invoice->collectibleRemainingBalance() <= 0.009;
     $currency = $invoice->currency;
 @endphp
 <main class="flex-1 w-full min-w-0">

@@ -10,6 +10,21 @@ class OrderSource
 
     public const LIBROMART = 'libromart';
 
+    /**
+     * Marketplace / Libromart order channels — never true POS cash.
+     *
+     * @return list<string>
+     */
+    public static function channelSources(): array
+    {
+        return [self::SHOPIFY, self::JUMIA, self::LIBROMART];
+    }
+
+    public static function isChannel(?string $source): bool
+    {
+        return in_array((string) $source, self::channelSources(), true);
+    }
+
     public static function labels(): array
     {
         return [

@@ -63,7 +63,7 @@
                                     </option>
                                 @endforeach
                             </select>
-                            <p class="mt-1 text-xs text-gray-500">Surchargeable par ligne. Préremplit le dépôt de chaque article.</p>
+                            <p class="mt-1 text-xs text-gray-500">Appliqué automatiquement aux lignes (sauf exceptions manuelles). Préremplit le dépôt de chaque article.</p>
                         </div>
 
                         <div>
@@ -211,14 +211,7 @@ function addItem() {
     tbody.insertBefore(row, tbody.firstChild);
 
     window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex);
-    var defaultWarehouse = document.querySelector('select[name="warehouse_id"]');
-    if (defaultWarehouse && defaultWarehouse.value) {
-        var lineWh = row.querySelector('.purchase-line-warehouse');
-        if (lineWh) {
-            lineWh.value = defaultWarehouse.value;
-            window.purchaseLineWarehouseChanged(itemIndex);
-        }
-    }
+    window.purchaseSeedLineWarehouseFromHeader(itemIndex);
 
     itemIndex++;
     calculateCommercialTotal();

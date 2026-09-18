@@ -640,12 +640,28 @@ window.posRegister = function posRegister(catalogMagasin, catalogEnligne, prices
         },
         async runSearch() {
             const q = this.searchQuery.trim();
-            if (!q) { this.searchResults = []; return; }
+            this.searchAbort?.abort();
+            if (!q) {
+                this.searchRequestId = (this.searchRequestId || 0) + 1;
+                this.searchResults = [];
+                return;
+            }
+            const controller = new AbortController();
+            this.searchAbort = controller;
+            const requestId = (this.searchRequestId = (this.searchRequestId || 0) + 1);
             try {
-                const r = await fetch('{{ route('pos.products.search') }}?q=' + encodeURIComponent(q) + '&stock_type=' + this.stockType, { headers: { 'Accept': 'application/json' } });
+                const r = await fetch('{{ route('pos.products.search') }}?q=' + encodeURIComponent(q) + '&stock_type=' + this.stockType, {
+                    headers: { 'Accept': 'application/json' },
+                    signal: controller.signal,
+                });
                 const data = await r.json();
+                if (requestId !== this.searchRequestId) return;
                 this.searchResults = data.products || [];
-            } catch (e) { this.searchResults = []; }
+            } catch (e) {
+                if (e?.name === 'AbortError') return;
+                if (requestId !== this.searchRequestId) return;
+                this.searchResults = [];
+            }
         },
         async scanBarcode() {
             const b = this.barcode.trim();

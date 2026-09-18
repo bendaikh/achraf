@@ -46,7 +46,7 @@ class OrderController extends Controller
             if ($source === 'pos') {
                 $query->where(function ($q) {
                     $q->whereNull('source')
-                        ->orWhereNotIn('source', [OrderSource::SHOPIFY, OrderSource::JUMIA, OrderSource::LIBROMART]);
+                        ->orWhereNotIn('source', OrderSource::channelSources());
                 });
             } else {
                 $query->where('source', $source);
@@ -101,7 +101,7 @@ class OrderController extends Controller
         $totalLibromartOrders = PosSale::where('source', OrderSource::LIBROMART)->count();
         $totalPosOrders = PosSale::where(function ($q) {
             $q->whereNull('source')
-                ->orWhereNotIn('source', [OrderSource::SHOPIFY, OrderSource::JUMIA, OrderSource::LIBROMART]);
+                ->orWhereNotIn('source', OrderSource::channelSources());
         })->count();
         $totalRevenue = PosSale::where('status', PosSale::STATUS_COMPLETED)->sum('total');
 

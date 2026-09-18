@@ -55,6 +55,9 @@ class ExpenseWithInvoiceController extends Controller
 
         $validated['expense_type'] = 'with_invoice';
         $validated = $this->prepareRecurrence($request, $validated);
+        // Dépense enregistrée ≠ dépense payée : pas de mouvement tant qu'aucun paiement réel.
+        $validated['payment_status'] = Expense::PAYMENT_PENDING;
+        $validated['paid_at'] = null;
         unset($validated['invoice_file']);
 
         $expense = Expense::create($validated);

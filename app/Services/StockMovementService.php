@@ -428,7 +428,10 @@ class StockMovementService
 
         $warehouse = $this->resolveTargetWarehouse($product, $channel, $warehouseId);
         $warehouseId = $warehouse?->id;
-        $locationId = $locationId ?? $product->warehouse_location_id;
+        $locationId = $this->sanitizeLocationForWarehouse(
+            $locationId ?? $product->warehouse_location_id,
+            $warehouseId
+        );
         $field = $this->stockFieldForWarehouse($warehouse, $product, $channel);
 
         $this->applyDelta(
@@ -1233,7 +1236,22 @@ class StockMovementService
     protected function resolveVariantIdForProduct(Product $product, ?int $variantId, bool $required = true): ?int
     {
         if (! $product->hasVariants()) {
-            return null;
+            // Produit Shopify « simple » : une seule variante Default Title — y rattacher le stock
+            // pour que onlineStock() / inventory_levels/set ciblent le bon inventory_item_id.
+            if ($variantId) {
+                $exists = ProductVariant::query()
+                    ->where('id', $variantId)
+                    ->where('product_id', $product->id)
+                    ->exists();
+
+                return $exists ? $variantId : null;
+            }
+
+            $single = $product->relationLoaded('variants')
+                ? $product->variants
+                : $product->variants()->get();
+
+            return $single->count() === 1 ? (int) $single->first()->id : null;
         }
 
         if (! $variantId) {
@@ -1254,6 +1272,20 @@ class StockMovementService
         }
 
         return $variantId;
+    }
+
+    protected function sanitizeLocationForWarehouse(?int $locationId, ?int $warehouseId): ?int
+    {
+        if (! $locationId || ! $warehouseId) {
+            return null;
+        }
+
+        $belongs = WarehouseLocation::query()
+            ->where('id', $locationId)
+            ->where('warehouse_id', $warehouseId)
+            ->exists();
+
+        return $belongs ? $locationId : null;
     }
 
     protected function stockLabel(Product $product, ?int $variantId): string

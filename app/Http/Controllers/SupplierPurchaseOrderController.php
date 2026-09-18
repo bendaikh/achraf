@@ -10,12 +10,15 @@ use App\Models\Product;
 use App\Models\Setting;
 use App\Models\Supplier;
 use App\Models\SupplierPurchaseOrder;
+use App\Models\Warehouse;
 use App\Services\DocumentNumberService;
 use App\Services\ProductPurchasePriceService;
 use App\Services\PurchaseDocumentChainService;
 use App\Services\PurchaseReceiptService;
+use App\Services\PurchaseStockReceiptService;
 use App\Support\CommercialDocumentView;
-use App\Support\LineItemCalculator;
+use App\Support\LineItemPersistence;
+use App\Support\VariantLineItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -25,6 +28,7 @@ class SupplierPurchaseOrderController extends Controller
 
     public function __construct(
         protected ProductPurchasePriceService $purchasePriceSync,
+        protected PurchaseStockReceiptService $purchaseStockReceipt,
     ) {}
 
     public function index(Request $request)
@@ -49,8 +53,9 @@ class SupplierPurchaseOrderController extends Controller
         $products = collect();
         $orderNumber = DocumentNumberService::preview('bc_fournisseur');
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->with('locations')->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('purchases.supplier-purchase-orders.create', compact('suppliers', 'products', 'orderNumber', 'pricesAreTtc'));
+        return view('purchases.supplier-purchase-orders.create', compact('suppliers', 'products', 'orderNumber', 'pricesAreTtc', 'warehouses'));
     }
 
     public function store(Request $request)
@@ -64,7 +69,7 @@ class SupplierPurchaseOrderController extends Controller
             'due_date' => 'nullable|date',
             'reference_invoice' => 'nullable|string',
             'currency' => 'required|string',
-            'stock_location' => 'required|string',
+            'stock_location' => 'nullable|string',
             'model' => 'nullable|string',
             'remarks' => 'nullable|string',
             'items' => 'required|array',
@@ -76,7 +81,12 @@ class SupplierPurchaseOrderController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ]);
+        ] + VariantLineItem::validationRules() + $this->purchaseStockReceipt->validationRules());
+
+        $warehouse = $this->purchaseStockReceipt->resolveDefaultWarehouse(
+            isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null,
+            $validated['stock_location'] ?? null
+        );
 
         DB::beginTransaction();
         try {
@@ -87,7 +97,8 @@ class SupplierPurchaseOrderController extends Controller
                 'due_date' => $validated['due_date'] ?? null,
                 'reference_invoice' => $validated['reference_invoice'] ?? null,
                 'currency' => $validated['currency'],
-                'stock_location' => $validated['stock_location'],
+                'stock_location' => $warehouse->name,
+                'warehouse_id' => $warehouse->id,
                 'model' => $validated['model'] ?? null,
                 'remarks' => $validated['remarks'] ?? null,
                 'total' => 0,
@@ -95,19 +106,7 @@ class SupplierPurchaseOrderController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item, 'purchase');
-
-                $order->items()->create([
-                    'product_id' => $item['product_id'] ?? null,
-                    'ref' => $item['ref'] ?? null,
-                    'designation' => $item['designation'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'tax_rate' => $item['tax_rate'],
-                    'discount' => $computed['discount'],
-                    'discount_type' => $computed['discount_type'],
-                    'line_total' => $computed['line_total'],
-                ]);
+                $computed = LineItemPersistence::createPurchaseItem($order, $item);
                 $subtotal += $computed['line_total'];
             }
 
@@ -146,8 +145,9 @@ class SupplierPurchaseOrderController extends Controller
         $supplierPurchaseOrder->load(['supplier', 'items.product']);
         $suppliers = Supplier::all();
         $products = collect();
+        $warehouses = Warehouse::query()->active()->with('locations')->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('purchases.supplier-purchase-orders.edit', compact('supplierPurchaseOrder', 'suppliers', 'products'));
+        return view('purchases.supplier-purchase-orders.edit', compact('supplierPurchaseOrder', 'suppliers', 'products', 'warehouses'));
     }
 
     public function update(Request $request, SupplierPurchaseOrder $supplierPurchaseOrder)
@@ -161,7 +161,7 @@ class SupplierPurchaseOrderController extends Controller
             'due_date' => 'nullable|date',
             'reference_invoice' => 'nullable|string',
             'currency' => 'required|string',
-            'stock_location' => 'required|string',
+            'stock_location' => 'nullable|string',
             'model' => 'nullable|string',
             'remarks' => 'nullable|string',
             'items' => 'required|array',
@@ -173,7 +173,12 @@ class SupplierPurchaseOrderController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ]);
+        ] + VariantLineItem::validationRules() + $this->purchaseStockReceipt->validationRules());
+
+        $warehouse = $this->purchaseStockReceipt->resolveDefaultWarehouse(
+            isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : ($supplierPurchaseOrder->warehouse_id ? (int) $supplierPurchaseOrder->warehouse_id : null),
+            $validated['stock_location'] ?? $supplierPurchaseOrder->stock_location
+        );
 
         DB::beginTransaction();
         try {
@@ -184,7 +189,8 @@ class SupplierPurchaseOrderController extends Controller
                 'due_date' => $validated['due_date'] ?? null,
                 'reference_invoice' => $validated['reference_invoice'] ?? null,
                 'currency' => $validated['currency'],
-                'stock_location' => $validated['stock_location'],
+                'stock_location' => $warehouse->name,
+                'warehouse_id' => $warehouse->id,
                 'model' => $validated['model'] ?? null,
                 'remarks' => $validated['remarks'] ?? null,
             ]);
@@ -193,19 +199,7 @@ class SupplierPurchaseOrderController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item, 'purchase');
-
-                $supplierPurchaseOrder->items()->create([
-                    'product_id' => $item['product_id'] ?? null,
-                    'ref' => $item['ref'] ?? null,
-                    'designation' => $item['designation'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'tax_rate' => $item['tax_rate'],
-                    'discount' => $computed['discount'],
-                    'discount_type' => $computed['discount_type'],
-                    'line_total' => $computed['line_total'],
-                ]);
+                $computed = LineItemPersistence::createPurchaseItem($supplierPurchaseOrder, $item);
                 $subtotal += $computed['line_total'];
             }
 

@@ -73,6 +73,11 @@ class SupplierInvoice extends Model
 
     public function getTotalPaidAttribute()
     {
+        return round((float) $this->payments()->realized()->sum('amount'), 2);
+    }
+
+    public function getTotalAllocatedAttribute()
+    {
         return round((float) $this->payments()->sum('amount'), 2);
     }
 

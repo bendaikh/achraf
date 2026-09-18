@@ -70,6 +70,21 @@ class SupplierInvoicePayment extends Model
         return $this->belongsTo(SupplierInvoice::class);
     }
 
+    public function scopeRealized($query)
+    {
+        return $query->whereDate('payment_date', '<=', now()->toDateString());
+    }
+
+    public function isRealized(): bool
+    {
+        return \App\Support\PaymentRealization::isRealized($this->payment_date);
+    }
+
+    public function isScheduled(): bool
+    {
+        return ! $this->isRealized();
+    }
+
     public function supplierPayment(): BelongsTo
     {
         return $this->belongsTo(SupplierPayment::class);

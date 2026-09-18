@@ -43,8 +43,14 @@ class FinancialMovementService
         ]);
     }
 
-    public function syncFromInvoicePayment(InvoicePayment $payment): FinancialMovement
+    public function syncFromInvoicePayment(InvoicePayment $payment): ?FinancialMovement
     {
+        if (! $payment->isRealized()) {
+            $this->deleteForSource($payment);
+
+            return null;
+        }
+
         $payment->loadMissing('invoice.client');
 
         $clientName = $payment->invoice?->client?->name;
@@ -65,7 +71,7 @@ class FinancialMovementService
 
     public function syncFromSupplierPayment(SupplierInvoicePayment $payment): ?FinancialMovement
     {
-        if ($payment->is_cash_movement === false) {
+        if ($payment->is_cash_movement === false || ! $payment->isRealized()) {
             $this->deleteForSource($payment);
 
             return null;
@@ -143,6 +149,14 @@ class FinancialMovementService
 
     public function syncFromPosSale(PosSale $sale): ?FinancialMovement
     {
+        // Commande ≠ Paiement / Commande ≠ POS : Shopify, Jumia, Libromart
+        // never create treasury from the order alone — only real validated payments do.
+        if ($sale->isChannelOrder()) {
+            $this->deleteForSource($sale);
+
+            return null;
+        }
+
         if ($sale->status !== PosSale::STATUS_COMPLETED) {
             $this->deleteForSource($sale);
 
@@ -158,15 +172,11 @@ class FinancialMovementService
             return null;
         }
 
-        $origin = $sale->source === 'shopify'
-            ? FinancialMovement::ORIGIN_SHOPIFY
-            : FinancialMovement::ORIGIN_POS;
-
         $party = $sale->client?->name ?? 'Comptoir';
 
         return $this->upsertFromSource($sale, [
             'movement_date' => $sale->sold_at?->toDateString() ?? now()->toDateString(),
-            'origin' => $origin,
+            'origin' => FinancialMovement::ORIGIN_POS,
             'type' => FinancialMovement::TYPE_ENTREE,
             'label' => 'Encaissement POS '.$sale->ticket_number.' — '.$party,
             'account' => $this->classifyPosPaymentMethod($sale->payment_method),

@@ -61,6 +61,13 @@ class PaymentRecordingService
         // Inclut la livraison facturée au client si absente du total lignes facture
         // (ne confond pas avec les frais retenus par le transporteur).
         $remaining = round($invoice->collectibleRemainingBalance(), 2);
+
+        if ($remaining <= 0.009) {
+            throw ValidationException::withMessages([
+                'amount' => 'Cette facture est déjà soldée. Aucun nouveau paiement n’est autorisé.',
+            ]);
+        }
+
         if ($amount > $remaining + 0.009 && ! $allowOverpayment) {
             throw ValidationException::withMessages([
                 'amount' => sprintf(
@@ -79,6 +86,7 @@ class PaymentRecordingService
             'import_line_id' => $data['payment_import_line_id'] ?? null,
             'amount' => $amount,
             'date' => $data['payment_date'] ?? null,
+            'method' => $data['payment_method'] ?? null,
             'source' => $data['source'] ?? InvoicePayment::SOURCE_MANUAL,
             'bulk_batch' => $data['payment_batch_id'] ?? $data['bulk_batch'] ?? null,
         ]);
@@ -239,6 +247,25 @@ class PaymentRecordingService
             ]);
         }
 
+        $remaining = $this->supplierAccounts->invoiceRemaining($invoice);
+        $allowOverpayment = (bool) ($data['allow_overpayment'] ?? false);
+
+        if ($remaining <= 0.009) {
+            throw ValidationException::withMessages([
+                'amount' => 'Cette facture fournisseur est déjà soldée. Aucun nouveau paiement n’est autorisé.',
+            ]);
+        }
+
+        if ($amount > $remaining + 0.009 && ! $allowOverpayment) {
+            throw ValidationException::withMessages([
+                'amount' => sprintf(
+                    'Le montant (%.2f) dépasse le solde restant (%.2f).',
+                    $amount,
+                    $remaining
+                ),
+            ]);
+        }
+
         $dedupeKey = $data['dedupe_key'] ?? $this->buildDedupeKey([
             'scope' => 'purchases',
             'invoice_id' => $invoice->id,
@@ -247,6 +274,7 @@ class PaymentRecordingService
             'import_line_id' => $data['payment_import_line_id'] ?? null,
             'amount' => $amount,
             'date' => $data['payment_date'] ?? null,
+            'method' => $data['payment_method'] ?? null,
             'source' => $data['source'] ?? SupplierInvoicePayment::SOURCE_MANUAL,
         ]);
 
@@ -262,6 +290,7 @@ class PaymentRecordingService
             'use_credits' => (bool) ($data['use_credits'] ?? false),
             'use_advances' => (bool) ($data['use_advances'] ?? true),
             'dedupe_key' => $dedupeKey,
+            'allow_overpayment' => $allowOverpayment,
         ]));
 
         return $header->invoicePayments->first() ?? new SupplierInvoicePayment([
@@ -342,26 +371,12 @@ class PaymentRecordingService
             $normalized[$key] = is_string($value) ? mb_strtolower(trim($value)) : $value;
         }
 
-        // Manual one-off payments without reference/tracking should not block future payments
-        $hasIdentity = isset($normalized['reference'])
-            || isset($normalized['tracking'])
-            || isset($normalized['import_line_id']);
-
-        if (! $hasIdentity && ($normalized['source'] ?? '') === 'manual') {
-            return null;
-        }
-
-        if (! $hasIdentity && ($normalized['source'] ?? '') === 'bulk') {
-            // Bulk without reference: include invoice + amount + date + batch
-            if (! isset($normalized['bulk_batch'])) {
-                $normalized['bulk_batch'] = uniqid('bulk_', true);
-            }
-        }
-
         if ($normalized === []) {
             return null;
         }
 
+        // Double-clic / retry : facture + montant + date + méthode suffisent à bloquer un doublon exact.
+        // Une référence/tracking/import_line renforce l'identité quand elle est fournie.
         ksort($normalized);
 
         return hash('sha256', json_encode($normalized, JSON_UNESCAPED_UNICODE));

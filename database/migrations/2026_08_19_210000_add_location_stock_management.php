@@ -97,7 +97,7 @@ return new class extends Migration
         $shopifyId = DB::table('warehouses')->where('code', 'SHOPIFY')->value('id');
         if (! $shopifyId) {
             $shopifyId = DB::table('warehouses')->insertGetId([
-                'name' => 'Stock Shopify / En ligne',
+                'name' => 'SHOPIFY STOCK EN LIGNE',
                 'code' => 'SHOPIFY',
                 'kind' => 'online',
                 'address' => null,

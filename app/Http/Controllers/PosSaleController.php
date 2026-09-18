@@ -13,6 +13,7 @@ class PosSaleController extends Controller
     public function index(Request $request)
     {
         $query = PosSale::with(['client', 'user'])
+            ->truePos()
             ->where('status', PosSale::STATUS_COMPLETED);
 
         $this->applyTableSearch($query, $request, ['ticket_number', 'external_id', 'client.name', 'fulfillments.tracking_number', 'trackings.tracking_number']);

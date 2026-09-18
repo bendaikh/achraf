@@ -54,6 +54,11 @@ class ExpenseWithoutInvoiceController extends Controller
 
         $validated['expense_type'] = 'without_invoice';
         $validated = $this->prepareRecurrence($request, $validated);
+        // Sans facture : l'enregistrement reste un paiement immédiat (comportement historique).
+        $validated['payment_status'] = $validated['payment_status'] ?? Expense::PAYMENT_PAID;
+        if (($validated['payment_status'] ?? null) === Expense::PAYMENT_PAID && empty($validated['paid_at'])) {
+            $validated['paid_at'] = now();
+        }
         unset($validated['invoice_file']);
 
         $expense = Expense::create($validated);

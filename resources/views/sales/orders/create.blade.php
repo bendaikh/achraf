@@ -365,14 +365,20 @@ function orderForm(config) {
         productResults: [],
         searching: false,
         noResults: false,
+        searchRequestId: 0,
+        searchAbort: null,
         discountType: @js(old('discount_type', 'amount')),
         discountValue: Number(@js(old('discount_value', 0))) || 0,
         shipping: Number(@js(old('shipping_amount', 0))) || 0,
         async searchProducts() {
             const term = this.productQuery.trim();
             if (term.length < 2) {
+                this.searchAbort?.abort();
+                this.searchAbort = null;
+                this.searchRequestId++;
                 this.productResults = [];
                 this.noResults = false;
+                this.searching = false;
                 return;
             }
             await this.fetchProducts({ q: term });
@@ -385,22 +391,38 @@ function orderForm(config) {
             this.$refs.productSearch?.focus();
         },
         async fetchProducts(params) {
+            this.searchAbort?.abort();
+            const controller = new AbortController();
+            this.searchAbort = controller;
+            const requestId = ++this.searchRequestId;
             this.searching = true;
             this.noResults = false;
             try {
                 const query = new URLSearchParams(params).toString();
                 const response = await fetch(config.productSearchUrl + '?' + query, {
                     headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                    credentials: 'same-origin'
+                    credentials: 'same-origin',
+                    signal: controller.signal,
                 });
+                if (requestId !== this.searchRequestId) {
+                    return;
+                }
                 const payload = response.ok ? await response.json() : {};
                 this.productResults = payload.products || [];
                 this.noResults = this.productResults.length === 0;
             } catch (error) {
+                if (error?.name === 'AbortError') {
+                    return;
+                }
+                if (requestId !== this.searchRequestId) {
+                    return;
+                }
                 this.productResults = [];
                 this.noResults = true;
             } finally {
-                this.searching = false;
+                if (requestId === this.searchRequestId) {
+                    this.searching = false;
+                }
             }
         },
         addProduct(product) {
@@ -410,6 +432,8 @@ function orderForm(config) {
             this.productQuery = '';
             this.productResults = [];
             this.noResults = false;
+            this.searchAbort?.abort();
+            this.searchRequestId++;
         },
         lineTotal(item) {
             return Math.max(0, (Number(item.price) * Number(item.quantity || 0)) - Number(item.discount || 0));

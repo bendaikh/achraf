@@ -338,6 +338,7 @@ class ReceptionController extends Controller
             foreach ($reception->items as $item) {
                 $invoice->items()->create([
                     'product_id' => $item->product_id,
+                    'product_variant_id' => $item->product_variant_id,
                     'ref' => $item->ref,
                     'designation' => $item->designation,
                     'description' => $item->description,

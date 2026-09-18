@@ -11,7 +11,7 @@ class SupplierPurchaseOrder extends Model
 
     protected $fillable = [
         'order_number', 'supplier_id', 'order_date', 'due_date', 'reference_invoice',
-        'currency', 'stock_location', 'model', 'remarks', 'conditions',
+        'currency', 'stock_location', 'warehouse_id', 'model', 'remarks', 'conditions',
         'subtotal', 'discount', 'adjustment', 'total',
     ];
 
@@ -27,6 +27,11 @@ class SupplierPurchaseOrder extends Model
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
     }
 
     public function items()

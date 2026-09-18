@@ -111,6 +111,15 @@ class Invoice extends Model
 
     public function getTotalPaidAttribute(): float
     {
+        // Seuls les paiements réalisés (date <= aujourd'hui) réduisent le solde « payé ».
+        return (float) $this->payments()->realized()->sum('amount');
+    }
+
+    /**
+     * Montant déjà réservé (réalisé + programmé) — empêche le sur-paiement.
+     */
+    public function getTotalAllocatedAttribute(): float
+    {
         return (float) $this->payments()->sum('amount');
     }
 
@@ -211,11 +220,11 @@ class Invoice extends Model
     }
 
     /**
-     * Solde encore à encaisser auprès du client (livraison client comprise si absente de la facture).
+     * Solde libre pour un nouveau paiement (paiements programmés inclus).
      */
     public function collectibleRemainingBalance(): float
     {
-        return max(0.0, round($this->collectibleTotal() - $this->total_paid, 2));
+        return max(0.0, round($this->collectibleTotal() - $this->total_allocated, 2));
     }
 
     public function getComputedPaymentStatusAttribute(): string

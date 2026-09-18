@@ -96,6 +96,7 @@ class FinancialManagementService
             ->sum('total');
 
         $posStandalone = (float) PosSale::query()
+            ->truePos()
             ->where('status', PosSale::STATUS_COMPLETED)
             ->whereBetween('sold_at', [$dateFrom, $dateTo])
             ->whereDoesntHave('invoice')
@@ -159,6 +160,7 @@ class FinancialManagementService
         $collectedInvoices = $invoiceTotals['tax_total'];
 
         $posSales = PosSale::query()
+            ->truePos()
             ->where('status', PosSale::STATUS_COMPLETED)
             ->whereBetween('sold_at', [$dateFrom, $dateTo])
             ->whereDoesntHave('invoice')
@@ -463,6 +465,7 @@ class FinancialManagementService
     public function getCashMovements(Carbon $dateFrom, Carbon $dateTo): array
     {
         $posStandalone = (float) PosSale::query()
+            ->truePos()
             ->where('status', PosSale::STATUS_COMPLETED)
             ->whereBetween('sold_at', [$dateFrom, $dateTo])
             ->whereDoesntHave('invoice')
@@ -471,6 +474,7 @@ class FinancialManagementService
         // Ventes POS déjà facturées mais sans ligne de paiement (ex. auto-payées) :
         // l'encaissement réel a eu lieu au ticket caisse.
         $posInvoicedWithoutPayments = (float) PosSale::query()
+            ->truePos()
             ->where('status', PosSale::STATUS_COMPLETED)
             ->whereBetween('sold_at', [$dateFrom, $dateTo])
             ->whereHas('invoice', fn ($q) => $q->whereDoesntHave('payments'))
@@ -546,8 +550,9 @@ class FinancialManagementService
             }
         };
 
-        // Entrées POS : tickets sans facture, ou facturés sans ligne de paiement.
+        // Entrées POS : tickets comptoir uniquement (hors Shopify/Jumia/Libromart).
         PosSale::query()
+            ->truePos()
             ->where('status', PosSale::STATUS_COMPLETED)
             ->where(function ($q) {
                 $q->whereDoesntHave('invoice')
@@ -729,6 +734,7 @@ class FinancialManagementService
         if ($includePos) {
             $transactions = $transactions->concat(
                 PosSale::with('client')
+                    ->truePos()
                     ->where('status', PosSale::STATUS_COMPLETED)
                     ->where(function ($q) {
                         $q->whereDoesntHave('invoice')
@@ -989,6 +995,7 @@ class FinancialManagementService
             ->all();
 
         $posSales = PosSale::with('client')
+            ->truePos()
             ->where('status', PosSale::STATUS_COMPLETED)
             ->whereDoesntHave('invoice')
             ->whereBetween('sold_at', [$dateFrom, $dateTo])

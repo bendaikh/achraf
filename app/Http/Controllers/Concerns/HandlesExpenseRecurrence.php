@@ -57,7 +57,6 @@ trait HandlesExpenseRecurrence
     {
         $isRecurring = $request->boolean('is_recurring');
         $validated['is_recurring'] = $isRecurring;
-        $validated['payment_status'] = Expense::PAYMENT_PAID;
 
         if (! $isRecurring) {
             unset($validated['recurrence_no_end']);

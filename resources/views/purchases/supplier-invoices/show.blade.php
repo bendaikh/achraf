@@ -116,13 +116,14 @@
                 @csrf
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Dépôt défaut</label>
-                    <select name="warehouse_id" class="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <select name="warehouse_id" id="invoice_recv_header_warehouse" class="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg text-sm">
                         @foreach($warehouses ?? [] as $warehouse)
                             <option value="{{ $warehouse->id }}" @selected(($supplierInvoice->warehouse_id ?: optional($warehouses->firstWhere('is_fulfillment_default', true))->id) == $warehouse->id)>
                                 {{ $warehouse->isOnline() ? '🟢 ' : '' }}{{ $warehouse->name }}
                             </option>
                         @endforeach
                     </select>
+                    <p class="mt-1 text-xs text-amber-700">Appliqué automatiquement aux lignes non modifiées manuellement.</p>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
@@ -147,9 +148,9 @@
                                     </td>
                                     <td class="px-3 py-2">{{ $row['remaining'] }}</td>
                                     <td class="px-3 py-2">
-                                        <select name="items[{{ $idx }}][warehouse_id]" class="w-full px-2 py-1 border rounded invoice-recv-wh" data-idx="{{ $idx }}">
+                                        <select name="items[{{ $idx }}][warehouse_id]" class="w-full px-2 py-1 border rounded invoice-recv-wh" data-idx="{{ $idx }}" data-manual-override="0">
                                             @foreach($warehouses ?? [] as $warehouse)
-                                                <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                                                <option value="{{ $warehouse->id }}" @selected(($supplierInvoice->warehouse_id ?: optional($warehouses->firstWhere('is_fulfillment_default', true))->id) == $warehouse->id)>{{ $warehouse->name }}</option>
                                             @endforeach
                                         </select>
                                     </td>
@@ -182,19 +183,43 @@
             function fillLoc(idx, warehouseId) {
                 var select = document.getElementById('invoice_recv_loc_' + idx);
                 if (!select) return;
+                var previous = select.value;
                 var wh = warehouses.find(function (w) { return String(w.id) === String(warehouseId); });
                 select.innerHTML = '<option value="">—</option>';
+                var matched = false;
                 (wh && wh.locations || []).forEach(function (loc) {
                     var opt = document.createElement('option');
                     opt.value = loc.id;
                     opt.textContent = loc.label;
+                    if (String(loc.id) === String(previous)) {
+                        opt.selected = true;
+                        matched = true;
+                    }
                     select.appendChild(opt);
+                });
+                if (!matched) select.value = '';
+            }
+            function applyHeaderToLines() {
+                var header = document.getElementById('invoice_recv_header_warehouse');
+                if (!header || !header.value) return;
+                document.querySelectorAll('.invoice-recv-wh').forEach(function (el) {
+                    if (el.dataset.manualOverride === '1') return;
+                    el.value = header.value;
+                    fillLoc(el.dataset.idx, el.value);
                 });
             }
             document.querySelectorAll('.invoice-recv-wh').forEach(function (el) {
                 fillLoc(el.dataset.idx, el.value);
-                el.addEventListener('change', function () { fillLoc(this.dataset.idx, this.value); });
+                el.addEventListener('change', function () {
+                    this.dataset.manualOverride = '1';
+                    fillLoc(this.dataset.idx, this.value);
+                });
             });
+            var header = document.getElementById('invoice_recv_header_warehouse');
+            if (header) {
+                header.addEventListener('change', applyHeaderToLines);
+                applyHeaderToLines();
+            }
         })();
         </script>
         @endpush

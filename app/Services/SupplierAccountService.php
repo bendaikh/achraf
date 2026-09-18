@@ -24,6 +24,11 @@ class SupplierAccountService
 
     public function invoicePaid(SupplierInvoice $invoice): float
     {
+        return $this->money($invoice->payments()->realized()->sum('amount'));
+    }
+
+    public function invoiceAllocated(SupplierInvoice $invoice): float
+    {
         return $this->money($invoice->payments()->sum('amount'));
     }
 
@@ -35,7 +40,7 @@ class SupplierAccountService
     public function invoiceRemaining(SupplierInvoice $invoice): float
     {
         return max(0, $this->money(
-            (float) $invoice->total - $this->invoicePaid($invoice) - $this->invoiceCreditsApplied($invoice)
+            (float) $invoice->total - $this->invoiceAllocated($invoice) - $this->invoiceCreditsApplied($invoice)
         ));
     }
 

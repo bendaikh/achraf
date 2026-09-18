@@ -423,20 +423,29 @@
                     autocomplete="email"
                     required
                     value="{{ old('email') }}"
-                    placeholder="superadmin@achraf.com"
+                    placeholder="votre@email.com"
                 >
             </div>
 
             <div class="auth-field">
                 <label for="password">Mot de passe</label>
-                <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autocomplete="current-password"
-                    required
-                    placeholder="••••••••"
-                >
+                <div style="position:relative">
+                    <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        autocomplete="current-password"
+                        required
+                        placeholder="••••••••"
+                        style="padding-right:2.75rem"
+                    >
+                    <button
+                        type="button"
+                        id="toggle-password"
+                        aria-label="Afficher le mot de passe"
+                        style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#64748b;cursor:pointer;font-size:0.75rem;font-weight:600"
+                    >Afficher</button>
+                </div>
             </div>
 
             <label class="auth-row">
@@ -447,12 +456,20 @@
             <button type="submit" class="auth-btn">Se connecter</button>
         </form>
 
-        <div class="auth-creds">
-            Identifiants par défaut :<br>
-            <strong>superadmin@achraf.com</strong> / <strong>password</strong>
-        </div>
-
         <p class="auth-foot">© {{ date('Y') }} LAV'FAST</p>
     </div>
 </div>
+<script>
+    (function () {
+        const input = document.getElementById('password');
+        const toggle = document.getElementById('toggle-password');
+        if (!input || !toggle) return;
+        toggle.addEventListener('click', function () {
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            toggle.textContent = show ? 'Masquer' : 'Afficher';
+            toggle.setAttribute('aria-label', show ? 'Masquer le mot de passe' : 'Afficher le mot de passe');
+        });
+    })();
+</script>
 @endsection

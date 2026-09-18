@@ -161,6 +161,56 @@ class FinancialMovementServiceTest extends TestCase
         $this->assertEquals(1, FinancialMovement::query()->where('source_type', InvoicePayment::class)->count());
     }
 
+    public function test_channel_orders_do_not_create_pos_cash_movements(): void
+    {
+        foreach (['shopify', 'jumia', 'libromart'] as $source) {
+            $sale = PosSale::create([
+                'ticket_number' => 'CH-'.$source,
+                'sold_at' => Carbon::parse('2026-08-01 10:00:00'),
+                'currency' => 'dh - MAD',
+                'subtotal' => 100,
+                'discount' => 0,
+                'tax_total' => 20,
+                'total' => 120,
+                'payment_method' => 'cash',
+                'status' => PosSale::STATUS_COMPLETED,
+                'source' => $source,
+            ]);
+
+            $this->assertNull($this->service->syncFromPosSale($sale));
+            $this->assertDatabaseMissing('financial_movements', [
+                'source_type' => PosSale::class,
+                'source_id' => $sale->id,
+            ]);
+        }
+    }
+
+    public function test_true_pos_sale_still_creates_cash_movement(): void
+    {
+        $sale = PosSale::create([
+            'ticket_number' => 'POS-REAL-1',
+            'sold_at' => Carbon::parse('2026-08-01 10:00:00'),
+            'currency' => 'dh - MAD',
+            'subtotal' => 100,
+            'discount' => 0,
+            'tax_total' => 20,
+            'total' => 120,
+            'payment_method' => 'cash',
+            'status' => PosSale::STATUS_COMPLETED,
+            'source' => null,
+        ]);
+
+        $movement = FinancialMovement::query()
+            ->where('source_type', PosSale::class)
+            ->where('source_id', $sale->id)
+            ->first();
+
+        $this->assertNotNull($movement);
+        $this->assertSame(FinancialMovement::ORIGIN_POS, $movement->origin);
+        $this->assertSame(120.0, (float) $movement->amount_in);
+        $this->assertStringContainsString('Encaissement POS', $movement->label);
+    }
+
     public function test_manual_movement_and_treasury(): void
     {
         $this->service->createManual([

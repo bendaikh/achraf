@@ -9,6 +9,7 @@ use App\Models\SupplierDeliveryNote;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierPurchaseOrder;
 use App\Models\Warehouse;
+use App\Models\WarehouseLocation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
@@ -91,9 +92,12 @@ class PurchaseStockReceiptService
             $lineWarehouseId = isset($item['warehouse_id']) && $item['warehouse_id']
                 ? (int) $item['warehouse_id']
                 : (int) $defaultWarehouse->id;
-            $lineLocationId = isset($item['warehouse_location_id']) && $item['warehouse_location_id']
-                ? (int) $item['warehouse_location_id']
-                : null;
+            $lineLocationId = $this->sanitizeLocationId(
+                isset($item['warehouse_location_id']) && $item['warehouse_location_id']
+                    ? (int) $item['warehouse_location_id']
+                    : null,
+                $lineWarehouseId
+            );
 
             $allocations = $this->normalizeAllocations(
                 $item['allocations'] ?? [],
@@ -214,9 +218,12 @@ class PurchaseStockReceiptService
                     continue;
                 }
                 $wid = (int) ($row['warehouse_id'] ?? 0);
-                $lid = isset($row['warehouse_location_id']) && $row['warehouse_location_id']
-                    ? (int) $row['warehouse_location_id']
-                    : null;
+                $lid = $this->sanitizeLocationId(
+                    isset($row['warehouse_location_id']) && $row['warehouse_location_id']
+                        ? (int) $row['warehouse_location_id']
+                        : null,
+                    $wid
+                );
                 $q = (int) ($row['quantity'] ?? 0);
                 if ($wid > 0 && $q > 0) {
                     $rows[] = [
@@ -244,6 +251,20 @@ class PurchaseStockReceiptService
         }
 
         return $rows;
+    }
+
+    public function sanitizeLocationId(?int $locationId, int $warehouseId): ?int
+    {
+        if (! $locationId || $warehouseId <= 0) {
+            return null;
+        }
+
+        $belongs = WarehouseLocation::query()
+            ->where('id', $locationId)
+            ->where('warehouse_id', $warehouseId)
+            ->exists();
+
+        return $belongs ? $locationId : null;
     }
 
     /**

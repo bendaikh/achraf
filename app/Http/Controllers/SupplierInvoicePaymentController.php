@@ -69,7 +69,7 @@ class SupplierInvoicePaymentController extends Controller
             'cheque_beneficiary' => $validated['cheque_beneficiary'] ?? ($supplierInvoice->supplier?->name),
             'cheque_status' => $validated['cheque_status'] ?? null,
             'notes' => $validated['notes'] ?? null,
-            'allow_overpayment' => true,
+            'allow_overpayment' => $request->boolean('allow_overpayment'),
             'use_credits' => $request->boolean('use_credits'),
             'use_advances' => true,
             'source' => 'manual',

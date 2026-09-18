@@ -18,7 +18,8 @@ use App\Services\PurchaseDocumentChainService;
 use App\Services\PurchaseReceiptService;
 use App\Services\PurchaseStockReceiptService;
 use App\Support\CommercialDocumentView;
-use App\Support\LineItemCalculator;
+use App\Support\LineItemPersistence;
+use App\Support\VariantLineItem;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -264,7 +265,7 @@ class SupplierDeliveryNoteController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ] + $this->purchaseStockReceipt->validationRules());
+        ] + VariantLineItem::validationRules() + $this->purchaseStockReceipt->validationRules());
     }
 
     protected function syncItems(SupplierDeliveryNote $deliveryNote, array $items): float
@@ -272,20 +273,7 @@ class SupplierDeliveryNoteController extends Controller
         $subtotal = 0;
 
         foreach ($items as $item) {
-            $computed = LineItemCalculator::compute($item, 'purchase');
-
-            $deliveryNote->items()->create([
-                'product_id' => $item['product_id'] ?? null,
-                'ref' => $item['ref'] ?? null,
-                'designation' => $item['designation'],
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['unit_price'],
-                'tax_rate' => $item['tax_rate'],
-                'discount' => $computed['discount'],
-                'discount_type' => $computed['discount_type'],
-                'line_total' => $computed['line_total'],
-            ]);
-
+            $computed = LineItemPersistence::createPurchaseItem($deliveryNote, $item);
             $subtotal += $computed['line_total'];
         }
 
@@ -371,6 +359,7 @@ class SupplierDeliveryNoteController extends Controller
             foreach ($note->items as $item) {
                 $invoice->items()->create([
                     'product_id' => $item->product_id,
+                    'product_variant_id' => $item->product_variant_id,
                     'ref' => $item->ref,
                     'designation' => $item->designation,
                     'description' => $item->description,

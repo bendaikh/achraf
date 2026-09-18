@@ -102,7 +102,7 @@ class PurchasePaymentController extends Controller
             'payment_method' => $validated['payment_method'],
             'payment_reference' => $validated['payment_reference'] ?? null,
             'notes' => $validated['notes'] ?? null,
-            'allow_overpayment' => true,
+            'allow_overpayment' => $request->boolean('allow_overpayment'),
             'use_credits' => (bool) $request->boolean('use_credits'),
             'use_advances' => true,
             'source' => 'manual',
@@ -110,7 +110,7 @@ class PurchasePaymentController extends Controller
 
         return redirect()
             ->route('purchases.payments.settle', $invoice->supplier_id)
-            ->with('success', 'Règlement enregistré. Le surplus éventuel est conservé en avance fournisseur.');
+            ->with('success', 'Règlement enregistré.');
     }
 
     public function bulkForm(Request $request)

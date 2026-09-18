@@ -15,7 +15,7 @@ class LineItemPersistence
     public static function createPurchaseItem(Model $document, array $item): array
     {
         $item = VariantLineItem::normalize($item);
-        $computed = LineItemCalculator::compute($item);
+        $computed = LineItemCalculator::compute($item, 'purchase');
 
         $document->items()->create([
             'product_id' => $item['product_id'] ?? null,
@@ -42,7 +42,7 @@ class LineItemPersistence
     public static function createInvoiceItem(Model $document, array $item): array
     {
         $item = VariantLineItem::normalize($item);
-        $computed = LineItemCalculator::compute($item);
+        $computed = LineItemCalculator::compute($item, 'purchase');
 
         $document->items()->create([
             'product_id' => $item['product_id'] ?? null,

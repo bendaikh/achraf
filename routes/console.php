@@ -50,6 +50,11 @@ Schedule::command('payments:process-imports --max=1')
     ->withoutOverlapping(15)
     ->appendOutputTo(storage_path('logs/payment-imports.log'));
 
+Schedule::command('payments:realize-due')
+    ->hourly()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/realize-due-payments.log'));
+
 Schedule::command('expenses:generate-recurring')
     ->dailyAt('00:05')
     ->withoutOverlapping()

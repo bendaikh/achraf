@@ -3,6 +3,9 @@
 @section('title', 'Règlement de paiement')
 
 @section('main')
+@php
+    $isFullyPaid = ($trace['net_to_pay'] ?? 0) <= 0.009;
+@endphp
 <main class="flex-1 w-full min-w-0" x-data="{ method: '{{ old('payment_method', '') }}' }">
     <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div class="px-8 py-4 flex items-center justify-between gap-3 flex-wrap">
@@ -49,6 +52,17 @@
         </div>
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            @if($isFullyPaid)
+                <div class="bg-green-100 border border-green-300 rounded-xl px-6 py-4 flex items-center gap-3">
+                    <svg class="h-6 w-6 text-green-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <div>
+                        <p class="font-semibold text-green-800">Facture soldée</p>
+                        <p class="text-sm text-green-700">Aucun nouveau paiement n’est autorisé sur cette facture.</p>
+                    </div>
+                </div>
+            @else
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Ajouter un paiement</h3>
             <form action="{{ route('supplier-invoices.payments.store', $supplierInvoice) }}" method="POST" enctype="multipart/form-data">
                 @csrf
@@ -56,11 +70,12 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Date de paiement *</label>
                         <input type="date" name="payment_date" value="{{ old('payment_date', date('Y-m-d')) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        <p class="text-xs text-gray-500 mt-1">Une date future enregistre un paiement programmé (sans mouvement de trésorerie tant que la date n’est pas atteinte).</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Montant *</label>
-                        <input type="number" step="0.01" name="amount" value="{{ old('amount', number_format($trace['net_to_pay'], 2, '.', '')) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="0.00">
-                        <p class="text-xs text-gray-500 mt-1">Un surplus est conservé en avance fournisseur.</p>
+                        <input type="number" step="0.01" name="amount" value="{{ old('amount', number_format($trace['net_to_pay'], 2, '.', '')) }}" required max="{{ number_format($trace['net_to_pay'], 2, '.', '') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="0.00">
+                        <p class="text-xs text-gray-500 mt-1">Maximum : {{ number_format($trace['net_to_pay'], 2) }} DH (solde restant).</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Méthode de paiement *</label>
@@ -135,6 +150,7 @@
                     </button>
                 </div>
             </form>
+            @endif
         </div>
 
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

@@ -705,9 +705,12 @@ class DashboardService
      */
     public function getReceivables(int $limit = self::LIST_LIMIT): array
     {
+        $today = Carbon::today()->toDateString();
         $rows = Invoice::query()
             ->with('client')
-            ->withSum('payments as payments_sum', 'amount')
+            ->withSum([
+                'payments as payments_sum' => fn ($q) => $q->whereDate('payment_date', '<=', $today),
+            ], 'amount')
             ->orderByDesc('invoice_date')
             ->get()
             ->map(function (Invoice $invoice) {
@@ -750,9 +753,12 @@ class DashboardService
      */
     public function getPayables(int $limit = self::LIST_LIMIT): array
     {
+        $today = Carbon::today()->toDateString();
         $rows = SupplierInvoice::query()
             ->with('supplier')
-            ->withSum('payments as payments_sum', 'amount')
+            ->withSum([
+                'payments as payments_sum' => fn ($q) => $q->whereDate('payment_date', '<=', $today),
+            ], 'amount')
             ->withSum('creditNoteAllocations as credit_note_allocations_sum_amount', 'amount')
             ->orderByDesc('invoice_date')
             ->get()
@@ -937,7 +943,10 @@ class DashboardService
      */
     private function openBalances(Builder $query): array
     {
-        $query->withSum('payments as payments_sum', 'amount');
+        $today = now()->toDateString();
+        $query->withSum([
+            'payments as payments_sum' => fn ($q) => $q->whereDate('payment_date', '<=', $today),
+        ], 'amount');
 
         if ($query->getModel() instanceof SupplierInvoice) {
             $query->withSum('creditNoteAllocations as credit_note_allocations_sum_amount', 'amount');

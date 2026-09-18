@@ -20,7 +20,8 @@ use App\Services\PurchaseReceptionCreationService;
 use App\Services\PurchaseStockReceiptService;
 use App\Services\StockMovementService;
 use App\Support\CommercialDocumentView;
-use App\Support\LineItemCalculator;
+use App\Support\LineItemPersistence;
+use App\Support\VariantLineItem;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -108,7 +109,7 @@ class SupplierInvoiceController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ] + $this->purchaseStockReceipt->validationRules() + $this->adjustmentValidationRules());
+        ] + VariantLineItem::validationRules() + $this->purchaseStockReceipt->validationRules() + $this->adjustmentValidationRules());
 
         $warehouse = $this->purchaseStockReceipt->resolveDefaultWarehouse(
             isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null,
@@ -146,22 +147,7 @@ class SupplierInvoiceController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item, 'purchase');
-
-                $invoice->items()->create([
-                    'product_id' => $item['product_id'] ?? null,
-                    'ref' => $item['ref'] ?? null,
-                    'designation' => $item['designation'],
-                    'description' => $item['description'] ?? null,
-                    'source_document_reference' => $item['source_document_reference'] ?? null,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'tax_rate' => $item['tax_rate'],
-                    'discount' => $computed['discount'],
-                    'discount_type' => $computed['discount_type'],
-                    'line_total' => $computed['line_total'],
-                ]);
-
+                $computed = LineItemPersistence::createPurchaseItem($invoice, $item);
                 $subtotal += $computed['line_total'];
             }
 
@@ -306,7 +292,7 @@ class SupplierInvoiceController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ] + $this->purchaseStockReceipt->validationRules() + $this->adjustmentValidationRules());
+        ] + VariantLineItem::validationRules() + $this->purchaseStockReceipt->validationRules() + $this->adjustmentValidationRules());
 
         $warehouse = $this->purchaseStockReceipt->resolveDefaultWarehouse(
             isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : ($supplierInvoice->warehouse_id ? (int) $supplierInvoice->warehouse_id : null),
@@ -337,22 +323,7 @@ class SupplierInvoiceController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item, 'purchase');
-
-                $supplierInvoice->items()->create([
-                    'product_id' => $item['product_id'] ?? null,
-                    'ref' => $item['ref'] ?? null,
-                    'designation' => $item['designation'],
-                    'description' => $item['description'] ?? null,
-                    'source_document_reference' => $item['source_document_reference'] ?? null,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'tax_rate' => $item['tax_rate'],
-                    'discount' => $computed['discount'],
-                    'discount_type' => $computed['discount_type'],
-                    'line_total' => $computed['line_total'],
-                ]);
-
+                $computed = LineItemPersistence::createPurchaseItem($supplierInvoice, $item);
                 $subtotal += $computed['line_total'];
             }
 

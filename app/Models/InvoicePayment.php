@@ -52,6 +52,21 @@ class InvoicePayment extends Model
         return $this->belongsTo(Invoice::class);
     }
 
+    public function scopeRealized($query)
+    {
+        return $query->whereDate('payment_date', '<=', now()->toDateString());
+    }
+
+    public function isRealized(): bool
+    {
+        return \App\Support\PaymentRealization::isRealized($this->payment_date);
+    }
+
+    public function isScheduled(): bool
+    {
+        return ! $this->isRealized();
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
