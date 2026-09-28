@@ -99,7 +99,7 @@
         var states = readStates();
         states[pathname] = {
             url: storedUrl,
-            scroll: window.scrollY || 0,
+            scroll: getScrollY(),
             updatedAt: Date.now()
         };
         writeStates(states);
@@ -116,12 +116,38 @@
         persistListUrl(currentListUrl(), currentListPath());
     }
 
+    function getScrollY() {
+        var shell = document.querySelector('.app-shell-main');
+        if (shell && shell.scrollHeight > shell.clientHeight + 1) {
+            return shell.scrollTop || 0;
+        }
+        var pageMain = document.querySelector('#app-page-root > main');
+        if (pageMain && pageMain.scrollHeight > pageMain.clientHeight + 1) {
+            return pageMain.scrollTop || 0;
+        }
+        return window.scrollY || window.pageYOffset || 0;
+    }
+
+    function setScrollY(y) {
+        var shell = document.querySelector('.app-shell-main');
+        if (shell && shell.scrollHeight > shell.clientHeight + 1) {
+            shell.scrollTop = y;
+            return;
+        }
+        var pageMain = document.querySelector('#app-page-root > main');
+        if (pageMain && pageMain.scrollHeight > pageMain.clientHeight + 1) {
+            pageMain.scrollTop = y;
+            return;
+        }
+        window.scrollTo(0, y);
+    }
+
     function restoreScroll(saved) {
         if (!saved || typeof saved.scroll !== 'number') {
             return;
         }
         window.setTimeout(function () {
-            window.scrollTo(0, saved.scroll);
+            setScrollY(saved.scroll);
         }, 30);
     }
 
@@ -130,7 +156,7 @@
             if (replace) {
                 try {
                     window.history.replaceState(
-                        { softNav: true, url: url, scrollY: window.scrollY || 0 },
+                        { softNav: true, url: url, scrollY: getScrollY() },
                         '',
                         url
                     );
@@ -286,8 +312,19 @@
             id: input.id || '',
             value: input.value,
             caret: typeof input.selectionStart === 'number' ? input.selectionStart : input.value.length,
-            path: form ? listPathFromForm(form) : window.location.pathname
+            path: form ? listPathFromForm(form) : window.location.pathname,
+            scrollY: getScrollY()
         };
+        try {
+            sessionStorage.setItem(LIVE_SEARCH_FOCUS_KEY, JSON.stringify(liveSearchDraft));
+        } catch (e) {}
+    }
+
+    function rememberLiveSearchScroll() {
+        if (!liveSearchDraft) {
+            return;
+        }
+        liveSearchDraft.scrollY = getScrollY();
         try {
             sessionStorage.setItem(LIVE_SEARCH_FOCUS_KEY, JSON.stringify(liveSearchDraft));
         } catch (e) {}
@@ -349,7 +386,14 @@
             input.value = state.value;
         }
 
-        input.focus();
+        // Keep the user's scroll position: focusing the search field would
+        // otherwise scroll the page back up to the filter card.
+        var keepY = typeof state.scrollY === 'number' ? state.scrollY : getScrollY();
+        try {
+            input.focus({ preventScroll: true });
+        } catch (e) {
+            input.focus();
+        }
         var pos = Math.min(
             typeof state.caret === 'number' ? state.caret : input.value.length,
             input.value.length
@@ -368,7 +412,16 @@
         } catch (e) {
             applied = '';
         }
-        if ((state.value || '') === applied) {
+        var draftAhead = (state.value || '') !== applied;
+        if (draftAhead) {
+            // Mid live-search refresh: keep the scroll the user had while typing.
+            setScrollY(keepY);
+            window.requestAnimationFrame(function () {
+                setScrollY(keepY);
+            });
+        }
+
+        if (!draftAhead) {
             return;
         }
 
@@ -491,9 +544,17 @@
     }, true);
     window.addEventListener('pagehide', persistCurrentList);
     window.addEventListener('beforeunload', persistCurrentList);
+    // capture:true so we also see scroll on overflow containers (app shell / main)
+    document.addEventListener('scroll', rememberLiveSearchScroll, { passive: true, capture: true });
     window.addEventListener('soft-nav:loaded', function () {
         patchSoftNav();
-        maybeRestoreList();
+        // While live search is active, do not restore a stale saved scroll
+        // (captured when the request started) — that jumps the user back up.
+        if (liveSearchDraft) {
+            persistCurrentList();
+        } else {
+            maybeRestoreList();
+        }
         restoreSearchCaret();
     });
 

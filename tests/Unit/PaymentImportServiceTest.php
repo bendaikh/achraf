@@ -384,6 +384,59 @@ class PaymentImportServiceTest extends TestCase
         $this->assertContains(PaymentMatchingService::CRITERION_NAME_AMOUNT, $result['criteria']);
     }
 
+    public function test_it_reads_native_speedaf_headers(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'speedaf-').'.xlsx';
+        $spreadsheet = new Spreadsheet;
+        // Native Speedaf export: title rows then header, then data + total.
+        $spreadsheet->getActiveSheet()->fromArray([
+            ['Speedaf Settlement Report', null, null, null, null],
+            ['Period: 2026-10', null, null, null, null],
+            ['Ordre de client', 'Waybill', 'COD', 'Fret', 'Net', 'Status'],
+            ['CMD-4501', 'SF998877', 450, 40, 410, 'Livré'],
+            ['CMD-4502', 'SF998878', 200, 25, 175, 'Livré'],
+            ['Total', null, 650, 65, 585, null],
+        ]);
+        (new Xlsx($spreadsheet))->save($path);
+
+        try {
+            $rows = $this->service()->readFile($path, 'xlsx');
+        } finally {
+            @unlink($path);
+        }
+
+        $this->assertCount(2, $rows);
+        $fields = $this->service()->extractRowFields($rows[0]);
+        $this->assertSame('SF998877', $fields['tracking']);
+        $this->assertSame('CMD-4501', $fields['order_ref']);
+        $this->assertSame(450.0, $fields['gross_amount']);
+        $this->assertSame(40.0, $fields['delivery_fees']);
+        $this->assertSame(410.0, $fields['net_amount']);
+        $this->assertSame('Speedaf', $fields['carrier']);
+    }
+
+    public function test_it_collapses_jumia_fee_component_rows_by_order_no(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'jumia-').'.csv';
+        file_put_contents($path, "Order No.;Tracking Number;Item Price Credit;Commission;Shipping Fee;Status\n"
+            ."JM-100;TRK-1;300;30;0;Livré\n"
+            ."JM-100;TRK-1;0;0;15;Livré\n");
+
+        try {
+            $rows = $this->service()->readFile($path, 'csv');
+        } finally {
+            @unlink($path);
+        }
+
+        $this->assertCount(1, $rows);
+        $fields = $this->service()->extractRowFields($rows[0]);
+        $this->assertSame('JM-100', $fields['order_ref']);
+        $this->assertSame('TRK-1', $fields['tracking']);
+        $this->assertSame(300.0, $fields['gross_amount']);
+        $this->assertSame(45.0, $fields['delivery_fees']);
+        $this->assertSame(255.0, $fields['net_amount']);
+    }
+
     private function service(): TestablePaymentImportService
     {
         return new TestablePaymentImportService(

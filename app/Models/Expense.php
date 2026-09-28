@@ -30,7 +30,7 @@ class Expense extends Model
     ];
 
     protected $attributes = [
-        'payment_status' => self::PAYMENT_PAID,
+        'payment_status' => self::PAYMENT_PENDING,
         'is_recurring' => false,
         'recurrence_interval' => 1,
     ];
@@ -38,7 +38,9 @@ class Expense extends Model
     protected $fillable = [
         'designation', 'expense_type', 'expense_category', 'expense_date', 'amount', 'currency',
         'reference', 'client_id', 'supplier_id', 'payment_method', 'account', 'tax_type', 'invoice_file_path',
-        'payment_status', 'paid_at', 'is_recurring', 'recurrence_frequency', 'recurrence_interval',
+        'payment_status', 'paid_at', 'amount_paid', 'bank_card_id', 'endowment_id',
+        'amount_currency', 'exchange_rate',
+        'is_recurring', 'recurrence_frequency', 'recurrence_interval',
         'recurrence_interval_unit', 'recurrence_start_date', 'recurrence_end_date', 'next_due_date',
         'recurrence_status', 'recurrence_parent_id', 'occurrence_date',
     ];
@@ -62,6 +64,16 @@ class Expense extends Model
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function bankCard()
+    {
+        return $this->belongsTo(BankCard::class);
+    }
+
+    public function endowment()
+    {
+        return $this->belongsTo(Endowment::class);
     }
 
     public function recurrenceParent()

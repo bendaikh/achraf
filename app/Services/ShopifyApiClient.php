@@ -52,17 +52,67 @@ class ShopifyApiClient
         return $response['order'];
     }
 
-    public function findOrderByNoteAttribute(string $attribute, string $value): ?array
+    /**
+     * Find an order by a note attribute value.
+     *
+     * Prefer a narrow filter set (tag + created_at_min) to avoid scanning the
+     * entire order history — that scan previously left Libromart syncs stuck
+     * on "in_progress" when the request timed out.
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    public function findOrderByNoteAttribute(string $attribute, string $value, array $filters = []): ?array
     {
-        $createdAtMin = now()->subDays(30)->toIso8601String();
+        $query = array_merge([
+            'status' => 'any',
+            'limit' => 50,
+            'created_at_min' => now()->subDays(7)->toIso8601String(),
+        ], $filters);
 
-        foreach ($this->getAllOrders(['created_at_min' => $createdAtMin, 'status' => 'any']) as $orders) {
-            foreach ($orders as $order) {
-                foreach ($order['note_attributes'] ?? [] as $noteAttribute) {
-                    if (($noteAttribute['name'] ?? null) === $attribute
-                        && (string) ($noteAttribute['value'] ?? '') === $value) {
-                        return $order;
-                    }
+        // Fast path: tag filter (orders created from Libromart carry Libromart-{ticket}).
+        if (! empty($query['tag'])) {
+            $orders = $this->getOrders($query);
+            $match = $this->matchNoteAttribute($orders, $attribute, $value);
+            if ($match) {
+                return $match;
+            }
+
+            // Fall through without tag if nothing matched (tag may have been edited).
+            unset($query['tag']);
+        }
+
+        $pagesScanned = 0;
+        $maxPages = 5; // hard cap so recovery never stalls the HTTP request
+
+        foreach ($this->getAllOrders($query) as $orders) {
+            $match = $this->matchNoteAttribute($orders, $attribute, $value);
+            if ($match) {
+                return $match;
+            }
+
+            $pagesScanned++;
+            if ($pagesScanned >= $maxPages) {
+                Log::warning('Shopify findOrderByNoteAttribute page cap reached', [
+                    'attribute' => $attribute,
+                    'pages' => $pagesScanned,
+                ]);
+                break;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $orders
+     */
+    protected function matchNoteAttribute(array $orders, string $attribute, string $value): ?array
+    {
+        foreach ($orders as $order) {
+            foreach ($order['note_attributes'] ?? [] as $noteAttribute) {
+                if (($noteAttribute['name'] ?? null) === $attribute
+                    && (string) ($noteAttribute['value'] ?? '') === $value) {
+                    return $order;
                 }
             }
         }

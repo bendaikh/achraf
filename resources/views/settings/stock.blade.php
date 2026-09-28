@@ -81,6 +81,22 @@
                                 <input type="checkbox" name="stock_control_enabled" value="1" {{ ($settings['stock_control_enabled'] ?? '1') === '1' ? 'checked' : '' }} class="h-4 w-4 text-[#0a5d8a] rounded">
                                 <span class="text-sm text-gray-700">Contrôle de stock activé (ventes / achats)</span>
                             </label>
+                            <label class="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-3 cursor-pointer">
+                                <input type="hidden" name="stock_picking_enabled" value="0">
+                                <input type="checkbox" name="stock_picking_enabled" value="1" {{ ($settings['stock_picking_enabled'] ?? '0') === '1' ? 'checked' : '' }} class="h-4 w-4 text-[#0a5d8a] rounded">
+                                <span class="text-sm text-gray-700">
+                                    <strong>Activer Préparation / Picking</strong>
+                                    <span class="block text-xs text-gray-500 mt-0.5">OUI = réservation puis validation de sortie. NON = workflow historique (sortie immédiate à la préparation).</span>
+                                </span>
+                            </label>
+                            <label class="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50/50 px-4 py-3 cursor-pointer">
+                                <input type="hidden" name="stock_customer_returns_enabled" value="0">
+                                <input type="checkbox" name="stock_customer_returns_enabled" value="1" {{ ($settings['stock_customer_returns_enabled'] ?? '0') === '1' ? 'checked' : '' }} class="h-4 w-4 text-[#0a5d8a] rounded">
+                                <span class="text-sm text-gray-700">
+                                    <strong>Activer Retours clients / Scan retours</strong>
+                                    <span class="block text-xs text-gray-500 mt-0.5">OUI = interface scan/contrôle. NON = workflow historique (avoirs / remboursements).</span>
+                                </span>
+                            </label>
                         </div>
 
                         <div>
@@ -134,12 +150,17 @@
                                     <input type="checkbox" name="is_fulfillment_default" value="1" class="rounded text-[#0a5d8a]">
                                     Préparation des commandes (Belvédère)
                                 </label>
+                                <label class="flex items-center gap-2 text-sm text-gray-700">
+                                    <input type="checkbox" name="available_for_shopify" value="1" class="rounded text-[#0a5d8a]" checked>
+                                    Disponible pour Shopify (canal de vente)
+                                </label>
                                 <div>
                                     <label class="block text-xs font-medium text-gray-600 mb-1">Type</label>
                                     <select name="kind" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
                                         <option value="physical">Physique (magasin / dépôt)</option>
-                                        <option value="online">En ligne (Shopify)</option>
+                                        <option value="online">Miroir canal (Shopify Stock en ligne)</option>
                                     </select>
+                                    <p class="mt-1 text-[11px] text-slate-500">Shopify est un canal de vente. Le dépôt « en ligne » conserve l’historique ; le stock vendable Shopify doit provenir des dépôts physiques cochés « Disponible pour Shopify ».</p>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium text-gray-600 mb-1">Commentaire</label>
@@ -156,6 +177,7 @@
                                         <th class="px-3 py-2">Code</th>
                                         <th class="px-3 py-2">Ville</th>
                                         <th class="px-3 py-2">Empl.</th>
+                                        <th class="px-3 py-2">Shopify</th>
                                         <th class="px-3 py-2">Statut</th>
                                         <th class="px-3 py-2"></th>
                                     </tr>
@@ -168,24 +190,48 @@
                                                 @if($warehouse->is_primary)
                                                     <span class="text-[10px] font-semibold uppercase text-[#0a5d8a]">Principal</span>
                                                 @endif
+                                                @if($warehouse->isOnline())
+                                                    <span class="text-[10px] font-semibold uppercase text-emerald-700">Canal (miroir)</span>
+                                                @endif
                                             </td>
                                             <td class="px-3 py-2 font-mono text-xs">{{ $warehouse->code }}</td>
                                             <td class="px-3 py-2">{{ $warehouse->city ?: '—' }}</td>
                                             <td class="px-3 py-2">{{ $warehouse->locations_count }}</td>
                                             <td class="px-3 py-2">
-                                                <span class="px-2 py-0.5 rounded-full text-xs {{ $warehouse->isActive() ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">
-                                                    {{ $warehouse->isActive() ? 'Actif' : 'Inactif' }}
-                                                </span>
+                                                @if($warehouse->isOnline())
+                                                    <span class="text-xs text-slate-400">—</span>
+                                                @elseif($warehouse->available_for_shopify)
+                                                    <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">Oui</span>
+                                                @else
+                                                    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">Non</span>
+                                                @endif
                                             </td>
-                                            <td class="px-3 py-2 text-right">
-                                                <form action="{{ route('warehouses.destroy', $warehouse) }}" method="POST" onsubmit="return confirm('Supprimer ce dépôt ?')">
-                                                    @csrf @method('DELETE')
-                                                    <button class="text-red-600 text-xs hover:underline">Supprimer</button>
-                                                </form>
+                                            <td class="px-3 py-2">
+                                                @if($warehouse->isArchived())
+                                                    <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">Archivé</span>
+                                                @else
+                                                    <span class="px-2 py-0.5 rounded-full text-xs {{ $warehouse->isActive() ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">
+                                                        {{ $warehouse->isActive() ? 'Actif' : 'Inactif' }}
+                                                    </span>
+                                                @endif
+                                            </td>
+                                            <td class="px-3 py-2 text-right space-y-1">
+                                                @if($warehouse->isArchived())
+                                                    <span class="text-xs text-slate-400">—</span>
+                                                @else
+                                                    <form action="{{ route('warehouses.destroy', $warehouse) }}" method="POST" onsubmit="return confirm('Supprimer ce dépôt s’il est vide et sans historique, sinon l’archiver ?')" class="inline">
+                                                        @csrf @method('DELETE')
+                                                        <button class="text-red-600 text-xs hover:underline">Supprimer / Archiver</button>
+                                                    </form>
+                                                    <form action="{{ route('warehouses.archive', $warehouse) }}" method="POST" onsubmit="return confirm('Archiver ce dépôt (stock doit être à 0) ?')" class="inline ml-2">
+                                                        @csrf
+                                                        <button class="text-amber-700 text-xs hover:underline">Archiver</button>
+                                                    </form>
+                                                @endif
                                             </td>
                                         </tr>
                                     @empty
-                                        <tr><td colspan="6" class="px-3 py-8 text-center text-slate-500">Aucun dépôt</td></tr>
+                                        <tr><td colspan="7" class="px-3 py-8 text-center text-slate-500">Aucun dépôt</td></tr>
                                     @endforelse
                                 </tbody>
                             </table>

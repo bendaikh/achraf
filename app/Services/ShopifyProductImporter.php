@@ -91,18 +91,15 @@ class ShopifyProductImporter
             if ($existing) {
                 // Never overwrite Libromart-only fields without explicit user action.
                 // item_kind, alerts, depot, supplier, reserved stock, accounting classification stay local.
+                // Never invent purchase cost from Shopify compare-at / sale prices.
                 unset(
                     $data['cost_price_ht'],
                 );
-
-                // Only seed cost from Shopify compare-at when none was set internally yet.
-                if ($existing->cost_price_ht === null && $compareAtPrice > 0) {
-                    $data['cost_price_ht'] = $compareAtPrice;
-                }
             } else {
                 $data['item_kind'] = Product::KIND_STOCKED;
                 $data['element_type'] = Product::elementTypeForKind(Product::KIND_STOCKED);
-                $data['cost_price_ht'] = $compareAtPrice > 0 ? $compareAtPrice : null;
+                // Do not seed cost_price_ht from Shopify compare_at (not a real purchase price).
+                $data['cost_price_ht'] = null;
             }
 
             // Download and store image if available

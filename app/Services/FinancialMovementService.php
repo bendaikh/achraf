@@ -134,17 +134,31 @@ class FinancialMovementService
         $party = $expense->supplier?->name ?? $expense->client?->name;
         $kind = $expense->expense_type === 'with_invoice' ? 'Dépense avec facture' : 'Dépense sans facture';
 
-        return $this->upsertFromSource($expense, [
+        $movement = $this->upsertFromSource($expense, [
             'movement_date' => $expense->paid_at?->toDateString() ?? $expense->expense_date,
             'origin' => $origin,
             'type' => FinancialMovement::TYPE_SORTIE,
             'label' => $kind.' — '.($expense->designation ?: ($expense->reference ?: 'Dépense')),
             'account' => $this->classifyExpenseAccount($expense->account, $expense->payment_method),
+            'bank_card_id' => $expense->bank_card_id,
+            'endowment_id' => $expense->endowment_id,
             'amount_in' => 0,
             'amount_out' => (float) $expense->amount,
             'justificatif_path' => $expense->invoice_file_path,
             'notes' => $party ? 'Tiers: '.$party : null,
         ]);
+
+        try {
+            app(EndowmentService::class)->consumeFromExpensePayment($expense);
+        } catch (\Throwable $e) {
+            // Dotation failure must not block treasury sync; surface via logs.
+            \Illuminate\Support\Facades\Log::warning('Endowment consumption failed', [
+                'expense_id' => $expense->id,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        return $movement;
     }
 
     public function syncFromPosSale(PosSale $sale): ?FinancialMovement
@@ -242,6 +256,12 @@ class FinancialMovementService
     {
         $type = $attributes['type'] ?? FinancialMovement::TYPE_SORTIE;
         $amount = (float) ($attributes['amount'] ?? 0);
+        $amountIn = array_key_exists('amount_in', $attributes)
+            ? (float) $attributes['amount_in']
+            : ($type === FinancialMovement::TYPE_ENTREE ? $amount : 0);
+        $amountOut = array_key_exists('amount_out', $attributes)
+            ? (float) $attributes['amount_out']
+            : (in_array($type, [FinancialMovement::TYPE_SORTIE, FinancialMovement::TYPE_VIREMENT], true) ? $amount : 0);
 
         return FinancialMovement::create([
             'reference' => $this->nextReference(),
@@ -250,14 +270,13 @@ class FinancialMovementService
             'type' => $type,
             'label' => $attributes['label'],
             'account' => $attributes['account'] ?? FinancialMovement::ACCOUNT_OTHER,
-            'amount_in' => $type === FinancialMovement::TYPE_ENTREE ? $amount : (float) ($attributes['amount_in'] ?? 0),
-            'amount_out' => in_array($type, [FinancialMovement::TYPE_SORTIE, FinancialMovement::TYPE_VIREMENT], true)
-                ? ($type === FinancialMovement::TYPE_VIREMENT
-                    ? (float) ($attributes['amount_out'] ?? $amount)
-                    : $amount)
-                : (float) ($attributes['amount_out'] ?? 0),
+            'bank_card_id' => $attributes['bank_card_id'] ?? null,
+            'endowment_id' => $attributes['endowment_id'] ?? null,
+            'amount_in' => $amountIn,
+            'amount_out' => $amountOut,
             'status' => FinancialMovement::STATUS_VALIDE,
             'is_manual' => true,
+            'is_opening_balance' => (bool) ($attributes['is_opening_balance'] ?? false),
             'user_id' => $userId,
             'justificatif_path' => $attributes['justificatif_path'] ?? null,
             'notes' => $attributes['notes'] ?? null,

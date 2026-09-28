@@ -187,7 +187,7 @@
 
             <div class="bg-sky-50 border border-sky-200 rounded-xl p-4 text-sm text-sky-900 leading-relaxed">
                 <p class="font-semibold mb-1">Info</p>
-                <p>Les congés et absences validés dans les autres modules apparaissent automatiquement ici pour éviter la double saisie.</p>
+                <p>Au chargement, un mois jamais saisi est généré depuis le planning de la fiche (horaires, demi-journées, repos — pas de week-end forcé). Les congés/absences validés et les corrections manuelles restent prioritaires. Un mois de paie validé n’est pas écrasé. Les versions de planning avec date d’effet s’appliquent à la période concernée.</p>
             </div>
         </div>
 
@@ -355,7 +355,8 @@
                                                     <option :value="key" x-text="label"></option>
                                                 </template>
                                             </select>
-                                            <p class="text-[10px] text-sky-600 mt-0.5" x-show="day.locked" x-text="day.lock_source === 'leave' ? 'Depuis module congés' : 'Depuis absences'"></p>
+                                            <p class="text-[10px] text-sky-600 mt-0.5" x-show="day.locked"
+                                               x-text="day.lock_source === 'leave' ? 'Depuis module congés' : (day.lock_source === 'absence' ? 'Depuis absences' : (day.lock_source === 'payroll' ? 'Mois de paie validé' : 'Verrouillé'))"></p>
                                         </td>
                                         <td class="px-3 py-2">
                                             <input type="time" class="w-full min-w-[110px] px-2 py-1.5 border border-gray-200 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-400"

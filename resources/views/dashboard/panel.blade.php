@@ -106,6 +106,7 @@
     ];
 
     $quickPeriods = [
+        'today' => 'Ce jour',
         'month' => 'Ce mois',
         'previous_month' => 'Mois dernier',
         'quarter' => 'Trimestre',

@@ -52,6 +52,8 @@ class Product extends Model
         'image',
         'cost_price_ht',
         'last_purchase_price',
+        'last_purchase_price_updated_at',
+        'last_purchase_price_updated_by',
         'sale_price',
         'sale_price_ht',
         'product_margin',
@@ -61,6 +63,7 @@ class Product extends Model
         'stock_quantity',
         'stock_reserved',
         'stock_magasin',
+        'stock_sellable',
         'stock_enligne',
         'location',
         'depot',
@@ -92,6 +95,7 @@ class Product extends Model
     protected $casts = [
         'cost_price_ht' => 'decimal:2',
         'last_purchase_price' => 'decimal:2',
+        'last_purchase_price_updated_at' => 'datetime',
         'sale_price' => 'decimal:2',
         'sale_price_ht' => 'decimal:2',
         'product_margin' => 'decimal:2',
@@ -101,6 +105,7 @@ class Product extends Model
         'stock_quantity' => 'integer',
         'stock_reserved' => 'integer',
         'stock_magasin' => 'integer',
+        'stock_sellable' => 'integer',
         'stock_enligne' => 'integer',
         'technician_required' => 'boolean',
         'shopify_synced_at' => 'datetime',
@@ -110,6 +115,11 @@ class Product extends Model
     public function primarySupplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class, 'primary_supplier_id');
+    }
+
+    public function lastPurchasePriceUpdatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'last_purchase_price_updated_by');
     }
 
     public function warehouse(): BelongsTo
@@ -201,7 +211,43 @@ class Product extends Model
     }
 
     /**
-     * Stock disponible = stock physique − stock réservé.
+     * Stock physique réel (tous dépôts physiques, y compris SAV).
+     */
+    public function physicalStock(): int
+    {
+        if (! $this->tracksStock()) {
+            return 0;
+        }
+
+        return (int) ($this->stock_magasin ?? 0);
+    }
+
+    /**
+     * Stock vendable (hors SAV / quarantaine).
+     */
+    public function sellableStock(): int
+    {
+        if (! $this->tracksStock()) {
+            return 0;
+        }
+
+        return (int) ($this->stock_sellable ?? $this->stock_magasin ?? 0);
+    }
+
+    /**
+     * Stock réservé (affecté à des commandes, toujours présent physiquement).
+     */
+    public function reservedStock(): int
+    {
+        if (! $this->tracksStock()) {
+            return 0;
+        }
+
+        return (int) ($this->stock_reserved ?? 0);
+    }
+
+    /**
+     * Stock disponible = stock vendable − stock réservé.
      */
     public function availableStock(): int
     {
@@ -209,12 +255,20 @@ class Product extends Model
             return 0;
         }
 
-        return max(0, (int) $this->stock_quantity - (int) ($this->stock_reserved ?? 0));
+        return max(0, $this->sellableStock() - $this->reservedStock());
     }
 
     public function getAvailableStockAttribute(): int
     {
         return $this->availableStock();
+    }
+
+    /**
+     * Miroir canal Shopify / en ligne (n’est pas un dépôt physique de picking).
+     */
+    public function onlineChannelStock(): int
+    {
+        return (int) ($this->stock_enligne ?? 0);
     }
 
     /**
@@ -324,14 +378,13 @@ class Product extends Model
     }
 
     /**
-     * SQL expression for available stock (physical − reserved).
+     * SQL expression for available stock (sellable − reserved).
      */
     public static function availableStockSql(): string
     {
-        // SQLite has no GREATEST(); its variadic MAX() is the portable equivalent.
         $greatest = DB::connection()->getDriverName() === 'sqlite' ? 'MAX' : 'GREATEST';
 
-        return $greatest.'(0, COALESCE(stock_quantity, 0) - COALESCE(stock_reserved, 0))';
+        return $greatest.'(0, COALESCE(stock_sellable, stock_magasin, 0) - COALESCE(stock_reserved, 0))';
     }
 
     /**

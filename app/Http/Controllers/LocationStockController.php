@@ -8,6 +8,7 @@ use App\Models\StockMovement;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Services\LocationStockReportService;
+use App\Services\ProductPurchasePriceService;
 use App\Services\StockMovementService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -22,6 +23,7 @@ class LocationStockController extends Controller
     public function __construct(
         protected LocationStockReportService $reports,
         protected StockMovementService $stockMovement,
+        protected ProductPurchasePriceService $purchasePrices,
     ) {}
 
     public function index()
@@ -58,6 +60,77 @@ class LocationStockController extends Controller
         ]);
     }
 
+    /**
+     * Saisie / mise à jour du Prix dernier achat TTC depuis Stock par emplacement.
+     * Écrit uniquement products.last_purchase_price (même source que la fiche produit).
+     */
+    public function updatePurchasePrice(Request $request, Warehouse $warehouse, Product $product)
+    {
+        $validated = $request->validate([
+            'last_purchase_price' => 'required|numeric|min:0',
+            'as_of' => 'nullable|date',
+            'warehouse_location_id' => 'nullable|integer|exists:warehouse_locations,id',
+        ]);
+
+        if (! $product->tracksStock()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ce produit ne gère pas de stock physique.',
+            ], 422);
+        }
+
+        $cost = $this->purchasePrices->setManualLastPurchasePrice(
+            $product,
+            (float) $validated['last_purchase_price'],
+            $request->user()
+        );
+
+        $asOf = ! empty($validated['as_of'])
+            ? Carbon::parse($validated['as_of'])
+            : now();
+        $locationId = ! empty($validated['warehouse_location_id'])
+            ? (int) $validated['warehouse_location_id']
+            : null;
+
+        $report = $this->reports->report($warehouse, $asOf, $locationId);
+        $productRows = $report['rows']
+            ->filter(fn ($row) => (int) $row->product_id === (int) $product->id)
+            ->map(fn ($row) => [
+                'location' => $row->location,
+                'quantity' => $row->quantity,
+                'price_ht' => $row->price_ht,
+                'price_ttc' => $row->price_ttc,
+                'value_ht' => $row->value_ht,
+                'value_ttc' => $row->value_ttc,
+                'has_purchase_cost' => $row->has_purchase_cost,
+                'price_source' => $row->price_source,
+            ])
+            ->values()
+            ->all();
+
+        $product->loadMissing('lastPurchasePriceUpdatedBy');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Prix d’achat enregistré sur la fiche produit.',
+            'product_id' => (int) $product->id,
+            'price_ht' => $cost['ht'],
+            'price_ttc' => $cost['ttc'],
+            'has_purchase_cost' => $cost['has_cost'],
+            'price_source' => $cost['source'],
+            'updated_at' => optional($product->last_purchase_price_updated_at)?->format('d/m/Y H:i'),
+            'updated_by' => $product->lastPurchasePriceUpdatedBy?->name,
+            'rows' => $productRows,
+            'totals' => [
+                'references' => $report['references'],
+                'quantity' => $report['quantity'],
+                'value_ht' => $report['value_ht'],
+                'value_ttc' => $report['value_ttc'],
+                'value_vat' => $report['value_vat'],
+            ],
+        ]);
+    }
+
     public function export(Request $request, Warehouse $warehouse, string $format)
     {
         $asOf = $request->filled('as_of')
@@ -78,11 +151,12 @@ class LocationStockController extends Controller
     public function countForm(Warehouse $warehouse)
     {
         $slots = ProductStock::query()
-            ->with('product')
+            ->with(['product', 'location', 'variant'])
             ->where('warehouse_id', $warehouse->id)
             ->where('quantity', '>', 0)
             ->whereHas('product', fn ($q) => $q->tracksStock())
             ->orderBy('product_id')
+            ->orderBy('warehouse_location_id')
             ->get();
 
         return view('stock.locations.count', compact('warehouse', 'slots'));
@@ -93,7 +167,11 @@ class LocationStockController extends Controller
         $validated = $request->validate([
             'counts' => 'required|array',
             'counts.*.product_id' => 'required|exists:products,id',
-            'counts.*.counted' => 'required|integer|min:0',
+            'counts.*.product_stock_id' => 'nullable|integer|exists:product_stocks,id',
+            'counts.*.warehouse_location_id' => 'nullable|integer|exists:warehouse_locations,id',
+            'counts.*.product_variant_id' => 'nullable|integer|exists:product_variants,id',
+            // 0 is a valid counted quantity (must not be treated as empty/absent).
+            'counts.*.counted' => ['required', 'integer', 'min:0'],
         ]);
 
         $adjusted = 0;
@@ -103,18 +181,67 @@ class LocationStockController extends Controller
                 if (! $product || ! $product->tracksStock()) {
                     continue;
                 }
-                $current = $this->stockMovement->quantityAtWarehouse($product, (int) $warehouse->id);
+
+                // Explicit cast: "0" and 0 must remain 0 (never fall back to theoretical).
                 $counted = (int) $row['counted'];
+                $notes = 'Inventaire physique '.$warehouse->name;
+                $channel = $warehouse->isOnline() ? 'enligne' : 'magasin';
+
+                // Prefer the exact ProductStock row from the form so a product default
+                // location never redirects a null-emplacement line to the wrong slot
+                // (which made counted=0 a no-op when that other slot was already 0).
+                if (! empty($row['product_stock_id'])) {
+                    $slot = ProductStock::query()
+                        ->where('id', (int) $row['product_stock_id'])
+                        ->where('warehouse_id', $warehouse->id)
+                        ->where('product_id', $product->id)
+                        ->lockForUpdate()
+                        ->first();
+                    if (! $slot) {
+                        continue;
+                    }
+
+                    $current = (int) $slot->quantity;
+                    if ($current === $counted) {
+                        continue;
+                    }
+
+                    $this->stockMovement->setSlotQuantity(
+                        $product,
+                        $slot,
+                        $counted,
+                        $notes.' : écart '.($counted - $current),
+                        $channel
+                    );
+                    $adjusted++;
+
+                    continue;
+                }
+
+                $locationId = array_key_exists('warehouse_location_id', $row) && $row['warehouse_location_id'] !== null && $row['warehouse_location_id'] !== ''
+                    ? (int) $row['warehouse_location_id']
+                    : null;
+                $variantId = ! empty($row['product_variant_id']) ? (int) $row['product_variant_id'] : null;
+                $current = $this->stockMovement->quantityAtSlot(
+                    $product,
+                    (int) $warehouse->id,
+                    $locationId,
+                    $variantId
+                );
+
                 if ($current === $counted) {
                     continue;
                 }
+
                 $this->stockMovement->setQuantity(
                     $product,
                     $counted,
                     (int) $warehouse->id,
-                    null,
-                    'Inventaire physique '.$warehouse->name.' : écart '.($counted - $current),
-                    $warehouse->isOnline() ? 'enligne' : 'magasin'
+                    $locationId,
+                    $notes.' : écart '.($counted - $current),
+                    $channel,
+                    $variantId,
+                    false
                 );
                 $adjusted++;
             }
@@ -305,11 +432,11 @@ class LocationStockController extends Controller
         $sheet->setCellValue([1, 2], 'État au '.$report['as_of']->format('d/m/Y'));
 
         $headers = [
-            'Référence/SKU', 'Produit', 'Variante', 'Fournisseur', 'Dépôt', 'Emplacement',
+            'Produit', 'Variante', 'SKU', 'Dépôt', 'Emplacement',
             'Quantité physique', 'Réservé', 'Disponible',
-            'Dernier prix d\'achat HT', 'TVA', 'Prix d\'achat TTC',
-            'Valeur stock HT', 'Valeur stock TTC',
-            'Prix de vente HT', 'Prix de vente TTC',
+            'PA HT', 'PA TTC', 'Source du prix d\'achat',
+            'Val. HT', 'Val. TTC',
+            'Fournisseur', 'TVA %',
         ];
         foreach ($headers as $i => $header) {
             $sheet->setCellValue([$i + 1, 4], $header);
@@ -317,22 +444,22 @@ class LocationStockController extends Controller
 
         $rowNum = 5;
         foreach ($report['rows'] as $row) {
-            $sheet->setCellValue([1, $rowNum], $row->sku);
-            $sheet->setCellValue([2, $rowNum], $row->name);
-            $sheet->setCellValue([3, $rowNum], $row->variant ?? '');
-            $sheet->setCellValue([4, $rowNum], $row->supplier ?? '');
-            $sheet->setCellValue([5, $rowNum], $row->depot ?? $warehouse->name);
-            $sheet->setCellValue([6, $rowNum], $row->location ?? '—');
-            $sheet->setCellValue([7, $rowNum], $row->quantity);
-            $sheet->setCellValue([8, $rowNum], $row->reserved ?? 0);
-            $sheet->setCellValue([9, $rowNum], $row->available ?? $row->quantity);
-            $sheet->setCellValue([10, $rowNum], $row->price_ht);
-            $sheet->setCellValue([11, $rowNum], $row->vat_rate ?? '');
-            $sheet->setCellValue([12, $rowNum], $row->price_ttc);
-            $sheet->setCellValue([13, $rowNum], $row->value_ht);
-            $sheet->setCellValue([14, $rowNum], $row->value_ttc);
-            $sheet->setCellValue([15, $rowNum], $row->sale_price_ht ?? 0);
-            $sheet->setCellValue([16, $rowNum], $row->sale_price_ttc ?? 0);
+            $hasCost = (bool) ($row->has_purchase_cost ?? ($row->price_ht !== null));
+            $sheet->setCellValue([1, $rowNum], $row->name);
+            $sheet->setCellValue([2, $rowNum], $row->variant ?? '');
+            $sheet->setCellValue([3, $rowNum], $row->sku);
+            $sheet->setCellValue([4, $rowNum], $row->depot ?? $warehouse->name);
+            $sheet->setCellValue([5, $rowNum], $row->location ?? '—');
+            $sheet->setCellValue([6, $rowNum], $row->quantity);
+            $sheet->setCellValue([7, $rowNum], $row->reserved ?? 0);
+            $sheet->setCellValue([8, $rowNum], $row->available ?? $row->quantity);
+            $sheet->setCellValue([9, $rowNum], $hasCost ? $row->price_ht : LocationStockReportService::PRICE_SOURCE_NONE);
+            $sheet->setCellValue([10, $rowNum], $hasCost ? $row->price_ttc : LocationStockReportService::PRICE_SOURCE_NONE);
+            $sheet->setCellValue([11, $rowNum], $row->price_source ?? LocationStockReportService::PRICE_SOURCE_NONE);
+            $sheet->setCellValue([12, $rowNum], $hasCost ? $row->value_ht : LocationStockReportService::PRICE_SOURCE_NONE);
+            $sheet->setCellValue([13, $rowNum], $hasCost ? $row->value_ttc : LocationStockReportService::PRICE_SOURCE_NONE);
+            $sheet->setCellValue([14, $rowNum], $row->supplier ?? '');
+            $sheet->setCellValue([15, $rowNum], $row->vat_rate ?? '');
             $rowNum++;
         }
 

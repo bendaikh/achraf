@@ -14,6 +14,7 @@ use App\Services\DocumentNumberService;
 use App\Services\SalesDocumentChainService;
 use App\Services\SalesDocumentConversionService;
 use App\Support\CommercialDocumentView;
+use App\Support\InvoiceCommercialStatus;
 use App\Support\LineItemCalculator;
 use App\Models\Setting;
 use Illuminate\Http\Request;
@@ -30,11 +31,46 @@ class DeliveryNoteController extends Controller
 
         $this->applyTableSearch($query, $request, ['delivery_number', 'reference', 'client.name']);
         $this->applyTableDateRange($query, $request, 'delivery_date');
-        $this->applyTableFilter($query, $request, 'status', 'status');
         $this->applyTableSort($query, $request, [
             'delivery_date' => 'delivery_date',
             'shipping_date' => 'shipping_date',
         ], 'delivery_date', 'desc');
+
+        if ($request->filled('commercial_status')) {
+            $status = (string) $request->string('commercial_status');
+
+            if ($status === InvoiceCommercialStatus::NORMAL) {
+                $query->where(function ($q) use ($status) {
+                    $q->whereDoesntHave('convertedInvoice')
+                        ->orWhereHas('convertedInvoice', function ($invoiceQuery) use ($status) {
+                            $invoiceQuery->where('commercial_status', $status)
+                                ->orWhereNull('commercial_status');
+                        });
+                });
+            } else {
+                $query->whereHas('convertedInvoice', function ($invoiceQuery) use ($status) {
+                    $invoiceQuery->where('commercial_status', $status);
+                });
+            }
+        }
+
+        if ($request->filled('source')) {
+            $source = (string) $request->string('source');
+
+            if ($source === 'libromart') {
+                $query->where(function ($q) {
+                    $q->whereDoesntHave('convertedInvoice')
+                        ->orWhereHas('convertedInvoice', function ($invoiceQuery) {
+                            $invoiceQuery->where('source', 'libromart')
+                                ->orWhereNull('source');
+                        });
+                });
+            } else {
+                $query->whereHas('convertedInvoice', function ($invoiceQuery) use ($source) {
+                    $invoiceQuery->where('source', $source);
+                });
+            }
+        }
 
         $deliveryNotes = $this->paginateTable($query, $request);
 

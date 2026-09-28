@@ -11,6 +11,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Support\StockSettings;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -455,6 +456,8 @@ class StockMovementService
 
     /**
      * Manual / inventory adjustment to an absolute quantity on a warehouse slot.
+     *
+     * @param  bool  $fallbackToProductLocation  When false, a null $locationId targets the null-location slot (never the product default).
      */
     public function setQuantity(
         Product $product,
@@ -463,18 +466,65 @@ class StockMovementService
         ?int $locationId = null,
         ?string $notes = null,
         string $channel = 'default',
-        ?int $variantId = null
+        ?int $variantId = null,
+        bool $fallbackToProductLocation = true
     ): void {
         if (! $product->tracksStock()) {
             return;
         }
 
+        $newQuantity = max(0, $newQuantity);
+
         $resolvedVariantId = $this->resolveVariantIdForProduct($product, $variantId);
 
         $warehouseId = $warehouseId ?? $product->warehouse_id ?? Warehouse::primary()?->id;
-        $locationId = $locationId ?? $product->warehouse_location_id;
+        if ($fallbackToProductLocation && $locationId === null) {
+            $locationId = $product->warehouse_location_id;
+        }
+
+        $warehouse = Warehouse::find($warehouseId);
+        if ($warehouse && $warehouse->isArchived()) {
+            throw new RuntimeException('Ce dépôt est archivé : aucun mouvement de stock n’est autorisé.');
+        }
 
         $slot = $this->findOrCreateSlot($product->id, $warehouseId, $locationId, false, $resolvedVariantId);
+        $this->applyAbsoluteQuantityToSlot($product, $slot, $newQuantity, $notes, $channel);
+    }
+
+    /**
+     * Inventory adjustment on an already-resolved ProductStock row.
+     * Prefer this for inventaire physique so we never retarget another location/variant slot.
+     */
+    public function setSlotQuantity(
+        Product $product,
+        ProductStock $slot,
+        int $newQuantity,
+        ?string $notes = null,
+        string $channel = 'default'
+    ): void {
+        if (! $product->tracksStock()) {
+            return;
+        }
+
+        if ((int) $slot->product_id !== (int) $product->id) {
+            throw new RuntimeException('Le stock sélectionné ne correspond pas au produit.');
+        }
+
+        $warehouse = Warehouse::find($slot->warehouse_id);
+        if ($warehouse && $warehouse->isArchived()) {
+            throw new RuntimeException('Ce dépôt est archivé : aucun mouvement de stock n’est autorisé.');
+        }
+
+        $this->applyAbsoluteQuantityToSlot($product, $slot, max(0, $newQuantity), $notes, $channel);
+    }
+
+    protected function applyAbsoluteQuantityToSlot(
+        Product $product,
+        ProductStock $slot,
+        int $newQuantity,
+        ?string $notes,
+        string $channel
+    ): void {
         $before = (int) $slot->quantity;
         $delta = $newQuantity - $before;
 
@@ -485,7 +535,10 @@ class StockMovementService
         $slot->quantity = $newQuantity;
         $slot->save();
 
-        $field = $this->stockFieldForWarehouse(Warehouse::find($warehouseId), $product, $channel);
+        $warehouse = Warehouse::find($slot->warehouse_id);
+        $field = $this->stockFieldForWarehouse($warehouse, $product, $channel);
+        $locationId = $slot->warehouse_location_id ? (int) $slot->warehouse_location_id : null;
+        $variantId = $slot->product_variant_id ? (int) $slot->product_variant_id : null;
 
         $this->syncProductAggregateFromSlots($product);
         $product->save();
@@ -494,7 +547,7 @@ class StockMovementService
             $product,
             $delta,
             StockMovement::TYPE_INVENTORY_ADJUSTMENT,
-            $warehouseId,
+            (int) $slot->warehouse_id,
             $locationId,
             'inventory',
             null,
@@ -504,11 +557,11 @@ class StockMovementService
             $before,
             $newQuantity,
             $notes ?: 'Ajustement inventaire',
-            $resolvedVariantId
+            $variantId
         );
 
         $this->pushEnligneStockToJumia($product, $field);
-        $this->pushEnligneStockToShopify($product, $field, $field === 'stock_enligne', $resolvedVariantId);
+        $this->pushEnligneStockToShopify($product, $field, true, $variantId);
     }
 
     /**
@@ -576,12 +629,270 @@ class StockMovementService
             $resolvedVariantId
         );
 
+        $this->scheduleShopifyChannelPush($product, $resolvedVariantId);
+
         return StockMovement::query()
             ->where('product_id', $product->id)
             ->where('warehouse_id', $warehouseId)
             ->where('type', StockMovement::TYPE_STOCK_ADJUSTMENT)
             ->latest('id')
             ->first();
+    }
+
+    /**
+     * Available quantity for the Shopify sales channel =
+     * sum of (physical − reserved) on warehouses flagged available_for_shopify.
+     */
+    public function shopifyAvailableQuantity(Product $product, ?int $variantId = null): int
+    {
+        $warehouseIds = Warehouse::query()->active()->availableForShopify()->pluck('id');
+        if ($warehouseIds->isEmpty()) {
+            return 0;
+        }
+
+        $query = ProductStock::query()
+            ->where('product_id', $product->id)
+            ->whereIn('warehouse_id', $warehouseIds);
+
+        if ($variantId) {
+            $query->where('product_variant_id', $variantId);
+        } elseif ($product->hasVariants()) {
+            // Aggregate all variants when no specific variant is requested.
+        }
+
+        return (int) $query->get()->sum(fn (ProductStock $slot) => $slot->available());
+    }
+
+    /**
+     * Reserve physical stock without exiting it.
+     * Increases reserved, decreases available, leaves quantity unchanged.
+     *
+     * @param  array{
+     *     source_type?: ?string,
+     *     source_id?: ?int,
+     *     source_line_type?: ?string,
+     *     source_line_id?: ?int,
+     *     document_reference?: ?string,
+     *     notes?: ?string,
+     *     idempotency_key?: ?string
+     * }  $meta
+     */
+    public function reserveStock(
+        Product $product,
+        int $quantity,
+        int $warehouseId,
+        ?int $locationId = null,
+        ?int $variantId = null,
+        array $meta = []
+    ): \App\Models\StockReservation {
+        if ($quantity <= 0) {
+            throw new RuntimeException('La quantité à réserver doit être positive.');
+        }
+        if (! $product->tracksStock()) {
+            throw new RuntimeException('Ce produit ne gère pas de stock.');
+        }
+
+        $warehouse = Warehouse::query()->findOrFail($warehouseId);
+        if ($warehouse->isOnline()) {
+            throw new RuntimeException('Une réservation ne peut pas porter sur le dépôt Shopify / en ligne.');
+        }
+
+        return DB::transaction(function () use ($product, $quantity, $warehouseId, $locationId, $variantId, $meta) {
+            $product = Product::query()->lockForUpdate()->findOrFail($product->id);
+            $resolvedVariantId = $this->resolveVariantIdForProduct($product, $variantId);
+            $slot = $this->findOrCreateSlot($product->id, $warehouseId, $locationId, true, $resolvedVariantId);
+            $available = max(0, (int) $slot->quantity - (int) $slot->reserved);
+
+            if ($quantity > $available) {
+                throw new RuntimeException(
+                    'Stock disponible insuffisant pour réserver '.$quantity.' (disponible : '.$available.').'
+                );
+            }
+
+            // Idempotency: same source line already reserved → return existing active reservation.
+            if (! empty($meta['source_type']) && ! empty($meta['source_id'])) {
+                $existing = \App\Models\StockReservation::query()
+                    ->where('status', \App\Models\StockReservation::STATUS_ACTIVE)
+                    ->where('source_type', $meta['source_type'])
+                    ->where('source_id', $meta['source_id'])
+                    ->when(
+                        ! empty($meta['source_line_type']) && ! empty($meta['source_line_id']),
+                        fn ($q) => $q->where('source_line_type', $meta['source_line_type'])
+                            ->where('source_line_id', $meta['source_line_id'])
+                    )
+                    ->where('product_id', $product->id)
+                    ->where('warehouse_id', $warehouseId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($existing) {
+                    return $existing;
+                }
+            }
+
+            $beforeReserved = (int) $slot->reserved;
+            $slot->reserved = $beforeReserved + $quantity;
+            $slot->save();
+
+            $this->syncProductAggregateFromSlots($product);
+            $product->save();
+
+            $reservation = \App\Models\StockReservation::create([
+                'product_id' => $product->id,
+                'product_variant_id' => $resolvedVariantId,
+                'warehouse_id' => $warehouseId,
+                'warehouse_location_id' => $locationId,
+                'quantity' => $quantity,
+                'status' => \App\Models\StockReservation::STATUS_ACTIVE,
+                'source_type' => $meta['source_type'] ?? null,
+                'source_id' => $meta['source_id'] ?? null,
+                'source_line_type' => $meta['source_line_type'] ?? null,
+                'source_line_id' => $meta['source_line_id'] ?? null,
+                'document_reference' => $meta['document_reference'] ?? null,
+                'notes' => $meta['notes'] ?? null,
+                'user_id' => Auth::id(),
+                'reserved_at' => now(),
+            ]);
+
+            $this->recordMovement(
+                $product,
+                $quantity,
+                StockMovement::TYPE_RESERVATION,
+                $warehouseId,
+                $locationId,
+                $meta['source_type'] ?? 'reservation',
+                $meta['source_id'] ?? $reservation->id,
+                $meta['document_reference'] ?? null,
+                $meta['notes'] ?? 'Réservation stock (pas de sortie physique)',
+                null,
+                $beforeReserved,
+                (int) $slot->reserved,
+                'Réservation',
+                $resolvedVariantId
+            );
+
+            $this->scheduleShopifyChannelPush($product, $resolvedVariantId);
+
+            return $reservation;
+        });
+    }
+
+    /**
+     * Release an active reservation (restore available without physical exit).
+     */
+    public function releaseReservation(\App\Models\StockReservation $reservation, ?string $notes = null): \App\Models\StockReservation
+    {
+        return DB::transaction(function () use ($reservation, $notes) {
+            $reservation = \App\Models\StockReservation::query()->lockForUpdate()->findOrFail($reservation->id);
+            if (! $reservation->isActive()) {
+                return $reservation;
+            }
+
+            $product = Product::query()->lockForUpdate()->findOrFail($reservation->product_id);
+            $slot = $this->findOrCreateSlot(
+                $product->id,
+                (int) $reservation->warehouse_id,
+                $reservation->warehouse_location_id ? (int) $reservation->warehouse_location_id : null,
+                true,
+                $reservation->product_variant_id ? (int) $reservation->product_variant_id : null
+            );
+
+            $beforeReserved = (int) $slot->reserved;
+            $slot->reserved = max(0, $beforeReserved - (int) $reservation->quantity);
+            $slot->save();
+
+            $reservation->status = \App\Models\StockReservation::STATUS_RELEASED;
+            $reservation->released_at = now();
+            if ($notes) {
+                $reservation->notes = trim(($reservation->notes ? $reservation->notes."\n" : '').$notes);
+            }
+            $reservation->save();
+
+            $this->syncProductAggregateFromSlots($product);
+            $product->save();
+
+            $this->recordMovement(
+                $product,
+                -(int) $reservation->quantity,
+                StockMovement::TYPE_RESERVATION_RELEASE,
+                (int) $reservation->warehouse_id,
+                $reservation->warehouse_location_id ? (int) $reservation->warehouse_location_id : null,
+                $reservation->source_type,
+                $reservation->source_id,
+                $reservation->document_reference,
+                $notes ?? 'Libération réservation (pas de sortie physique)',
+                null,
+                $beforeReserved,
+                (int) $slot->reserved,
+                'Libération réservation',
+                $reservation->product_variant_id ? (int) $reservation->product_variant_id : null
+            );
+
+            $this->scheduleShopifyChannelPush(
+                $product,
+                $reservation->product_variant_id ? (int) $reservation->product_variant_id : null
+            );
+
+            return $reservation->fresh();
+        });
+    }
+
+    /**
+     * Consume reservation on physical exit: decrease quantity + reserved together.
+     */
+    public function consumeReservation(\App\Models\StockReservation $reservation, ?string $notes = null): \App\Models\StockReservation
+    {
+        return DB::transaction(function () use ($reservation, $notes) {
+            $reservation = \App\Models\StockReservation::query()->lockForUpdate()->findOrFail($reservation->id);
+            if (! $reservation->isActive()) {
+                return $reservation;
+            }
+
+            $product = Product::query()->lockForUpdate()->findOrFail($reservation->product_id);
+            $qty = (int) $reservation->quantity;
+            $warehouseId = (int) $reservation->warehouse_id;
+            $locationId = $reservation->warehouse_location_id ? (int) $reservation->warehouse_location_id : null;
+            $variantId = $reservation->product_variant_id ? (int) $reservation->product_variant_id : null;
+
+            $slot = $this->findOrCreateSlot($product->id, $warehouseId, $locationId, true, $variantId);
+            $beforeQty = (int) $slot->quantity;
+            $beforeReserved = (int) $slot->reserved;
+
+            $slot->quantity = max(0, $beforeQty - $qty);
+            $slot->reserved = max(0, $beforeReserved - $qty);
+            $slot->save();
+
+            $reservation->status = \App\Models\StockReservation::STATUS_CONSUMED;
+            $reservation->consumed_at = now();
+            if ($notes) {
+                $reservation->notes = trim(($reservation->notes ? $reservation->notes."\n" : '').$notes);
+            }
+            $reservation->save();
+
+            $this->syncProductAggregateFromSlots($product);
+            $product->save();
+
+            $this->recordMovement(
+                $product,
+                -$qty,
+                StockMovement::TYPE_ORDER_OUT,
+                $warehouseId,
+                $locationId,
+                $reservation->source_type,
+                $reservation->source_id,
+                $reservation->document_reference,
+                $notes ?? 'Sortie sur réservation',
+                null,
+                $beforeQty,
+                (int) $slot->quantity,
+                'Sortie commande',
+                $variantId
+            );
+
+            $this->scheduleShopifyChannelPush($product, $variantId);
+
+            return $reservation->fresh();
+        });
     }
 
     /**
@@ -1075,44 +1386,47 @@ class StockMovementService
             throw new RuntimeException('Dépôt requis pour le stock.');
         }
 
-        $query = ProductStock::query()
-            ->where('product_id', $productId)
-            ->where('warehouse_id', $warehouseId)
-            ->where(function ($q) use ($locationId) {
-                if ($locationId) {
-                    $q->where('warehouse_location_id', $locationId);
-                } else {
-                    $q->whereNull('warehouse_location_id');
-                }
-            })
-            ->where(function ($q) use ($variantId) {
-                if ($variantId) {
-                    $q->where('product_variant_id', $variantId);
-                } else {
-                    $q->whereNull('product_variant_id');
-                }
-            });
-
-        if ($lock) {
-            $query->lockForUpdate();
+        $warehouse = Warehouse::query()->find($warehouseId);
+        if ($warehouse && $warehouse->isArchived()) {
+            throw new RuntimeException('Ce dépôt est archivé : aucun mouvement de stock n’est autorisé.');
         }
 
-        $slot = $query->first();
+        $product = Product::query()->find($productId);
+        if ($product && ! $product->tracksStock()) {
+            throw new RuntimeException('Cet article (service / non stocké) ne peut pas recevoir de stock.');
+        }
+
+        $slot = $this->lookupStockSlot($productId, $warehouseId, $locationId, $lock, $variantId);
         if ($slot) {
             return $slot;
         }
 
-        $slot = ProductStock::create([
-            'product_id' => $productId,
-            'product_variant_id' => $variantId,
-            'warehouse_id' => $warehouseId,
-            'warehouse_location_id' => $locationId,
-            'quantity' => 0,
-            'reserved' => 0,
-        ]);
+        try {
+            $slot = ProductStock::create([
+                'product_id' => $productId,
+                'product_variant_id' => $variantId,
+                'warehouse_id' => $warehouseId,
+                'warehouse_location_id' => $locationId,
+                'quantity' => 0,
+                'reserved' => 0,
+            ]);
+        } catch (QueryException $e) {
+            // Unique key product_stocks_unique_slot is (product_id, warehouse_id, warehouse_location_id)
+            // without variant — concurrent creates or legacy null-variant rows collide here.
+            if (! $this->isDuplicateStockSlotException($e)) {
+                throw $e;
+            }
 
-        $product = Product::query()->find($productId);
-        $warehouse = Warehouse::query()->find($warehouseId);
+            $slot = $this->lookupStockSlot($productId, $warehouseId, $locationId, $lock, $variantId);
+            if (! $slot) {
+                throw $e;
+            }
+
+            return $slot;
+        }
+
+        $product = $product ?? Product::query()->find($productId);
+        $warehouse = $warehouse ?? Warehouse::query()->find($warehouseId);
         $hasOtherSlots = ProductStock::query()
             ->where('product_id', $productId)
             ->where('id', '!=', $slot->id)
@@ -1130,21 +1444,119 @@ class StockMovementService
         return $slot;
     }
 
+    /**
+     * Resolve a product_stocks row for the unique slot key, adopting legacy null-variant rows
+     * when a concrete variant is requested (unique index does not include product_variant_id).
+     */
+    protected function lookupStockSlot(int $productId, int $warehouseId, ?int $locationId, bool $lock, ?int $variantId): ?ProductStock
+    {
+        $base = function () use ($productId, $warehouseId, $locationId) {
+            return ProductStock::query()
+                ->where('product_id', $productId)
+                ->where('warehouse_id', $warehouseId)
+                ->where(function ($q) use ($locationId) {
+                    if ($locationId) {
+                        $q->where('warehouse_location_id', $locationId);
+                    } else {
+                        $q->whereNull('warehouse_location_id');
+                    }
+                });
+        };
+
+        $exact = $base()->where(function ($q) use ($variantId) {
+            if ($variantId) {
+                $q->where('product_variant_id', $variantId);
+            } else {
+                $q->whereNull('product_variant_id');
+            }
+        });
+        if ($lock) {
+            $exact->lockForUpdate();
+        }
+        if ($slot = $exact->first()) {
+            return $slot;
+        }
+
+        if ($variantId) {
+            $legacy = $base()->whereNull('product_variant_id');
+            if ($lock) {
+                $legacy->lockForUpdate();
+            }
+            if ($slot = $legacy->first()) {
+                $slot->product_variant_id = $variantId;
+                $slot->save();
+
+                return $slot;
+            }
+
+            // Non-null locations are unique per product+warehouse — reuse the existing occupant.
+            if ($locationId) {
+                $any = $base();
+                if ($lock) {
+                    $any->lockForUpdate();
+                }
+
+                return $any->first();
+            }
+
+            return null;
+        }
+
+        // Aggregate/null variant lookup on a physical location already occupied by a variant row.
+        if ($locationId) {
+            $any = $base();
+            if ($lock) {
+                $any->lockForUpdate();
+            }
+
+            return $any->first();
+        }
+
+        return null;
+    }
+
+    protected function isDuplicateStockSlotException(QueryException $e): bool
+    {
+        $sqlState = (string) ($e->errorInfo[0] ?? $e->getCode());
+        $driverCode = (int) ($e->errorInfo[1] ?? 0);
+
+        return $sqlState === '23000' || $driverCode === 1062
+            || str_contains($e->getMessage(), 'product_stocks_unique_slot')
+            || str_contains($e->getMessage(), 'Duplicate entry');
+    }
+
     protected function syncProductAggregateFromSlots(Product $product): void
     {
         $onlineIds = Warehouse::query()->online()->pluck('id');
+        $nonSellableIds = Warehouse::query()
+            ->where(function ($q) {
+                $q->where('is_sellable', false)->orWhere('kind', Warehouse::KIND_ONLINE);
+            })
+            ->pluck('id');
+
         $enligne = (int) ProductStock::query()
             ->where('product_id', $product->id)
             ->when($onlineIds->isNotEmpty(), fn ($q) => $q->whereIn('warehouse_id', $onlineIds), fn ($q) => $q->whereRaw('1 = 0'))
             ->sum('quantity');
+
         $magasin = (int) ProductStock::query()
             ->where('product_id', $product->id)
             ->when($onlineIds->isNotEmpty(), fn ($q) => $q->whereNotIn('warehouse_id', $onlineIds))
             ->sum('quantity');
-        $reserved = (int) ProductStock::query()->where('product_id', $product->id)->sum('reserved');
+
+        $sellable = (int) ProductStock::query()
+            ->where('product_id', $product->id)
+            ->when($nonSellableIds->isNotEmpty(), fn ($q) => $q->whereNotIn('warehouse_id', $nonSellableIds))
+            ->sum('quantity');
+
+        $reserved = (int) ProductStock::query()
+            ->where('product_id', $product->id)
+            ->when($nonSellableIds->isNotEmpty(), fn ($q) => $q->whereNotIn('warehouse_id', $nonSellableIds))
+            ->sum('reserved');
 
         $product->stock_enligne = $enligne;
         $product->stock_magasin = $magasin;
+        $product->stock_sellable = $sellable;
         $product->stock_reserved = $reserved;
         $product->stock_quantity = $product->isShopifyProduct() ? $enligne : $magasin;
     }
@@ -1208,7 +1620,22 @@ class StockMovementService
 
     protected function pushEnligneStockToShopify(Product $product, string $field, bool $enabled, ?int $variantId = null): void
     {
-        if (! $enabled || $field !== 'stock_enligne' || ! $product->isShopifyProduct()) {
+        // Push absolute channel qty after any stock change that affects Shopify feed
+        // (physical feed warehouses OR legacy online mirror writes).
+        if (! $enabled || ! $product->isShopifyProduct()) {
+            return;
+        }
+
+        $this->scheduleShopifyChannelPush($product, $variantId);
+    }
+
+    /**
+     * Schedule absolute Shopify inventory sync after commit.
+     * Failures are logged only — Libromart stock is never rolled back.
+     */
+    public function scheduleShopifyChannelPush(Product $product, ?int $variantId = null): void
+    {
+        if (! $product->isShopifyProduct() || ! $product->tracksStock()) {
             return;
         }
 

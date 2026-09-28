@@ -326,33 +326,61 @@ class OrderController extends Controller
 
         if ($validated['submit_action'] === 'sync') {
             try {
-                $this->shopifyOrderCreator->sync($order, $user->id);
+                $synced = $this->shopifyOrderCreator->sync($order, $user->id);
+
+                if ($synced->sync_status !== PosSale::SYNC_SYNCED || ! $synced->shopify_order_id) {
+                    return redirect()->route('orders.show', $order)
+                        ->with('error', 'Commande enregistrée dans Libromart, mais la synchronisation Shopify n’est pas terminée.');
+                }
 
                 return redirect()->route('orders.show', $order)
-                    ->with('success', 'Commande créée dans Libromart et synchronisée avec Shopify.');
+                    ->with('success', 'Commande créée dans Libromart et synchronisée avec Shopify ('.$synced->shopify_order_number.').');
             } catch (\Throwable $e) {
                 return redirect()->route('orders.show', $order)
-                    ->with('error', 'Commande enregistrée dans Libromart. Échec Shopify : '.$e->getMessage());
+                    ->with('error', 'Commande enregistrée dans Libromart. Erreur de synchronisation Shopify : '.$e->getMessage());
             }
         }
 
         return redirect()->route('orders.show', $order)
-            ->with('success', 'Commande enregistrée dans Libromart.');
+            ->with('success', 'Commande enregistrée dans Libromart. Synchronisation Shopify en attente.');
     }
 
     public function sync(Request $request, PosSale $order)
     {
         try {
-            $this->shopifyOrderCreator->sync($order, $request->user()->id);
+            $synced = $this->shopifyOrderCreator->sync($order, $request->user()->id);
 
-            return back()->with('success', 'Commande synchronisée avec Shopify.');
+            if ($synced->sync_status === PosSale::SYNC_SYNCED && $synced->shopify_order_id) {
+                return back()->with(
+                    'success',
+                    'Commande synchronisée avec Shopify'
+                    .($synced->shopify_order_number ? ' ('.$synced->shopify_order_number.')' : '')
+                    .'.'
+                );
+            }
+
+            return back()->with('error', 'Erreur de synchronisation : la commande n’a pas été créée dans Shopify.');
         } catch (\Throwable $e) {
-            return back()->with('error', 'Échec Shopify : '.$e->getMessage());
+            return back()->with('error', 'Erreur de synchronisation Shopify : '.$e->getMessage());
         }
     }
 
     public function show(PosSale $order): View
     {
+        // Surface abandoned syncs that never cleared (timeout / killed request).
+        if ($order->source === 'libromart'
+            && ! $order->shopify_order_id
+            && $order->sync_status === PosSale::SYNC_IN_PROGRESS
+            && $order->sync_attempted_at
+            && $order->sync_attempted_at->lt(now()->subMinutes(ShopifyOrderCreator::IN_PROGRESS_LOCK_MINUTES))) {
+            $order->forceFill([
+                'sync_status' => PosSale::SYNC_ERROR,
+                'sync_error' => $order->sync_error
+                    ?: 'Synchronisation interrompue (délai dépassé). Utilisez « Resynchroniser vers Shopify ».',
+            ])->save();
+            $order->refresh();
+        }
+
         $order->load([
             'client',
             'user',
@@ -371,12 +399,24 @@ class OrderController extends Controller
     public function preparePhysicalStock(PosSale $order)
     {
         try {
-            $result = $this->orderPhysicalStock->process($order);
+            $result = $this->orderPhysicalStock->prepare($order);
         } catch (\Throwable $e) {
             return back()->with('error', $e->getMessage());
         }
 
         $warehouseName = $result['warehouse']->name;
+        $mode = $result['mode'] ?? 'legacy_exit';
+
+        if ($mode === 'reservation') {
+            $reservedQty = collect($result['reserved'] ?? [])->sum('quantity');
+            if ($result['unavailable'] === []) {
+                return back()->with('success', 'Stock réservé à '.$warehouseName.' ('.$reservedQty.' unité(s)). Aucune sortie physique — utilisez Préparation / Picking → Valider sortie.');
+            }
+            $names = collect($result['unavailable'])->map(fn ($row) => $row['name'].' ×'.$row['quantity'])->implode(', ');
+
+            return back()->with('warning', 'Réservation partielle. Manque : '.$names.'. Ajouté à À approvisionner / Besoins d’achat. Le stock Shopify n’a pas été utilisé comme dépôt physique.');
+        }
+
         if ($result['unavailable'] === []) {
             return back()->with('success', 'Stock physique déduit de '.$warehouseName.'. Sorties commande enregistrées.');
         }

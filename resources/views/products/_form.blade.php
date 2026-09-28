@@ -255,6 +255,14 @@
                                     value="{{ old('last_purchase_price', $isEdit ? $product->last_purchase_price : '') }}"
                                     class="{{ $field }}"
                                     :disabled="isService()">
+                                @if($isEdit && $product->last_purchase_price_updated_at)
+                                    <p class="mt-1 text-xs text-slate-500">
+                                        Modifié manuellement le {{ $product->last_purchase_price_updated_at->format('d/m/Y H:i') }}
+                                        @if($product->lastPurchasePriceUpdatedBy)
+                                            par {{ $product->lastPurchasePriceUpdatedBy->name }}
+                                        @endif
+                                    </p>
+                                @endif
                             </div>
 
                             <div x-show="!isService()" x-cloak>

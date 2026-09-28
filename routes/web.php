@@ -15,12 +15,18 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseRecurrenceController;
 use App\Http\Controllers\ExpenseWithInvoiceController;
 use App\Http\Controllers\ExpenseWithoutInvoiceController;
+use App\Http\Controllers\BankCardController;
+use App\Http\Controllers\BankStatementImportController;
+use App\Http\Controllers\EndowmentController;
+use App\Http\Controllers\FinanceCutoffController;
 use App\Http\Controllers\FinancialManagementController;
 use App\Http\Controllers\FinancialMovementController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoicePaymentController;
 use App\Http\Controllers\JumiaIntegrationController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderPickingController;
+use App\Http\Controllers\CustomerReturnController;
 use App\Http\Controllers\PointOfSaleController;
 use App\Http\Controllers\PosSaleController;
 use App\Http\Controllers\ProductController;
@@ -77,6 +83,11 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('login.post');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+Route::get('/forgot-password', [\App\Http\Controllers\PasswordResetController::class, 'showForgotForm'])->middleware('guest')->name('password.request');
+Route::post('/forgot-password', [\App\Http\Controllers\PasswordResetController::class, 'sendResetLink'])->middleware(['guest', 'throttle:5,1'])->name('password.email');
+Route::get('/reset-password/{token}', [\App\Http\Controllers\PasswordResetController::class, 'showResetForm'])->middleware('guest')->name('password.reset');
+Route::post('/reset-password', [\App\Http\Controllers\PasswordResetController::class, 'reset'])->middleware(['guest', 'throttle:5,1'])->name('password.update');
+
 // Shopify Webhooks (no CSRF verification - handled by HMAC)
 Route::post('/api/webhooks/shopify/orders/create', [ShopifyWebhookController::class, 'ordersCreate'])
     ->name('webhooks.shopify.orders.create');
@@ -132,6 +143,34 @@ Route::middleware('auth')->group(function () {
     Route::put('/financial/mouvements/{mouvement}', [FinancialMovementController::class, 'update'])->name('financial.mouvements.update');
     Route::delete('/financial/mouvements/{mouvement}', [FinancialMovementController::class, 'destroy'])->name('financial.mouvements.destroy');
     Route::post('/financial/mouvements/{mouvement}/point', [FinancialMovementController::class, 'point'])->name('financial.mouvements.point');
+
+    Route::get('/financial/cards', [BankCardController::class, 'index'])->name('financial.cards.index');
+    Route::post('/financial/cards', [BankCardController::class, 'store'])->name('financial.cards.store');
+    Route::put('/financial/cards/{card}', [BankCardController::class, 'update'])->name('financial.cards.update');
+    Route::delete('/financial/cards/{card}', [BankCardController::class, 'destroy'])->name('financial.cards.destroy');
+
+    Route::get('/financial/endowments', [EndowmentController::class, 'index'])->name('financial.endowments.index');
+    Route::post('/financial/endowments', [EndowmentController::class, 'store'])->name('financial.endowments.store');
+    Route::get('/financial/endowments/{endowment}', [EndowmentController::class, 'show'])->name('financial.endowments.show');
+    Route::put('/financial/endowments/{endowment}', [EndowmentController::class, 'update'])->name('financial.endowments.update');
+    Route::delete('/financial/endowments/{endowment}', [EndowmentController::class, 'destroy'])->name('financial.endowments.destroy');
+    Route::post('/financial/endowments/{endowment}/recalc', [EndowmentController::class, 'recalc'])->name('financial.endowments.recalc');
+
+    Route::get('/financial/cutoff', [FinanceCutoffController::class, 'index'])->name('financial.cutoff.index');
+    Route::put('/financial/cutoff', [FinanceCutoffController::class, 'updateCutoff'])->name('financial.cutoff.update');
+    Route::post('/financial/cutoff/openings', [FinanceCutoffController::class, 'saveOpenings'])->name('financial.cutoff.openings');
+    Route::post('/financial/cutoff/adjust', [FinanceCutoffController::class, 'adjust'])->name('financial.cutoff.adjust');
+    Route::post('/financial/cutoff/periods/close', [FinanceCutoffController::class, 'closePeriod'])->name('financial.cutoff.periods.close');
+    Route::post('/financial/cutoff/periods/{period}/reopen', [FinanceCutoffController::class, 'reopenPeriod'])->name('financial.cutoff.periods.reopen');
+
+    Route::get('/financial/bank-imports', [BankStatementImportController::class, 'index'])->name('financial.bank-imports.index');
+    Route::get('/financial/bank-imports/create', [BankStatementImportController::class, 'create'])->name('financial.bank-imports.create');
+    Route::post('/financial/bank-imports', [BankStatementImportController::class, 'store'])->name('financial.bank-imports.store');
+    Route::get('/financial/bank-imports/{bankImport}', [BankStatementImportController::class, 'show'])->name('financial.bank-imports.show');
+    Route::post('/financial/bank-imports/lines/{line}/match', [BankStatementImportController::class, 'match'])->name('financial.bank-imports.lines.match');
+    Route::post('/financial/bank-imports/lines/{line}/confirm', [BankStatementImportController::class, 'confirmSuggestion'])->name('financial.bank-imports.lines.confirm');
+    Route::post('/financial/bank-imports/lines/{line}/ignore', [BankStatementImportController::class, 'ignore'])->name('financial.bank-imports.lines.ignore');
+
     Route::post('/document-files/{type}/{id}', [DocumentFileController::class, 'store'])->name('document-files.store');
     Route::post('/managed-documents/{managedDocument}/replace', [ManagedDocumentController::class, 'replace'])->name('managed-documents.replace');
     Route::delete('/managed-documents/{managedDocument}', [ManagedDocumentController::class, 'destroy'])->name('managed-documents.destroy');
@@ -174,6 +213,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/locations', [LocationStockController::class, 'index'])->name('stock.locations.index');
         Route::get('/locations/{warehouse}', [LocationStockController::class, 'show'])->name('stock.locations.show');
+        Route::patch('/locations/{warehouse}/products/{product}/purchase-price', [LocationStockController::class, 'updatePurchasePrice'])->name('stock.locations.purchase-price');
         Route::get('/locations/{warehouse}/export/{format}', [LocationStockController::class, 'export'])->name('stock.locations.export');
         Route::get('/locations/{warehouse}/count', [LocationStockController::class, 'countForm'])->name('stock.locations.count');
         Route::post('/locations/{warehouse}/count', [LocationStockController::class, 'countStore'])->name('stock.locations.count.store');
@@ -190,6 +230,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/warehouses', [WarehouseController::class, 'store'])->name('warehouses.store');
     Route::put('/warehouses/{warehouse}', [WarehouseController::class, 'update'])->name('warehouses.update');
     Route::delete('/warehouses/{warehouse}', [WarehouseController::class, 'destroy'])->name('warehouses.destroy');
+    Route::post('/warehouses/{warehouse}/archive', [WarehouseController::class, 'archive'])->name('warehouses.archive');
     Route::post('/warehouse-locations', [WarehouseController::class, 'storeLocation'])->name('warehouse-locations.store');
     Route::put('/warehouse-locations/{location}', [WarehouseController::class, 'updateLocation'])->name('warehouse-locations.update');
     Route::delete('/warehouse-locations/{location}', [WarehouseController::class, 'destroyLocation'])->name('warehouse-locations.destroy');
@@ -215,6 +256,16 @@ Route::middleware('auth')->group(function () {
         Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
         Route::post('orders/{order}/sync-shopify', [OrderController::class, 'sync'])->name('orders.sync-shopify');
         Route::post('orders/{order}/prepare-physical-stock', [OrderController::class, 'preparePhysicalStock'])->name('orders.prepare-physical-stock');
+        Route::get('picking', [OrderPickingController::class, 'index'])->name('sales.picking.index');
+        Route::post('picking/pdf', [OrderPickingController::class, 'pdf'])->name('sales.picking.pdf');
+        Route::post('picking/validate-exit', [OrderPickingController::class, 'validateExit'])->name('sales.picking.validate-exit');
+        Route::get('returns', [CustomerReturnController::class, 'index'])->name('sales.returns.index');
+        Route::get('returns/scan', [CustomerReturnController::class, 'scan'])->name('sales.returns.scan');
+        Route::post('returns/start', [CustomerReturnController::class, 'start'])->name('sales.returns.start');
+        Route::get('returns/{customerReturn}', [CustomerReturnController::class, 'show'])->name('sales.returns.show');
+        Route::put('returns/{customerReturn}', [CustomerReturnController::class, 'update'])->name('sales.returns.update');
+        Route::post('returns/{customerReturn}/validate', [CustomerReturnController::class, 'validateReturn'])->name('sales.returns.validate');
+        Route::post('returns/{customerReturn}/cancel', [CustomerReturnController::class, 'cancel'])->name('sales.returns.cancel');
         Route::get('orders/{order}', [OrderController::class, 'show'])->name('orders.show');
         Route::post('orders/bulk-convert', [OrderController::class, 'bulkConvert'])->name('orders.bulk-convert');
         Route::get('invoices/import/template', [DocumentImportController::class, 'downloadTemplate'])->defaults('type', 'invoices')->name('invoices.import.template');
@@ -274,6 +325,7 @@ Route::middleware('auth')->group(function () {
         Route::post('expense-recurrences/{expense}/resume', [ExpenseRecurrenceController::class, 'resume'])->name('expenses.recurrence.resume');
         Route::post('expense-recurrences/{expense}/stop', [ExpenseRecurrenceController::class, 'stop'])->name('expenses.recurrence.stop');
         Route::get('payments', [PurchasePaymentController::class, 'index'])->name('purchases.payments.index');
+        Route::get('needs', [StockReplenishmentController::class, 'purchaseNeeds'])->name('purchases.needs.index');
         Route::get('payments/history', [PurchasePaymentController::class, 'history'])->name('purchases.payments.history');
         Route::post('payments/manual', [PurchasePaymentController::class, 'storeManual'])->name('purchases.payments.manual');
         Route::get('payments/settle/{supplier}', [PurchasePaymentController::class, 'settle'])->name('purchases.payments.settle');
@@ -296,7 +348,9 @@ Route::middleware('auth')->group(function () {
         Route::get('expenses/{expense}/print', [ExpenseController::class, 'print'])->name('expenses.print');
         Route::get('expenses/{expense}/pdf', [ExpenseController::class, 'downloadPdf'])->name('expenses.pdf');
         Route::resource('expenses-with-invoice', ExpenseWithInvoiceController::class)->parameters(['expenses-with-invoice' => 'expenseWithInvoice']);
+        Route::post('expenses-with-invoice/{expenseWithInvoice}/mark-paid', [ExpenseWithInvoiceController::class, 'markPaid'])->name('expenses-with-invoice.mark-paid');
         Route::resource('expenses-without-invoice', ExpenseWithoutInvoiceController::class)->parameters(['expenses-without-invoice' => 'expenseWithoutInvoice']);
+        Route::post('expenses-without-invoice/{expenseWithoutInvoice}/mark-paid', [ExpenseWithoutInvoiceController::class, 'markPaid'])->name('expenses-without-invoice.mark-paid');
         Route::resource('supplier-purchase-orders', SupplierPurchaseOrderController::class);
         Route::get('supplier-purchase-orders/{supplierPurchaseOrder}/print', [SupplierPurchaseOrderController::class, 'print'])->name('supplier-purchase-orders.print');
         Route::get('supplier-purchase-orders/{supplierPurchaseOrder}/pdf', [SupplierPurchaseOrderController::class, 'downloadPdf'])->name('supplier-purchase-orders.pdf');
@@ -414,6 +468,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings/fiscalite', [SettingsController::class, 'fiscalite'])->name('settings.fiscalite');
     Route::get('/settings/depenses', [SettingsController::class, 'depenses'])->name('settings.depenses');
     Route::get('/settings/stock', [SettingsController::class, 'stock'])->name('settings.stock');
+    Route::get('/settings/smtp', [SettingsController::class, 'smtp'])->name('settings.smtp');
+    Route::post('/settings/smtp/test', [SettingsController::class, 'testSmtp'])->name('settings.smtp.test');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
 
     // Administration — Collaborateurs / Utilisateurs / Rôles / Permissions
@@ -440,6 +496,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/commissions', [CommissionController::class, 'index'])->name('commissions.index');
         Route::get('/commissions/regles', [CommissionController::class, 'rules'])->middleware('access')->name('commissions.rules');
         Route::post('/commissions/regles', [CommissionController::class, 'storeRule'])->middleware('access')->name('commissions.rules.store');
+        Route::put('/commissions/regles/{rule}', [CommissionController::class, 'updateRule'])->middleware('access')->name('commissions.rules.update');
+        Route::post('/commissions/regles/{rule}/toggle', [CommissionController::class, 'toggleRule'])->middleware('access')->name('commissions.rules.toggle');
+        Route::post('/commissions/regles/{rule}/archiver', [CommissionController::class, 'archiveRule'])->middleware('access')->name('commissions.rules.archive');
+        Route::delete('/commissions/regles/{rule}', [CommissionController::class, 'destroyRule'])->middleware('access')->name('commissions.rules.destroy');
         Route::post('/commissions/valider', [CommissionController::class, 'validateSelected'])->middleware('access')->name('commissions.validate');
         Route::post('/commissions/payer', [CommissionController::class, 'markPaid'])->middleware('access')->name('commissions.pay');
         Route::post('/commissions/lier-paie', [CommissionSettlementController::class, 'linkPayroll'])->middleware('access')->name('commissions.link-payroll');

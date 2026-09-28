@@ -45,7 +45,7 @@
                 <form method="POST" action="{{ route('orders.sync-shopify', $order) }}">
                     @csrf
                     <button type="submit" class="px-4 py-2 bg-green-600 rounded-lg text-sm font-medium text-white hover:bg-green-700">
-                        {{ $order->sync_status === 'error' ? 'Relancer Shopify' : 'Synchroniser Shopify' }}
+                        {{ in_array($order->sync_status, ['error', 'in_progress'], true) ? 'Resynchroniser vers Shopify' : 'Synchroniser Shopify' }}
                     </button>
                 </form>
                 @endif
@@ -75,6 +75,9 @@
         @endif
         @if(session('warning'))
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{{ session('warning') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{{ session('error') }}</div>
         @endif
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <!-- Order Header -->
@@ -112,14 +115,44 @@
                             <div class="flex justify-between gap-4"><dt class="text-blue-700">Commercial attribué</dt><dd class="font-medium text-blue-950">{{ $order->assignedUser?->name ?? $order->user?->name ?? 'Non attribué' }} @if($order->assigned_user_id) (#{{ $order->assigned_user_id }}) @endif</dd></div>
                         </dl>
                     </div>
-                    <div class="rounded-lg border p-4 {{ $order->sync_status === 'error' ? 'border-red-200 bg-red-50' : ($order->sync_status === 'synced' ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50') }}">
+                    @php
+                        $staleInProgress = $order->sync_status === 'in_progress'
+                            && $order->sync_attempted_at
+                            && $order->sync_attempted_at->lt(now()->subMinutes(5));
+                        $displaySyncStatus = $staleInProgress ? 'error' : ($order->sync_status ?: 'not_synced');
+                        $syncLabels = [
+                            'not_synced' => 'En attente',
+                            'in_progress' => 'En cours',
+                            'synced' => 'Synchronisée',
+                            'error' => 'Erreur de synchronisation',
+                        ];
+                        $syncPanelClass = match ($displaySyncStatus) {
+                            'error' => 'border-red-200 bg-red-50',
+                            'synced' => 'border-green-200 bg-green-50',
+                            'in_progress' => 'border-amber-200 bg-amber-50',
+                            default => 'border-amber-200 bg-amber-50',
+                        };
+                    @endphp
+                    <div class="rounded-lg border p-4 {{ $syncPanelClass }}">
                         <h3 class="text-sm font-semibold text-gray-900">Synchronisation Shopify</h3>
-                        @php($syncLabels = ['not_synced' => 'Non synchronisée', 'in_progress' => 'En cours', 'synced' => 'Synchronisée', 'error' => 'Erreur'])
-                        <p class="mt-2 text-sm font-medium">{{ $syncLabels[$order->sync_status] ?? ucfirst($order->sync_status ?? 'Non synchronisée') }}</p>
+                        <p class="mt-2 text-sm font-medium">{{ $syncLabels[$displaySyncStatus] ?? 'En attente' }}</p>
                         @if($order->shopify_order_number)<p class="mt-1 text-xs">Commande Shopify : {{ $order->shopify_order_number }}</p>@endif
-                        @if($order->shopify_order_id)<p class="mt-1 text-xs font-mono">ID : {{ $order->shopify_order_id }}</p>@endif
+                        @if($order->shopify_order_id)<p class="mt-1 text-xs font-mono">ID Shopify : {{ $order->shopify_order_id }}</p>@endif
                         @if($order->shopify_synced_at)<p class="mt-1 text-xs">Synchronisée le {{ $order->shopify_synced_at->format('d/m/Y H:i') }}</p>@endif
-                        @if($order->sync_error)<p class="mt-2 text-xs text-red-700">{{ $order->sync_error }}</p>@endif
+                        @if($order->sync_attempted_at)<p class="mt-1 text-xs text-gray-600">Dernière tentative : {{ $order->sync_attempted_at->format('d/m/Y H:i') }}</p>@endif
+                        @if($staleInProgress)
+                            <p class="mt-2 text-xs text-red-700">La synchronisation précédente n’a pas abouti (délai dépassé). Utilisez « Resynchroniser vers Shopify ».</p>
+                        @elseif($order->sync_error)
+                            <p class="mt-2 text-xs text-red-700">{{ $order->sync_error }}</p>
+                        @endif
+                        @if($order->source === 'libromart' && !$order->shopify_order_id && in_array($displaySyncStatus, ['error', 'not_synced'], true))
+                        <form method="POST" action="{{ route('orders.sync-shopify', $order) }}" class="mt-3">
+                            @csrf
+                            <button type="submit" class="px-3 py-1.5 bg-green-600 rounded-md text-xs font-medium text-white hover:bg-green-700">
+                                Resynchroniser vers Shopify
+                            </button>
+                        </form>
+                        @endif
                     </div>
                 </div>
 

@@ -23,6 +23,7 @@ class ProductCompatibilityAndBulkAssignTest extends TestCase
             'item_kind' => Product::KIND_STOCKED,
             'status' => 'Activer',
             'stock_quantity' => 0,
+            'stock_magasin' => 0,
             'stock_reserved' => 0,
         ]);
         $f70 = Product::create([
@@ -30,9 +31,22 @@ class ProductCompatibilityAndBulkAssignTest extends TestCase
             'ref' => 'TAP-BMW-F70',
             'item_kind' => Product::KIND_STOCKED,
             'status' => 'Activer',
-            'stock_quantity' => 3,
+            'stock_quantity' => 0,
+            'stock_magasin' => 0,
             'stock_reserved' => 0,
         ]);
+
+        $warehouse = Warehouse::fulfillmentWarehouse()
+            ?? Warehouse::query()->where('kind', 'physical')->first()
+            ?? Warehouse::create(['name' => 'Belvedere', 'code' => 'BELV', 'kind' => 'physical', 'status' => 'active', 'is_primary' => true]);
+
+        app(StockMovementService::class)->declarePhysicalStock(
+            $f70,
+            3,
+            (int) $warehouse->id,
+            null,
+            \App\Models\StockMovement::REASON_PURCHASE
+        );
 
         app(ProductCompatibilityService::class)->sync($f40, [$f70->id]);
 
@@ -45,8 +59,8 @@ class ProductCompatibilityAndBulkAssignTest extends TestCase
 
         $this->assertFalse($f40->fresh()->compatibleProducts()->where('products.id', $f70->id)->exists());
         $this->assertFalse($f70->fresh()->compatibleProducts()->where('products.id', $f40->id)->exists());
-        $this->assertDatabaseHas('products', ['id' => $f40->id, 'stock_quantity' => 0]);
-        $this->assertDatabaseHas('products', ['id' => $f70->id, 'stock_quantity' => 3]);
+        $this->assertSame(0, $f40->fresh()->availableStock());
+        $this->assertSame(3, $f70->fresh()->availableStock());
     }
 
     public function test_product_search_includes_compatible_hits(): void

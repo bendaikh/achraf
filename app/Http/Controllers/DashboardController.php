@@ -11,7 +11,7 @@ use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    private const PERIODS = ['month', 'quarter', 'year', 'previous_month', 'custom'];
+    private const PERIODS = ['today', 'month', 'quarter', 'year', 'previous_month', 'custom'];
 
     private const CHART_PERIODS = ['6', '12', 'year'];
 
@@ -76,12 +76,13 @@ class DashboardController extends Controller
     {
         $period = (string) $request->input('period', '');
         if (! in_array($period, self::PERIODS, true)) {
-            $period = ($request->filled('date_from') || $request->filled('date_to')) ? 'custom' : 'month';
+            $period = ($request->filled('date_from') || $request->filled('date_to')) ? 'custom' : 'today';
         }
 
         $now = Carbon::now();
 
         [$from, $to] = match ($period) {
+            'today' => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
             'quarter' => [$now->copy()->startOfQuarter(), $now->copy()->endOfQuarter()->endOfDay()],
             'year' => [$now->copy()->startOfYear(), $now->copy()->endOfYear()->endOfDay()],
             'previous_month' => [
@@ -120,6 +121,7 @@ class DashboardController extends Controller
     private function periodLabel(string $period, Carbon $from, Carbon $to): string
     {
         return match ($period) {
+            'today' => 'Aujourd\'hui ('.$from->translatedFormat('d M Y').')',
             'quarter' => 'Trimestre en cours ('.$from->translatedFormat('d M').' → '.$to->translatedFormat('d M Y').')',
             'year' => 'Année '.$from->year,
             'previous_month' => ucfirst($from->translatedFormat('F Y')),

@@ -32,17 +32,24 @@
                     @error('file')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
                 </div>
                 <div class="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-900 mb-6">
-                    <p class="font-medium mb-2">Colonnes reconnues (en-têtes flexibles) :</p>
+                    <p class="font-medium mb-2">Formats supportés (moteur commun Ozon / Speedaf / Jumia) :</p>
                     <ul class="list-disc pl-5 space-y-1">
-                        <li><strong>Code d'envoi</strong> / Tracking / N° colis / N° suivi</li>
-                        <li><strong>N° commande</strong> / order / N° facture / order_no</li>
+                        <li><strong>Ozon</strong> — Code d’envoi / Crbt / Frais / Total</li>
+                        <li><strong>Speedaf</strong> — Waybill · Ordre de client · COD · Fret · Net</li>
+                        <li><strong>Jumia</strong> — Order No. · Tracking Number · commissions / transport regroupés</li>
+                    </ul>
+                    <p class="mt-3 font-medium">Colonnes reconnues (en-têtes flexibles) :</p>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li><strong>Code d'envoi</strong> / Tracking / Waybill / N° colis</li>
+                        <li><strong>N° commande</strong> / Ordre de client / Order No. / N° facture</li>
                         <li><strong>Client</strong> · <strong>Téléphone</strong> · <strong>Ville</strong> · <strong>Transporteur</strong></li>
-                        <li><strong>Crbt / Montant brut</strong> · <strong>Frais</strong> · <strong>Total / Net encaissé</strong></li>
+                        <li><strong>COD / Crbt / Brut</strong> · <strong>Frais / Fret / Commission</strong> · <strong>Net</strong></li>
                         <li><strong>Status</strong> transporteur (Livré requis) · dates de livraison / règlement</li>
                     </ul>
                     <p class="mt-3">Ordre de rapprochement : <strong>tracking</strong> → n° commande → téléphone → nom+téléphone+montant → montant+ville+période (dernier recours uniquement).</p>
-                    <p class="mt-2 text-blue-800">Règle importante : un paiement n'est jamais validé automatiquement sur le seul critère montant + ville + période.</p>
-                    <p class="mt-3">L’analyse du fichier se fait <strong>en arrière-plan</strong> (évite les erreurs 504 sur les gros fichiers). Aucun paiement ni mouvement de trésorerie ne sera créé avant votre validation finale.</p>
+                    <p class="mt-2">Affichage contrôle : <strong>Brut</strong> · <strong>Frais</strong> · <strong>Net attendu</strong> · <strong>Net reçu</strong> · <strong>Écart</strong> (Net attendu = Brut − Frais connus).</p>
+                    <p class="mt-2 text-blue-800">Règle importante : un paiement n'est jamais validé automatiquement sur le seul critère montant + ville + période. Retours/remboursements n’créent pas de paiement client.</p>
+                    <p class="mt-3">L’analyse du fichier se fait <strong>en arrière-plan</strong> (évite les erreurs 504). Aucun paiement ni mouvement de trésorerie avant votre validation finale. Réimporter le même fichier ne recrée pas les paiements déjà validés.</p>
                 </div>
                 <button type="submit" class="px-4 py-2 bg-[#0a5d8a] text-white rounded-lg text-sm font-medium">
                     Analyser le fichier

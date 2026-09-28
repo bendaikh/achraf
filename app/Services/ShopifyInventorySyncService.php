@@ -49,7 +49,8 @@ class ShopifyInventorySyncService
             return;
         }
 
-        $available = max(0, $variant->onlineStock());
+        // Absolute quantity from authorized physical warehouses (Shopify = sales channel).
+        $available = max(0, app(StockMovementService::class)->shopifyAvailableQuantity($product, (int) $variant->id));
 
         try {
             $client = new ShopifyApiClient(ShopifyIntegration::query()->where('enabled', true)->first());
@@ -58,13 +59,14 @@ class ShopifyInventorySyncService
             $variant->inventory_quantity = $available;
             $variant->save();
 
-            Log::info('Shopify inventory pushed', [
+            Log::info('Shopify inventory pushed (absolute from physical feed warehouses)', [
                 'product_id' => $product->id,
                 'variant_id' => $variant->id,
                 'sku' => $variant->sku ?: $product->ref,
                 'available' => $available,
             ]);
         } catch (\Throwable $e) {
+            // Never roll back Libromart physical stock on Shopify API failure.
             Log::warning('Shopify inventory push failed', [
                 'product_id' => $product->id,
                 'variant_id' => $variant->id,
@@ -95,6 +97,17 @@ class ShopifyInventorySyncService
         $available = max(0, $available);
         $product = $variant->product;
 
+        // Loop protection: if Shopify mirrors the quantity we would push from physical feed, ignore.
+        $expected = max(0, app(StockMovementService::class)->shopifyAvailableQuantity($product, (int) $variant->id));
+        if ($available === $expected) {
+            if ((int) $variant->inventory_quantity !== $available) {
+                $variant->inventory_quantity = $available;
+                $variant->save();
+            }
+
+            return null;
+        }
+
         if ((int) $variant->inventory_quantity === $available) {
             $currentSlotQty = $variant->onlineStock();
             if ($currentSlotQty === $available) {
@@ -102,10 +115,11 @@ class ShopifyInventorySyncService
             }
         }
 
+        // Update online mirror only — never modify physical warehouses from Shopify webhooks.
         app(StockMovementService::class)->syncVariantOnlineWarehouseFromExternal(
             $variant,
             $available,
-            'Webhook inventaire Shopify'
+            'Webhook inventaire Shopify (miroir canal)'
         );
 
         return $product->fresh();

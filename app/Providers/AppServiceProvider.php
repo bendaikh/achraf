@@ -9,6 +9,7 @@ use App\Models\PosSale;
 use App\Models\SupplierInvoicePayment;
 use App\Models\SupplierPayment;
 use App\Observers\FinancialSourceObserver;
+use App\Support\SmtpSettings;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -32,5 +33,11 @@ class AppServiceProvider extends ServiceProvider
         Expense::observe(FinancialSourceObserver::class);
         PosSale::observe(FinancialSourceObserver::class);
         ClientRefund::observe(FinancialSourceObserver::class);
+
+        try {
+            SmtpSettings::applyToConfig();
+        } catch (\Throwable) {
+            // Settings table may be unavailable during early migrate.
+        }
     }
 }

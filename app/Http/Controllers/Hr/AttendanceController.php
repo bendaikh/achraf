@@ -37,9 +37,13 @@ class AttendanceController extends Controller
             }
 
             $employee = $employees->firstWhere('id', $employeeId);
-            $grid = $employee
-                ? $service->buildMonthGrid($employee, $year, $month)
-                : ['days' => [], 'summary' => $service->summarizeMonthDays([])];
+            if ($employee) {
+                // Fiche salarié / planning → génération automatique du mois (jours non protégés).
+                $service->generateMonthFromSchedule($employee, $year, $month);
+                $grid = $service->buildMonthGrid($employee, $year, $month);
+            } else {
+                $grid = ['days' => [], 'summary' => $service->summarizeMonthDays([]), 'month_validated' => false];
+            }
 
             $cursor = Carbon::create($year, $month, 1);
             $prev = $cursor->copy()->subMonth();
@@ -54,6 +58,7 @@ class AttendanceController extends Controller
                 'month' => $month,
                 'days' => $grid['days'],
                 'summary' => $grid['summary'],
+                'monthValidated' => (bool) ($grid['month_validated'] ?? false),
                 'prevMonth' => $prev->month,
                 'prevYear' => $prev->year,
                 'nextMonth' => $next->month,
@@ -96,6 +101,7 @@ class AttendanceController extends Controller
             'month' => (int) now()->month,
             'days' => [],
             'summary' => null,
+            'monthValidated' => false,
             'monthNames' => $this->monthNames(),
         ]);
     }
@@ -143,6 +149,11 @@ class AttendanceController extends Controller
         ]);
 
         $employee = Employee::findOrFail($validated['employee_id']);
+
+        if ($service->isMonthValidated((int) $validated['year'], (int) $validated['month'])) {
+            return back()->with('error', 'Ce mois de paie est validé : les pointages ne peuvent plus être modifiés automatiquement.');
+        }
+
         $hasExisting = AttendanceRecord::query()
             ->where('employee_id', $employee->id)
             ->whereYear('work_date', $validated['year'])

@@ -11,6 +11,8 @@ class Warehouse extends Model
 
     public const STATUS_INACTIVE = 'inactive';
 
+    public const STATUS_ARCHIVED = 'archived';
+
     public const KIND_PHYSICAL = 'physical';
 
     public const KIND_ONLINE = 'online';
@@ -22,14 +24,20 @@ class Warehouse extends Model
         'address',
         'city',
         'status',
+        'archived_at',
         'is_primary',
         'is_fulfillment_default',
+        'available_for_shopify',
+        'is_sellable',
         'comment',
     ];
 
     protected $casts = [
         'is_primary' => 'boolean',
         'is_fulfillment_default' => 'boolean',
+        'available_for_shopify' => 'boolean',
+        'is_sellable' => 'boolean',
+        'archived_at' => 'datetime',
     ];
 
     public function locations(): HasMany
@@ -44,12 +52,52 @@ class Warehouse extends Model
 
     public function isActive(): bool
     {
-        return ($this->status ?? self::STATUS_ACTIVE) === self::STATUS_ACTIVE;
+        return ($this->status ?? self::STATUS_ACTIVE) === self::STATUS_ACTIVE
+            && $this->archived_at === null;
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null
+            || ($this->status ?? '') === self::STATUS_ARCHIVED;
     }
 
     public function scopeActive($query)
     {
-        return $query->where('status', self::STATUS_ACTIVE);
+        return $query->where('status', self::STATUS_ACTIVE)
+            ->whereNull('archived_at');
+    }
+
+    public function scopeNotArchived($query)
+    {
+        return $query->whereNull('archived_at')
+            ->where(function ($q) {
+                $q->where('status', '!=', self::STATUS_ARCHIVED)
+                    ->orWhereNull('status');
+            });
+    }
+
+    public function hasPhysicalStock(): bool
+    {
+        return $this->productStocks()->where('quantity', '!=', 0)->exists();
+    }
+
+    public function hasStockHistory(): bool
+    {
+        return StockMovement::query()->where('warehouse_id', $this->id)->exists();
+    }
+
+    public function archive(?string $reason = null): void
+    {
+        $this->status = self::STATUS_ARCHIVED;
+        $this->archived_at = now();
+        $this->is_primary = false;
+        $this->is_fulfillment_default = false;
+        $this->available_for_shopify = false;
+        if ($reason) {
+            $this->comment = trim(($this->comment ? $this->comment."\n" : '').'Archivé : '.$reason);
+        }
+        $this->save();
     }
 
     public function displayLabel(): string
@@ -78,6 +126,38 @@ class Warehouse extends Model
         return ! $this->isOnline();
     }
 
+    /**
+     * Whether this warehouse's available stock feeds the Shopify sales channel.
+     */
+    public function feedsShopify(): bool
+    {
+        return $this->isPhysical() && (bool) $this->available_for_shopify && $this->isSellable();
+    }
+
+    /**
+     * Whether stock in this warehouse counts as available for sale.
+     */
+    public function isSellable(): bool
+    {
+        if ($this->isOnline()) {
+            return false;
+        }
+
+        return $this->is_sellable !== false;
+    }
+
+    public function scopeSellable($query)
+    {
+        return $query->physical()->where(function ($q) {
+            $q->where('is_sellable', true)->orWhereNull('is_sellable');
+        });
+    }
+
+    public static function savWarehouse(): ?self
+    {
+        return static::query()->active()->where('code', 'SAV')->first();
+    }
+
     public function scopePhysical($query)
     {
         return $query->where(function ($q) {
@@ -88,6 +168,19 @@ class Warehouse extends Model
     public function scopeOnline($query)
     {
         return $query->where('kind', self::KIND_ONLINE);
+    }
+
+    public function scopeAvailableForShopify($query)
+    {
+        return $query->sellable()->where('available_for_shopify', true);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, self>
+     */
+    public static function shopifyFeedWarehouses()
+    {
+        return static::query()->active()->availableForShopify()->orderBy('name')->get();
     }
 
     public static function onlineWarehouse(): ?self

@@ -27,7 +27,7 @@
                 <th>Produit</th>
                 <th class="text-right">{{ $stockLabel }}</th>
                 @if(($reportType ?? '') === 'magasin')
-                    <th class="text-right">Prix d'achat</th>
+                    <th class="text-right">Prix d'achat TTC</th>
                     <th class="text-right">Prix de vente</th>
                 @endif
                 <th class="text-right">Seuil alerte</th>
@@ -42,7 +42,10 @@
                     <td>{{ $product->name }}</td>
                     <td class="text-right">{{ $qty }}</td>
                     @if(($reportType ?? '') === 'magasin')
-                        <td class="text-right">{{ number_format($product->cost_price_ht ?? 0, 2) }}</td>
+                        @php
+                            $purchaseCost = app(\App\Services\LocationStockReportService::class)->resolvePurchaseCost($product);
+                        @endphp
+                        <td class="text-right">{{ $purchaseCost['has_cost'] ? number_format((float) $purchaseCost['ttc'], 2) : 'Non renseigné' }}</td>
                         <td class="text-right">{{ number_format($product->sale_price ?? 0, 2) }}</td>
                     @endif
                     <td class="text-right">{{ $product->minimum_alert_stock ?? '—' }}</td>

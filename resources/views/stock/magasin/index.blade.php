@@ -70,7 +70,7 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-ref column-ref" data-lm-col="ref">Référence</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-nom column-nom" data-lm-col="nom">Produit</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-stock column-stock" data-lm-col="stock">Stock</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">Prix d'achat</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">Prix d'achat TTC</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">Prix de vente</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-ref column-ref" data-lm-col="ref">Seuils</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-nom column-nom" data-lm-col="nom">État</th>
@@ -103,7 +103,12 @@
                                                 <span class="text-sm text-gray-900">{{ $qty }}</span>
                                             @endif
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 lm-col lm-col-statut column-statut" data-lm-col="statut">{{ number_format($product->cost_price_ht ?? 0, 2) }} DH</td>
+                                        @php
+                                            $purchaseCost = app(\App\Services\LocationStockReportService::class)->resolvePurchaseCost($product);
+                                        @endphp
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 lm-col lm-col-statut column-statut" data-lm-col="statut">
+                                            {{ $purchaseCost['has_cost'] ? number_format((float) $purchaseCost['ttc'], 2).' DH' : 'Non renseigné' }}
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 lm-col lm-col-statut column-statut" data-lm-col="statut">{{ number_format($product->sale_price ?? 0, 2) }} DH</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 lm-col lm-col-statut column-statut" data-lm-col="statut">
                                             @if($product->minimum_alert_stock !== null || $product->minimum_safety_stock !== null)

@@ -44,26 +44,10 @@
             <x-table-filters
                 :action="route('invoices.index')"
                 search-placeholder="N° facture, client, commande..."
-                grid-cols="md:grid-cols-5 lg:grid-cols-7"
+                grid-cols="md:grid-cols-3 lg:grid-cols-6"
             >
-                <div>
-                    <label for="commercial_status" class="block text-sm font-medium text-gray-700 mb-1">Statut commercial</label>
-                    <select name="commercial_status" id="commercial_status" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
-                        <option value="">Tous</option>
-                        @foreach($commercialStatuses as $value => $label)
-                            <option value="{{ $value }}" @selected(request('commercial_status') === $value)>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label for="source" class="block text-sm font-medium text-gray-700 mb-1">Source</label>
-                    <select name="source" id="source" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
-                        <option value="">Toutes</option>
-                        <option value="shopify" @selected(request('source') === 'shopify')>Shopify</option>
-                        <option value="jumia" @selected(request('source') === 'jumia')>Jumia</option>
-                        <option value="libromart" @selected(request('source') === 'libromart')>Vente directe</option>
-                    </select>
-                </div>
+                <x-source-filter />
+                <x-commercial-status-filter />
             </x-table-filters>
 
             <x-table-list-toolbar table-id="invoices" />
@@ -90,10 +74,10 @@
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-origine column-origine" data-lm-col="origine">
                                     Source
                                 </th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut-commercial column-statut-commercial" data-lm-col="statut_commercial">
+                                <x-table-sort-header column="invoice_date" colKey="date" label="Date" :default="true" default-direction="desc" />
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut_commercial column-statut_commercial" data-lm-col="statut_commercial">
                                     Statut commercial
                                 </th>
-                                <x-table-sort-header column="invoice_date" colKey="date" label="Date" :default="true" default-direction="desc" />
                                 <x-table-sort-header column="due_date" colKey="echeance" label="Échéance" default-direction="desc" />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-devise column-devise" data-lm-col="devise">
                                     Devise
@@ -138,26 +122,13 @@
                                         @php
                                             $src = $invoice->source ?? $invoice->posSale?->source;
                                         @endphp
-                                        @if($src === 'shopify')
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Shopify</span>
-                                        @elseif($src === 'jumia')
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Jumia</span>
-                                        @elseif($invoice->is_auto_generated)
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Auto</span>
-                                        @else
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Directe</span>
-                                        @endif
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut-commercial column-statut-commercial" data-lm-col="statut_commercial">
-                                        @php
-                                            $status = $invoice->commercial_status ?? 'normal';
-                                            $badge = \App\Support\InvoiceCommercialStatus::badgeClasses()[$status] ?? 'bg-gray-100 text-gray-800';
-                                            $label = \App\Support\InvoiceCommercialStatus::labels()[$status] ?? $status;
-                                        @endphp
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">{{ strtoupper($label) }}</span>
+                                        <x-source-badge :source="$src" :auto="$invoice->is_auto_generated && ! $src" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">
                                         <div class="text-sm text-gray-900">{{ $invoice->invoice_date->format('d/m/Y') }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut_commercial column-statut_commercial" data-lm-col="statut_commercial">
+                                        <x-commercial-status-badge :status="$invoice->commercial_status" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-echeance column-echeance" data-lm-col="echeance">
                                         <div class="text-sm text-gray-900">{{ $invoice->due_date ? $invoice->due_date->format('d/m/Y') : '-' }}</div>

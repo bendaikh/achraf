@@ -413,10 +413,18 @@ class PaymentImportService
             'tracking', 'tracking_number', 'tracking_n_colis', 'n_colis', 'numero_colis', 'colis',
             'n_suivi', 'numero_suivi', 'suivi', 'no_suivi', 'awb', 'barcode',
             'tracking number', 'n° suivi', 'n° colis',
+            // Speedaf
+            'waybill', 'waybill_no', 'waybill_number', 'wb_no', 'mail_no',
+            // Jumia
+            'tracking_code', 'package_id',
         ]);
         $orderRef = $this->pickField($row, [
             'order_no', 'order_number', 'n_commande', 'numero_commande', 'reference_commande',
             'order', 'commande', 'shopify', 'n_order',
+            // Speedaf
+            'ordre_de_client', 'ordre_client', 'client_order', 'customer_order', 'order_id',
+            // Jumia
+            'order_number_jumia', 'purchase_order_id', 'package_number',
         ]);
         $invoiceRef = $this->pickField($row, [
             'invoice', 'facture', 'invoice_number', 'n_facture', 'numero_facture',
@@ -425,11 +433,11 @@ class PaymentImportService
             'reference', 'ref', 'libelle', 'label', 'description', 'motif', 'details',
         ]) ?? $tracking ?? $orderRef ?? $invoiceRef;
 
-        $deliveryFees = $this->parseAmount($this->pickField($row, [
-            'frais', 'fees', 'delivery_fees', 'frais_livraison', 'shipping_fee', 'shipping_fees',
-        ]));
+        $deliveryFees = $this->sumFeeFields($row);
         $netAmount = $this->parseAmount($this->pickField($row, [
             'net_encaisse', 'montant_net', 'net', 'net_amount',
+            // Speedaf
+            'net_reversé', 'net_reverse', 'settlement_amount', 'payout',
         ]));
         // Prefer an explicit "Total" column as net when CRBT/gross is present.
         $totalColumn = $this->parseAmount($this->pickField($row, ['total'], exact: true));
@@ -457,34 +465,105 @@ class PaymentImportService
             'invoice_ref' => $invoiceRef,
             'reference' => $reference,
             'external_ref' => $this->pickField($row, [
-                'external_id', 'order_id', 'marketplace_id', 'shopify', 'jumia',
+                'external_id', 'order_id', 'marketplace_id', 'shopify', 'jumia', 'ozon', 'speedaf',
             ]),
             'client_name' => $this->pickField($row, [
                 'client', 'nom_client', 'nom_destinataire', 'destinataire', 'beneficiaire',
-                'customer', 'customer_name', 'nom', 'name',
+                'customer', 'customer_name', 'nom', 'name', 'consignee', 'receiver_name',
             ]),
             'client_phone' => $this->pickField($row, [
                 'telephone', 'tel', 'phone', 'mobile', 'gsm', 'whatsapp', 'n_telephone',
+                'receiver_phone', 'consignee_phone',
             ]),
-            'city' => $this->pickField($row, ['ville', 'city', 'localite']),
+            'city' => $this->pickField($row, ['ville', 'city', 'localite', 'destination_city', 'receiver_city']),
             'carrier' => $this->pickField($row, [
                 'transporteur', 'carrier', 'marketplace', 'livreur',
                 'shipping_provider', 'shipping provider', 'courier',
-            ]),
+            ]) ?? $this->detectCarrierHint($row),
             'delivery_date' => $this->pickField($row, [
                 'date_de_livraison', 'delivery_date', 'date_livraison', 'date_reglement', 'date',
+                'delivered_at', 'sign_date',
             ]),
             'pickup_date' => $this->pickField($row, [
-                'date_de_ramassage', 'pickup_date', 'date_ramassage',
+                'date_de_ramassage', 'pickup_date', 'date_ramassage', 'collect_date',
             ]),
             'payment_date' => $this->pickField($row, [
-                'date_reglement', 'payment_date', 'transaction_date', 'date_paiement',
+                'date_reglement', 'payment_date', 'transaction_date', 'date_paiement', 'settlement_date',
             ]),
-            'status' => $this->pickField($row, ['status', 'statut', 'order_item_status']),
+            'status' => $this->pickField($row, [
+                'status', 'statut', 'order_item_status', 'parcel_status', 'delivery_status',
+            ]),
             'gross_amount' => $amount,
             'delivery_fees' => $deliveryFees,
             'net_amount' => $netAmount,
         ];
+    }
+
+    /**
+     * Sum known fee columns (carrier freight + marketplace commission + other recognized fees).
+     */
+    protected function sumFeeFields(array $row): ?float
+    {
+        $feeKeys = [
+            'frais', 'fees', 'delivery_fees', 'frais_livraison', 'shipping_fee', 'shipping_fees',
+            // Speedaf
+            'fret', 'freight', 'freight_fee', 'recognized_fees', 'frais_reconnus', 'other_fee',
+            // Jumia / marketplace
+            'commission', 'commissions', 'marketplace_fee', 'marketplace_fees',
+            'jumia_commission', 'seller_voucher', 'shipping_fee_credit', 'wallet_credits',
+        ];
+
+        $sum = 0.0;
+        $found = false;
+        $seen = [];
+
+        foreach ($feeKeys as $key) {
+            $value = $this->pickField($row, [$key]);
+            if ($value === null) {
+                continue;
+            }
+            $amount = $this->parseAmount($value);
+            if ($amount === null) {
+                continue;
+            }
+            // Avoid double-counting the same cell when aliases overlap.
+            $fingerprint = abs($amount).'|'.md5(mb_strtolower($key));
+            if (isset($seen[$fingerprint])) {
+                continue;
+            }
+            // Prefer summing distinct physical columns: mark by normalized row key that matched.
+            foreach ($row as $rowKey => $raw) {
+                $normalized = $this->normalizeHeader((string) $rowKey);
+                $want = $this->normalizeHeader($key);
+                if ($normalized === $want || str_replace('_', '', $normalized) === str_replace('_', '', $want)) {
+                    if (isset($seen[$normalized])) {
+                        continue 2;
+                    }
+                    $seen[$normalized] = true;
+                    break;
+                }
+            }
+            $sum += abs($amount);
+            $found = true;
+        }
+
+        return $found ? round($sum, 2) : null;
+    }
+
+    protected function detectCarrierHint(array $row): ?string
+    {
+        $joined = mb_strtolower(implode(' ', array_map(fn ($k) => (string) $k, array_keys($row))));
+        if (str_contains($joined, 'waybill') || str_contains($joined, 'ordre_de_client') || str_contains($joined, 'fret')) {
+            return 'Speedaf';
+        }
+        if (str_contains($joined, 'order_no') || str_contains($joined, 'item_price') || str_contains($joined, 'wallet')) {
+            return 'Jumia';
+        }
+        if (str_contains($joined, 'code_d_envoi') || str_contains($joined, 'crbt')) {
+            return 'Ozon';
+        }
+
+        return null;
     }
 
     protected function createMatchedLine(PaymentImport $import, int $lineNumber, array $row, string $scope): PaymentImportLine
@@ -578,11 +657,15 @@ class PaymentImportService
         // net remittance after fees and must not leave the invoice partially paid.
         $amount = $this->parseAmount($this->pickField($row, [
             'crbt', 'contre_remboursement', 'montant_brut', 'gross_amount', 'montant_ttc',
+            // Speedaf / COD
+            'cod', 'cod_amount', 'cod_value', 'cash_on_delivery', 'montant_cod',
+            // Jumia
+            'item_price_credit', 'paid_price', 'customer_paid',
         ]));
 
         return $amount ?? $this->parseAmount($this->pickField($row, [
             'amount', 'montant', 'solde', 'paiement',
-            'encaisse', 'règlement', 'reglement', 'item_price_credit',
+            'encaisse', 'règlement', 'reglement',
         ]));
     }
 
@@ -949,7 +1032,8 @@ class PaymentImportService
             return [];
         }
 
-        $header = array_map(fn ($h) => $this->normalizeHeader((string) $h), $rows[0]);
+        $headerIndex = $this->detectHeaderRow($rows);
+        $header = array_map(fn ($h) => $this->normalizeHeader((string) $h), $rows[$headerIndex] ?? []);
         // Spreadsheets often expose thousands of empty trailing columns.
         $lastHeaderIdx = -1;
         foreach ($header as $idx => $key) {
@@ -963,9 +1047,9 @@ class PaymentImportService
         $header = array_slice($header, 0, $lastHeaderIdx + 1);
 
         $out = [];
-        for ($i = 1; $i < count($rows); $i++) {
+        for ($i = $headerIndex + 1; $i < count($rows); $i++) {
             $row = array_slice($rows[$i], 0, count($header));
-            if ($this->rowIsEmpty($row)) {
+            if ($this->rowIsEmpty($row) || $this->rowLooksLikeSummary($row)) {
                 continue;
             }
             $assoc = [];
@@ -978,7 +1062,146 @@ class PaymentImportService
             $out[] = $assoc;
         }
 
-        return $out;
+        return $this->collapseMarketplaceOrderRows($out);
+    }
+
+    /**
+     * @param  list<list<mixed>>  $matrix
+     */
+    protected function detectHeaderRow(array $matrix): int
+    {
+        $limit = min(25, count($matrix));
+        $signals = [
+            'tracking', 'waybill', 'code_d_envoi', 'code_denvoi', 'crbt', 'cod',
+            'order_no', 'ordre_de_client', 'frais', 'fret', 'commission', 'status', 'statut',
+        ];
+
+        for ($i = 0; $i < $limit; $i++) {
+            $normalized = array_map(fn ($v) => $this->normalizeHeader((string) $v), $matrix[$i] ?? []);
+            $joined = implode(' ', $normalized);
+            $hits = 0;
+            foreach ($signals as $signal) {
+                if (str_contains($joined, $signal)) {
+                    $hits++;
+                }
+            }
+            if ($hits >= 2) {
+                return $i;
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param  list<mixed>  $row
+     */
+    protected function rowLooksLikeSummary(array $row): bool
+    {
+        $joined = mb_strtolower(implode(' ', array_map(fn ($v) => (string) $v, $row)));
+
+        return str_contains($joined, 'total')
+            || str_contains($joined, 'sous-total')
+            || str_contains($joined, 'sous total')
+            || str_contains($joined, 'summary')
+            || str_contains($joined, 'résumé')
+            || str_contains($joined, 'resume');
+    }
+
+    /**
+     * Jumia (and similar) settlement files often emit one row per fee component.
+     * Collapse rows that share the same Order No. into a single settlement line.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    protected function collapseMarketplaceOrderRows(array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+
+        $looksJumia = false;
+        foreach ($rows as $row) {
+            $keys = implode(' ', array_keys($row));
+            if (str_contains($keys, 'order_no') || str_contains($keys, 'commission') || str_contains($keys, 'item_price')) {
+                $looksJumia = true;
+                break;
+            }
+        }
+        if (! $looksJumia) {
+            return $rows;
+        }
+
+        $groups = [];
+        $passthrough = [];
+        foreach ($rows as $row) {
+            $orderNo = $this->pickField($row, ['order_no', 'order_number', 'n_commande', 'numero_commande']);
+            if (! $orderNo) {
+                $passthrough[] = $row;
+                continue;
+            }
+            $groups[$orderNo][] = $row;
+        }
+
+        $collapsed = [];
+        foreach ($groups as $orderNo => $group) {
+            if (count($group) === 1) {
+                $collapsed[] = $group[0];
+                continue;
+            }
+
+            $base = $group[0];
+            $gross = 0.0;
+            $fees = 0.0;
+            $net = 0.0;
+            $hasGross = false;
+            $hasFees = false;
+            $hasNet = false;
+            $tracking = null;
+
+            foreach ($group as $row) {
+                $fields = $this->extractRowFields($row);
+                if ($fields['tracking']) {
+                    $tracking = $fields['tracking'];
+                }
+                if ($fields['gross_amount'] !== null) {
+                    $gross += (float) $fields['gross_amount'];
+                    $hasGross = true;
+                }
+                if ($fields['delivery_fees'] !== null) {
+                    $fees += (float) $fields['delivery_fees'];
+                    $hasFees = true;
+                }
+                if ($fields['net_amount'] !== null) {
+                    $net += (float) $fields['net_amount'];
+                    $hasNet = true;
+                }
+            }
+
+            $base['order_no'] = $orderNo;
+            if ($tracking) {
+                $base['tracking_number'] = $tracking;
+            }
+            if ($hasGross) {
+                $base['crbt'] = round($gross, 2);
+                $base['cod'] = round($gross, 2);
+            }
+            if ($hasFees) {
+                $base['frais'] = round($fees, 2);
+            }
+            if ($hasNet) {
+                $base['net'] = round($net, 2);
+            } elseif ($hasGross && $hasFees) {
+                $base['net'] = round($gross - $fees, 2);
+            }
+            // Drop per-component fee columns so sumFeeFields does not double-count.
+            unset($base['commission'], $base['commissions'], $base['fret'], $base['freight']);
+            $base['status'] = $base['status'] ?? $base['statut'] ?? 'Livré';
+            $collapsed[] = $base;
+        }
+
+        return array_merge($collapsed, $passthrough);
     }
 
     protected function rowIsEmpty(array $row): bool

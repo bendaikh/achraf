@@ -48,23 +48,59 @@ class ExpenseWithoutInvoiceController extends Controller
             'client_id' => 'nullable|exists:clients,id',
             'payment_method' => 'nullable|string',
             'account' => 'nullable|string',
+            'bank_card_id' => 'nullable|exists:bank_cards,id',
+            'endowment_id' => 'nullable|exists:endowments,id',
             'tax_type' => 'required|string',
             'invoice_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
+            'pay_now' => 'nullable|boolean',
         ], $this->recurrenceRules()));
 
         $validated['expense_type'] = 'without_invoice';
         $validated = $this->prepareRecurrence($request, $validated);
-        // Sans facture : l'enregistrement reste un paiement immédiat (comportement historique).
-        $validated['payment_status'] = $validated['payment_status'] ?? Expense::PAYMENT_PAID;
-        if (($validated['payment_status'] ?? null) === Expense::PAYMENT_PAID && empty($validated['paid_at'])) {
-            $validated['paid_at'] = now();
-        }
-        unset($validated['invoice_file']);
+        // Création ≠ paiement : par défaut À payer. Case à cocher « Payer maintenant » pour encaisser.
+        $payNow = $request->boolean('pay_now');
+        $validated['payment_status'] = $payNow ? Expense::PAYMENT_PAID : Expense::PAYMENT_PENDING;
+        $validated['paid_at'] = $payNow ? now() : null;
+        $validated['amount_paid'] = $payNow ? (float) $validated['amount'] : 0;
+        unset($validated['invoice_file'], $validated['pay_now']);
 
         $expense = Expense::create($validated);
         $this->attachManagedDocument('expenses-without-invoice', $expense, $request->file('invoice_file'));
 
-        return redirect()->route('expenses-without-invoice.index')->with('success', 'Dépense sans facture créée avec succès!');
+        return redirect()->route('expenses-without-invoice.index')->with('success',
+            $payNow
+                ? 'Dépense créée et payée (mouvement de trésorerie généré).'
+                : 'Dépense créée — statut À payer (aucun mouvement de trésorerie).'
+        );
+    }
+
+    public function markPaid(Request $request, Expense $expenseWithoutInvoice)
+    {
+        $this->ensureExpenseType($expenseWithoutInvoice, 'without_invoice');
+
+        if ($expenseWithoutInvoice->payment_status === Expense::PAYMENT_PAID) {
+            return back()->with('warning', 'Cette dépense est déjà payée.');
+        }
+
+        $validated = $request->validate([
+            'bank_card_id' => 'nullable|exists:bank_cards,id',
+            'endowment_id' => 'nullable|exists:endowments,id',
+            'payment_method' => 'nullable|string|max:100',
+            'account' => 'nullable|string|max:100',
+        ]);
+
+        $expenseWithoutInvoice->update([
+            'payment_status' => Expense::PAYMENT_PAID,
+            'paid_at' => now(),
+            'amount_paid' => (float) $expenseWithoutInvoice->amount,
+            'bank_card_id' => $validated['bank_card_id'] ?? $expenseWithoutInvoice->bank_card_id,
+            'endowment_id' => $validated['endowment_id'] ?? $expenseWithoutInvoice->endowment_id,
+            'payment_method' => $validated['payment_method'] ?? $expenseWithoutInvoice->payment_method,
+            'account' => $validated['account'] ?? $expenseWithoutInvoice->account,
+        ]);
+
+        return redirect()->route('expenses-without-invoice.show', $expenseWithoutInvoice)
+            ->with('success', 'Dépense payée — mouvement de trésorerie et dotation mis à jour.');
     }
 
     public function show(Expense $expenseWithoutInvoice)

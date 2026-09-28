@@ -50,10 +50,10 @@
                     <td class="text-right">{{ $row->quantity }}</td>
                     <td class="text-right">{{ $row->reserved ?? 0 }}</td>
                     <td class="text-right">{{ $row->available ?? $row->quantity }}</td>
-                    <td class="text-right">{{ number_format($row->price_ht, 2) }}</td>
-                    <td class="text-right">{{ number_format($row->price_ttc, 2) }}</td>
-                    <td class="text-right">{{ number_format($row->value_ht, 2) }}</td>
-                    <td class="text-right">{{ number_format($row->value_ttc, 2) }}</td>
+                    <td class="text-right">{{ ($row->has_purchase_cost ?? false) ? number_format((float) $row->price_ht, 2) : 'Non renseigné' }}</td>
+                    <td class="text-right">{{ ($row->has_purchase_cost ?? false) ? number_format((float) $row->price_ttc, 2) : 'Non renseigné' }}</td>
+                    <td class="text-right">{{ ($row->has_purchase_cost ?? false) ? number_format($row->value_ht, 2) : 'Non renseigné' }}</td>
+                    <td class="text-right">{{ ($row->has_purchase_cost ?? false) ? number_format($row->value_ttc, 2) : 'Non renseigné' }}</td>
                     <td class="text-right">{{ number_format($row->sale_price_ht ?? 0, 2) }}</td>
                     <td class="text-right">{{ number_format($row->sale_price_ttc ?? 0, 2) }}</td>
                 </tr>

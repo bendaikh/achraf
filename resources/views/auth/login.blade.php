@@ -453,6 +453,10 @@
                 <span>Se souvenir de moi</span>
             </label>
 
+            <p style="margin:0 0 1rem;text-align:right">
+                <a href="{{ route('password.request') }}" style="font-size:0.875rem;color:#0a5d8a;text-decoration:none;font-weight:500">Mot de passe oublié ?</a>
+            </p>
+
             <button type="submit" class="auth-btn">Se connecter</button>
         </form>
 

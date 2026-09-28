@@ -32,6 +32,10 @@ class StockMovement extends Model
 
     public const TYPE_ORDER_OUT = 'order_out';
 
+    public const TYPE_RESERVATION = 'reservation';
+
+    public const TYPE_RESERVATION_RELEASE = 'reservation_release';
+
     public const REASON_PURCHASE = 'purchase';
 
     public const REASON_SUPPLIER_RECEPTION = 'supplier_reception';
@@ -79,6 +83,8 @@ class StockMovement extends Model
         self::TYPE_MANUAL_OUT => 'Ajustement manuel (sortie)',
         self::TYPE_PHYSICAL_IN => 'Entrée stock',
         self::TYPE_STOCK_ADJUSTMENT => 'Ajustement de stock',
+        self::TYPE_RESERVATION => 'Réservation',
+        self::TYPE_RESERVATION_RELEASE => 'Libération réservation',
     ];
 
     public static function physicalStockReasonLabel(?string $reason): string

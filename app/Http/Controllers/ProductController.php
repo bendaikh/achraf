@@ -12,6 +12,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use App\Services\ProductCompatibilityService;
 use App\Services\ProductPurchaseHistoryService;
+use App\Services\ProductPurchasePriceService;
 use App\Services\StockMovementService;
 use App\Support\IntelligentSearch;
 use App\Support\VariantCatalogSearch;
@@ -32,7 +33,8 @@ class ProductController extends Controller
     public function __construct(
         protected StockMovementService $stockMovement,
         protected ProductPurchaseHistoryService $purchaseHistoryService,
-        protected ProductCompatibilityService $compatibilityService
+        protected ProductCompatibilityService $compatibilityService,
+        protected ProductPurchasePriceService $purchasePriceService,
     ) {}
 
     public function index(Request $request)
@@ -272,8 +274,12 @@ class ProductController extends Controller
         $locationId = $validated['warehouse_location_id'] ?? null;
         $qty = isset($validated['stock_quantity']) ? (int) $validated['stock_quantity'] : 0;
 
-        $product = DB::transaction(function () use ($validated, $warehouseId, $locationId, $qty, $compatibleIds) {
-            $product = Product::create($validated);
+        $product = DB::transaction(function () use ($request, $validated, $warehouseId, $locationId, $qty, $compatibleIds) {
+            $product = new Product($validated);
+            if ($product->last_purchase_price !== null && $product->last_purchase_price !== '') {
+                $this->purchasePriceService->recordManualChangeIfNeeded($product, null, $request->user());
+            }
+            $product->save();
             if ($product->tracksStock()) {
                 $this->stockMovement->syncProductFromWarehouseAssignment(
                     $product,
@@ -306,6 +312,7 @@ class ProductController extends Controller
             'stocks.variant',
             'compatibleProducts.warehouse',
             'compatibleProducts.warehouseLocation',
+            'lastPurchasePriceUpdatedBy',
         ]);
 
         $variantStockBreakdown = app(\App\Services\StockMovementService::class)
@@ -316,7 +323,11 @@ class ProductController extends Controller
 
     public function edit(Product $product)
     {
-        $product->load(['compatibleProducts.warehouse', 'compatibleProducts.warehouseLocation']);
+        $product->load([
+            'compatibleProducts.warehouse',
+            'compatibleProducts.warehouseLocation',
+            'lastPurchasePriceUpdatedBy',
+        ]);
 
         return view('products.edit', array_merge($this->formData(), compact('product')));
     }
@@ -339,11 +350,18 @@ class ProductController extends Controller
         $locationId = $validated['warehouse_location_id'] ?? null;
         $qty = array_key_exists('stock_quantity', $validated) ? (int) $validated['stock_quantity'] : null;
 
-        DB::transaction(function () use ($product, $validated, $warehouseId, $locationId, $qty, $compatibleIds) {
+        DB::transaction(function () use ($request, $product, $validated, $warehouseId, $locationId, $qty, $compatibleIds) {
             $previousWarehouseId = $product->warehouse_id ? (int) $product->warehouse_id : null;
             $previousLocationId = $product->warehouse_location_id ? (int) $product->warehouse_location_id : null;
+            $wasStocked = $product->tracksStock();
+            $previousPurchasePrice = $product->last_purchase_price;
 
             $product->fill($validated);
+            $this->purchasePriceService->recordManualChangeIfNeeded(
+                $product,
+                $previousPurchasePrice,
+                $request->user()
+            );
             if ($product->tracksStock()) {
                 $this->stockMovement->syncProductFromWarehouseAssignment(
                     $product,
@@ -353,6 +371,11 @@ class ProductController extends Controller
                     $previousWarehouseId,
                     $previousLocationId
                 );
+            } elseif ($wasStocked || $product->stocks()->where(function ($q) {
+                $q->where('quantity', '!=', 0)->orWhere('reserved', '!=', 0);
+            })->exists()) {
+                app(\App\Services\ServiceStockCleanupService::class)
+                    ->clearSlotsForProduct($product, 'Changement de type article — stock physique neutralisé');
             }
             $product->save();
 
@@ -693,11 +716,17 @@ class ProductController extends Controller
     {
         $warehouseId = $request->filled('warehouse_id') ? $request->integer('warehouse_id') : null;
         $locationId = $request->filled('warehouse_location_id') ? $request->integer('warehouse_location_id') : null;
-        $onlyInStock = $request->boolean('location_stock_gt_zero');
+        // Filtrer par dépôt/emplacement = produits physiquement présents (qty > 0).
+        // La case « stock > 0 » force aussi ce comportement (et reste cochée par défaut en session).
+        $onlyInStock = $request->boolean('location_stock_gt_zero')
+            || $warehouseId !== null
+            || $locationId !== null;
 
         if (! $warehouseId && ! $locationId) {
             return;
         }
+
+        $query->tracksStock();
 
         $query->whereHas('stocks', function (Builder $stockQuery) use ($warehouseId, $locationId, $onlyInStock) {
             if ($warehouseId) {
@@ -705,8 +734,6 @@ class ProductController extends Controller
             }
             if ($locationId) {
                 $stockQuery->where('warehouse_location_id', $locationId);
-            } elseif ($warehouseId) {
-                // Dépôt seul : inclure tous les emplacements de ce dépôt
             }
             if ($onlyInStock) {
                 $stockQuery->where('quantity', '>', 0);
@@ -720,6 +747,7 @@ class ProductController extends Controller
             if ($locationId) {
                 $stockQuery->where('warehouse_location_id', $locationId);
             }
+            $stockQuery->where('quantity', '>', 0);
         }], 'quantity');
     }
 
@@ -845,15 +873,22 @@ class ProductController extends Controller
      */
     protected function validateProduct(Request $request, ?Product $product = null): array
     {
-        $refRule = Rule::unique('products', 'ref');
-        if ($product) {
-            $refRule = $refRule->ignore($product->id);
+        // Unique only when the ref is new or actually changing. Existing products may
+        // already share a SKU (e.g. Shopify imports); ignore() alone still fails then.
+        $refRules = ['required', 'string', 'max:255'];
+        $refUnchanged = $product && (string) $request->input('ref') === (string) $product->ref;
+        if (! $refUnchanged) {
+            $refRule = Rule::unique('products', 'ref');
+            if ($product) {
+                $refRule = $refRule->ignore($product->id);
+            }
+            $refRules[] = $refRule;
         }
 
         return $request->validate([
             'item_kind' => ['required', Rule::in(array_keys(Product::ITEM_KINDS))],
             'name' => 'required|string|max:255',
-            'ref' => ['required', 'string', 'max:255', $refRule],
+            'ref' => $refRules,
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'cost_price_ht' => 'nullable|numeric|min:0',
             'last_purchase_price' => 'nullable|numeric|min:0',

@@ -25,7 +25,13 @@ class WarehouseController extends Controller
 
         $validated['is_primary'] = $request->boolean('is_primary');
         $validated['is_fulfillment_default'] = $request->boolean('is_fulfillment_default');
+        $validated['available_for_shopify'] = $request->boolean('available_for_shopify');
         $validated['kind'] = $validated['kind'] ?? 'physical';
+        $validated['archived_at'] = null;
+
+        if (($validated['kind'] ?? 'physical') === 'online') {
+            $validated['available_for_shopify'] = false;
+        }
 
         if ($validated['is_primary']) {
             Warehouse::query()->update(['is_primary' => false]);
@@ -42,6 +48,11 @@ class WarehouseController extends Controller
 
     public function update(Request $request, Warehouse $warehouse)
     {
+        if ($warehouse->isArchived()) {
+            return redirect()->route('settings.stock', ['tab' => 'depots'])
+                ->with('error', 'Ce dépôt est archivé et ne peut plus être modifié.');
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => ['required', 'string', 'max:50', Rule::unique('warehouses', 'code')->ignore($warehouse->id)],
@@ -54,6 +65,11 @@ class WarehouseController extends Controller
 
         $validated['is_primary'] = $request->boolean('is_primary');
         $validated['is_fulfillment_default'] = $request->boolean('is_fulfillment_default');
+        $validated['available_for_shopify'] = $request->boolean('available_for_shopify');
+
+        if ($warehouse->isOnline()) {
+            $validated['available_for_shopify'] = false;
+        }
 
         if ($validated['is_primary']) {
             Warehouse::query()->where('id', '!=', $warehouse->id)->update(['is_primary' => false]);
@@ -70,9 +86,16 @@ class WarehouseController extends Controller
 
     public function destroy(Warehouse $warehouse)
     {
-        if ($warehouse->productStocks()->where('quantity', '!=', 0)->exists()) {
+        if ($warehouse->hasPhysicalStock()) {
             return redirect()->route('settings.stock', ['tab' => 'depots'])
-                ->with('error', 'Impossible de supprimer un dépôt qui contient encore du stock.');
+                ->with('error', 'Impossible de supprimer « '.$warehouse->name.' » : il contient encore du stock. Transférez le stock ou mettez-le à 0 via inventaire.');
+        }
+
+        if ($warehouse->hasStockHistory()) {
+            $warehouse->archive('suppression refusée — historique de mouvements conservé');
+
+            return redirect()->route('settings.stock', ['tab' => 'depots'])
+                ->with('success', 'Le dépôt « '.$warehouse->name.' » a été archivé (historique conservé). Il n’apparaît plus dans les listes actives ni pour de nouveaux mouvements.');
         }
 
         $warehouse->locations()->delete();
@@ -81,6 +104,24 @@ class WarehouseController extends Controller
 
         return redirect()->route('settings.stock', ['tab' => 'depots'])
             ->with('success', 'Dépôt supprimé.');
+    }
+
+    public function archive(Warehouse $warehouse)
+    {
+        if ($warehouse->hasPhysicalStock()) {
+            return redirect()->route('settings.stock', ['tab' => 'depots'])
+                ->with('error', 'Impossible d’archiver « '.$warehouse->name.' » : il contient encore du stock.');
+        }
+
+        if ($warehouse->isArchived()) {
+            return redirect()->route('settings.stock', ['tab' => 'depots'])
+                ->with('error', 'Ce dépôt est déjà archivé.');
+        }
+
+        $warehouse->archive('archivage manuel');
+
+        return redirect()->route('settings.stock', ['tab' => 'depots'])
+            ->with('success', 'Dépôt « '.$warehouse->name.' » archivé.');
     }
 
     public function storeLocation(Request $request)
@@ -97,6 +138,12 @@ class WarehouseController extends Controller
             'zone' => 'nullable|string|max:100',
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ]);
+
+        $warehouse = Warehouse::query()->findOrFail($validated['warehouse_id']);
+        if ($warehouse->isArchived()) {
+            return redirect()->route('settings.stock', ['tab' => 'emplacements'])
+                ->with('error', 'Impossible d’ajouter un emplacement sur un dépôt archivé.');
+        }
 
         WarehouseLocation::create($validated);
 

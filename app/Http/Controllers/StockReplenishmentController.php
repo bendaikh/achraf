@@ -7,6 +7,7 @@ use App\Models\StockReplenishmentNeed;
 use App\Models\Supplier;
 use App\Models\SupplierPurchaseOrder;
 use App\Services\DocumentNumberService;
+use App\Services\LocationStockReportService;
 use App\Services\ProductPurchaseHistoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,13 +15,15 @@ use Illuminate\Support\Facades\DB;
 class StockReplenishmentController extends Controller
 {
     public function __construct(
-        protected ProductPurchaseHistoryService $purchaseHistory
+        protected ProductPurchaseHistoryService $purchaseHistory,
+        protected LocationStockReportService $purchaseCosts
     ) {}
 
     public function index()
     {
         $needs = StockReplenishmentNeed::query()
             ->open()
+            ->whereHas('product', fn ($q) => $q->tracksStock())
             ->with(['product', 'suggestedSupplier', 'supplier', 'warehouse', 'posSale'])
             ->orderByDesc('id')
             ->get();
@@ -35,6 +38,30 @@ class StockReplenishmentController extends Controller
         $suppliers = Supplier::query()->orderBy('name')->get();
 
         return view('stock.replenishment.index', compact('needs', 'groups', 'suppliers', 'lastSuppliers'));
+    }
+
+    /**
+     * Achats → Besoins d'achat — même besoin métier que Produits → À approvisionner.
+     */
+    public function purchaseNeeds()
+    {
+        $needs = StockReplenishmentNeed::query()
+            ->open()
+            ->whereHas('product', fn ($q) => $q->tracksStock())
+            ->with(['product.stocks.warehouse', 'suggestedSupplier', 'supplier', 'warehouse', 'posSale'])
+            ->orderByDesc('id')
+            ->get();
+
+        $productIds = $needs->pluck('product_id')->unique()->all();
+        $lastSuppliers = $this->purchaseHistory->lastSuppliersForProducts($productIds);
+
+        $groups = $needs->groupBy(function (StockReplenishmentNeed $need) {
+            return (string) ($need->supplier_id ?: $need->suggested_supplier_id ?: 0);
+        });
+
+        $suppliers = Supplier::query()->orderBy('name')->get();
+
+        return view('purchases.needs.index', compact('needs', 'groups', 'suppliers', 'lastSuppliers'));
     }
 
     public function updateSupplier(Request $request, StockReplenishmentNeed $need)
@@ -86,7 +113,9 @@ class StockReplenishmentController extends Controller
             foreach ($byProduct as $productId => $productNeeds) {
                 $product = $productNeeds->first()->product;
                 $qty = (int) $productNeeds->sum('quantity_needed');
-                $unit = (float) ($product->cost_price_ht ?? $product->last_purchase_price ?? 0);
+                $unit = $product
+                    ? $this->purchaseCosts->purchasePriceHt($product)
+                    : 0.0;
                 $lineTotal = round($unit * $qty, 2);
                 $order->items()->create([
                     'product_id' => $productId,

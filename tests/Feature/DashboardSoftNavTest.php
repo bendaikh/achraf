@@ -352,6 +352,31 @@ class DashboardSoftNavTest extends TestCase
         $this->assertSame('year', $response->json('period'));
     }
 
+    public function test_default_period_is_today(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->getJson(route('dashboard.data'));
+
+        $response->assertOk();
+        $this->assertSame('today', $response->json('period'));
+        $this->assertSame(Carbon::today()->toDateString(), $response->json('dateFrom'));
+        $this->assertSame(Carbon::today()->toDateString(), $response->json('dateTo'));
+    }
+
+    public function test_today_period_preset_resolves_server_side(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->getJson(route('dashboard.data', ['period' => 'today']));
+
+        $response->assertOk();
+        $this->assertSame('today', $response->json('period'));
+        $this->assertSame(Carbon::today()->toDateString(), $response->json('dateFrom'));
+        $this->assertSame(Carbon::today()->toDateString(), $response->json('dateTo'));
+        $this->assertStringContainsString('Aujourd', $response->json('periodLabel'));
+    }
+
     private function invoice(string $number, Client $client, float $total, string $date, array $attributes = []): Invoice
     {
         return Invoice::create(array_merge([

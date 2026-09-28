@@ -80,10 +80,14 @@ class CreditNoteController extends Controller
             ]);
 
             $creditNote->load('items');
-            $this->stockMovement->increaseFromItems(
-                $creditNote->items,
-                $validated['stock_location']
-            );
+            // Restock only when explicitly requested — default false to avoid silent stock
+            // when the scan-returns workflow (or Shopify) already owns physical re-entry.
+            if ($request->boolean('restock')) {
+                $this->stockMovement->increaseFromItems(
+                    $creditNote->items,
+                    $validated['stock_location']
+                );
+            }
 
             if ($creditNote->invoice_id) {
                 $this->situation->syncCommercialStatus($creditNote->invoice);

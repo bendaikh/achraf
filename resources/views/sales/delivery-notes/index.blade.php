@@ -38,13 +38,10 @@
             <x-table-filters
                 :action="route('delivery-notes.index')"
                 search-placeholder="N° bon de livraison, référence, client..."
-                grid-cols="md:grid-cols-6"
+                grid-cols="md:grid-cols-3 lg:grid-cols-6"
             >
-                <x-table-filter-select
-                    name="status"
-                    label="Statut"
-                    :options="['brouillon' => 'Brouillon', 'confirmé' => 'Confirmé', 'livré' => 'Livré', 'annulé' => 'Annulé']"
-                />
+                <x-source-filter />
+                <x-commercial-status-filter />
             </x-table-filters>
 
             <x-table-list-toolbar table-id="delivery-notes" />
@@ -61,13 +58,16 @@
                                 <x-table-checkbox-header export-type="delivery-notes" />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-numero column-numero" data-lm-col="numero">Numéro</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-client column-client" data-lm-col="client">Client</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-commande column-commande" data-lm-col="commande">N° commande</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-origine column-origine" data-lm-col="origine">Source</th>
                                 <x-table-sort-header
                                     column="delivery_date"
                                     colKey="date"
-                                    label="Date de livraison"
+                                    label="Date"
                                     :default="true"
                                     default-direction="desc"
                                 />
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut_commercial column-statut_commercial" data-lm-col="statut_commercial">Statut commercial</th>
                                 <x-table-sort-header
                                     column="shipping_date"
                                     colKey="date_expedition"
@@ -76,7 +76,7 @@
                                 />
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-statut column-statut" data-lm-col="statut">Statut</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-conversion column-conversion" data-lm-col="conversion">Conversion</th>
-                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">Total</th>
+                                <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-total column-total" data-lm-col="total">Montant</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-bl_genere column-bl_genere" data-lm-col="bl_genere">BL généré</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-bl_signe column-bl_signe" data-lm-col="bl_signe">BL signé</th>
                                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider lm-col lm-col-actions column-actions" data-lm-col="actions">Actions</th>
@@ -84,6 +84,11 @@
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             @forelse($deliveryNotes as $deliveryNote)
+                                @php
+                                    $linkedInvoice = $deliveryNote->convertedInvoice;
+                                    $commercialStatus = $linkedInvoice?->commercial_status;
+                                    $source = $linkedInvoice?->source;
+                                @endphp
                                 <tr class="hover:bg-gray-50 transition duration-150">
                                     <x-table-checkbox-cell export-type="delivery-notes" :id="$deliveryNote->id" />
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-numero column-numero" data-lm-col="numero">
@@ -92,8 +97,21 @@
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-client column-client" data-lm-col="client">
                                         <div class="text-sm text-gray-900">{{ $deliveryNote->client->name ?? 'N/A' }}</div>
                                     </td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-commande column-commande" data-lm-col="commande">
+                                        @if($deliveryNote->reference)
+                                            <div class="text-sm text-gray-900">{{ $deliveryNote->reference }}</div>
+                                        @else
+                                            <span class="text-sm text-gray-400">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-origine column-origine" data-lm-col="origine">
+                                        <x-source-badge :source="$source" />
+                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date column-date" data-lm-col="date">
                                         <div class="text-sm text-gray-900">{{ $deliveryNote->delivery_date->format('d/m/Y') }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-statut_commercial column-statut_commercial" data-lm-col="statut_commercial">
+                                        <x-commercial-status-badge :status="$commercialStatus" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap lm-col lm-col-date_expedition column-date_expedition" data-lm-col="date_expedition">
                                         <div class="text-sm text-gray-900">{{ $deliveryNote->shipping_date ? $deliveryNote->shipping_date->format('d/m/Y') : '-' }}</div>
@@ -147,7 +165,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="px-6 py-12 text-center">
+                                    <td colspan="14" class="px-6 py-12 text-center">
                                         <div class="flex flex-col items-center">
                                             <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>

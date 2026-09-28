@@ -69,6 +69,8 @@ class FinancialMovementServiceTest extends TestCase
             'currency' => 'dh - MAD',
             'payment_method' => 'espèces',
             'account' => 'caisse',
+            'payment_status' => Expense::PAYMENT_PAID,
+            'paid_at' => '2026-08-03 12:00:00',
         ]);
 
         $movement = FinancialMovement::query()->where('origin', FinancialMovement::ORIGIN_DEPENSE)->first();

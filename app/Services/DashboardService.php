@@ -591,10 +591,19 @@ class DashboardService
         $available = Product::availableStockSql();
         $threshold = Product::alertThresholdSql();
 
+        $purchaseCosts = app(LocationStockReportService::class);
         $stockValue = (float) Product::query()
             ->tracksStock()
-            ->selectRaw('COALESCE(SUM(COALESCE(stock_quantity, 0) * COALESCE(cost_price_ht, 0)), 0) as value')
-            ->value('value');
+            ->where('stock_quantity', '>', 0)
+            ->get(['id', 'stock_quantity', 'last_purchase_price', 'cost_price_ht', 'cost_price_ttc', 'vat_category'])
+            ->sum(function (Product $product) use ($purchaseCosts) {
+                $cost = $purchaseCosts->resolvePurchaseCost($product);
+                if (! $cost['has_cost']) {
+                    return 0.0;
+                }
+
+                return (float) $cost['ht'] * (int) $product->stock_quantity;
+            });
 
         $restock = Product::query()
             ->with('primarySupplier')

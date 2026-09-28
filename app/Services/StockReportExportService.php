@@ -16,12 +16,16 @@ class StockReportExportService
 {
     use FiltersIndexTables;
 
+    public function __construct(
+        protected LocationStockReportService $purchaseCosts
+    ) {}
+
     /**
      * @return Builder<Product>
      */
     public function filteredQuery(string $type, Request $request): Builder
     {
-        $query = Product::query()->orderBy('name');
+        $query = Product::query()->tracksStock()->orderBy('name');
 
         if ($type === 'enligne') {
             $query->where('source', 'shopify');
@@ -40,7 +44,10 @@ class StockReportExportService
         $this->applyTableSearch($query, $request, IntelligentSearch::PRODUCT_COLUMNS);
 
         if ($request->get('filter') === 'low') {
-            $query->tracksStock()->lowStock();
+            $query->lowStock();
+        } else {
+            // État des stocks présents : exclure quantité 0
+            $query->where($stockField, '>', 0);
         }
 
         if ($request->filled('ids')) {
@@ -63,7 +70,7 @@ class StockReportExportService
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle($label);
 
-        $headers = ['Référence', 'Produit', $label, 'Prix d\'achat', 'Prix de vente', 'Seuil alerte', 'Seuil sécurité', 'État'];
+        $headers = ['Référence', 'Produit', $label, 'Prix d\'achat TTC', 'Prix de vente', 'Seuil alerte', 'Seuil sécurité', 'État'];
         if ($type !== 'magasin') {
             $headers = ['Référence', 'Produit', $label, 'Seuil alerte', 'Seuil sécurité', 'État'];
         }
@@ -80,7 +87,8 @@ class StockReportExportService
             $sheet->setCellValue([2, $rowNum], $product->name);
             $sheet->setCellValue([3, $rowNum], $qty);
             if ($type === 'magasin') {
-                $sheet->setCellValue([4, $rowNum], $product->cost_price_ht);
+                $cost = $this->purchaseCosts->resolvePurchaseCost($product);
+                $sheet->setCellValue([4, $rowNum], $cost['has_cost'] ? $cost['ttc'] : LocationStockReportService::PRICE_SOURCE_NONE);
                 $sheet->setCellValue([5, $rowNum], $product->sale_price);
                 $sheet->setCellValue([6, $rowNum], $product->minimum_alert_stock);
                 $sheet->setCellValue([7, $rowNum], $product->minimum_safety_stock);

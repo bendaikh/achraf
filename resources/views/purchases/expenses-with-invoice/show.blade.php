@@ -11,6 +11,14 @@
                 <p class="text-sm text-gray-600 mt-1">{{ $expense->designation }}</p>
             </div>
             <div class="flex gap-2">
+                @if($expense->isPendingPayment())
+                    <form method="POST" action="{{ route('expenses-with-invoice.mark-paid', $expense) }}" class="inline">
+                        @csrf
+                        <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition duration-150">
+                            Marquer payée
+                        </button>
+                    </form>
+                @endif
                 <x-libromart-pdf-actions
                     :print-route="route('expenses.print', $expense)"
                     :pdf-route="route('expenses.pdf', $expense)"

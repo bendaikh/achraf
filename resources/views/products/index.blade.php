@@ -231,7 +231,28 @@
         </div>
 
         {{-- Filters --}}
-        <div class="bg-white rounded-xl border border-slate-200 p-4 mb-6" x-data="{ more: {{ request()->hasAny(['price_min','price_max','vat_category','date_from','date_to','service_category']) ? 'true' : 'false' }} }">
+        @php
+            $filterField = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]';
+            $filterSearch = 'w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-3 text-sm text-slate-800 shadow-sm focus:border-[#fdb819] focus:ring-[#fdb819]';
+        @endphp
+        <div class="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 mb-6" x-data="{
+            more: {{ request()->hasAny(['price_min','price_max','vat_category','date_from','date_to','service_category']) ? 'true' : 'false' }},
+            warehouseId: @js((string) request('warehouse_id', '')),
+            locationId: @js((string) request('warehouse_location_id', '')),
+            allLocations: @js(($warehouses ?? collect())->flatMap(fn ($w) => $w->locations->map(fn ($l) => [
+                'id' => (string) $l->id,
+                'warehouse_id' => (string) $w->id,
+                'label' => $l->displayLabel(),
+            ]))->values()),
+            get filteredLocations() {
+                if (!this.warehouseId) return this.allLocations;
+                return this.allLocations.filter(l => String(l.warehouse_id) === String(this.warehouseId));
+            },
+            onWarehouseChange() {
+                const ok = this.filteredLocations.some(l => String(l.id) === String(this.locationId));
+                if (!ok) this.locationId = '';
+            }
+        }">
             <form method="GET" action="{{ route('products.index') }}" data-list-page class="space-y-4">
                 <input type="hidden" name="product_filters" value="1">
                 @if($currentKind !== '')
@@ -253,17 +274,25 @@
                     <input type="hidden" name="per_page" value="{{ request('per_page') }}">
                 @endif
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-                    <div class="sm:col-span-2">
-                        <label for="product-list-search" class="block text-xs font-medium text-slate-600 mb-1">Recherche</label>
+                {{-- Search full width --}}
+                <div>
+                    <label for="product-list-search" class="block text-xs font-medium text-slate-600 mb-1.5">Recherche</label>
+                    <div class="relative">
+                        <svg class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z"/>
+                        </svg>
                         <input type="search" name="search" id="product-list-search" value="{{ request('search') }}"
                                autocomplete="off" spellcheck="false"
                                placeholder="Nom, référence SKU, code-barres…"
-                               class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                               class="{{ $filterSearch }}">
                     </div>
+                </div>
+
+                {{-- Even 4-column filter grid --}}
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3">
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Catégorie</label>
-                        <select name="category" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Catégorie</label>
+                        <select name="category" class="{{ $filterField }}">
                             <option value="">Tous</option>
                             @foreach($categories as $value => $label)
                                 <option value="{{ $value }}" @selected(request('category') == $value)>{{ $label }}</option>
@@ -271,8 +300,8 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Sous-catégorie</label>
-                        <select name="subcategory" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Sous-catégorie</label>
+                        <select name="subcategory" class="{{ $filterField }}">
                             <option value="">Tous</option>
                             @foreach($subcategories as $value => $label)
                                 <option value="{{ $value }}" @selected(request('subcategory') == $value)>{{ $label }}</option>
@@ -280,8 +309,8 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">État du stock</label>
-                        <select name="stock_status" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">État du stock</label>
+                        <select name="stock_status" class="{{ $filterField }}">
                             <option value="">Tous</option>
                             @foreach($stockStatuses as $value => $label)
                                 <option value="{{ $value }}" @selected(request('stock_status') == $value)>{{ $label }}</option>
@@ -289,61 +318,35 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Fournisseur</label>
-                        <select name="supplier_id" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Fournisseur</label>
+                        <select name="supplier_id" class="{{ $filterField }}">
                             <option value="">Tous</option>
                             @foreach($suppliers as $id => $name)
                                 <option value="{{ $id }}" @selected(request('supplier_id') == $id)>{{ $name }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div x-data="{
-                        warehouseId: @js((string) request('warehouse_id', '')),
-                        locationId: @js((string) request('warehouse_location_id', '')),
-                        allLocations: @js(($warehouses ?? collect())->flatMap(fn ($w) => $w->locations->map(fn ($l) => [
-                            'id' => (string) $l->id,
-                            'warehouse_id' => (string) $w->id,
-                            'label' => $l->displayLabel(),
-                        ]))->values()),
-                        get filteredLocations() {
-                            if (!this.warehouseId) return this.allLocations;
-                            return this.allLocations.filter(l => String(l.warehouse_id) === String(this.warehouseId));
-                        },
-                        onWarehouseChange() {
-                            const ok = this.filteredLocations.some(l => String(l.id) === String(this.locationId));
-                            if (!ok) this.locationId = '';
-                        }
-                    }">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:col-span-2">
-                            <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">Dépôt</label>
-                                <select name="warehouse_id" x-model="warehouseId" @change="onWarehouseChange()" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
-                                    <option value="">Tous</option>
-                                    @foreach(($warehouses ?? []) as $warehouse)
-                                        <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">Emplacement</label>
-                                <select name="warehouse_location_id" x-model="locationId" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
-                                    <option value="">Tous</option>
-                                    <template x-for="loc in filteredLocations" :key="loc.id">
-                                        <option :value="loc.id" x-text="loc.label"></option>
-                                    </template>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-2 flex items-center gap-2" x-show="warehouseId || locationId">
-                            <input type="checkbox" name="location_stock_gt_zero" value="1" id="location_stock_gt_zero"
-                                   @checked(request()->boolean('location_stock_gt_zero'))
-                                   class="rounded border-slate-300 text-[#0a5d8a] focus:ring-[#fdb819]">
-                            <label for="location_stock_gt_zero" class="text-xs text-slate-600">Uniquement les produits avec stock &gt; 0 dans ce dépôt/emplacement</label>
-                        </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Dépôt</label>
+                        <select name="warehouse_id" x-model="warehouseId" @change="onWarehouseChange()" class="{{ $filterField }}">
+                            <option value="">Tous</option>
+                            @foreach(($warehouses ?? []) as $warehouse)
+                                <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Statut</label>
-                        <select name="status" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Emplacement</label>
+                        <select name="warehouse_location_id" x-model="locationId" class="{{ $filterField }}">
+                            <option value="">Tous</option>
+                            <template x-for="loc in filteredLocations" :key="loc.id">
+                                <option :value="loc.id" x-text="loc.label"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Statut</label>
+                        <select name="status" class="{{ $filterField }}">
                             <option value="">Tous</option>
                             <option value="Activer" @selected(request('status') === 'Activer')>Actif</option>
                             <option value="Désactiver" @selected(request('status') === 'Désactiver')>Inactif</option>
@@ -351,20 +354,27 @@
                     </div>
                 </div>
 
-                <div x-show="more" x-cloak class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 pt-2 border-t border-slate-100">
+                <div class="flex items-center gap-2" x-show="warehouseId || locationId" x-cloak>
+                    <input type="checkbox" name="location_stock_gt_zero" value="1" id="location_stock_gt_zero"
+                           @checked(request()->boolean('location_stock_gt_zero'))
+                           class="rounded border border-slate-300 text-[#0a5d8a] focus:ring-[#fdb819]">
+                    <label for="location_stock_gt_zero" class="text-xs text-slate-600">Uniquement les produits avec stock &gt; 0 dans ce dépôt/emplacement</label>
+                </div>
+
+                <div x-show="more" x-cloak class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3 pt-3 border-t border-slate-100">
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Prix min</label>
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Prix min</label>
                         <input type="number" step="0.01" min="0" name="price_min" value="{{ request('price_min') }}"
-                               class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                               class="{{ $filterField }}">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Prix max</label>
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Prix max</label>
                         <input type="number" step="0.01" min="0" name="price_max" value="{{ request('price_max') }}"
-                               class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                               class="{{ $filterField }}">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">TVA</label>
-                        <select name="vat_category" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">TVA</label>
+                        <select name="vat_category" class="{{ $filterField }}">
                             <option value="">Tous</option>
                             @foreach($vatCategories as $vat)
                                 <option value="{{ $vat }}" @selected(request('vat_category') == $vat)>{{ $vat }}</option>
@@ -372,8 +382,8 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Catégorie service</label>
-                        <select name="service_category" class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Catégorie service</label>
+                        <select name="service_category" class="{{ $filterField }}">
                             <option value="">Tous</option>
                             @foreach($serviceCategories as $value => $label)
                                 <option value="{{ $value }}" @selected(request('service_category') == $value)>{{ $label }}</option>
@@ -381,18 +391,18 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Créé du</label>
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Créé du</label>
                         <input type="date" name="date_from" value="{{ request('date_from') }}"
-                               class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                               class="{{ $filterField }}">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Créé au</label>
+                        <label class="block text-xs font-medium text-slate-600 mb-1.5">Créé au</label>
                         <input type="date" name="date_to" value="{{ request('date_to') }}"
-                               class="w-full rounded-lg border-slate-300 text-sm focus:border-[#fdb819] focus:ring-[#fdb819]">
+                               class="{{ $filterField }}">
                     </div>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2 pt-1">
                     <button type="submit" class="px-4 py-2 bg-[#fdb819] text-white rounded-lg hover:bg-[#e5a617] text-sm font-semibold">Filtrer</button>
                     <button type="button" @click="more = !more" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 text-sm font-medium">
                         <span x-text="more ? 'Moins de filtres' : 'Plus de filtres'"></span>
@@ -593,7 +603,10 @@
                                             <span class="font-semibold text-green-700">{{ $available }}</span>
                                             <div><span class="inline-flex mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">En stock</span></div>
                                         @endif
-                                        <div class="text-[10px] text-slate-400 mt-0.5">Physique: {{ $product->stock_quantity }}</div>
+                                        <div class="text-[10px] text-slate-400 mt-0.5">Physique: {{ $product->physicalStock() }}</div>
+                                        @if($product->isShopifyProduct() && $product->onlineChannelStock() > 0)
+                                            <div class="text-[10px] text-emerald-600 mt-0.5" title="Miroir canal Shopify — n’est pas un dépôt physique">Canal Shopify: {{ $product->onlineChannelStock() }}</div>
+                                        @endif
                                         @if(request()->filled('warehouse_id') || request()->filled('warehouse_location_id'))
                                             <div class="text-[10px] font-semibold text-sky-700 mt-0.5">
                                                 Stock filtré : {{ (int) ($product->filtered_location_stock ?? 0) }} unité(s)
@@ -605,16 +618,18 @@
                                                     @php
                                                         $wh = $slots->first()->warehouse;
                                                         $qty = (int) $slots->sum('quantity');
+                                                        $reserved = (int) $slots->sum('reserved');
                                                         if (! $wh) continue;
                                                         $cls = $wh->isOnline()
                                                             ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                                                             : 'border-sky-200 bg-sky-50 text-sky-800';
                                                         $dot = $wh->isOnline() ? '🟢' : '🔵';
+                                                        $label = $wh->isOnline() ? 'Canal Shopify (miroir)' : $wh->name;
                                                     @endphp
                                                     <button type="button"
                                                             class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border {{ $cls }}"
                                                             onclick="openLocationStockModal({{ $product->id }})">
-                                                        {{ $dot }} {{ $wh->isOnline() ? 'Shopify Stock en ligne' : $wh->name }} : {{ $qty }}
+                                                        {{ $dot }} {{ $label }} : {{ $qty }}@if($reserved > 0) <span class="opacity-70">(rés. {{ $reserved }})</span>@endif
                                                     </button>
                                                 @endforeach
                                                 <button type="button"
@@ -946,8 +961,8 @@
             </div>
             <div>
                 <label class="block text-xs font-semibold uppercase text-slate-500 mb-1" id="declareStockQuantityLabel">Quantité physique à ajouter / déclarer</label>
-                <input type="number" name="quantity" id="declareStockQuantity" min="1" value="1" required class="w-full rounded-lg border-slate-300 text-sm">
-                <p id="declareStockQuantityHelp" class="mt-1 text-xs text-slate-500">Minimum 1 pour un ajout.</p>
+                <input type="number" name="quantity" id="declareStockQuantity" min="0" value="1" required class="w-full rounded-lg border-slate-300 text-sm">
+                <p id="declareStockQuantityHelp" class="mt-1 text-xs text-slate-500">Ajout : minimum 1. Ajustement / inventaire : 0 accepté.</p>
             </div>
             <div>
                 <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Motif / origine</label>

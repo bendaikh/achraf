@@ -51,11 +51,15 @@ class AttendanceRecord extends Model
 
     public const SOURCE_IMPORT = 'import';
 
+    /** Prefill from employee schedule when generating a month. */
+    public const SOURCE_SCHEDULE = 'schedule';
+
     public const SOURCES = [
         self::SOURCE_MANUAL => 'Manuel',
         self::SOURCE_TIMECLOCK => 'Pointeuse',
         self::SOURCE_SYSTEM => 'Système',
         self::SOURCE_IMPORT => 'Import',
+        self::SOURCE_SCHEDULE => 'Planning',
     ];
 
     protected $fillable = [

@@ -370,6 +370,32 @@
         }
     }
 
+    function getScrollY() {
+        const shell = document.querySelector('.app-shell-main');
+        if (shell && shell.scrollHeight > shell.clientHeight + 1) {
+            return shell.scrollTop || 0;
+        }
+        const pageMain = document.querySelector('#app-page-root > main');
+        if (pageMain && pageMain.scrollHeight > pageMain.clientHeight + 1) {
+            return pageMain.scrollTop || 0;
+        }
+        return window.scrollY || window.pageYOffset || 0;
+    }
+
+    function setScrollY(y) {
+        const shell = document.querySelector('.app-shell-main');
+        if (shell && shell.scrollHeight > shell.clientHeight + 1) {
+            shell.scrollTop = y;
+            return;
+        }
+        const pageMain = document.querySelector('#app-page-root > main');
+        if (pageMain && pageMain.scrollHeight > pageMain.clientHeight + 1) {
+            pageMain.scrollTop = y;
+            return;
+        }
+        window.scrollTo(0, y);
+    }
+
     async function navigate(url, { pushState = true, fromPopState = false, scrollY = null, replaceState = false, keepScroll = false, silent = false } = {}) {
         const root = pageRoot();
         if (!root) {
@@ -391,7 +417,7 @@
                     Object.assign({}, current, {
                         softNav: current.softNav === undefined ? true : current.softNav,
                         url: window.location.href,
-                        scrollY: window.scrollY || 0,
+                        scrollY: getScrollY(),
                     }),
                     '',
                     window.location.href
@@ -400,7 +426,7 @@
         }
 
         const started = performance.now();
-        const keepY = keepScroll ? (window.scrollY || 0) : null;
+        let keepY = keepScroll ? getScrollY() : null;
         if (!silent) {
             showLoading();
         }
@@ -448,6 +474,12 @@
                 tabs.hidden = !payload.tabs_html;
             }
 
+            // Re-sample just before replacing the DOM so scrolling during the
+            // fetch (e.g. while live search runs) is preserved.
+            if (keepScroll) {
+                keepY = getScrollY();
+            }
+
             await mountHtml(root, payload.html || '');
             updateSidebarActive(payload.module || null, payload.url || url);
 
@@ -462,8 +494,9 @@
             const restoreY = fromPopState
                 ? (scrollY != null ? scrollY : ((window.history.state && window.history.state.scrollY) || 0))
                 : (keepY != null ? keepY : 0);
+            setScrollY(restoreY);
             requestAnimationFrame(function () {
-                window.scrollTo(0, restoreY);
+                setScrollY(restoreY);
             });
 
             logMetric('soft-nav-total-ms', performance.now() - started);

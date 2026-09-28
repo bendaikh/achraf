@@ -681,6 +681,451 @@ class LocationStockManagementTest extends TestCase
         $this->assertSame(5, $report['quantity']);
     }
 
+    public function test_inventory_count_zero_sets_stock_to_zero_and_creates_adjustment(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct(['ref' => 'INV-ZERO']);
+        $warehouse = Warehouse::fulfillmentWarehouse();
+        $location = $warehouse->locations()->first() ?? \App\Models\WarehouseLocation::create([
+            'warehouse_id' => $warehouse->id,
+            'code' => 'INV-LOC',
+            'name' => 'Inv Loc',
+            'status' => 'active',
+        ]);
+
+        $service = app(StockMovementService::class);
+        $service->adjustPhysicalStock($product, 1, (int) $warehouse->id, (int) $location->id, StockMovement::REASON_INVENTORY_CORRECTION);
+        $slot = ProductStock::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('warehouse_location_id', $location->id)
+            ->firstOrFail();
+
+        $this->actingAs($user)->post(route('stock.locations.count.store', $warehouse), [
+            'counts' => [[
+                'product_id' => $product->id,
+                'product_stock_id' => $slot->id,
+                'warehouse_location_id' => $location->id,
+                'counted' => 0,
+            ]],
+        ])->assertRedirect(route('stock.locations.show', $warehouse));
+
+        $this->assertSame(0, $service->quantityAtSlot($product->fresh(), (int) $warehouse->id, (int) $location->id));
+
+        $movement = StockMovement::query()
+            ->where('product_id', $product->id)
+            ->where('type', StockMovement::TYPE_INVENTORY_ADJUSTMENT)
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($movement);
+        $this->assertSame(1, (int) $movement->quantity_before);
+        $this->assertSame(0, (int) $movement->quantity_after);
+        $this->assertSame(-1, (int) $movement->quantity);
+        $this->assertSame((int) $user->id, (int) $movement->user_id);
+    }
+
+    public function test_inventory_count_ten_to_zero_creates_minus_ten_adjustment(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct(['ref' => 'INV-TEN']);
+        $warehouse = Warehouse::fulfillmentWarehouse();
+        $service = app(StockMovementService::class);
+        $service->adjustPhysicalStock($product, 10, (int) $warehouse->id, null, StockMovement::REASON_INVENTORY_CORRECTION);
+        $slot = ProductStock::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->whereNull('warehouse_location_id')
+            ->firstOrFail();
+
+        $this->actingAs($user)->post(route('stock.locations.count.store', $warehouse), [
+            'counts' => [[
+                'product_id' => $product->id,
+                'product_stock_id' => $slot->id,
+                'warehouse_location_id' => null,
+                'counted' => 0,
+            ]],
+        ])->assertRedirect();
+
+        $this->assertSame(0, $service->quantityAtWarehouse($product->fresh(), (int) $warehouse->id));
+        $movement = StockMovement::query()
+            ->where('product_id', $product->id)
+            ->where('type', StockMovement::TYPE_INVENTORY_ADJUSTMENT)
+            ->latest('id')
+            ->first();
+        $this->assertSame(-10, (int) $movement->quantity);
+        $this->assertSame(10, (int) $movement->quantity_before);
+        $this->assertSame(0, (int) $movement->quantity_after);
+    }
+
+    public function test_inventory_count_zero_on_null_location_ignores_product_default_location(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct(['ref' => 'INV-NULL-DEF']);
+        $warehouse = Warehouse::fulfillmentWarehouse();
+        $defaultLocation = $warehouse->locations()->first() ?? \App\Models\WarehouseLocation::create([
+            'warehouse_id' => $warehouse->id,
+            'code' => 'DEF-LOC',
+            'name' => 'Default Loc',
+            'status' => 'active',
+        ]);
+        // Real stock is on the null-emplacement slot, but the product default points elsewhere
+        // (same shape as Dépôt principal lines that show Emplacement "—").
+        $product->forceFill(['warehouse_location_id' => $defaultLocation->id])->save();
+
+        $service = app(StockMovementService::class);
+        $service->adjustPhysicalStock($product, 3, (int) $warehouse->id, null, StockMovement::REASON_INVENTORY_CORRECTION);
+        $slot = ProductStock::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->whereNull('warehouse_location_id')
+            ->firstOrFail();
+
+        $this->assertSame(3, (int) $slot->quantity);
+        $this->assertSame(0, $service->quantityAtSlot($product, (int) $warehouse->id, (int) $defaultLocation->id));
+
+        $this->actingAs($user)->post(route('stock.locations.count.store', $warehouse), [
+            'counts' => [[
+                'product_id' => $product->id,
+                'product_stock_id' => $slot->id,
+                'warehouse_location_id' => '',
+                'counted' => 0,
+            ]],
+        ])->assertRedirect(route('stock.locations.show', $warehouse));
+
+        $this->assertSame(0, $service->quantityAtSlot($product->fresh(), (int) $warehouse->id, null));
+        $this->assertSame(0, $service->quantityAtWarehouse($product->fresh(), (int) $warehouse->id));
+
+        $movement = StockMovement::query()
+            ->where('product_id', $product->id)
+            ->where('type', StockMovement::TYPE_INVENTORY_ADJUSTMENT)
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($movement);
+        $this->assertSame(-3, (int) $movement->quantity);
+        $this->assertSame(3, (int) $movement->quantity_before);
+        $this->assertSame(0, (int) $movement->quantity_after);
+        $this->assertNull($movement->warehouse_location_id);
+    }
+
+    public function test_zero_qty_excluded_from_warehouse_and_location_report_cards(): void
+    {
+        $product = $this->stockedProduct(['ref' => 'ZERO-CARD', 'cost_price_ht' => 50]);
+        $warehouse = Warehouse::fulfillmentWarehouse();
+        $location = $warehouse->locations()->first() ?? \App\Models\WarehouseLocation::create([
+            'warehouse_id' => $warehouse->id,
+            'code' => 'Z-LOC',
+            'name' => 'Z',
+            'status' => 'active',
+        ]);
+        $service = app(StockMovementService::class);
+        $service->adjustPhysicalStock($product, 3, (int) $warehouse->id, (int) $location->id, StockMovement::REASON_INVENTORY_CORRECTION);
+        $service->adjustPhysicalStock($product, 0, (int) $warehouse->id, (int) $location->id, StockMovement::REASON_INVENTORY_CORRECTION);
+
+        $report = app(LocationStockReportService::class)->report($warehouse);
+        $this->assertNotContains('ZERO-CARD', $report['rows']->pluck('sku')->all());
+        $this->assertSame(0, $report['references']);
+        $this->assertSame(0, $report['quantity']);
+        $this->assertSame(0.0, $report['value_ht']);
+        $this->assertSame(0.0, $report['value_ttc']);
+
+        $locReport = app(LocationStockReportService::class)->report($warehouse, null, (int) $location->id);
+        $this->assertSame(0, $locReport['references']);
+    }
+
+    public function test_services_excluded_from_stock_report_and_cleanup(): void
+    {
+        $warehouse = Warehouse::fulfillmentWarehouse();
+        $serviceProduct = Product::create([
+            'name' => 'Prestation test',
+            'ref' => 'SVC-1',
+            'item_kind' => Product::KIND_SERVICE,
+            'element_type' => 'Service',
+            'stock_quantity' => 0,
+            'stock_magasin' => 0,
+        ]);
+        ProductStock::create([
+            'product_id' => $serviceProduct->id,
+            'warehouse_id' => $warehouse->id,
+            'quantity' => 4,
+            'reserved' => 0,
+        ]);
+
+        $result = app(\App\Services\ServiceStockCleanupService::class)->neutralizeNonStockableSlots();
+        $this->assertSame(1, $result['slots_cleared']);
+        $this->assertSame(0, (int) ProductStock::query()->where('product_id', $serviceProduct->id)->value('quantity'));
+
+        $stocked = $this->stockedProduct(['ref' => 'PHYS-1', 'cost_price_ht' => 10]);
+        app(StockMovementService::class)->adjustPhysicalStock($stocked, 2, (int) $warehouse->id, null, StockMovement::REASON_INVENTORY_CORRECTION);
+
+        $report = app(LocationStockReportService::class)->report($warehouse);
+        $skus = $report['rows']->pluck('sku')->all();
+        $this->assertContains('PHYS-1', $skus);
+        $this->assertNotContains('SVC-1', $skus);
+    }
+
+    public function test_missing_purchase_cost_is_not_invented_in_report_or_export_row(): void
+    {
+        $product = $this->stockedProduct([
+            'ref' => 'NO-COST',
+            'cost_price_ht' => null,
+            'last_purchase_price' => null,
+        ]);
+        $warehouse = Warehouse::fulfillmentWarehouse();
+        app(StockMovementService::class)->adjustPhysicalStock($product, 2, (int) $warehouse->id, null, StockMovement::REASON_INVENTORY_CORRECTION);
+
+        $report = app(LocationStockReportService::class)->report($warehouse);
+        $row = $report['rows']->firstWhere('sku', 'NO-COST');
+        $this->assertNotNull($row);
+        $this->assertFalse($row->has_purchase_cost);
+        $this->assertNull($row->price_ht);
+        $this->assertSame(LocationStockReportService::PRICE_SOURCE_NONE, $row->price_source);
+        $this->assertSame(0.0, $row->value_ht);
+    }
+
+    public function test_real_purchase_price_used_from_last_purchase(): void
+    {
+        $product = $this->stockedProduct([
+            'ref' => 'WITH-COST',
+            'cost_price_ht' => 999,
+            'last_purchase_price' => 42.5,
+            'vat_category' => 'TVA (20%)',
+        ]);
+        $warehouse = Warehouse::fulfillmentWarehouse();
+        app(StockMovementService::class)->adjustPhysicalStock($product, 2, (int) $warehouse->id, null, StockMovement::REASON_INVENTORY_CORRECTION);
+
+        $report = app(LocationStockReportService::class)->report($warehouse);
+        $row = $report['rows']->firstWhere('sku', 'WITH-COST');
+        $this->assertTrue($row->has_purchase_cost);
+        // last_purchase_price is TTC — HT = 42.5 / 1.2
+        $this->assertSame(35.42, $row->price_ht);
+        $this->assertSame(42.5, $row->price_ttc);
+        $this->assertSame(LocationStockReportService::PRICE_SOURCE_LAST_PURCHASE, $row->price_source);
+        $this->assertSame(70.84, $row->value_ht);
+        $this->assertSame(85.0, $row->value_ttc);
+    }
+
+    public function test_purchase_price_ttc_is_not_inflated_with_vat_again(): void
+    {
+        $product = $this->stockedProduct([
+            'ref' => 'PA-TTC-285',
+            'cost_price_ht' => null,
+            'last_purchase_price' => 285,
+            'vat_category' => 'TVA (20%)',
+        ]);
+        $warehouse = Warehouse::fulfillmentWarehouse();
+        app(StockMovementService::class)->adjustPhysicalStock($product, 1, (int) $warehouse->id, null, StockMovement::REASON_INVENTORY_CORRECTION);
+
+        $report = app(LocationStockReportService::class)->report($warehouse);
+        $row = $report['rows']->firstWhere('sku', 'PA-TTC-285');
+        $this->assertNotNull($row);
+        $this->assertSame(237.5, $row->price_ht);
+        $this->assertSame(285.0, $row->price_ttc);
+        $this->assertSame(237.5, $row->value_ht);
+        $this->assertSame(285.0, $row->value_ttc);
+        $this->assertSame(47.5, $report['value_vat']);
+    }
+
+    public function test_product_cost_ht_fallback_still_derives_ttc(): void
+    {
+        $product = $this->stockedProduct([
+            'ref' => 'COST-HT-ONLY',
+            'cost_price_ht' => 100,
+            'last_purchase_price' => null,
+            'vat_category' => 'TVA (20%)',
+        ]);
+        $warehouse = Warehouse::fulfillmentWarehouse();
+        app(StockMovementService::class)->adjustPhysicalStock($product, 3, (int) $warehouse->id, null, StockMovement::REASON_INVENTORY_CORRECTION);
+
+        $report = app(LocationStockReportService::class)->report($warehouse);
+        $row = $report['rows']->firstWhere('sku', 'COST-HT-ONLY');
+        $this->assertSame(100.0, $row->price_ht);
+        $this->assertSame(120.0, $row->price_ttc);
+        $this->assertSame(300.0, $row->value_ht);
+        $this->assertSame(360.0, $row->value_ttc);
+    }
+
+    public function test_purchase_price_can_be_set_from_location_stock_and_updates_product_sheet_field(): void
+    {
+        $user = User::factory()->create(['name' => 'Stock Manager']);
+        $product = $this->stockedProduct([
+            'ref' => 'SET-PA-FROM-STOCK',
+            'cost_price_ht' => null,
+            'last_purchase_price' => null,
+            'vat_category' => 'TVA (20%)',
+        ]);
+        $warehouse = Warehouse::fulfillmentWarehouse();
+        app(StockMovementService::class)->adjustPhysicalStock(
+            $product,
+            2,
+            (int) $warehouse->id,
+            null,
+            StockMovement::REASON_INVENTORY_CORRECTION
+        );
+
+        $before = app(LocationStockReportService::class)->report($warehouse);
+        $beforeRow = $before['rows']->firstWhere('sku', 'SET-PA-FROM-STOCK');
+        $this->assertFalse($beforeRow->has_purchase_cost);
+        $this->assertSame(0.0, $before['value_ttc']);
+
+        $response = $this->actingAs($user)->patchJson(
+            route('stock.locations.purchase-price', [$warehouse, $product]),
+            ['last_purchase_price' => 70]
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('price_ttc', 70)
+            ->assertJsonPath('price_ht', 58.33)
+            ->assertJsonPath('totals.value_ttc', 140)
+            ->assertJsonPath('totals.value_ht', 116.66);
+
+        $product->refresh();
+        $this->assertSame(70.0, (float) $product->last_purchase_price);
+        $this->assertSame((int) $user->id, (int) $product->last_purchase_price_updated_by);
+        $this->assertNotNull($product->last_purchase_price_updated_at);
+
+        $after = app(LocationStockReportService::class)->report($warehouse);
+        $afterRow = $after['rows']->firstWhere('sku', 'SET-PA-FROM-STOCK');
+        $this->assertTrue($afterRow->has_purchase_cost);
+        $this->assertSame(70.0, $afterRow->price_ttc);
+        $this->assertSame(58.33, $afterRow->price_ht);
+        $this->assertSame(116.66, $afterRow->value_ht);
+        $this->assertSame(140.0, $afterRow->value_ttc);
+        $this->assertSame(LocationStockReportService::PRICE_SOURCE_LAST_PURCHASE, $afterRow->price_source);
+    }
+
+    public function test_empty_warehouse_can_be_deleted_or_archived_with_history(): void
+    {
+        $user = User::factory()->create();
+        $empty = Warehouse::create([
+            'name' => 'Dépôt vide',
+            'code' => 'EMPTY-DEL',
+            'kind' => Warehouse::KIND_PHYSICAL,
+            'status' => Warehouse::STATUS_ACTIVE,
+        ]);
+
+        $this->actingAs($user)->delete(route('warehouses.destroy', $empty))
+            ->assertRedirect(route('settings.stock', ['tab' => 'depots']));
+        $this->assertDatabaseMissing('warehouses', ['id' => $empty->id]);
+
+        $withHistory = Warehouse::create([
+            'name' => 'Dépôt historique',
+            'code' => 'HIST-ARCH',
+            'kind' => Warehouse::KIND_PHYSICAL,
+            'status' => Warehouse::STATUS_ACTIVE,
+        ]);
+        $product = $this->stockedProduct(['ref' => 'HIST-P']);
+        app(StockMovementService::class)->adjustPhysicalStock($product, 2, (int) $withHistory->id, null, StockMovement::REASON_INVENTORY_CORRECTION);
+        app(StockMovementService::class)->adjustPhysicalStock($product, 0, (int) $withHistory->id, null, StockMovement::REASON_INVENTORY_CORRECTION);
+
+        $this->actingAs($user)->delete(route('warehouses.destroy', $withHistory))
+            ->assertRedirect(route('settings.stock', ['tab' => 'depots']));
+        $withHistory->refresh();
+        $this->assertTrue($withHistory->isArchived());
+        $this->assertNotNull($withHistory->archived_at);
+    }
+
+    public function test_warehouse_with_stock_cannot_be_deleted(): void
+    {
+        $user = User::factory()->create();
+        $warehouse = Warehouse::create([
+            'name' => 'Dépôt plein',
+            'code' => 'FULL-BLOCK',
+            'kind' => Warehouse::KIND_PHYSICAL,
+            'status' => Warehouse::STATUS_ACTIVE,
+        ]);
+        $product = $this->stockedProduct(['ref' => 'FULL-P']);
+        app(StockMovementService::class)->adjustPhysicalStock($product, 5, (int) $warehouse->id, null, StockMovement::REASON_INVENTORY_CORRECTION);
+
+        $this->actingAs($user)->delete(route('warehouses.destroy', $warehouse))
+            ->assertRedirect(route('settings.stock', ['tab' => 'depots']))
+            ->assertSessionHas('error');
+        $this->assertDatabaseHas('warehouses', ['id' => $warehouse->id, 'status' => Warehouse::STATUS_ACTIVE]);
+    }
+
+    public function test_available_stock_uses_physical_magasin_not_shopify_quantity(): void
+    {
+        $product = $this->stockedProduct([
+            'source' => 'shopify',
+            'shopify_product_id' => '999',
+            'stock_quantity' => 40,
+            'stock_enligne' => 40,
+            'stock_magasin' => 12,
+            'stock_reserved' => 2,
+        ]);
+
+        $this->assertSame(12, $product->physicalStock());
+        $this->assertSame(2, $product->reservedStock());
+        $this->assertSame(10, $product->availableStock());
+        $this->assertSame(40, $product->onlineChannelStock());
+    }
+
+    public function test_reserve_and_release_stock_without_physical_exit(): void
+    {
+        $product = $this->stockedProduct();
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $this->assertNotNull($belvedere);
+        $belvedere->update(['available_for_shopify' => true]);
+
+        $service = app(StockMovementService::class);
+        $service->declarePhysicalStock(
+            $product,
+            10,
+            (int) $belvedere->id,
+            null,
+            StockMovement::REASON_PURCHASE
+        );
+        $product->refresh();
+
+        $reservation = $service->reserveStock($product, 3, (int) $belvedere->id, null, null, [
+            'source_type' => 'order',
+            'source_id' => 123,
+            'document_reference' => 'CMD-123',
+        ]);
+
+        $product->refresh();
+        $this->assertSame(10, $product->physicalStock());
+        $this->assertSame(3, $product->reservedStock());
+        $this->assertSame(7, $product->availableStock());
+        $this->assertSame(7, $service->shopifyAvailableQuantity($product));
+        $this->assertTrue($reservation->isActive());
+
+        // Idempotent re-reserve same source
+        $again = $service->reserveStock($product, 3, (int) $belvedere->id, null, null, [
+            'source_type' => 'order',
+            'source_id' => 123,
+        ]);
+        $this->assertSame($reservation->id, $again->id);
+        $this->assertSame(3, $product->fresh()->reservedStock());
+
+        $service->releaseReservation($reservation, 'Annulation');
+        $product->refresh();
+        $this->assertSame(10, $product->physicalStock());
+        $this->assertSame(0, $product->reservedStock());
+        $this->assertSame(10, $product->availableStock());
+        $this->assertSame(\App\Models\StockReservation::STATUS_RELEASED, $reservation->fresh()->status);
+
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $product->id,
+            'type' => StockMovement::TYPE_RESERVATION,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $product->id,
+            'type' => StockMovement::TYPE_RESERVATION_RELEASE,
+        ]);
+    }
+
+    public function test_cannot_reserve_more_than_available(): void
+    {
+        $product = $this->stockedProduct();
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $service = app(StockMovementService::class);
+        $service->declarePhysicalStock($product, 2, (int) $belvedere->id, null, StockMovement::REASON_PURCHASE);
+
+        $this->expectException(\RuntimeException::class);
+        $service->reserveStock($product, 5, (int) $belvedere->id);
+    }
+
     /**
      * @param  array<string, mixed>  $overrides
      */

@@ -2,19 +2,18 @@
 
 namespace App\Services\Access;
 
-use App\Models\Collaborator;
 use App\Models\Commission;
 use App\Models\CommissionRule;
 use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Support\ActivityLogger;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class CommissionService
 {
     /**
      * Evaluate / create commission for an invoice based on active rules.
+     * One rule only: specific commercial → default → none. Never stack rules.
      */
     public function syncForInvoice(Invoice $invoice): ?Commission
     {
@@ -22,20 +21,31 @@ class CommissionService
             return null;
         }
 
-        $rule = $this->resolveRule();
-        if (! $rule || ! $rule->is_active) {
-            return null;
-        }
-
-        $base = $this->baseAmount($invoice, $rule);
-        $amount = $this->computeAmount($base, $rule);
-        $status = $this->statusForInvoice($invoice, $rule);
-
         $existing = Commission::query()
             ->where('source_type', Invoice::class)
             ->where('source_id', $invoice->id)
             ->whereNull('parent_id')
             ->first();
+
+        // Acquired+ commissions keep their snapshot — rule edits must not rewrite them.
+        if ($existing && in_array($existing->status, [
+            Commission::STATUS_ACQUISE,
+            Commission::STATUS_VALIDEE,
+            Commission::STATUS_PAYEE,
+            Commission::STATUS_ANNULEE,
+            Commission::STATUS_REGULARISEE,
+        ], true)) {
+            return $existing;
+        }
+
+        $rule = $this->resolveRuleForCollaborator((int) $invoice->collaborator_id);
+        if (! $rule) {
+            return $existing;
+        }
+
+        $base = $this->baseAmount($invoice, $rule);
+        $amount = $this->computeAmount($base, $rule);
+        $status = $this->statusForInvoice($invoice, $rule);
 
         $payload = [
             'collaborator_id' => $invoice->collaborator_id,
@@ -46,23 +56,11 @@ class CommissionService
             'base_amount' => $base,
             'rate' => $rule->rate,
             'amount' => $amount,
-            'status' => $existing && in_array($existing->status, [
-                Commission::STATUS_VALIDEE,
-                Commission::STATUS_PAYEE,
-            ], true) ? $existing->status : $status,
+            'status' => $status,
             'earned_at' => $status !== Commission::STATUS_A_VENIR ? now()->toDateString() : null,
         ];
 
         if ($existing) {
-            // Don't overwrite paid/validated amounts blindly — create regularisation if needed
-            if (in_array($existing->status, [Commission::STATUS_VALIDEE, Commission::STATUS_PAYEE], true)
-                && abs((float) $existing->amount - (float) $amount) > 0.009
-            ) {
-                $this->createRegularisation($existing, (float) $amount - (float) $existing->amount, 'Recalcul suite modification facture');
-
-                return $existing->fresh();
-            }
-
             $existing->update($payload);
 
             return $existing->fresh();
@@ -96,7 +94,8 @@ class CommissionService
             return;
         }
 
-        $rule = $parent->rule ?? $this->resolveRule();
+        $rule = $parent->rule
+            ?? $this->resolveRuleForCollaborator((int) $parent->collaborator_id);
         if (! $rule) {
             return;
         }
@@ -204,24 +203,66 @@ class CommissionService
 
     public function ensureDefaultRule(): CommissionRule
     {
-        return CommissionRule::query()->firstOrCreate(
-            ['name' => 'Commission standard 3% CA HT'],
-            [
-                'type' => 'percent_ca',
-                'base' => 'ca_ht',
-                'rate' => 3,
-                'fixed_amount' => null,
-                'trigger' => 'delivered_paid',
+        $existingDefault = CommissionRule::query()
+            ->where('is_default', true)
+            ->whereNull('archived_at')
+            ->orderBy('id')
+            ->first();
+
+        if ($existingDefault) {
+            return $existingDefault;
+        }
+
+        $named = CommissionRule::query()
+            ->where('name', 'Commission standard 3% CA HT')
+            ->whereNull('archived_at')
+            ->first();
+
+        if ($named) {
+            $named->update([
+                'is_default' => true,
                 'is_active' => true,
-                'notes' => 'Règle par défaut — modifiable par l\'Admin',
-            ]
-        );
+                'collaborator_id' => null,
+            ]);
+
+            return $named->fresh();
+        }
+
+        return CommissionRule::query()->create([
+            'name' => 'Commission standard 3% CA HT',
+            'collaborator_id' => null,
+            'type' => 'percent_ca',
+            'base' => 'ca_ht',
+            'rate' => 3,
+            'fixed_amount' => null,
+            'trigger' => 'delivered_paid',
+            'is_active' => true,
+            'is_default' => true,
+            'notes' => 'Règle par défaut — modifiable par l\'Admin',
+        ]);
     }
 
-    private function resolveRule(): ?CommissionRule
+    /**
+     * Specific commercial rule → default rule → none. Never stack.
+     */
+    public function resolveRuleForCollaborator(int $collaboratorId): ?CommissionRule
     {
-        return CommissionRule::query()->where('is_active', true)->orderBy('id')->first()
-            ?? $this->ensureDefaultRule();
+        $specific = CommissionRule::query()
+            ->active()
+            ->where('collaborator_id', $collaboratorId)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($specific) {
+            return $specific;
+        }
+
+        return CommissionRule::query()
+            ->active()
+            ->where('is_default', true)
+            ->whereNull('collaborator_id')
+            ->orderBy('id')
+            ->first();
     }
 
     private function baseAmount(Invoice $invoice, CommissionRule $rule): float

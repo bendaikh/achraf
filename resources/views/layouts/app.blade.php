@@ -35,7 +35,52 @@
         html.lm-is-desktop .lm-scan-mobile-only { display: none !important; }
         html.lm-is-mobile .lm-scan-desktop-only { display: none !important; }
         html.lm-is-mobile .lm-scan-mobile-only { display: flex !important; }
-        
+
+        /* Global shell: prevent horizontal bleed on tablet/mobile */
+        html, body {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        .app-shell-main,
+        .app-shell-main > main {
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        /* Modals centered on real viewport (not a scrolled parent) */
+        .lm-modal-overlay,
+        [data-lm-modal] {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 80 !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .lm-modal-overlay.hidden,
+        [data-lm-modal].hidden {
+            display: none !important;
+        }
+        .lm-modal-panel {
+            margin: auto;
+            max-height: min(90vh, 900px);
+            overflow: auto;
+            width: 100%;
+        }
+
+        /* Dropdowns / Select2 above sidebar & sticky headers */
+        .select2-container {
+            z-index: 70 !important;
+        }
+        .select2-dropdown {
+            z-index: 70 !important;
+        }
+        .select2-container--open {
+            z-index: 70 !important;
+        }
         /* Select2 custom styling */
         .select2-container--default .select2-selection--single {
             border: 1px solid #d1d5db;

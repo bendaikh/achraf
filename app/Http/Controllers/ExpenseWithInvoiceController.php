@@ -49,6 +49,8 @@ class ExpenseWithInvoiceController extends Controller
             'supplier_id' => 'nullable|exists:suppliers,id',
             'payment_method' => 'nullable|string',
             'account' => 'nullable|string',
+            'bank_card_id' => 'nullable|exists:bank_cards,id',
+            'endowment_id' => 'nullable|exists:endowments,id',
             'tax_type' => 'required|string',
             'invoice_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ], $this->recurrenceRules()));
@@ -58,12 +60,42 @@ class ExpenseWithInvoiceController extends Controller
         // Dépense enregistrée ≠ dépense payée : pas de mouvement tant qu'aucun paiement réel.
         $validated['payment_status'] = Expense::PAYMENT_PENDING;
         $validated['paid_at'] = null;
+        $validated['amount_paid'] = 0;
         unset($validated['invoice_file']);
 
         $expense = Expense::create($validated);
         $this->attachManagedDocument('expenses-with-invoice', $expense, $request->file('invoice_file'));
 
         return redirect()->route('expenses-with-invoice.index')->with('success', 'Dépense avec facture créée avec succès!');
+    }
+
+    public function markPaid(Request $request, Expense $expenseWithInvoice)
+    {
+        $this->ensureExpenseType($expenseWithInvoice, 'with_invoice');
+
+        if ($expenseWithInvoice->payment_status === Expense::PAYMENT_PAID) {
+            return back()->with('warning', 'Cette dépense est déjà payée.');
+        }
+
+        $validated = $request->validate([
+            'bank_card_id' => 'nullable|exists:bank_cards,id',
+            'endowment_id' => 'nullable|exists:endowments,id',
+            'payment_method' => 'nullable|string|max:100',
+            'account' => 'nullable|string|max:100',
+        ]);
+
+        $expenseWithInvoice->update([
+            'payment_status' => Expense::PAYMENT_PAID,
+            'paid_at' => now(),
+            'amount_paid' => (float) $expenseWithInvoice->amount,
+            'bank_card_id' => $validated['bank_card_id'] ?? $expenseWithInvoice->bank_card_id,
+            'endowment_id' => $validated['endowment_id'] ?? $expenseWithInvoice->endowment_id,
+            'payment_method' => $validated['payment_method'] ?? $expenseWithInvoice->payment_method,
+            'account' => $validated['account'] ?? $expenseWithInvoice->account,
+        ]);
+
+        return redirect()->route('expenses-with-invoice.show', $expenseWithInvoice)
+            ->with('success', 'Dépense payée — mouvement de trésorerie et dotation mis à jour.');
     }
 
     public function show(Expense $expenseWithInvoice)

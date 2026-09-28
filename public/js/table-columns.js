@@ -68,7 +68,11 @@
     }
 
     function getCells(table, key) {
-        return table.querySelectorAll('.lm-col-' + key + ', .column-' + key);
+        // Prefer data-lm-col so underscore keys still match hyphenated CSS classes
+        // (e.g. statut_commercial vs lm-col-statut-commercial).
+        return table.querySelectorAll(
+            '[data-lm-col="' + key + '"], .lm-col-' + key + ', .column-' + key
+        );
     }
 
     function applyWidths(table, config) {
@@ -123,13 +127,47 @@
         return pinned;
     }
 
+    function collectDomColumnKeys(row) {
+        var keys = [];
+        row.querySelectorAll('[data-lm-col]').forEach(function (cell) {
+            var key = cell.getAttribute('data-lm-col');
+            if (key && keys.indexOf(key) === -1) {
+                keys.push(key);
+            }
+        });
+        return keys;
+    }
+
+    /**
+     * Columns present in the DOM but missing from the saved/config order
+     * would otherwise stay at the front after appendChild reordering.
+     * Keep them after select so the checkbox column remains first.
+     */
+    function mergeOrderWithDomColumns(order, row) {
+        order = pinFixedColumnOrder(order);
+        var orphans = collectDomColumnKeys(row).filter(function (key) {
+            return order.indexOf(key) === -1;
+        });
+        if (!orphans.length) {
+            return order;
+        }
+
+        var merged = order.slice();
+        var insertAt = merged.indexOf('select');
+        insertAt = insertAt === -1 ? 0 : insertAt + 1;
+        orphans.forEach(function (key, index) {
+            merged.splice(insertAt + index, 0, key);
+        });
+        return pinFixedColumnOrder(merged);
+    }
+
     function reorderColumns(table, order) {
         var theadRow = table.querySelector('thead tr');
         if (!theadRow) {
             return;
         }
 
-        order = pinFixedColumnOrder(order);
+        order = mergeOrderWithDomColumns(order, theadRow);
         var bodyRows = table.querySelectorAll('tbody tr');
 
         order.forEach(function (key) {

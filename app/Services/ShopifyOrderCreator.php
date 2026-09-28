@@ -7,17 +7,20 @@ use App\Models\PosSaleItem;
 use App\Models\Product;
 use App\Models\ShopifyIntegration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ShopifyOrderCreator
 {
+    public const IN_PROGRESS_LOCK_MINUTES = 5;
+
     public function sync(PosSale $order, ?int $actorUserId = null): PosSale
     {
-        $claimed = DB::transaction(function () use ($order) {
+        $claim = DB::transaction(function () use ($order) {
             $locked = PosSale::query()->lockForUpdate()->findOrFail($order->id);
 
             if ($locked->shopify_order_id
                 || ($locked->source === 'shopify' && $locked->external_id)) {
-                return false;
+                return 'already_synced';
             }
 
             if (! $locked->creation_token) {
@@ -25,9 +28,16 @@ class ShopifyOrderCreator
             }
 
             if ($locked->sync_status === PosSale::SYNC_IN_PROGRESS
-                && $locked->sync_attempted_at?->isAfter(now()->subMinutes(5))) {
-                return false;
+                && $locked->sync_attempted_at?->isAfter(now()->subMinutes(self::IN_PROGRESS_LOCK_MINUTES))) {
+                return 'in_progress';
             }
+
+            // Recovery after a previous ambiguous attempt (timeout, crash, API error).
+            $needsRecovery = $locked->sync_attempted_at !== null
+                && in_array($locked->sync_status, [
+                    PosSale::SYNC_IN_PROGRESS,
+                    PosSale::SYNC_ERROR,
+                ], true);
 
             $locked->update([
                 'sync_status' => PosSale::SYNC_IN_PROGRESS,
@@ -35,11 +45,17 @@ class ShopifyOrderCreator
                 'sync_attempted_at' => now(),
             ]);
 
-            return true;
+            return $needsRecovery ? 'claimed_recovery' : 'claimed';
         });
 
-        if (! $claimed) {
+        if ($claim === 'already_synced') {
             return $order->fresh();
+        }
+
+        if ($claim === 'in_progress') {
+            throw new \RuntimeException(
+                'Synchronisation Shopify déjà en cours. Réessayez dans quelques minutes si le statut reste bloqué.'
+            );
         }
 
         try {
@@ -50,14 +66,28 @@ class ShopifyOrderCreator
             }
 
             $order->loadMissing(['client', 'items.variant', 'items.product.variants', 'creator', 'assignedUser']);
+
+            if ($order->items->isEmpty()) {
+                throw new \RuntimeException('La commande ne contient aucune ligne produit.');
+            }
+
+            if (! $order->client_id) {
+                throw new \RuntimeException('La commande doit être rattachée à un client avant la synchronisation Shopify.');
+            }
+
+            if ((float) $order->total <= 0) {
+                throw new \RuntimeException('Le montant TTC de la commande doit être calculé avant la synchronisation Shopify.');
+            }
+
             $client = new ShopifyApiClient($integration);
 
-            // Recover safely after an ambiguous timeout: the remote order may
-            // exist even though the previous request never returned locally.
-            $shopifyOrder = $client->findOrderByNoteAttribute(
-                'libromart_creation_token',
-                (string) $order->creation_token
-            );
+            // Only look for an existing remote order when recovering from a prior
+            // ambiguous attempt. First attempts go straight to createOrder so the
+            // request cannot stall scanning thousands of Shopify orders.
+            $shopifyOrder = null;
+            if ($claim === 'claimed_recovery') {
+                $shopifyOrder = $this->findExistingShopifyOrder($client, $order);
+            }
 
             if (! $shopifyOrder) {
                 $shopifyOrder = $client->createOrder($this->payload($order));
@@ -67,6 +97,12 @@ class ShopifyOrderCreator
 
             return $order->fresh();
         } catch (\Throwable $e) {
+            Log::error('Shopify order sync failed', [
+                'order_id' => $order->id,
+                'ticket_number' => $order->ticket_number,
+                'message' => $e->getMessage(),
+            ]);
+
             $order->forceFill([
                 'sync_status' => PosSale::SYNC_ERROR,
                 'sync_error' => mb_substr($e->getMessage(), 0, 4000),
@@ -94,17 +130,20 @@ class ShopifyOrderCreator
         $lineItems = $order->items->map(function (PosSaleItem $item) {
             $taxRate = (float) $item->tax_rate;
             $lineTotalTtc = (float) $item->line_total;
-            // Libromart line_total is TTC; Shopify line price must be HT when taxes are exclusive.
+            // Libromart line_total is TTC. Shopify store prices are tax-inclusive
+            // (see ShopifyOrderImporter); send TTC with taxes_included=true so
+            // total_price / notifications show TTC. Exclusive HT + tax_lines is
+            // stored by Shopify but total_tax stays 0 and notifications show HT.
+            $unitPriceTtc = $item->quantity > 0
+                ? $lineTotalTtc / $item->quantity
+                : 0.0;
             $lineTotalHt = $taxRate > 0
                 ? $lineTotalTtc / (1 + ($taxRate / 100))
                 : $lineTotalTtc;
-            $unitPriceHt = $item->quantity > 0
-                ? $lineTotalHt / $item->quantity
-                : 0.0;
 
             $line = [
                 'quantity' => $item->quantity,
-                'price' => number_format($unitPriceHt, 2, '.', ''),
+                'price' => number_format($unitPriceTtc, 2, '.', ''),
                 'title' => $item->designation,
                 'sku' => $item->ref,
                 'taxable' => $taxRate > 0,
@@ -140,12 +179,14 @@ class ShopifyOrderCreator
 
         $payload = [
             'line_items' => $lineItems,
-            'taxes_included' => false,
+            'taxes_included' => true,
             'currency' => $this->currencyCode($order->currency),
             'financial_status' => $this->financialStatus($order->payment_status),
             'send_receipt' => false,
             'send_fulfillment_receipt' => false,
-            'inventory_behaviour' => 'decrement_obeying_policy',
+            // Libromart orders are admin/phone sales: create even if Shopify online
+            // stock is 0/negative (inventory_policy=deny). Still decrement inventory.
+            'inventory_behaviour' => 'decrement_ignoring_policy',
             'tags' => implode(', ', array_filter(array_merge(
                 $order->tags ?? [],
                 ['Libromart', 'Libromart-'.$order->ticket_number]
@@ -184,6 +225,25 @@ class ShopifyOrderCreator
         }
 
         return array_filter($payload, fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function findExistingShopifyOrder(ShopifyApiClient $client, PosSale $order): ?array
+    {
+        $createdAtMin = ($order->sold_at ?? $order->created_at ?? now())
+            ->copy()
+            ->subDay()
+            ->toIso8601String();
+
+        return $client->findOrderByNoteAttribute(
+            'libromart_creation_token',
+            (string) $order->creation_token,
+            [
+                'tag' => 'Libromart-'.$order->ticket_number,
+                'created_at_min' => $createdAtMin,
+                'status' => 'any',
+                'limit' => 50,
+            ]
+        );
     }
 
     private function resolveShopifyVariantId(PosSaleItem $item): ?string

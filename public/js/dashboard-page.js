@@ -65,7 +65,7 @@ window.dashboardPage = function (dataUrl, bootstrap) {
         error: null,
         dateFrom: bootstrap?.dateFrom || '',
         dateTo: bootstrap?.dateTo || '',
-        period: bootstrap?.period || 'month',
+        period: bootstrap?.period || 'today',
         chartPeriod: bootstrap?.chartPeriod || '6',
         periodLabel: bootstrap?.periodLabel || '',
         previousPeriodLabel: bootstrap?.previousPeriodLabel || '',

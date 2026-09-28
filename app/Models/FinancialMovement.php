@@ -58,6 +58,8 @@ class FinancialMovement extends Model
 
     public const ORIGIN_DIVERS = 'divers';
 
+    public const ORIGIN_AJUSTEMENT = 'ajustement';
+
     protected $fillable = [
         'reference',
         'movement_date',
@@ -65,10 +67,13 @@ class FinancialMovement extends Model
         'type',
         'label',
         'account',
+        'bank_card_id',
+        'endowment_id',
         'amount_in',
         'amount_out',
         'status',
         'is_manual',
+        'is_opening_balance',
         'source_type',
         'source_id',
         'user_id',
@@ -84,6 +89,7 @@ class FinancialMovement extends Model
         'amount_in' => 'decimal:2',
         'amount_out' => 'decimal:2',
         'is_manual' => 'boolean',
+        'is_opening_balance' => 'boolean',
         'pointed_at' => 'datetime',
         'day_closed_at' => 'datetime',
     ];
@@ -136,6 +142,7 @@ class FinancialMovement extends Model
             self::ORIGIN_JUMIA => 'Jumia',
             self::ORIGIN_REMBOURSEMENT => 'Remboursement client',
             self::ORIGIN_MANUEL => 'Manuel',
+            self::ORIGIN_AJUSTEMENT => 'Ajustement trésorerie',
             self::ORIGIN_SALAIRE => 'Salaire',
             self::ORIGIN_LOYER => 'Loyer',
             self::ORIGIN_UTILITIES => 'Eau / Électricité / Internet',

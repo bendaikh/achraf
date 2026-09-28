@@ -217,6 +217,14 @@
                                     <div>
                                         <span class="text-sm text-gray-500">Prix dernier achat TTC (DHS)</span>
                                         <p class="mt-1 text-xl font-semibold text-gray-900">{{ number_format($product->last_purchase_price, 2) }} DHS</p>
+                                        @if($product->last_purchase_price_updated_at)
+                                            <p class="mt-1 text-xs text-gray-500">
+                                                Modifié manuellement le {{ $product->last_purchase_price_updated_at->format('d/m/Y H:i') }}
+                                                @if($product->lastPurchasePriceUpdatedBy)
+                                                    par {{ $product->lastPurchasePriceUpdatedBy->name }}
+                                                @endif
+                                            </p>
+                                        @endif
                                     </div>
                                 @endif
 
@@ -256,7 +264,7 @@
                                 <div>
                                     <span class="text-sm text-gray-500">Quantité disponible</span>
                                     <p class="mt-1 text-lg font-semibold {{ $product->isOutOfStock() ? 'text-red-600' : ($product->isStockLow() ? 'text-orange-600' : 'text-gray-900') }}">{{ $product->available_stock }}</p>
-                                    <p class="text-xs text-gray-500">Physique: {{ $product->stock_quantity }} · Réservé: {{ (int) ($product->stock_reserved ?? 0) }}</p>
+                                    <p class="text-xs text-gray-500">Physique: {{ $product->physicalStock() }} · Réservé: {{ $product->reservedStock() }}@if($product->isShopifyProduct()) · Canal Shopify: {{ $product->onlineChannelStock() }}@endif</p>
                                 </div>
                                 <div>
                                     <span class="text-sm text-gray-500">Seuil d'alerte</span>
@@ -508,8 +516,8 @@
             </div>
             <div>
                 <label class="block text-xs font-semibold uppercase text-slate-500 mb-1" id="productDeclareQtyLabel">Quantité physique à ajouter / déclarer</label>
-                <input type="number" name="quantity" id="productDeclareQty" min="1" value="1" required class="w-full rounded-lg border-slate-300 text-sm">
-                <p id="productDeclareQtyHelp" class="mt-1 text-xs text-slate-500">Minimum 1 pour un ajout.</p>
+                <input type="number" name="quantity" id="productDeclareQty" min="0" value="1" required class="w-full rounded-lg border-slate-300 text-sm">
+                <p id="productDeclareQtyHelp" class="mt-1 text-xs text-slate-500">Ajout : minimum 1. Ajustement / inventaire : 0 accepté.</p>
             </div>
             <div>
                 <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Motif / origine</label>

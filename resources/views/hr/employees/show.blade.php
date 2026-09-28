@@ -180,7 +180,8 @@
                 <h3 class="font-semibold mb-1">Horaires (versionnés)</h3>
                 <p class="text-xs text-gray-500 mb-3">Une nouvelle date d’effet conserve l’ancien planning. Le pointage compare l’horaire applicable au jour concerné.</p>
                 <label class="text-xs text-gray-500">Date d’effet</label>
-                <input type="date" name="effective_from" value="{{ now()->toDateString() }}" class="{{ $input }} mb-3 max-w-xs">
+                <input type="date" name="effective_from" value="{{ old('effective_from', $employee->hire_date?->toDateString() ?? now()->toDateString()) }}" class="{{ $input }} mb-3 max-w-xs">
+                <p class="text-xs text-gray-400 -mt-2 mb-3">Pour couvrir l’historique (janvier, février…), mettez une date d’effet dès le début de la période à saisir. Les versions antérieures restent conservées.</p>
                 @php $currentSchedules = $employee->currentSchedules(); @endphp
                 <div class="grid grid-cols-5 gap-2 text-xs font-medium text-gray-500 mb-1 px-0.5">
                     <span>Jour</span>
@@ -192,13 +193,16 @@
                 <div class="space-y-2">
                     @foreach(\App\Models\EmployeeSchedule::WEEKDAYS as $day => $label)
                         @php $row = $currentSchedules[$day] ?? $employee->schedules->firstWhere('weekday', $day); @endphp
-                        <div class="grid grid-cols-5 gap-2 items-center text-sm">
+                        <div class="grid grid-cols-5 gap-2 items-center text-sm" x-data="{ off: {{ $row?->is_off ? 'true' : 'false' }} }">
                             <input type="hidden" name="days[{{ $day }}][weekday]" value="{{ $day }}">
                             <span>{{ $label }}</span>
-                            <input type="time" name="days[{{ $day }}][start_time]" value="{{ $row?->start_time ? substr($row->start_time, 0, 5) : '' }}" class="{{ $input }}">
-                            <input type="time" name="days[{{ $day }}][end_time]" value="{{ $row?->end_time ? substr($row->end_time, 0, 5) : '' }}" class="{{ $input }}">
-                            <input type="number" name="days[{{ $day }}][break_minutes]" value="{{ $row?->break_minutes ?? 60 }}" class="{{ $input }}" title="Pause (min)" placeholder="Pause (min)">
-                            <label class="flex items-center gap-1"><input type="checkbox" name="days[{{ $day }}][is_off]" value="1" @checked($row?->is_off)> Repos</label>
+                            <input type="time" name="days[{{ $day }}][start_time]" value="{{ $row?->start_time ? substr($row->start_time, 0, 5) : '' }}" class="{{ $input }}" :disabled="off">
+                            <input type="time" name="days[{{ $day }}][end_time]" value="{{ $row?->end_time ? substr($row->end_time, 0, 5) : '' }}" class="{{ $input }}" :disabled="off">
+                            <input type="number" name="days[{{ $day }}][break_minutes]" value="{{ $row?->break_minutes ?? ($row?->is_off ? 0 : 60) }}" class="{{ $input }}" title="Pause (min)" placeholder="Pause (min)" :disabled="off">
+                            <label class="flex items-center gap-1">
+                                <input type="hidden" name="days[{{ $day }}][is_off]" value="0">
+                                <input type="checkbox" name="days[{{ $day }}][is_off]" value="1" x-model="off"> Repos
+                            </label>
                         </div>
                     @endforeach
                 </div>

@@ -44,14 +44,33 @@ class EmployeeSchedule extends Model
         return self::WEEKDAYS[$this->weekday] ?? (string) $this->weekday;
     }
 
+    /**
+     * Resolve the schedule version applicable on a given date.
+     *
+     * Prefer the latest version with effective_from <= date (historical accuracy).
+     * If the date is before any version, fall back to the latest known version so
+     * past months can be prefilled from the current employee-sheet planning.
+     */
     public static function forEmployeeOnDate(int $employeeId, int $weekday, \DateTimeInterface|string $date): ?self
     {
         $on = \Carbon\Carbon::parse($date)->toDateString();
 
-        return static::query()
+        $applicable = static::query()
             ->where('employee_id', $employeeId)
             ->where('weekday', $weekday)
             ->whereDate('effective_from', '<=', $on)
+            ->orderByDesc('effective_from')
+            ->first();
+
+        if ($applicable) {
+            return $applicable;
+        }
+
+        // Avant la première date d’effet : reprendre le planning actuel de la fiche
+        // pour permettre la saisie de l’historique (janv., févr., …).
+        return static::query()
+            ->where('employee_id', $employeeId)
+            ->where('weekday', $weekday)
             ->orderByDesc('effective_from')
             ->first();
     }

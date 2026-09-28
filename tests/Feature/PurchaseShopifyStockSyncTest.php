@@ -18,13 +18,12 @@ class PurchaseShopifyStockSyncTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_direct_invoice_to_online_warehouse_syncs_simple_shopify_product(): void
+    public function test_direct_invoice_to_physical_feed_warehouse_syncs_simple_shopify_product(): void
     {
         $this->fakeShopifyApi();
         $user = User::factory()->create();
         $supplier = Supplier::create(['name' => 'Fournisseur Shopify']);
-        $online = Warehouse::onlineWarehouse();
-        $this->assertNotNull($online);
+        $belvedere = $this->shopifyFeedWarehouse();
 
         $product = $this->shopifyProduct(['name' => 'Tapis Tiguan 2024', 'ref' => 'TIGUAN-2024']);
         $variant = ProductVariant::create([
@@ -41,7 +40,7 @@ class PurchaseShopifyStockSyncTest extends TestCase
             'supplier_id' => $supplier->id,
             'invoice_date' => '2026-09-18',
             'currency' => 'dh - MAD',
-            'warehouse_id' => $online->id,
+            'warehouse_id' => $belvedere->id,
             'items' => [[
                 'product_id' => $product->id,
                 'ref' => $product->ref,
@@ -51,14 +50,16 @@ class PurchaseShopifyStockSyncTest extends TestCase
                 'tax_rate' => 20,
                 'discount' => 0,
                 'discount_type' => 'fixed',
-                'warehouse_id' => $online->id,
+                'warehouse_id' => $belvedere->id,
             ]],
         ])->assertRedirect();
 
         $invoice = SupplierInvoice::query()->firstOrFail();
         $this->assertNotNull($invoice->stock_applied_at);
-        $this->assertSame(36, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $online->id));
-        $this->assertSame(36, (int) $product->fresh()->stock_enligne);
+        $service = app(StockMovementService::class);
+        $this->assertSame(36, $service->quantityAtWarehouse($product->fresh(), (int) $belvedere->id));
+        $this->assertSame(36, $product->fresh()->physicalStock());
+        $this->assertSame(36, $service->shopifyAvailableQuantity($product->fresh()));
 
         Http::assertSent(function ($request) {
             return str_contains($request->url(), 'inventory_levels/set.json')
@@ -69,12 +70,12 @@ class PurchaseShopifyStockSyncTest extends TestCase
         $this->assertSame(36, (int) $variant->fresh()->inventory_quantity);
     }
 
-    public function test_invoice_to_online_warehouse_updates_only_selected_variant(): void
+    public function test_invoice_to_physical_feed_updates_only_selected_variant(): void
     {
         $this->fakeShopifyApi();
         $user = User::factory()->create();
         $supplier = Supplier::create(['name' => 'Fournisseur Variantes']);
-        $online = Warehouse::onlineWarehouse();
+        $belvedere = $this->shopifyFeedWarehouse();
 
         $product = $this->shopifyProduct(['name' => 'Tapis Tiguan 2024', 'ref' => 'TIGUAN-VAR']);
         $black = ProductVariant::create([
@@ -98,29 +99,30 @@ class PurchaseShopifyStockSyncTest extends TestCase
             'position' => 2,
         ]);
 
-        // Seed existing online stock: noir=10 already on Shopify side (local slot).
-        app(StockMovementService::class)->increase(
+        // Seed existing physical stock for noir only.
+        app(StockMovementService::class)->declarePhysicalStock(
             $product,
             10,
-            'enligne',
-            false,
-            \App\Models\StockMovement::TYPE_INVENTORY_ADJUSTMENT,
-            'seed',
+            (int) $belvedere->id,
             null,
-            null,
-            $online->id,
-            null,
+            \App\Models\StockMovement::REASON_PURCHASE,
             null,
             null,
             (int) $black->id
         );
+
+        Http::fake([
+            '*/inventory_levels/set.json' => Http::response(['inventory_level' => []], 200),
+            '*/inventory_levels/connect.json' => Http::response(['inventory_level' => []], 200),
+            '*' => Http::response([], 200),
+        ]);
 
         $this->actingAs($user)->post(route('supplier-invoices.store'), [
             'invoice_number' => 'FSI-SHOPIFY-VARIANT',
             'supplier_id' => $supplier->id,
             'invoice_date' => '2026-09-18',
             'currency' => 'dh - MAD',
-            'warehouse_id' => $online->id,
+            'warehouse_id' => $belvedere->id,
             'items' => [[
                 'product_id' => $product->id,
                 'product_variant_id' => $black->id,
@@ -131,13 +133,13 @@ class PurchaseShopifyStockSyncTest extends TestCase
                 'tax_rate' => 20,
                 'discount' => 0,
                 'discount_type' => 'fixed',
-                'warehouse_id' => $online->id,
+                'warehouse_id' => $belvedere->id,
             ]],
         ])->assertRedirect();
 
         $service = app(StockMovementService::class);
-        $this->assertSame(46, $black->fresh()->onlineStock());
-        $this->assertSame(0, $grey->fresh()->onlineStock());
+        $this->assertSame(46, $service->shopifyAvailableQuantity($product->fresh(), (int) $black->id));
+        $this->assertSame(0, $service->shopifyAvailableQuantity($product->fresh(), (int) $grey->id));
 
         $invoice = SupplierInvoice::query()->where('invoice_number', 'FSI-SHOPIFY-VARIANT')->firstOrFail();
         $this->assertSame((int) $black->id, (int) $invoice->items()->first()->product_variant_id);
@@ -162,7 +164,7 @@ class PurchaseShopifyStockSyncTest extends TestCase
         $this->fakeShopifyApi();
         $user = User::factory()->create();
         $supplier = Supplier::create(['name' => 'Fournisseur BR']);
-        $online = Warehouse::onlineWarehouse();
+        $belvedere = $this->shopifyFeedWarehouse();
         $product = $this->shopifyProduct(['name' => 'Produit BR', 'ref' => 'BR-SKU']);
         ProductVariant::create([
             'product_id' => $product->id,
@@ -179,7 +181,7 @@ class PurchaseShopifyStockSyncTest extends TestCase
             'reception_date' => '2026-09-18',
             'currency' => 'dh - MAD',
             'status' => 'accepté',
-            'warehouse_id' => $online->id,
+            'warehouse_id' => $belvedere->id,
             'items' => [[
                 'product_id' => $product->id,
                 'ref' => $product->ref,
@@ -189,11 +191,11 @@ class PurchaseShopifyStockSyncTest extends TestCase
                 'tax_rate' => 20,
                 'discount' => 0,
                 'discount_type' => 'fixed',
-                'warehouse_id' => $online->id,
+                'warehouse_id' => $belvedere->id,
             ]],
         ])->assertRedirect();
 
-        $this->assertSame(12, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $online->id));
+        $this->assertSame(12, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $belvedere->id));
 
         $setCallsBefore = collect(Http::recorded())
             ->filter(fn ($pair) => str_contains($pair[0]->url(), 'inventory_levels/set.json'))
@@ -205,7 +207,7 @@ class PurchaseShopifyStockSyncTest extends TestCase
             'mode' => 'separate',
         ])->assertOk();
 
-        $this->assertSame(12, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $online->id));
+        $this->assertSame(12, app(StockMovementService::class)->quantityAtWarehouse($product->fresh(), (int) $belvedere->id));
         $invoice = SupplierInvoice::query()->firstOrFail();
         $this->assertNotNull($invoice->stock_applied_at);
 
@@ -214,6 +216,23 @@ class PurchaseShopifyStockSyncTest extends TestCase
             ->count();
 
         $this->assertSame($setCallsBefore, $setCallsAfter);
+    }
+
+    public function test_online_mirror_warehouse_is_preserved_but_not_used_as_shopify_feed(): void
+    {
+        $online = Warehouse::onlineWarehouse();
+        $this->assertNotNull($online);
+        $this->assertFalse($online->feedsShopify());
+        $this->assertTrue($online->isOnline());
+    }
+
+    protected function shopifyFeedWarehouse(): Warehouse
+    {
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $this->assertNotNull($belvedere);
+        $belvedere->update(['available_for_shopify' => true]);
+
+        return $belvedere->fresh();
     }
 
     protected function fakeShopifyApi(): void

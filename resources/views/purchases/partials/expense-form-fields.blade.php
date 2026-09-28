@@ -94,6 +94,33 @@
         </select>
     </div>
 
+    @if(!empty($bankCards) && $bankCards->isNotEmpty())
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">Carte bancaire</label>
+        <select name="bank_card_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+            <option value="">Aucune</option>
+            @foreach($bankCards as $card)
+                <option value="{{ $card->id }}" @selected((string) old('bank_card_id', $expense?->bank_card_id) === (string) $card->id)>{{ $card->displayLabel() }}</option>
+            @endforeach
+        </select>
+    </div>
+    @endif
+
+    @if(!empty($endowments) && $endowments->isNotEmpty())
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">Dotation</label>
+        <select name="endowment_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+            <option value="">Aucune</option>
+            @foreach($endowments as $endowment)
+                <option value="{{ $endowment->id }}" @selected((string) old('endowment_id', $expense?->endowment_id) === (string) $endowment->id)>
+                    {{ $endowment->label }} (reste {{ number_format($endowment->remaining(), 2) }})
+                </option>
+            @endforeach
+        </select>
+        <p class="mt-1 text-xs text-gray-500">Consommée uniquement au paiement réel.</p>
+    </div>
+    @endif
+
     <div>
         <label class="block text-sm font-medium text-gray-700 mb-2">Taxe</label>
         <select name="tax_type" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
@@ -117,6 +144,19 @@
     </div>
     @endif
 </div>
+
+@if(($showPayNow ?? false) && ! $expense)
+    <div class="mt-6 p-4 rounded-xl border border-amber-200 bg-amber-50">
+        <input type="hidden" name="pay_now" value="0">
+        <label class="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" name="pay_now" value="1" @checked(old('pay_now')) class="mt-1 h-4 w-4 rounded border-gray-300 text-green-600">
+            <span>
+                <span class="block text-sm font-semibold text-amber-950">Payer maintenant</span>
+                <span class="block text-xs text-amber-800 mt-1">Par défaut la dépense est « À payer » (aucun mouvement de trésorerie). Cochez pour encaisser immédiatement.</span>
+            </span>
+        </label>
+    </div>
+@endif
 
 @if($canManageRecurrence)
     <div class="mt-6 pt-6 border-t border-gray-200">

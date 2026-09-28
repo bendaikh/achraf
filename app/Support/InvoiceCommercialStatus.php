@@ -19,7 +19,7 @@ class InvoiceCommercialStatus
     public static function labels(): array
     {
         return [
-            self::NORMAL => 'Normale',
+            self::NORMAL => 'Sans retour',
             self::PARTIAL_RETURN => 'Retour partiel',
             self::TOTAL_RETURN => 'Retour total',
             self::PARTIAL_REFUND => 'Remboursement partiel',

@@ -47,7 +47,7 @@ class AuthController extends Controller
 
         return back()->withErrors([
             'email' => 'Identifiants incorrects.',
-        ])->withInput($request->only('email'));
+        ])->onlyInput('email');
     }
 
     public function logout(Request $request)
@@ -55,8 +55,8 @@ class AuthController extends Controller
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        
-        return redirect()->route('login')->with('success', 'You have been logged out successfully.');
+
+        return redirect()->route('login')->with('success', 'Vous êtes déconnecté.');
     }
 
     public function dashboard()

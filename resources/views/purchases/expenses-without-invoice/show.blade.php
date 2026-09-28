@@ -11,6 +11,14 @@
                 <p class="text-sm text-gray-600 mt-1">{{ $expense->designation }}</p>
             </div>
             <div class="flex gap-2">
+                @if($expense->isPendingPayment())
+                    <form method="POST" action="{{ route('expenses-without-invoice.mark-paid', $expense) }}" class="inline">
+                        @csrf
+                        <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition duration-150">
+                            Marquer payée
+                        </button>
+                    </form>
+                @endif
                 <x-libromart-pdf-actions
                     :print-route="route('expenses.print', $expense)"
                     :pdf-route="route('expenses.pdf', $expense)"
@@ -62,6 +70,18 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-500 mb-1">Client</label>
                         <p class="text-base text-gray-900">{{ $expense->client ? $expense->client->name : '-' }}</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-500 mb-1">Statut paiement</label>
+                        <p class="text-base text-gray-900">
+                            @if($expense->payment_status === \App\Models\Expense::PAYMENT_PAID)
+                                <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Payée</span>
+                                @if($expense->paid_at)<span class="text-sm text-gray-500 ml-2">{{ $expense->paid_at->format('d/m/Y H:i') }}</span>@endif
+                            @else
+                                <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">À payer</span>
+                            @endif
+                        </p>
                     </div>
 
                     <div>

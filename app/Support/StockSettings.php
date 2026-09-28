@@ -37,4 +37,21 @@ class StockSettings
     {
         return Setting::get('stock_control_enabled', '1') !== '0';
     }
+
+    /**
+     * When enabled: Commande → Allocation/Réservation → Picking → Valider sortie.
+     * When disabled: legacy immediate physical exit on prepare.
+     */
+    public static function pickingEnabled(): bool
+    {
+        return Setting::get('stock_picking_enabled', '0') === '1';
+    }
+
+    /**
+     * When enabled: Ventes → Retours clients / Scan retours workflow.
+     */
+    public static function customerReturnsEnabled(): bool
+    {
+        return Setting::get('stock_customer_returns_enabled', '0') === '1';
+    }
 }

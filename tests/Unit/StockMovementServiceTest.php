@@ -3,6 +3,10 @@
 namespace Tests\Unit;
 
 use App\Models\Product;
+use App\Models\ProductStock;
+use App\Models\ProductVariant;
+use App\Models\Warehouse;
+use App\Models\WarehouseLocation;
 use App\Services\StockMovementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
@@ -72,6 +76,70 @@ class StockMovementServiceTest extends TestCase
         $product->refresh();
         $this->assertSame(3, (int) $product->stock_enligne);
         $this->assertSame(3, (int) $product->stock_quantity);
+    }
+
+    public function test_purchase_adopts_legacy_null_variant_slot_instead_of_duplicate_insert(): void
+    {
+        $warehouse = Warehouse::fulfillmentWarehouse() ?? Warehouse::query()->first();
+        $this->assertNotNull($warehouse);
+
+        $location = WarehouseLocation::query()->firstOrCreate(
+            ['warehouse_id' => $warehouse->id, 'code' => 'LEGACY-01'],
+            ['name' => 'Emplacement legacy', 'zone' => 'A', 'status' => 'active']
+        );
+
+        $product = Product::create([
+            'name' => 'Tapis sur mesure',
+            'ref' => 'FAST-TAP4D-023',
+            'source' => 'shopify',
+            'external_id' => '999000111',
+            'item_kind' => Product::KIND_STOCKED,
+            'stock_enligne' => 0,
+            'stock_quantity' => 0,
+            'stock_magasin' => 0,
+        ]);
+
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'title' => 'Default Title',
+            'sku' => $product->ref,
+            'inventory_quantity' => 0,
+        ]);
+
+        // Legacy row: same unique slot key, but product_variant_id is null.
+        $legacy = ProductStock::create([
+            'product_id' => $product->id,
+            'product_variant_id' => null,
+            'warehouse_id' => $warehouse->id,
+            'warehouse_location_id' => $location->id,
+            'quantity' => 0,
+            'reserved' => 0,
+        ]);
+
+        app(StockMovementService::class)->increaseForPurchase(
+            [[
+                'product_id' => $product->id,
+                'product_variant_id' => $variant->id,
+                'quantity' => 5,
+                'warehouse_id' => $warehouse->id,
+                'warehouse_location_id' => $location->id,
+            ]],
+            $warehouse->name,
+            'supplier_delivery_note',
+            1,
+            'BL-TEST-1',
+            $warehouse->id
+        );
+
+        $this->assertSame(1, ProductStock::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('warehouse_location_id', $location->id)
+            ->count());
+
+        $legacy->refresh();
+        $this->assertSame($variant->id, (int) $legacy->product_variant_id);
+        $this->assertSame(5, (int) $legacy->quantity);
     }
 
     private function shopifyProduct(int $stock): Product

@@ -58,6 +58,7 @@ class StockController extends Controller
     {
         $query = ProductStock::query()
             ->with(['product.primarySupplier', 'warehouse', 'location'])
+            ->where('quantity', '>', 0)
             ->whereHas('product', fn ($q) => $q->tracksStock());
 
         if ($request->filled('search')) {
@@ -132,6 +133,7 @@ class StockController extends Controller
     {
         $query = StockMovement::query()
             ->with(['product', 'warehouse', 'location', 'user', 'documents'])
+            ->whereHas('product', fn ($q) => $q->tracksStock())
             ->orderByDesc('moved_at')
             ->orderByDesc('id');
 
@@ -161,7 +163,7 @@ class StockController extends Controller
         }
 
         $movements = $query->paginate($request->integer('per_page') ?: 25)->withQueryString();
-        $warehouses = Warehouse::orderBy('name')->pluck('name', 'id');
+        $warehouses = Warehouse::active()->orderBy('name')->pluck('name', 'id');
         $types = StockMovement::TYPES;
 
         return view('stock.movements', compact('movements', 'warehouses', 'types'));

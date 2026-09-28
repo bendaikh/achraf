@@ -17,7 +17,6 @@ use App\Services\DocumentNumberService;
 use App\Services\InvoiceSituationService;
 use App\Services\SalesDocumentChainService;
 use App\Services\StockMovementService;
-use App\Support\InvoiceCommercialStatus;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use Illuminate\Http\Request;
@@ -64,7 +63,6 @@ class InvoiceController extends Controller
 
         return view('sales.invoices.index', [
             'invoices' => $invoices,
-            'commercialStatuses' => InvoiceCommercialStatus::filterOptions(),
         ]);
     }
 

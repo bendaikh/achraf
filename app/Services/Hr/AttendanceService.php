@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAbsence;
 use App\Models\EmployeeSchedule;
 use App\Models\LeaveRequest;
+use App\Models\PayrollRun;
 use App\Models\Setting;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -23,7 +24,7 @@ class AttendanceService
     /**
      * @param  array<string, mixed>  $attributes
      */
-    public function upsertManual(Employee $employee, array $attributes, ?string $correctionReason = null, ?int $userId = null): AttendanceRecord
+    public function upsertManual(Employee $employee, array $attributes, ?string $correctionReason = null, ?int $userId = null, bool $recordHistory = true): AttendanceRecord
     {
         $workDate = Carbon::parse($attributes['work_date'])->toDateString();
 
@@ -57,7 +58,7 @@ class AttendanceService
         $this->recalculate($record, $employee);
         $record->save();
 
-        if ($before !== []) {
+        if ($recordHistory && $before !== []) {
             $this->recordCorrections($record, $before, $correctionReason ?: 'Correction manuelle du pointage', $userId);
         }
 
@@ -181,6 +182,7 @@ class AttendanceService
     public function applyScheduleVersion(Employee $employee, array $days, string $effectiveFrom, ?int $userId = null): void
     {
         foreach ($days as $day) {
+            $isOff = $this->normalizeIsOff($day['is_off'] ?? false);
             EmployeeSchedule::query()->updateOrCreate(
                 [
                     'employee_id' => $employee->id,
@@ -188,16 +190,249 @@ class AttendanceService
                     'effective_from' => $effectiveFrom,
                 ],
                 [
-                    'start_time' => ($day['is_off'] ?? false) ? null : ($day['start_time'] ?? null),
-                    'end_time' => ($day['is_off'] ?? false) ? null : ($day['end_time'] ?? null),
-                    'break_minutes' => (int) ($day['break_minutes'] ?? 0),
-                    'is_off' => (bool) ($day['is_off'] ?? false),
+                    'start_time' => $isOff ? null : ($day['start_time'] ?? null),
+                    'end_time' => $isOff ? null : ($day['end_time'] ?? null),
+                    'break_minutes' => $isOff ? 0 : (int) ($day['break_minutes'] ?? 0),
+                    'is_off' => $isOff,
                 ]
             );
         }
 
         $this->audit->log($employee, 'schedule', 'effective_from', null, $effectiveFrom, 'Nouveau planning', $userId);
         $this->timeline->record($employee, 'schedule', 'Planning modifié', $effectiveFrom, 'Date d’effet '.$effectiveFrom, $employee, $userId);
+
+        // Les mois non verrouillés reprennent le nouveau planning (jours non protégés uniquement).
+        $this->refreshOpenMonthsFromSchedule($employee, $effectiveFrom, $userId);
+    }
+
+    /**
+     * Normalize checkbox / boolean payloads ("0", "false", 0 → false).
+     */
+    private function normalizeIsOff(mixed $value): bool
+    {
+        if (is_array($value)) {
+            $value = end($value);
+        }
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Defaults for one calendar day from the versioned employee schedule.
+     *
+     * @return array{status: string, clock_in: ?string, clock_out: ?string, break_minutes: int, schedule: ?EmployeeSchedule, schedule_is_off: bool, has_schedule: bool}
+     */
+    public function defaultsFromSchedule(Employee $employee, Carbon|string $date): array
+    {
+        $on = Carbon::parse($date);
+        $schedule = EmployeeSchedule::forEmployeeOnDate($employee->id, $on->isoWeekday(), $on);
+        $isOff = (bool) ($schedule?->is_off);
+
+        if ($schedule === null) {
+            return [
+                'status' => AttendanceRecord::STATUS_PRESENT,
+                'clock_in' => null,
+                'clock_out' => null,
+                'break_minutes' => 0,
+                'schedule' => null,
+                'schedule_is_off' => false,
+                'has_schedule' => false,
+            ];
+        }
+
+        if ($isOff) {
+            return [
+                'status' => AttendanceRecord::STATUS_REST,
+                'clock_in' => null,
+                'clock_out' => null,
+                'break_minutes' => (int) ($schedule->break_minutes ?? 0),
+                'schedule' => $schedule,
+                'schedule_is_off' => true,
+                'has_schedule' => true,
+            ];
+        }
+
+        return [
+            'status' => AttendanceRecord::STATUS_PRESENT,
+            'clock_in' => $schedule->start_time ? substr((string) $schedule->start_time, 0, 5) : null,
+            'clock_out' => $schedule->end_time ? substr((string) $schedule->end_time, 0, 5) : null,
+            'break_minutes' => (int) ($schedule->break_minutes ?? 0),
+            'schedule' => $schedule,
+            'schedule_is_off' => false,
+            'has_schedule' => true,
+        ];
+    }
+
+    public function isMonthValidated(int $year, int $month): bool
+    {
+        $run = PayrollRun::query()
+            ->where('period_year', $year)
+            ->where('period_month', $month)
+            ->first();
+
+        return $run?->isLocked() ?? false;
+    }
+
+    /**
+     * A day must not be auto-overwritten by schedule regeneration.
+     */
+    public function isAttendanceProtected(AttendanceRecord $record, bool $monthValidated = false): bool
+    {
+        if ($monthValidated) {
+            return true;
+        }
+
+        if (in_array($record->source, [
+            AttendanceRecord::SOURCE_TIMECLOCK,
+            AttendanceRecord::SOURCE_IMPORT,
+        ], true)) {
+            return true;
+        }
+
+        if ($record->relationLoaded('corrections')
+            ? $record->corrections->isNotEmpty()
+            : $record->corrections()->exists()) {
+            return true;
+        }
+
+        // Congés / absences poussés par le système restent prioritaires.
+        if ($record->source === AttendanceRecord::SOURCE_SYSTEM
+            && in_array($record->status, [
+                AttendanceRecord::STATUS_LEAVE,
+                AttendanceRecord::STATUS_SICK,
+                AttendanceRecord::STATUS_ABSENT,
+                AttendanceRecord::STATUS_HOLIDAY,
+            ], true)) {
+            return true;
+        }
+
+        // Saisie manuelle réelle (hors simple préremplissage planning / ancien Repos week-end forcé).
+        if ($record->source === AttendanceRecord::SOURCE_MANUAL) {
+            return ! $this->looksLikeStaleSchedulePlaceholder($record);
+        }
+
+        return false;
+    }
+
+    /**
+     * Detect auto-filled placeholders that should follow the live schedule.
+     * - Ancien Repos week-end forcé
+     * - Ancien « Présent » sans horaires (mois chargé avant planning applicable)
+     * Real manual edits (horaires, notes, autre statut) restent protégées.
+     */
+    private function looksLikeStaleSchedulePlaceholder(AttendanceRecord $record): bool
+    {
+        if ($record->notes) {
+            return false;
+        }
+
+        if ($record->clock_in || $record->clock_out) {
+            return false;
+        }
+
+        return in_array($record->status, [
+            AttendanceRecord::STATUS_REST,
+            AttendanceRecord::STATUS_PRESENT,
+        ], true);
+    }
+
+    /**
+     * Materialize / refresh the month from the employee sheet schedule.
+     * Skips validated payroll months and protected days (manual corrections, timeclock, leave…).
+     */
+    public function generateMonthFromSchedule(Employee $employee, int $year, int $month, ?int $userId = null): int
+    {
+        if ($this->isMonthValidated($year, $month)) {
+            return 0;
+        }
+
+        $start = Carbon::create($year, $month, 1)->startOfDay();
+        $end = $start->copy()->endOfMonth();
+        $updated = 0;
+
+        $records = AttendanceRecord::query()
+            ->with('corrections')
+            ->where('employee_id', $employee->id)
+            ->whereBetween('work_date', [$start->toDateString(), $end->toDateString()])
+            ->get()
+            ->keyBy(fn (AttendanceRecord $r) => $r->work_date->toDateString());
+
+        $leaves = LeaveRequest::query()
+            ->where('employee_id', $employee->id)
+            ->where('status', LeaveRequest::STATUS_APPROVED)
+            ->whereDate('start_date', '<=', $end->toDateString())
+            ->whereDate('end_date', '>=', $start->toDateString())
+            ->get();
+
+        $absences = EmployeeAbsence::query()
+            ->where('employee_id', $employee->id)
+            ->whereDate('start_date', '<=', $end->toDateString())
+            ->whereDate('end_date', '>=', $start->toDateString())
+            ->get();
+
+        foreach (CarbonPeriod::create($start, $end) as $date) {
+            /** @var Carbon $date */
+            $key = $date->toDateString();
+
+            if ($leaves->first(fn (LeaveRequest $l) => $date->betweenIncluded($l->start_date, $l->end_date))) {
+                continue;
+            }
+            if ($absences->first(fn (EmployeeAbsence $a) => $date->betweenIncluded($a->start_date, $a->end_date))) {
+                continue;
+            }
+
+            $existing = $records->get($key);
+            if ($existing && $this->isAttendanceProtected($existing, false)) {
+                continue;
+            }
+
+            $defaults = $this->defaultsFromSchedule($employee, $date);
+            if (! $defaults['has_schedule']) {
+                continue;
+            }
+
+            if ($existing
+                && $existing->source === AttendanceRecord::SOURCE_SCHEDULE
+                && $existing->status === $defaults['status']
+                && ($existing->clock_in ? substr((string) $existing->clock_in, 0, 5) : null) === ($defaults['clock_in'] ?: null)
+                && ($existing->clock_out ? substr((string) $existing->clock_out, 0, 5) : null) === ($defaults['clock_out'] ?: null)
+            ) {
+                continue;
+            }
+
+            $this->upsertManual($employee, [
+                'work_date' => $key,
+                'status' => $defaults['status'],
+                'clock_in' => $defaults['clock_in'],
+                'clock_out' => $defaults['clock_out'],
+                'notes' => null,
+                'source' => AttendanceRecord::SOURCE_SCHEDULE,
+            ], 'Génération depuis planning salarié', $userId, false);
+            $updated++;
+        }
+
+        return $updated;
+    }
+
+    /**
+     * Refresh schedule-sourced days from effective_from onward (open months only).
+     */
+    public function refreshOpenMonthsFromSchedule(Employee $employee, string $effectiveFrom, ?int $userId = null): void
+    {
+        $from = Carbon::parse($effectiveFrom)->startOfMonth();
+        $cursor = $from->copy();
+        $horizon = now()->startOfMonth()->addMonths(2);
+
+        while ($cursor->lte($horizon)) {
+            if (! $this->isMonthValidated($cursor->year, $cursor->month)) {
+                $this->generateMonthFromSchedule($employee, $cursor->year, $cursor->month, $userId);
+            }
+            $cursor->addMonth();
+        }
     }
 
     /**
@@ -250,15 +485,17 @@ class AttendanceService
     /**
      * Build the editable month grid for one employee (records + leave/absence + schedule defaults).
      *
-     * @return array{days: list<array<string, mixed>>, summary: array<string, int|string>}
+     * @return array{days: list<array<string, mixed>>, summary: array<string, int|string>, month_validated: bool}
      */
     public function buildMonthGrid(Employee $employee, int $year, int $month): array
     {
         $start = Carbon::create($year, $month, 1)->startOfDay();
         $end = $start->copy()->endOfMonth();
+        $monthValidated = $this->isMonthValidated($year, $month);
 
         /** @var Collection<string, AttendanceRecord> $records */
         $records = AttendanceRecord::query()
+            ->with('corrections')
             ->where('employee_id', $employee->id)
             ->whereBetween('work_date', [$start->toDateString(), $end->toDateString()])
             ->get()
@@ -283,7 +520,8 @@ class AttendanceService
             /** @var Carbon $date */
             $key = $date->toDateString();
             $weekday = $date->isoWeekday();
-            $schedule = EmployeeSchedule::forEmployeeOnDate($employee->id, $weekday, $key);
+            $defaults = $this->defaultsFromSchedule($employee, $date);
+            $schedule = $defaults['schedule'];
             $record = $records->get($key);
 
             $locked = false;
@@ -296,12 +534,14 @@ class AttendanceService
             $late = 0;
             $overtime = 0;
             $recordId = null;
+            $protected = false;
 
             $leave = $leaves->first(fn (LeaveRequest $l) => $date->betweenIncluded($l->start_date, $l->end_date));
             $absence = $absences->first(fn (EmployeeAbsence $a) => $date->betweenIncluded($a->start_date, $a->end_date));
 
             if ($record) {
                 $recordId = $record->id;
+                $protected = $this->isAttendanceProtected($record, $monthValidated);
             }
 
             // Congés / absences validés restent prioritaires (même si un pointage existe déjà).
@@ -326,6 +566,20 @@ class AttendanceService
                 $notes = $absence->typeLabel().($absence->comment ? ' — '.$absence->comment : '');
                 $clockIn = null;
                 $clockOut = null;
+            } elseif ($record && $protected) {
+                // Corrections manuelles / pointeuse / mois validé : ne pas écraser.
+                $status = $record->status;
+                $clockIn = $record->clock_in ? substr((string) $record->clock_in, 0, 5) : null;
+                $clockOut = $record->clock_out ? substr((string) $record->clock_out, 0, 5) : null;
+                $notes = $record->notes;
+                $worked = (int) $record->worked_minutes;
+                $late = (int) $record->late_minutes;
+                $overtime = (int) $record->overtime_minutes;
+            } elseif ($defaults['has_schedule']) {
+                // Planning fiche salarié (jamais de week-end calendaire forcé).
+                $status = $defaults['status'];
+                $clockIn = $defaults['clock_in'];
+                $clockOut = $defaults['clock_out'];
             } elseif ($record) {
                 $status = $record->status;
                 $clockIn = $record->clock_in ? substr((string) $record->clock_in, 0, 5) : null;
@@ -334,13 +588,8 @@ class AttendanceService
                 $worked = (int) $record->worked_minutes;
                 $late = (int) $record->late_minutes;
                 $overtime = (int) $record->overtime_minutes;
-            } elseif ($schedule?->is_off) {
-                // Repos uniquement si le planning applicable à cette date le dit (pas de week-end calendaire forcé).
-                $status = AttendanceRecord::STATUS_REST;
             } else {
                 $status = AttendanceRecord::STATUS_PRESENT;
-                $clockIn = $schedule?->start_time ? substr((string) $schedule->start_time, 0, 5) : null;
-                $clockOut = $schedule?->end_time ? substr((string) $schedule->end_time, 0, 5) : null;
             }
 
             $scheduleIn = $schedule && ! $schedule->is_off && $schedule->start_time
@@ -349,15 +598,15 @@ class AttendanceService
             $scheduleOut = $schedule && ! $schedule->is_off && $schedule->end_time
                 ? substr((string) $schedule->end_time, 0, 5)
                 : null;
-            $breakMinutes = (int) ($schedule?->break_minutes ?? 0);
-            $scheduleIsOff = (bool) ($schedule?->is_off);
+            $breakMinutes = (int) ($defaults['break_minutes'] ?? 0);
+            $scheduleIsOff = (bool) ($defaults['schedule_is_off'] ?? false);
 
             $days[] = [
                 'date' => $key,
                 'date_label' => $date->format('d/m'),
                 'weekday' => $weekday,
                 'day_label' => ucfirst($date->locale('fr')->isoFormat('dddd')),
-                'is_weekend' => $weekday >= 6,
+                'is_weekend' => $scheduleIsOff,
                 'status' => $status,
                 'clock_in' => $clockIn,
                 'clock_out' => $clockOut,
@@ -366,20 +615,22 @@ class AttendanceService
                 'late_minutes' => $late,
                 'overtime_minutes' => $overtime,
                 'notes' => $notes,
-                'locked' => $locked,
-                'lock_source' => $lockSource,
+                'locked' => $locked || $monthValidated,
+                'lock_source' => $lockSource ?? ($monthValidated ? 'payroll' : null),
                 'record_id' => $recordId,
                 'schedule_in' => $scheduleIn,
                 'schedule_out' => $scheduleOut,
                 'schedule_is_off' => $scheduleIsOff,
-                'has_schedule' => $schedule !== null,
+                'has_schedule' => $defaults['has_schedule'],
                 'has_record' => (bool) $record,
+                'protected' => $protected || $locked || $monthValidated,
             ];
         }
 
         return [
             'days' => $days,
             'summary' => $this->summarizeMonthDays($days),
+            'month_validated' => $monthValidated,
         ];
     }
 
@@ -557,6 +808,10 @@ class AttendanceService
      */
     public function saveMonth(Employee $employee, int $year, int $month, array $days, ?string $correctionReason = null, ?int $userId = null): int
     {
+        if ($this->isMonthValidated($year, $month)) {
+            return 0;
+        }
+
         $start = Carbon::create($year, $month, 1)->startOfDay();
         $end = $start->copy()->endOfMonth();
         $saved = 0;
@@ -602,13 +857,26 @@ class AttendanceService
                 AttendanceRecord::STATUS_HOLIDAY,
             ], true);
 
+            $clockIn = $noTimes ? null : ($day['clock_in'] ?? null);
+            $clockOut = $noTimes ? null : ($day['clock_out'] ?? null);
+            $notes = $day['notes'] ?? $day['commentaire'] ?? null;
+
+            $defaults = $this->defaultsFromSchedule($employee, $workDate);
+            $matchesSchedule = $defaults['has_schedule']
+                && $status === $defaults['status']
+                && ($clockIn ?: null) === ($defaults['clock_in'] ?: null)
+                && ($clockOut ?: null) === ($defaults['clock_out'] ?: null)
+                && empty($notes);
+
             $this->upsertManual($employee, [
                 'work_date' => $key,
-                'clock_in' => $noTimes ? null : ($day['clock_in'] ?? null),
-                'clock_out' => $noTimes ? null : ($day['clock_out'] ?? null),
+                'clock_in' => $clockIn,
+                'clock_out' => $clockOut,
                 'status' => $status,
-                'notes' => $day['notes'] ?? $day['commentaire'] ?? null,
-                'source' => AttendanceRecord::SOURCE_MANUAL,
+                'notes' => $notes,
+                'source' => $matchesSchedule
+                    ? AttendanceRecord::SOURCE_SCHEDULE
+                    : AttendanceRecord::SOURCE_MANUAL,
             ], $correctionReason ?: 'Saisie mensuelle', $userId);
             $saved++;
         }

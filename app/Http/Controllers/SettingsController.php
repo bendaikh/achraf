@@ -44,6 +44,7 @@ class SettingsController extends Controller
         'depenses' => 'settings.depenses',
         'mon_entreprise' => 'settings.entreprise',
         'stock' => 'settings.stock',
+        'smtp' => 'settings.smtp',
     ];
 
     public function index()
@@ -98,6 +99,27 @@ class SettingsController extends Controller
         ]);
     }
 
+    public function smtp()
+    {
+        return view('settings.smtp', [
+            'smtp' => \App\Support\SmtpSettings::all(),
+        ]);
+    }
+
+    public function testSmtp(Request $request, \App\Services\DocumentMailService $mailer)
+    {
+        $validated = $request->validate([
+            'test_email' => 'required|email',
+        ]);
+
+        \App\Support\SmtpSettings::applyToConfig();
+        $result = $mailer->sendTest($validated['test_email']);
+        \App\Support\SmtpSettings::recordTestResult($result['ok'], $result['message']);
+
+        return redirect()->route('settings.smtp')
+            ->with($result['ok'] ? 'success' : 'error', $result['message']);
+    }
+
     public function update(Request $request)
     {
         $settingsType = $request->input('settings_type');
@@ -118,6 +140,23 @@ class SettingsController extends Controller
         if ($settingsType === 'stock') {
             $this->saveStockSettings($request);
             $redirectKey = 'stock';
+        }
+
+        if ($settingsType === 'smtp') {
+            $request->validate([
+                'mail_from_name' => 'nullable|string|max:255',
+                'mail_from_address' => 'required|email',
+                'mail_host' => 'required|string|max:255',
+                'mail_port' => 'nullable|integer|min:1|max:65535',
+                'mail_encryption' => 'nullable|in:tls,ssl,none',
+                'mail_username' => 'nullable|string|max:255',
+                'mail_password' => 'nullable|string|max:500',
+            ]);
+            \App\Support\SmtpSettings::save($request->only([
+                'mail_from_name', 'mail_from_address', 'mail_host', 'mail_port',
+                'mail_encryption', 'mail_username', 'mail_password',
+            ]));
+            $redirectKey = 'smtp';
         }
 
         if ($settingsType === 'produit_types') {
@@ -301,6 +340,8 @@ class SettingsController extends Controller
         $settings['stock_multi_warehouse'] = Setting::get('stock_multi_warehouse', '1');
         $settings['stock_valuation_method'] = Setting::get('stock_valuation_method', '');
         $settings['stock_control_enabled'] = Setting::get('stock_control_enabled', '1');
+        $settings['stock_picking_enabled'] = Setting::get('stock_picking_enabled', '0');
+        $settings['stock_customer_returns_enabled'] = Setting::get('stock_customer_returns_enabled', '0');
 
         return $settings;
     }
@@ -438,6 +479,8 @@ class SettingsController extends Controller
             'stock_multi_warehouse' => 'nullable|in:0,1',
             'stock_valuation_method' => 'nullable|string|max:100',
             'stock_control_enabled' => 'nullable|in:0,1',
+            'stock_picking_enabled' => 'nullable|in:0,1',
+            'stock_customer_returns_enabled' => 'nullable|in:0,1',
         ]);
 
         Setting::set('stock_low_threshold', (string) $validated['stock_low_threshold'], 'Seuil de stock faible par défaut');
@@ -446,6 +489,8 @@ class SettingsController extends Controller
         Setting::set('stock_multi_warehouse', $request->input('stock_multi_warehouse', '0') === '1' ? '1' : '0', 'Gestion multi-dépôts');
         Setting::set('stock_valuation_method', (string) ($validated['stock_valuation_method'] ?? ''), 'Méthode de valorisation du stock');
         Setting::set('stock_control_enabled', $request->input('stock_control_enabled', '0') === '1' ? '1' : '0', 'Contrôle de stock activé');
+        Setting::set('stock_picking_enabled', $request->input('stock_picking_enabled', '0') === '1' ? '1' : '0', 'Activer Préparation / Picking');
+        Setting::set('stock_customer_returns_enabled', $request->input('stock_customer_returns_enabled', '0') === '1' ? '1' : '0', 'Activer Retours clients / Scan retours');
     }
 
     protected function saveListFromTextarea(Request $request, string $key, string $description): void
