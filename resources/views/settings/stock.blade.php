@@ -81,12 +81,18 @@
                                 <input type="checkbox" name="stock_control_enabled" value="1" {{ ($settings['stock_control_enabled'] ?? '1') === '1' ? 'checked' : '' }} class="h-4 w-4 text-[#0a5d8a] rounded">
                                 <span class="text-sm text-gray-700">Contrôle de stock activé (ventes / achats)</span>
                             </label>
-                            <label class="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-3 cursor-pointer">
+                            <label class="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-3 cursor-pointer">
                                 <input type="hidden" name="stock_picking_enabled" value="0">
-                                <input type="checkbox" name="stock_picking_enabled" value="1" {{ ($settings['stock_picking_enabled'] ?? '0') === '1' ? 'checked' : '' }} class="h-4 w-4 text-[#0a5d8a] rounded">
+                                <input type="checkbox" name="stock_picking_enabled" value="1" {{ ($settings['stock_picking_enabled'] ?? '0') === '1' ? 'checked' : '' }} class="mt-0.5 h-4 w-4 text-[#0a5d8a] rounded">
                                 <span class="text-sm text-gray-700">
                                     <strong>Activer Préparation / Picking</strong>
                                     <span class="block text-xs text-gray-500 mt-0.5">OUI = réservation puis validation de sortie. NON = workflow historique (sortie immédiate à la préparation).</span>
+                                    @if(($settings['stock_picking_enabled'] ?? '0') === '1' && !empty($settings['stock_picking_activated_at']))
+                                        <span class="block text-xs text-emerald-800 mt-1">
+                                            Actif depuis le {{ \Illuminate\Support\Carbon::parse($settings['stock_picking_activated_at'])->format('d/m/Y H:i') }} —
+                                            seules les commandes créées/importées à partir de cette date entrent dans le picking.
+                                        </span>
+                                    @endif
                                 </span>
                             </label>
                             <label class="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50/50 px-4 py-3 cursor-pointer">

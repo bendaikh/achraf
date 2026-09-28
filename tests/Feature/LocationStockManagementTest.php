@@ -7,9 +7,12 @@ use App\Models\PosSale;
 use App\Models\PosSaleItem;
 use App\Models\Product;
 use App\Models\ProductStock;
+use App\Models\ProductVariant;
 use App\Models\Reception;
+use App\Models\Setting;
 use App\Models\StockMovement;
 use App\Models\StockReplenishmentNeed;
+use App\Models\StockReservation;
 use App\Models\Supplier;
 use App\Models\SupplierPurchaseOrder;
 use App\Models\User;
@@ -17,6 +20,7 @@ use App\Models\Warehouse;
 use App\Services\LocationStockReportService;
 use App\Services\OrderPhysicalStockService;
 use App\Services\StockMovementService;
+use App\Support\StockSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -225,6 +229,118 @@ class LocationStockManagementTest extends TestCase
         ]))
             ->assertOk()
             ->assertSee('FILTER-SKU');
+    }
+
+    public function test_product_list_depot_column_shows_physical_slots_not_default_shopify(): void
+    {
+        $user = User::factory()->create();
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $online = Warehouse::onlineWarehouse();
+        $this->assertNotNull($belvedere);
+        $this->assertNotNull($online);
+
+        $location = \App\Models\WarehouseLocation::query()->firstOrCreate(
+            ['warehouse_id' => $belvedere->id, 'code' => 'TC-R01-E01'],
+            ['name' => 'TC-R01-E01', 'status' => 'active']
+        );
+
+        $product = $this->stockedProduct([
+            'ref' => 'DEPOT-COL-SKU',
+            'name' => 'Produit colonne dépôt',
+            'warehouse_id' => $online->id,
+            'depot' => $online->name,
+            'warehouse_location_id' => null,
+            'location' => null,
+        ]);
+
+        $service = app(StockMovementService::class);
+        $service->adjustPhysicalStock(
+            $product,
+            1,
+            (int) $belvedere->id,
+            (int) $location->id,
+            StockMovement::REASON_INVENTORY_CORRECTION,
+            'test'
+        );
+        $service->increase(
+            $product,
+            3,
+            'enligne',
+            false,
+            StockMovement::TYPE_INVENTORY_ADJUSTMENT,
+            'shopify',
+            null,
+            null,
+            $online->id
+        );
+
+        // Zero-qty slot must stay hidden in the depot column (may still appear in filter dropdowns).
+        $emptyLoc = \App\Models\WarehouseLocation::query()->firstOrCreate(
+            ['warehouse_id' => $belvedere->id, 'code' => 'TC-EMPTY'],
+            ['name' => 'Empty', 'status' => 'active']
+        );
+        ProductStock::query()->create([
+            'product_id' => $product->id,
+            'warehouse_id' => $belvedere->id,
+            'warehouse_location_id' => $emptyLoc->id,
+            'quantity' => 0,
+            'reserved' => 0,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('products.index', ['search' => 'DEPOT-COL-SKU']));
+        $response->assertOk();
+        $html = $response->getContent();
+
+        $this->assertStringContainsString($belvedere->name, $html);
+        $this->assertStringContainsString('TC-R01-E01', $html);
+        $this->assertStringContainsString('Qté 1', $html);
+        $this->assertStringContainsString('Canal en ligne · Qté 3', $html);
+        $this->assertStringContainsString($online->name, $html);
+
+        // Extract the depot cell for this product row to assert zero-qty slots are omitted.
+        $this->assertMatchesRegularExpression(
+            '/data-lm-col="depot">\s*<div class="space-y-2">.*?TC-R01-E01.*?Canal en ligne · Qté 3.*?<\/div>\s*<\/td>/s',
+            $html
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/data-lm-col="depot">[^<]*<div class="space-y-2">[^<]*TC-EMPTY/s',
+            $html
+        );
+
+        // Physical block must appear before the online channel label.
+        $physicalPos = strpos($html, 'TC-R01-E01');
+        $onlinePos = strpos($html, 'Canal en ligne · Qté 3');
+        $this->assertNotFalse($physicalPos);
+        $this->assertNotFalse($onlinePos);
+        $this->assertLessThan($onlinePos, $physicalPos);
+    }
+
+    public function test_product_list_depot_column_lists_all_positive_physical_locations(): void
+    {
+        $user = User::factory()->create();
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $this->assertNotNull($belvedere);
+
+        $locA = \App\Models\WarehouseLocation::query()->firstOrCreate(
+            ['warehouse_id' => $belvedere->id, 'code' => 'TC-A'],
+            ['name' => 'A', 'status' => 'active']
+        );
+        $locB = \App\Models\WarehouseLocation::query()->firstOrCreate(
+            ['warehouse_id' => $belvedere->id, 'code' => 'TC-B'],
+            ['name' => 'B', 'status' => 'active']
+        );
+
+        $product = $this->stockedProduct(['ref' => 'MULTI-LOC-SKU']);
+        $service = app(StockMovementService::class);
+        $service->adjustPhysicalStock($product, 2, (int) $belvedere->id, (int) $locA->id, StockMovement::REASON_INVENTORY_CORRECTION);
+        $service->adjustPhysicalStock($product, 5, (int) $belvedere->id, (int) $locB->id, StockMovement::REASON_INVENTORY_CORRECTION);
+
+        $this->actingAs($user)->get(route('products.index', ['search' => 'MULTI-LOC-SKU']))
+            ->assertOk()
+            ->assertSee('TC-A')
+            ->assertSee('Qté 2')
+            ->assertSee('TC-B')
+            ->assertSee('Qté 5');
     }
 
     public function test_transfer_moves_quantity_without_creating_stock(): void
@@ -1124,6 +1240,136 @@ class LocationStockManagementTest extends TestCase
 
         $this->expectException(\RuntimeException::class);
         $service->reserveStock($product, 5, (int) $belvedere->id);
+    }
+
+    public function test_allocate_uses_belvedere_default_title_stock_and_only_needs_missing_sku(): void
+    {
+        // FAST12907 shape: order lines without product_variant_id, Belvédère stock tagged on Default Title,
+        // Shopify mirror must never satisfy allocation.
+        Setting::set('stock_picking_enabled', '1');
+        StockSettings::recordPickingActivation(now()->subMinute());
+
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $online = Warehouse::onlineWarehouse();
+        $this->assertNotNull($belvedere);
+        $location = $belvedere->locations()->first() ?? \App\Models\WarehouseLocation::create([
+            'warehouse_id' => $belvedere->id,
+            'code' => 'BEL-STOCK',
+            'name' => 'Bel Stock',
+            'status' => 'active',
+        ]);
+
+        $tapis4d = $this->stockedProduct([
+            'name' => 'Tapis sur mesure 4D',
+            'ref' => 'FAST-TAP4D-211',
+            'source' => 'shopify',
+        ]);
+        $tapis4dVariant = ProductVariant::create([
+            'product_id' => $tapis4d->id,
+            'title' => 'Default Title',
+            'sku' => 'FAST-TAP4D-211',
+            'shopify_variant_id' => '46077187096734',
+            'position' => 1,
+        ]);
+
+        $coffre = $this->stockedProduct([
+            'name' => 'Tapis de coffre 4D',
+            'ref' => 'FAST-TCOF-250',
+            'source' => 'shopify',
+        ]);
+        ProductVariant::create([
+            'product_id' => $coffre->id,
+            'title' => 'Default Title',
+            'sku' => 'FAST-TCOF-250',
+            'shopify_variant_id' => '47866144194718',
+            'position' => 1,
+        ]);
+
+        $stock = app(StockMovementService::class);
+        // Shopify mirror (must be ignored).
+        $stock->increase($tapis4d, 3, 'enligne', false, StockMovement::TYPE_PURCHASE, null, null, null, $online->id, null, null, null, $tapis4dVariant->id);
+        $stock->increase($coffre, 2, 'enligne', false, StockMovement::TYPE_PURCHASE, null, null, null, $online->id);
+        // Belvédère physical stock on Default Title + location (same as Stock par emplacement).
+        $stock->adjustPhysicalStock(
+            $tapis4d,
+            1,
+            (int) $belvedere->id,
+            (int) $location->id,
+            StockMovement::REASON_INVENTORY_CORRECTION,
+            null,
+            $tapis4dVariant->id
+        );
+
+        $client = Client::create(['name' => 'Client FAST']);
+        $user = User::factory()->create();
+        $order = PosSale::create([
+            'ticket_number' => 'FAST12907-TEST',
+            'client_id' => $client->id,
+            'user_id' => $user->id,
+            'sold_at' => now(),
+            'created_at' => now(),
+            'status' => 'pending',
+            'fulfillment_status' => 'unfulfilled',
+            'currency' => 'MAD',
+            'subtotal' => 20,
+            'total' => 20,
+            'payment_method' => 'cash',
+            'source' => 'shopify',
+        ]);
+        // Intentionally no product_variant_id (Shopify import often omits it).
+        PosSaleItem::create([
+            'pos_sale_id' => $order->id,
+            'product_id' => $coffre->id,
+            'product_variant_id' => null,
+            'ref' => $coffre->ref,
+            'designation' => $coffre->name,
+            'quantity' => 1,
+            'unit_price' => 10,
+            'tax_rate' => 20,
+            'discount' => 0,
+            'line_total' => 10,
+        ]);
+        PosSaleItem::create([
+            'pos_sale_id' => $order->id,
+            'product_id' => $tapis4d->id,
+            'product_variant_id' => null,
+            'ref' => $tapis4d->ref,
+            'designation' => $tapis4d->name,
+            'quantity' => 1,
+            'unit_price' => 10,
+            'tax_rate' => 20,
+            'discount' => 0,
+            'line_total' => 10,
+        ]);
+
+        $result = app(OrderPhysicalStockService::class)->prepare($order->fresh());
+
+        $this->assertSame('reservation', $result['mode']);
+        $this->assertCount(1, $result['reserved']);
+        $this->assertSame($tapis4d->id, $result['reserved'][0]['product_id']);
+        $this->assertSame((int) $location->id, (int) $result['reserved'][0]['warehouse_location_id']);
+        $this->assertSame($tapis4dVariant->id, $result['reserved'][0]['product_variant_id']);
+
+        $this->assertCount(1, $result['unavailable']);
+        $this->assertSame($coffre->id, $result['unavailable'][0]['product_id']);
+
+        $this->assertSame(1, StockReservation::query()->active()->where('source_id', $order->id)->count());
+        $this->assertSame(1, StockReplenishmentNeed::query()->open()->where('pos_sale_id', $order->id)->count());
+        $this->assertSame(
+            $coffre->id,
+            (int) StockReplenishmentNeed::query()->open()->where('pos_sale_id', $order->id)->value('product_id')
+        );
+
+        // Disponibile Belvédère for tapis 4D is now fully reserved.
+        $slot = ProductStock::query()
+            ->where('product_id', $tapis4d->id)
+            ->where('warehouse_id', $belvedere->id)
+            ->where('warehouse_location_id', $location->id)
+            ->first();
+        $this->assertNotNull($slot);
+        $this->assertSame(1, (int) $slot->quantity);
+        $this->assertSame(1, (int) $slot->reserved);
+        $this->assertSame(0, $slot->available());
     }
 
     /**

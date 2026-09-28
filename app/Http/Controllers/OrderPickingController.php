@@ -17,11 +17,22 @@ class OrderPickingController extends Controller
 
     public function index(Request $request)
     {
+        $pickingEnabled = StockSettings::pickingEnabled();
+        $pickingActivatedAt = StockSettings::pickingActivatedAt();
+
         $query = PosSale::query()
             ->with(['client', 'items.product', 'items.variant'])
             ->whereNull('physical_stock_processed_at')
             ->whereHas('items.product', fn ($q) => $q->where('item_kind', 'stocked'))
             ->orderByDesc('id');
+
+        // Active picking queue starts at activation — never pull pre-activation history.
+        if ($pickingEnabled && $pickingActivatedAt) {
+            $query->where('created_at', '>=', $pickingActivatedAt);
+        } else {
+            // Picking off or no cutoff yet → empty active queue (orders stay in normal history).
+            $query->whereRaw('1 = 0');
+        }
 
         if ($request->filled('search')) {
             $search = trim((string) $request->input('search'));
@@ -56,7 +67,8 @@ class OrderPickingController extends Controller
         return view('sales.picking.index', [
             'orders' => $orders,
             'reservationCounts' => $reservationCounts,
-            'pickingEnabled' => StockSettings::pickingEnabled(),
+            'pickingEnabled' => $pickingEnabled,
+            'pickingActivatedAt' => $pickingActivatedAt,
         ]);
     }
 
@@ -67,15 +79,20 @@ class OrderPickingController extends Controller
             'order_ids.*' => 'integer|exists:pos_sales,id',
         ]);
 
+        $orderIds = $this->eligiblePickingOrderIds($validated['order_ids']);
+        if ($orderIds === []) {
+            return back()->with('error', 'Aucune commande éligible au picking (créée/importée avant l’activation).');
+        }
+
         $reservations = StockReservation::query()
             ->active()
             ->where('source_type', 'pos_sale')
-            ->whereIn('source_id', $validated['order_ids'])
+            ->whereIn('source_id', $orderIds)
             ->with(['product', 'variant', 'warehouse', 'location', 'product'])
             ->get();
 
         $orders = PosSale::query()
-            ->whereIn('id', $validated['order_ids'])
+            ->whereIn('id', $orderIds)
             ->get()
             ->keyBy('id');
 
@@ -126,7 +143,7 @@ class OrderPickingController extends Controller
         $ok = 0;
         $errors = [];
 
-        foreach ($validated['order_ids'] as $orderId) {
+        foreach ($this->eligiblePickingOrderIds($validated['order_ids']) as $orderId) {
             $order = PosSale::query()->find($orderId);
             if (! $order) {
                 continue;
@@ -146,5 +163,28 @@ class OrderPickingController extends Controller
         }
 
         return back()->with('success', $ok.' commande(s) : sortie physique validée (stock diminué, réservations soldées).');
+    }
+
+    /**
+     * @param  list<int|string>  $orderIds
+     * @return list<int>
+     */
+    protected function eligiblePickingOrderIds(array $orderIds): array
+    {
+        if (! StockSettings::pickingEnabled()) {
+            return [];
+        }
+
+        $activatedAt = StockSettings::pickingActivatedAt();
+        if (! $activatedAt) {
+            return [];
+        }
+
+        return PosSale::query()
+            ->whereIn('id', $orderIds)
+            ->where('created_at', '>=', $activatedAt)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 }

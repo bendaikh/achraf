@@ -69,6 +69,7 @@ class ProductController extends Controller
             'warehouse',
             'warehouseLocation',
             'stocks.warehouse',
+            'stocks.location',
             'compatibleProducts.warehouse',
             'compatibleProducts.warehouseLocation',
         ]);

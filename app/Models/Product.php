@@ -137,6 +137,72 @@ class Product extends Model
         return $this->hasMany(ProductStock::class);
     }
 
+    /**
+     * Slots product_stocks avec quantité > 0, pour la colonne Dépôt / Emp. de la liste produits.
+     * Même source que « Stock par emplacement » — pas le dépôt par défaut du produit.
+     *
+     * @return list<array{
+     *     warehouse_id: int,
+     *     warehouse_name: string,
+     *     location_code: ?string,
+     *     quantity: int,
+     *     is_online: bool
+     * }>
+     */
+    public function stockSlotsForDepotColumn(): array
+    {
+        if (! $this->tracksStock()) {
+            return [];
+        }
+
+        $stocks = $this->relationLoaded('stocks')
+            ? $this->stocks
+            : $this->stocks()->with(['warehouse', 'location'])->get();
+
+        $grouped = [];
+
+        foreach ($stocks as $slot) {
+            $qty = (int) $slot->quantity;
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $warehouse = $slot->warehouse;
+            if (! $warehouse) {
+                continue;
+            }
+
+            $key = ((int) $slot->warehouse_id).':'.((int) ($slot->warehouse_location_id ?? 0));
+            if (! isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'warehouse_id' => (int) $slot->warehouse_id,
+                    'warehouse_name' => $warehouse->name,
+                    'location_code' => $slot->location?->code,
+                    'quantity' => 0,
+                    'is_online' => $warehouse->isOnline(),
+                ];
+            }
+            $grouped[$key]['quantity'] += $qty;
+        }
+
+        $rows = array_values($grouped);
+
+        usort($rows, function (array $a, array $b): int {
+            if ($a['is_online'] !== $b['is_online']) {
+                return $a['is_online'] ? 1 : -1;
+            }
+
+            $byWarehouse = strcasecmp($a['warehouse_name'], $b['warehouse_name']);
+            if ($byWarehouse !== 0) {
+                return $byWarehouse;
+            }
+
+            return strcasecmp((string) ($a['location_code'] ?? ''), (string) ($b['location_code'] ?? ''));
+        });
+
+        return $rows;
+    }
+
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class)->orderByDesc('moved_at');

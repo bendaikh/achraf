@@ -25,6 +25,13 @@
                 <p class="mt-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                     Picking désactivé (Paramètres → Stock). Le workflow historique (sortie à la préparation commande) reste actif.
                 </p>
+            @else
+                @if($pickingActivatedAt)
+                    <p class="mt-2 text-sm text-slate-600">
+                        File active depuis le {{ $pickingActivatedAt->format('d/m/Y H:i') }} —
+                        les commandes créées/importées avant cette date restent dans l’historique commandes, hors picking.
+                    </p>
+                @endif
             @endunless
         </div>
 

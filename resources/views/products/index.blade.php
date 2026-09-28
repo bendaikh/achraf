@@ -657,11 +657,30 @@
                                     @endif
                                 </td>
 
-                                {{-- Depot / location --}}
-                                <td class="px-3 py-3 whitespace-nowrap lm-col lm-col-depot column-depot" data-lm-col="depot">
+                                {{-- Depot / location : slots product_stocks (qty > 0), pas le dépôt par défaut --}}
+                                <td class="px-3 py-3 lm-col lm-col-depot column-depot" data-lm-col="depot">
                                     @if($product->tracksStock())
-                                        <div class="text-slate-800">{{ $product->warehouse?->name ?: ($product->depot ?: '—') }}</div>
-                                        <div class="text-xs text-slate-500">{{ $product->warehouseLocation?->code ?: ($product->location ?: '—') }}</div>
+                                        @php $depotSlots = $product->stockSlotsForDepotColumn(); @endphp
+                                        @if($depotSlots === [])
+                                            <span class="text-slate-400">—</span>
+                                        @else
+                                            <div class="space-y-2">
+                                                @foreach($depotSlots as $slot)
+                                                    @if($slot['is_online'])
+                                                        <div class="text-xs text-emerald-700" title="Miroir canal Shopify — n’est pas un dépôt physique">
+                                                            <div class="font-medium">{{ $slot['warehouse_name'] }}</div>
+                                                            <div class="text-emerald-600">Canal en ligne · Qté {{ $slot['quantity'] }}</div>
+                                                        </div>
+                                                    @else
+                                                        <div>
+                                                            <div class="text-slate-800 font-medium leading-tight">{{ $slot['warehouse_name'] }}</div>
+                                                            <div class="text-xs text-slate-500 leading-tight">{{ $slot['location_code'] ?: '—' }}</div>
+                                                            <div class="text-xs text-slate-600 leading-tight">Qté {{ $slot['quantity'] }}</div>
+                                                        </div>
+                                                    @endif
+                                                @endforeach
+                                            </div>
+                                        @endif
                                     @elseif($product->isNonStocked())
                                         <span class="text-xs text-amber-700">Sur demande</span>
                                     @else

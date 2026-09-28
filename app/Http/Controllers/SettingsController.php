@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Setting;
 use App\Services\DocumentNumberService;
+use App\Support\StockSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -341,6 +342,7 @@ class SettingsController extends Controller
         $settings['stock_valuation_method'] = Setting::get('stock_valuation_method', '');
         $settings['stock_control_enabled'] = Setting::get('stock_control_enabled', '1');
         $settings['stock_picking_enabled'] = Setting::get('stock_picking_enabled', '0');
+        $settings['stock_picking_activated_at'] = Setting::get(StockSettings::PICKING_ACTIVATED_AT_KEY);
         $settings['stock_customer_returns_enabled'] = Setting::get('stock_customer_returns_enabled', '0');
 
         return $settings;
@@ -489,7 +491,16 @@ class SettingsController extends Controller
         Setting::set('stock_multi_warehouse', $request->input('stock_multi_warehouse', '0') === '1' ? '1' : '0', 'Gestion multi-dépôts');
         Setting::set('stock_valuation_method', (string) ($validated['stock_valuation_method'] ?? ''), 'Méthode de valorisation du stock');
         Setting::set('stock_control_enabled', $request->input('stock_control_enabled', '0') === '1' ? '1' : '0', 'Contrôle de stock activé');
-        Setting::set('stock_picking_enabled', $request->input('stock_picking_enabled', '0') === '1' ? '1' : '0', 'Activer Préparation / Picking');
+
+        $pickingEnabled = $request->input('stock_picking_enabled', '0') === '1';
+        $wasPickingEnabled = Setting::get('stock_picking_enabled', '0') === '1';
+        Setting::set('stock_picking_enabled', $pickingEnabled ? '1' : '0', 'Activer Préparation / Picking');
+        // Cutoff is stamped when turning picking ON (or healing a missing date while ON).
+        // Re-enable after OFF starts a fresh workflow window. Historical orders are never deleted.
+        if ($pickingEnabled && (! $wasPickingEnabled || ! Setting::get(StockSettings::PICKING_ACTIVATED_AT_KEY))) {
+            StockSettings::recordPickingActivation();
+        }
+
         Setting::set('stock_customer_returns_enabled', $request->input('stock_customer_returns_enabled', '0') === '1' ? '1' : '0', 'Activer Retours clients / Scan retours');
     }
 
