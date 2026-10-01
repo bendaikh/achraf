@@ -12,6 +12,8 @@ class InvoiceItem extends Model
         'itemable_id',
         'product_id',
         'product_variant_id',
+        'warehouse_id',
+        'warehouse_location_id',
         'ref',
         'designation',
         'description',
@@ -45,6 +47,16 @@ class InvoiceItem extends Model
     public function variant()
     {
         return $this->belongsTo(ProductVariant::class, 'product_variant_id');
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    public function location()
+    {
+        return $this->belongsTo(WarehouseLocation::class, 'warehouse_location_id');
     }
 
     public function getDisplayLineTotalAttribute(): float

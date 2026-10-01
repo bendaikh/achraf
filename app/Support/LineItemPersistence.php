@@ -47,6 +47,8 @@ class LineItemPersistence
         $document->items()->create([
             'product_id' => $item['product_id'] ?? null,
             'product_variant_id' => $item['product_variant_id'] ?? null,
+            'warehouse_id' => $item['warehouse_id'] ?? null,
+            'warehouse_location_id' => $item['warehouse_location_id'] ?? null,
             'ref' => $item['ref'] ?? null,
             'designation' => $item['designation'],
             'description' => $item['description'] ?? null,

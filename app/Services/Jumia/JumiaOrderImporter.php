@@ -7,6 +7,7 @@ use App\Models\PosSale;
 use App\Models\PosSaleItem;
 use App\Models\Product;
 use App\Services\MarketplaceStockSyncService;
+use App\Services\OrderPhysicalStockService;
 use App\Services\OrderToInvoiceConverter;
 use App\Support\OrderSource;
 use Carbon\Carbon;
@@ -18,7 +19,8 @@ class JumiaOrderImporter
         protected JumiaApiClient $client,
         protected JumiaStatusMapper $statusMapper,
         protected OrderToInvoiceConverter $orderToInvoiceConverter,
-        protected MarketplaceStockSyncService $stockSync
+        protected MarketplaceStockSyncService $stockSync,
+        protected OrderPhysicalStockService $orderPhysicalStock,
     ) {}
 
     /**
@@ -26,7 +28,7 @@ class JumiaOrderImporter
      */
     public function import(array $order): PosSale
     {
-        return DB::transaction(function () use ($order) {
+        $sale = DB::transaction(function () use ($order) {
             $externalId = (string) ($order['id'] ?? $order['orderId'] ?? $order['OrderId'] ?? $order['OrderNumber'] ?? '');
             if ($externalId === '') {
                 throw new \InvalidArgumentException('Missing Jumia order id.');
@@ -166,6 +168,16 @@ class JumiaOrderImporter
 
             return $sale;
         });
+
+        try {
+            $this->orderPhysicalStock->ensureAllocated(
+                $sale->fresh(['items.product.variants', 'items.variant']) ?? $sale
+            );
+        } catch (\Throwable) {
+            // Le picking index réessaiera ; ne pas bloquer l’import.
+        }
+
+        return $sale;
     }
 
     /**

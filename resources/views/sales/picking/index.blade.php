@@ -4,6 +4,7 @@
 @section('sidebar_page_title', 'Ventes')
 
 @section('main')
+<style>[x-cloak]{display:none!important}</style>
 <main class="flex-1 overflow-y-auto bg-gray-100">
     <div class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-16">
         @if(session('success'))
@@ -19,7 +20,8 @@
         <div class="mb-6">
             <h1 class="text-2xl font-bold text-slate-900">Préparation des commandes / Picking</h1>
             <p class="text-sm text-slate-600 mt-1">
-                Générer un picking ne sort aucun stock. Seule l’action <strong>Valider sortie</strong> diminue le stock physique.
+                Seules les quantités réservées sur le stock physique ({{ $belvedereName ?? 'Magasin Belvédère' }} / dépôts) apparaissent ici.
+                Le stock Shopify en ligne n’est jamais utilisé. Manques → À approvisionner. Seule <strong>Valider sortie</strong> diminue le stock.
             </p>
             @unless($pickingEnabled)
                 <p class="mt-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -67,6 +69,7 @@
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
                             <th class="px-3 py-2"><input type="checkbox" onclick="document.querySelectorAll('.pick-order').forEach(c => c.checked = this.checked)"></th>
+                            <th class="px-3 py-2 w-8"></th>
                             <th class="px-3 py-2">Référence</th>
                             <th class="px-3 py-2">Canal</th>
                             <th class="px-3 py-2">Client</th>
@@ -75,27 +78,81 @@
                             <th class="px-3 py-2"></th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        @forelse($orders as $order)
-                            <tr>
+                    @forelse($orders as $order)
+                        @php
+                            $lines = $orderLines[$order->id] ?? [];
+                            $reservedTotal = (int) ($reservationCounts[$order->id] ?? 0);
+                        @endphp
+                        <tbody x-data="{ open: false }" class="border-t border-slate-100">
+                            <tr class="hover:bg-slate-50/80">
                                 <td class="px-3 py-2">
                                     <input type="checkbox" class="pick-order" name="order_ids[]" value="{{ $order->id }}">
+                                </td>
+                                <td class="px-1 py-2">
+                                    <button type="button" @click="open = !open"
+                                            class="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                                            :aria-expanded="open.toString()"
+                                            title="Afficher les produits">
+                                        <svg class="h-4 w-4 transition-transform" :class="open && 'rotate-90'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                                        </svg>
+                                    </button>
                                 </td>
                                 <td class="px-3 py-2 font-semibold text-slate-900">{{ $order->ticket_number }}</td>
                                 <td class="px-3 py-2">{{ $order->source ?: '—' }}</td>
                                 <td class="px-3 py-2">{{ $order->client?->name ?: '—' }}</td>
                                 <td class="px-3 py-2">{{ optional($order->sold_at)->format('d/m/Y H:i') }}</td>
-                                <td class="px-3 py-2">{{ (int) ($reservationCounts[$order->id] ?? 0) }}</td>
+                                <td class="px-3 py-2 font-semibold tabular-nums">{{ $reservedTotal }}</td>
                                 <td class="px-3 py-2 text-right">
                                     <a href="{{ route('orders.show', $order) }}" class="text-[#0a5d8a] text-xs font-semibold hover:underline">Voir</a>
                                 </td>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="px-3 py-10 text-center text-slate-500">Aucune commande en attente de sortie.</td>
+                            <tr x-show="open" x-cloak>
+                                <td colspan="8" class="px-3 py-3 bg-slate-50/70">
+                                    @if(count($lines) === 0)
+                                        <p class="text-xs text-slate-500">Aucun produit stocké sur cette commande.</p>
+                                    @else
+                                        <div class="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                                            <table class="min-w-full text-xs">
+                                                <thead class="bg-slate-100 text-left text-[11px] uppercase text-slate-500">
+                                                    <tr>
+                                                        <th class="px-3 py-2">Produit</th>
+                                                        <th class="px-3 py-2">SKU</th>
+                                                        <th class="px-3 py-2">Qté commandée</th>
+                                                        <th class="px-3 py-2">Stock {{ $belvedereName ?? 'MAGASIN BELVEDERE' }}</th>
+                                                        <th class="px-3 py-2">Emplacement</th>
+                                                        <th class="px-3 py-2">Qté réservée</th>
+                                                        <th class="px-3 py-2">Manquant</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-slate-100">
+                                                    @foreach($lines as $line)
+                                                        <tr>
+                                                            <td class="px-3 py-2 font-medium text-slate-900">{{ $line['product'] }}</td>
+                                                            <td class="px-3 py-2 font-mono text-slate-700">{{ $line['sku'] }}</td>
+                                                            <td class="px-3 py-2 tabular-nums">Cmd {{ $line['ordered'] }}</td>
+                                                            <td class="px-3 py-2 tabular-nums">Belvédère {{ $line['belvedere_stock'] }}</td>
+                                                            <td class="px-3 py-2 font-mono">{{ $line['location'] }}</td>
+                                                            <td class="px-3 py-2 tabular-nums text-emerald-800">Réservé {{ $line['reserved'] }}</td>
+                                                            <td class="px-3 py-2 tabular-nums {{ $line['missing'] > 0 ? 'text-amber-800 font-semibold' : 'text-slate-600' }}">
+                                                                Manquant {{ $line['missing'] }}
+                                                            </td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    @endif
+                                </td>
                             </tr>
-                        @endforelse
-                    </tbody>
+                        </tbody>
+                    @empty
+                        <tbody>
+                            <tr>
+                                <td colspan="8" class="px-3 py-10 text-center text-slate-500">Aucune commande en attente de sortie.</td>
+                            </tr>
+                        </tbody>
+                    @endforelse
                 </table>
             </div>
         </form>

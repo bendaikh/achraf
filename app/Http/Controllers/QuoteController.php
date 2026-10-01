@@ -10,9 +10,11 @@ use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Product;
 use App\Models\Quote;
 use App\Models\Setting;
+use App\Models\Warehouse;
 use App\Services\DocumentNumberService;
 use App\Services\SalesDocumentChainService;
 use App\Services\SalesDocumentConversionService;
+use App\Services\SalesStockIssueService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
 use App\Support\LineItemPersistence;
@@ -46,8 +48,9 @@ class QuoteController extends Controller
         $quoteNumber = DocumentNumberService::preview('devis');
 
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->physical()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('sales.quotes.create', compact('products', 'quoteNumber', 'pricesAreTtc'));
+        return view('sales.quotes.create', compact('products', 'quoteNumber', 'pricesAreTtc', 'warehouses'));
     }
 
     public function store(Request $request)
@@ -93,7 +96,7 @@ class QuoteController extends Controller
 
     public function show(Quote $quote)
     {
-        $quote->load(['client', 'items', 'convertedPurchaseOrder', 'convertedDeliveryNote', 'convertedInvoice']);
+        $quote->load(['client', 'items.warehouse', 'items.location', 'convertedPurchaseOrder', 'convertedDeliveryNote', 'convertedInvoice']);
         $documentChain = app(SalesDocumentChainService::class)->forQuote($quote);
 
         return view('sales.quotes.show', compact('quote', 'documentChain'));
@@ -105,6 +108,9 @@ class QuoteController extends Controller
         $products = collect();
         $existingItems = $quote->items->map(fn ($item) => [
             'product_id' => $item->product_id,
+            'product_variant_id' => $item->product_variant_id,
+            'warehouse_id' => $item->warehouse_id,
+            'warehouse_location_id' => $item->warehouse_location_id,
             'ref' => $item->ref,
             'designation' => $item->designation,
             'quantity' => $item->quantity,
@@ -114,8 +120,9 @@ class QuoteController extends Controller
             'discount_type' => $item->discount_type ?? 'fixed',
         ])->values();
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->physical()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('sales.quotes.edit', compact('quote', 'products', 'existingItems', 'pricesAreTtc'));
+        return view('sales.quotes.edit', compact('quote', 'products', 'existingItems', 'pricesAreTtc', 'warehouses'));
     }
 
     public function update(Request $request, Quote $quote)
@@ -216,7 +223,7 @@ class QuoteController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ] + $this->commercialValidationRules());
+        ] + app(SalesStockIssueService::class)->validationRules() + $this->commercialValidationRules());
     }
 
     protected function syncItems(Quote $quote, array $items): float

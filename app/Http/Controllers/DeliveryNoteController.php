@@ -10,13 +10,15 @@ use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Client;
 use App\Models\DeliveryNote;
 use App\Models\Product;
+use App\Models\Setting;
+use App\Models\Warehouse;
 use App\Services\DocumentNumberService;
 use App\Services\SalesDocumentChainService;
 use App\Services\SalesDocumentConversionService;
+use App\Services\SalesStockIssueService;
 use App\Support\CommercialDocumentView;
 use App\Support\InvoiceCommercialStatus;
-use App\Support\LineItemCalculator;
-use App\Models\Setting;
+use App\Support\LineItemPersistence;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -24,6 +26,10 @@ use Illuminate\Support\Facades\Storage;
 class DeliveryNoteController extends Controller
 {
     use AppliesCommercialAttribution, ExpandsCompactedFormArrays, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView;
+
+    public function __construct(
+        protected SalesStockIssueService $salesStockIssue,
+    ) {}
 
     public function index(Request $request)
     {
@@ -82,8 +88,9 @@ class DeliveryNoteController extends Controller
         $products = collect();
         $deliveryNumber = DocumentNumberService::preview('bon_livraison');
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->physical()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('sales.delivery-notes.create', compact('products', 'deliveryNumber', 'pricesAreTtc'));
+        return view('sales.delivery-notes.create', compact('products', 'deliveryNumber', 'pricesAreTtc', 'warehouses'));
     }
 
     public function store(Request $request)
@@ -117,9 +124,15 @@ class DeliveryNoteController extends Controller
                 'total' => $subtotal + ($request->adjustment ?? 0),
             ]);
 
+            $this->salesStockIssue->applyForDeliveryNoteIfNeeded($deliveryNote->fresh('items'));
+
             DB::commit();
 
             return redirect()->route('delivery-notes.index')->with('success', 'Bon de livraison créé avec succès!');
+        } catch (\RuntimeException $e) {
+            DB::rollBack();
+
+            return back()->withInput()->with('error', $e->getMessage());
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -129,7 +142,7 @@ class DeliveryNoteController extends Controller
 
     public function show(DeliveryNote $deliveryNote)
     {
-        $deliveryNote->load(['client', 'items', 'sourceQuotes', 'sourcePurchaseOrders', 'convertedInvoice']);
+        $deliveryNote->load(['client', 'items.warehouse', 'items.location', 'sourceQuotes', 'sourcePurchaseOrders', 'convertedInvoice']);
         $documentChain = app(SalesDocumentChainService::class)->forDeliveryNote($deliveryNote);
 
         return view('sales.delivery-notes.show', compact('deliveryNote', 'documentChain'));
@@ -141,6 +154,9 @@ class DeliveryNoteController extends Controller
         $products = collect();
         $existingItems = $deliveryNote->items->map(fn ($item) => [
             'product_id' => $item->product_id,
+            'product_variant_id' => $item->product_variant_id,
+            'warehouse_id' => $item->warehouse_id,
+            'warehouse_location_id' => $item->warehouse_location_id,
             'ref' => $item->ref,
             'designation' => $item->designation,
             'quantity' => $item->quantity,
@@ -150,8 +166,9 @@ class DeliveryNoteController extends Controller
             'discount_type' => $item->discount_type ?? 'fixed',
         ])->values();
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->physical()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('sales.delivery-notes.edit', compact('deliveryNote', 'products', 'existingItems', 'pricesAreTtc'));
+        return view('sales.delivery-notes.edit', compact('deliveryNote', 'products', 'existingItems', 'pricesAreTtc', 'warehouses'));
     }
 
     public function update(Request $request, DeliveryNote $deliveryNote)
@@ -181,9 +198,15 @@ class DeliveryNoteController extends Controller
                 'total' => $subtotal + ($request->adjustment ?? 0),
             ]);
 
+            $this->salesStockIssue->applyForDeliveryNoteIfNeeded($deliveryNote->fresh('items'));
+
             DB::commit();
 
             return redirect()->route('delivery-notes.show', $deliveryNote)->with('success', 'Bon de livraison mis à jour avec succès!');
+        } catch (\RuntimeException $e) {
+            DB::rollBack();
+
+            return back()->withInput()->with('error', $e->getMessage());
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -257,7 +280,7 @@ class DeliveryNoteController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ] + $this->commercialValidationRules());
+        ] + $this->salesStockIssue->validationRules() + $this->commercialValidationRules());
     }
 
     protected function syncItems(DeliveryNote $deliveryNote, array $items): float
@@ -265,21 +288,7 @@ class DeliveryNoteController extends Controller
         $subtotal = 0;
 
         foreach ($items as $item) {
-            $computed = LineItemCalculator::compute($item);
-
-            $deliveryNote->items()->create([
-                'product_id' => $item['product_id'] ?? null,
-                'ref' => $item['ref'] ?? null,
-                'designation' => $item['designation'],
-                'description' => $item['description'] ?? null,
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['unit_price'],
-                'tax_rate' => $item['tax_rate'],
-                'discount' => $computed['discount'],
-                'discount_type' => $computed['discount_type'],
-                'line_total' => $computed['line_total'],
-            ]);
-
+            $computed = LineItemPersistence::createInvoiceItem($deliveryNote, $item);
             $subtotal += $computed['line_total'];
         }
 

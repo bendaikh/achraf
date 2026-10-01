@@ -72,7 +72,7 @@
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Emplacement du stock</label>
-                            <input type="text" name="stock_location" value="DEPOT" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="text" name="stock_location" value="Magasin Belvédère" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                             <x-commercial-select :selected="old('collaborator_id')" />
@@ -128,6 +128,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe (%)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dépôt / Emplacement source</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remise</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
@@ -188,6 +189,7 @@ window.commercialDocConfig = {
 };
 </script>
 @include('partials.commercial-document-form-script')
+@include('sales.partials.line-stock-source')
 <script>
 $(document).ready(function() {
     initClientSelect2('#client_id');
@@ -219,6 +221,9 @@ function addItem() {
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
         <td class="px-4 py-3">
+            ${window.salesLineStockHtml(itemIndex)}
+        </td>
+        <td class="px-4 py-3">
             ${window.discountRowHtml(itemIndex)}
         </td>
         <td class="px-4 py-3">
@@ -232,6 +237,7 @@ function addItem() {
     tbody.insertBefore(row, tbody.firstChild);
     
     window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex);
+    window.salesSeedLineStock(itemIndex);
     
     itemIndex++;
     calculateCommercialTotal();

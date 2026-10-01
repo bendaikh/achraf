@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\PosSale;
 use App\Models\StockReservation;
+use App\Models\Warehouse;
 use App\Services\OrderPhysicalStockService;
 use App\Support\StockSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class OrderPickingController extends Controller
 {
@@ -20,10 +22,24 @@ class OrderPickingController extends Controller
         $pickingEnabled = StockSettings::pickingEnabled();
         $pickingActivatedAt = StockSettings::pickingActivatedAt();
 
+        // Before listing: verify physical stock (Belvédère / dépôts physiques), reserve what
+        // is available, and push shortfalls to Besoins d'achat. Shopify online is never used.
+        if ($pickingEnabled && $pickingActivatedAt) {
+            $this->syncPhysicalAllocations($pickingActivatedAt);
+        }
+
         $query = PosSale::query()
             ->with(['client', 'items.product', 'items.variant'])
             ->whereNull('physical_stock_processed_at')
             ->whereHas('items.product', fn ($q) => $q->where('item_kind', 'stocked'))
+            // Only orders with real physical reservations belong in Picking.
+            ->whereExists(function ($q) {
+                $q->selectRaw('1')
+                    ->from('stock_reservations')
+                    ->whereColumn('stock_reservations.source_id', 'pos_sales.id')
+                    ->where('stock_reservations.source_type', 'pos_sale')
+                    ->where('stock_reservations.status', StockReservation::STATUS_ACTIVE);
+            })
             ->orderByDesc('id');
 
         // Active picking queue starts at activation — never pull pre-activation history.
@@ -56,19 +72,24 @@ class OrderPickingController extends Controller
 
         $orders = $query->paginate(40)->withQueryString();
 
-        $reservationCounts = StockReservation::query()
-            ->active()
-            ->where('source_type', 'pos_sale')
-            ->whereIn('source_id', $orders->pluck('id'))
-            ->selectRaw('source_id, SUM(quantity) as qty')
-            ->groupBy('source_id')
-            ->pluck('qty', 'source_id');
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $orderLines = [];
+        $reservationCounts = [];
+
+        foreach ($orders as $order) {
+            $lines = $this->orderPhysicalStock->pickingLinesForOrder($order, $belvedere);
+            $orderLines[$order->id] = $lines;
+            // Order-level "Réservé" = sum of quantities actually reserved on product lines.
+            $reservationCounts[$order->id] = (int) collect($lines)->sum('reserved');
+        }
 
         return view('sales.picking.index', [
             'orders' => $orders,
+            'orderLines' => $orderLines,
             'reservationCounts' => $reservationCounts,
             'pickingEnabled' => $pickingEnabled,
             'pickingActivatedAt' => $pickingActivatedAt,
+            'belvedereName' => $belvedere?->name ?: 'Magasin Belvédère',
         ]);
     }
 
@@ -166,6 +187,33 @@ class OrderPickingController extends Controller
     }
 
     /**
+     * Verify physical stock for eligible orders and reserve what Belvédère (and other
+     * physical depots) can cover. Shortfalls become replenishment needs.
+     */
+    protected function syncPhysicalAllocations(\Carbon\CarbonInterface $activatedAt): void
+    {
+        $candidates = PosSale::query()
+            ->whereNull('physical_stock_processed_at')
+            ->where('created_at', '>=', $activatedAt)
+            ->whereHas('items.product', fn ($q) => $q->where('item_kind', 'stocked'))
+            ->orderBy('id')
+            ->limit(100)
+            ->get();
+
+        foreach ($candidates as $order) {
+            try {
+                $this->orderPhysicalStock->ensureAllocated($order);
+            } catch (\Throwable $e) {
+                Log::warning('Picking allocation failed', [
+                    'order_id' => $order->id,
+                    'ticket' => $order->ticket_number,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
      * @param  list<int|string>  $orderIds
      * @return list<int>
      */
@@ -183,6 +231,13 @@ class OrderPickingController extends Controller
         return PosSale::query()
             ->whereIn('id', $orderIds)
             ->where('created_at', '>=', $activatedAt)
+            ->whereExists(function ($q) {
+                $q->selectRaw('1')
+                    ->from('stock_reservations')
+                    ->whereColumn('stock_reservations.source_id', 'pos_sales.id')
+                    ->where('stock_reservations.source_type', 'pos_sale')
+                    ->where('stock_reservations.status', StockReservation::STATUS_ACTIVE);
+            })
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();

@@ -120,6 +120,59 @@ class LocationStockManagementTest extends TestCase
         $this->assertSame(4, (int) $movement->quantity_after);
         $this->assertSame('Inventaire / Correction de stock', $movement->reason);
         $this->assertSame((int) $user->id, (int) $movement->user_id);
+        $this->assertSame((int) $belvedere->id, (int) $movement->warehouse_id);
+        $this->assertSame((int) $location->id, (int) $movement->warehouse_location_id);
+    }
+
+    public function test_adjust_page_lists_physical_slots_with_sans_emplacement(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct(['ref' => 'ADJ-SLOTS']);
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $this->assertNotNull($belvedere);
+
+        $location = \App\Models\WarehouseLocation::query()->firstOrCreate(
+            ['warehouse_id' => $belvedere->id, 'code' => 'BEL-STOCK'],
+            ['name' => 'Bel Stock', 'status' => 'active']
+        );
+
+        $service = app(StockMovementService::class);
+        $service->adjustPhysicalStock($product, 1, (int) $belvedere->id, (int) $location->id, StockMovement::REASON_INVENTORY_CORRECTION);
+        $service->adjustPhysicalStock($product, 2, (int) $belvedere->id, null, StockMovement::REASON_INVENTORY_CORRECTION);
+
+        $response = $this->actingAs($user)->get(route('stock.magasin.edit', $product));
+        $response->assertOk();
+        $html = $response->getContent();
+        $this->assertStringContainsString('Stock physique actuel', $html);
+        $this->assertStringContainsString('BEL-STOCK', $html);
+        $this->assertStringContainsString('Sans emplacement', $html);
+        $this->assertStringContainsString('Nouvelle quantité réelle', $html);
+        $this->assertStringContainsString('Écart calculé', $html);
+        $this->assertStringContainsString('stockAdjustForm', $html);
+        $this->assertMatchesRegularExpression('/warehouse_name.{1,40}Magasin Belv/u', $html);
+    }
+
+    public function test_adjust_rejects_nonexistent_physical_slot(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct();
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $location = $belvedere->locations()->first() ?? \App\Models\WarehouseLocation::create([
+            'warehouse_id' => $belvedere->id,
+            'code' => 'BEL-MISS',
+            'name' => 'Missing',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($user)->from(route('stock.magasin.edit', $product))->patch(route('stock.magasin.update', $product), [
+            'quantity' => 3,
+            'warehouse_id' => $belvedere->id,
+            'warehouse_location_id' => $location->id,
+            'reason' => StockMovement::REASON_INVENTORY_CORRECTION,
+        ])->assertRedirect(route('stock.magasin.edit', $product))
+            ->assertSessionHas('error');
+
+        $this->assertSame(0, app(StockMovementService::class)->quantityAtSlot($product, (int) $belvedere->id, (int) $location->id));
     }
 
     public function test_physical_stock_can_be_adjusted_to_zero_without_touching_shopify(): void

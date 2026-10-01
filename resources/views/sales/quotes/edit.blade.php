@@ -11,7 +11,7 @@
                     <p class="text-sm text-gray-600 mt-1">Modifier le devis {{ $quote->quote_number }}</p>
                 </div>
                 <a href="{{ route('quotes.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
-                    Retour à la liste
+                    Retour Ã  la liste
                 </a>
             </div>
         </header>
@@ -49,7 +49,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de devis</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">NumÃ©ro de devis</label>
                             <input type="text" value="{{ $quote->quote_number }}" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
                         </div>
 
@@ -64,7 +64,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Date d'échéance</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Date d'Ã©chÃ©ance</label>
                             <input type="date" name="expiry_date" value="{{ old('expiry_date', $quote->expiry_date?->format('Y-m-d')) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
@@ -77,14 +77,14 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">Statut</label>
                             <select name="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="brouillon" {{ old('status', $quote->status) === 'brouillon' ? 'selected' : '' }}>Brouillon</option>
-                                <option value="envoyé" {{ old('status', $quote->status) === 'envoyé' ? 'selected' : '' }}>Envoyé</option>
-                                <option value="accepté" {{ old('status', $quote->status) === 'accepté' ? 'selected' : '' }}>Accepté</option>
-                                <option value="refusé" {{ old('status', $quote->status) === 'refusé' ? 'selected' : '' }}>Refusé</option>
+                                <option value="envoyÃ©" {{ old('status', $quote->status) === 'envoyÃ©' ? 'selected' : '' }}>EnvoyÃ©</option>
+                                <option value="acceptÃ©" {{ old('status', $quote->status) === 'acceptÃ©' ? 'selected' : '' }}>AcceptÃ©</option>
+                                <option value="refusÃ©" {{ old('status', $quote->status) === 'refusÃ©' ? 'selected' : '' }}>RefusÃ©</option>
                             </select>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Modèle</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">ModÃ¨le</label>
                             <input type="text" name="model" value="{{ old('model', $quote->model) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
@@ -108,11 +108,12 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">RÃ©f</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DÃ©signation</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">QuantitÃ©</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unit. HT</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe (%)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dépôt / Emplacement source</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remise</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
@@ -173,6 +174,7 @@ window.commercialDocConfig = {
 };
 </script>
 @include('partials.commercial-document-form-script')
+@include('sales.partials.line-stock-source')
 <script>
 $(document).ready(function() {
     initClientSelect2('#client_id');
@@ -204,6 +206,7 @@ function addItemWithData(data) {
         <td class="px-4 py-3">
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="${data.tax_rate ?? 20}" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
+        <td class="px-4 py-3">${window.salesLineStockHtml(itemIndex, data)}</td>
         <td class="px-4 py-3">${window.discountRowHtmlWithData(itemIndex, data)}</td>
         <td class="px-4 py-3">
             <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
@@ -216,6 +219,7 @@ function addItemWithData(data) {
     tbody.insertBefore(row, tbody.firstChild);
 
     window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex, window.selectedCommercialProduct(data));
+    window.salesSeedLineStock(itemIndex, data);
 
     itemIndex++;
     calculateCommercialTotal();

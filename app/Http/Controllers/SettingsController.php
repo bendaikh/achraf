@@ -100,6 +100,35 @@ class SettingsController extends Controller
         ]);
     }
 
+    /**
+     * Reset active picking queue: release unvalidated reservations, re-allocate from
+     * activation date against current physical stock, recalculate purchase needs.
+     * Does not delete orders or change physical quantities.
+     */
+    public function resetPicking(\App\Services\OrderPhysicalStockService $orderPhysicalStock)
+    {
+        try {
+            $result = $orderPhysicalStock->resetPickingQueue();
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('settings.stock', ['tab' => 'regles'])
+                ->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('settings.stock', ['tab' => 'regles'])
+            ->with(
+                'success',
+                sprintf(
+                    'Picking réinitialisé : %d commande(s) retraitée(s), %d réservation(s) libérée(s), %d unité(s) re-réservée(s), %d besoin(s) d’achat.',
+                    $result['orders'],
+                    $result['released'],
+                    $result['reserved_qty'],
+                    $result['needs']
+                )
+            );
+    }
+
     public function smtp()
     {
         return view('settings.smtp', [

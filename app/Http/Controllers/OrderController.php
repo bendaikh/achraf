@@ -324,6 +324,13 @@ class OrderController extends Controller
             return $order;
         });
 
+        // Picking ON → réserver le stock physique Belvédère (jamais Shopify) ; reliquat → besoins d’achat.
+        try {
+            $this->orderPhysicalStock->ensureAllocated($order->fresh(['items.product.variants', 'items.variant']));
+        } catch (\Throwable) {
+            // Allocation failures must not block order creation; picking index will retry.
+        }
+
         if ($validated['submit_action'] === 'sync') {
             try {
                 $synced = $this->shopifyOrderCreator->sync($order, $user->id);
@@ -409,6 +416,11 @@ class OrderController extends Controller
 
         if ($mode === 'reservation') {
             $reservedQty = collect($result['reserved'] ?? [])->sum('quantity');
+            if ($reservedQty === 0 && $result['unavailable'] !== []) {
+                $names = collect($result['unavailable'])->map(fn ($row) => $row['name'].' ×'.$row['quantity'])->implode(', ');
+
+                return back()->with('warning', 'Aucun stock physique à réserver. Manque : '.$names.'. Ajouté à À approvisionner / Besoins d’achat (hors Picking). Le stock Shopify n’a pas été utilisé.');
+            }
             if ($result['unavailable'] === []) {
                 return back()->with('success', 'Stock réservé à '.$warehouseName.' ('.$reservedQty.' unité(s)). Aucune sortie physique — utilisez Préparation / Picking → Valider sortie.');
             }

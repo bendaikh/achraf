@@ -8,6 +8,7 @@ use App\Services\Jumia\JumiaApiClient;
 use App\Services\Jumia\JumiaOrderImporter;
 use App\Services\Jumia\JumiaStatusMapper;
 use App\Services\MarketplaceStockSyncService;
+use App\Services\OrderPhysicalStockService;
 use App\Services\OrderToInvoiceConverter;
 use App\Support\OrderSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -65,6 +66,7 @@ class JumiaOrderImporterTest extends TestCase
             new JumiaStatusMapper,
             app(OrderToInvoiceConverter::class),
             app(MarketplaceStockSyncService::class),
+            app(OrderPhysicalStockService::class),
         );
 
         $sale = $importer->import([

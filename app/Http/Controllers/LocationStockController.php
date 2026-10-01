@@ -274,6 +274,7 @@ class LocationStockController extends Controller
                 ])->values()
                 : [],
             'locations' => $locations,
+            'physical_slots' => $this->stockMovement->physicalSlotBreakdown($product),
             'physical_total' => $this->stockMovement->physicalTotal($product),
             'online_total' => (int) $product->stock_enligne,
             'warehouses' => $warehouses->map(fn (Warehouse $w) => [
@@ -352,8 +353,35 @@ class LocationStockController extends Controller
             }
         }
 
+        $variantId = isset($validated['product_variant_id']) ? (int) $validated['product_variant_id'] : null;
+
+        if ($isAdjust) {
+            $existingSlot = ProductStock::query()
+                ->where('product_id', $product->id)
+                ->where('warehouse_id', $warehouse->id)
+                ->when(
+                    $locationId,
+                    fn ($q) => $q->where('warehouse_location_id', $locationId),
+                    fn ($q) => $q->whereNull('warehouse_location_id')
+                )
+                ->when(
+                    $variantId,
+                    fn ($q) => $q->where('product_variant_id', $variantId),
+                    fn ($q) => $q->whereNull('product_variant_id')
+                )
+                ->first();
+
+            if (! $existingSlot) {
+                return $this->declareStockResponse(
+                    $request,
+                    false,
+                    'Aucune ligne de stock physique existante pour ce dépôt / emplacement. Utilisez « Ajouter » pour créer du stock, ou ouvrez « Ajuster le stock ».'
+                );
+            }
+        }
+
         try {
-            DB::transaction(function () use ($product, $validated, $locationId, $isAdjust) {
+            DB::transaction(function () use ($product, $validated, $locationId, $isAdjust, $variantId) {
                 if ($isAdjust) {
                     $movement = $this->stockMovement->adjustPhysicalStock(
                         $product,
@@ -362,7 +390,7 @@ class LocationStockController extends Controller
                         $locationId,
                         $validated['reason'],
                         $validated['notes'] ?? null,
-                        isset($validated['product_variant_id']) ? (int) $validated['product_variant_id'] : null
+                        $variantId
                     );
 
                     if (! $movement) {
@@ -384,7 +412,7 @@ class LocationStockController extends Controller
                     $validated['reason'],
                     $validated['notes'] ?? null,
                     $movedAt,
-                    isset($validated['product_variant_id']) ? (int) $validated['product_variant_id'] : null
+                    $variantId
                 );
             });
         } catch (\Throwable $e) {
@@ -404,6 +432,7 @@ class LocationStockController extends Controller
                 'physical_total' => $this->stockMovement->physicalTotal($product),
                 'online_total' => (int) $product->stock_enligne,
                 'locations' => $this->stockMovement->locationBreakdown($product),
+                'physical_slots' => $this->stockMovement->physicalSlotBreakdown($product),
             ]);
         }
 

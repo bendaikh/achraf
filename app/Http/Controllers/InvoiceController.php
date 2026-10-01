@@ -12,13 +12,14 @@ use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Models\Warehouse;
 use App\Services\Access\CommissionService;
 use App\Services\DocumentNumberService;
 use App\Services\InvoiceSituationService;
 use App\Services\SalesDocumentChainService;
-use App\Services\StockMovementService;
+use App\Services\SalesStockIssueService;
 use App\Support\CommercialDocumentView;
-use App\Support\LineItemCalculator;
+use App\Support\LineItemPersistence;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -27,7 +28,7 @@ class InvoiceController extends Controller
     use AppliesCommercialAttribution, ExpandsCompactedFormArrays, FiltersIndexTables, GeneratesCommercialPdf, PreparesPrintView, SyncsDocumentAdjustments;
 
     public function __construct(
-        protected StockMovementService $stockMovement,
+        protected SalesStockIssueService $salesStockIssue,
         protected InvoiceSituationService $situation,
         protected CommissionService $commissions,
     ) {}
@@ -71,8 +72,9 @@ class InvoiceController extends Controller
         $products = collect();
         $invoiceNumber = DocumentNumberService::preview('facture');
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->physical()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('sales.invoices.create', compact('products', 'invoiceNumber', 'pricesAreTtc'));
+        return view('sales.invoices.create', compact('products', 'invoiceNumber', 'pricesAreTtc', 'warehouses'));
     }
 
     public function byClient(Client $client)
@@ -114,7 +116,9 @@ class InvoiceController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ] + $this->adjustmentValidationRules() + $this->commercialValidationRules());
+        ] + $this->salesStockIssue->validationRules()
+            + $this->adjustmentValidationRules()
+            + $this->commercialValidationRules());
 
         DB::beginTransaction();
         try {
@@ -139,31 +143,13 @@ class InvoiceController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item);
-
-                $invoice->items()->create([
-                    'product_id' => $item['product_id'] ?? null,
-                    'ref' => $item['ref'] ?? null,
-                    'designation' => $item['designation'],
-                    'description' => $item['description'] ?? null,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'tax_rate' => $item['tax_rate'],
-                    'discount' => $computed['discount'],
-                    'discount_type' => $computed['discount_type'],
-                    'line_total' => $computed['line_total'],
-                ]);
-
+                $computed = LineItemPersistence::createInvoiceItem($invoice, $item);
                 $subtotal += $computed['line_total'];
             }
 
             $this->persistDocumentTotals($invoice, $subtotal, $validated['adjustments'] ?? []);
 
-            $stockWarnings = $this->stockMovement->decreaseForSale(
-                $validated['items'],
-                $validated['stock_location'],
-                strict: false
-            );
+            $stockWarnings = $this->salesStockIssue->applyForInvoiceIfNeeded($invoice->fresh(['items', 'sourceDeliveryNotes']), strict: false);
 
             $this->commissions->syncForInvoice($invoice->fresh());
 
@@ -189,7 +175,7 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load('client', 'items', 'posSale', 'payments.user', 'payments.paymentImport', 'payments.paymentImportLine', 'adjustments', 'creditNotes', 'refunds', 'sourceQuotes', 'sourcePurchaseOrders', 'sourceDeliveryNotes', 'commercial', 'createdByUser');
+        $invoice->load('client', 'items.warehouse', 'items.location', 'posSale', 'payments.user', 'payments.paymentImport', 'payments.paymentImportLine', 'adjustments', 'creditNotes', 'refunds', 'sourceQuotes', 'sourcePurchaseOrders', 'sourceDeliveryNotes', 'commercial', 'createdByUser');
         $situation = $this->situation->forInvoice($invoice);
         $documentChain = app(SalesDocumentChainService::class)->forInvoice($invoice);
 
@@ -202,6 +188,9 @@ class InvoiceController extends Controller
         $products = collect();
         $existingItems = $invoice->items->map(fn ($item) => [
             'product_id' => $item->product_id,
+            'product_variant_id' => $item->product_variant_id,
+            'warehouse_id' => $item->warehouse_id,
+            'warehouse_location_id' => $item->warehouse_location_id,
             'ref' => $item->ref,
             'designation' => $item->designation,
             'quantity' => $item->quantity,
@@ -212,8 +201,9 @@ class InvoiceController extends Controller
         ])->values();
 
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->physical()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('sales.invoices.edit', compact('invoice', 'products', 'existingItems', 'pricesAreTtc'));
+        return view('sales.invoices.edit', compact('invoice', 'products', 'existingItems', 'pricesAreTtc', 'warehouses'));
     }
 
     public function update(Request $request, Invoice $invoice)
@@ -241,7 +231,9 @@ class InvoiceController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ] + $this->adjustmentValidationRules() + $this->commercialValidationRules());
+        ] + $this->salesStockIssue->validationRules()
+            + $this->adjustmentValidationRules()
+            + $this->commercialValidationRules());
 
         DB::beginTransaction();
         try {
@@ -276,21 +268,7 @@ class InvoiceController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item);
-
-                $invoice->items()->create([
-                    'product_id' => $item['product_id'] ?? null,
-                    'ref' => $item['ref'] ?? null,
-                    'designation' => $item['designation'],
-                    'description' => $item['description'] ?? null,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'tax_rate' => $item['tax_rate'],
-                    'discount' => $computed['discount'],
-                    'discount_type' => $computed['discount_type'],
-                    'line_total' => $computed['line_total'],
-                ]);
-
+                $computed = LineItemPersistence::createInvoiceItem($invoice, $item);
                 $subtotal += $computed['line_total'];
             }
 
@@ -312,7 +290,7 @@ class InvoiceController extends Controller
 
     public function print(Invoice $invoice)
     {
-        $invoice->load('client', 'items', 'adjustments');
+        $invoice->load('client', 'items', 'adjustments', 'payments');
         $printData = $this->printViewData($invoice, $invoice->items);
 
         return view('sales.invoices.print', array_merge(
@@ -324,7 +302,7 @@ class InvoiceController extends Controller
 
     public function downloadPdf(Invoice $invoice)
     {
-        $invoice->load('client', 'items', 'adjustments');
+        $invoice->load('client', 'items', 'adjustments', 'payments');
         $printData = $this->printViewData($invoice, $invoice->items);
 
         return $this->downloadCommercialPdf(
@@ -354,8 +332,8 @@ class InvoiceController extends Controller
     {
         DB::beginTransaction();
         try {
-            $invoice->load('items');
-            $this->stockMovement->increaseFromItems($invoice->items, $invoice->stock_location);
+            $invoice->load(['items', 'sourceDeliveryNotes']);
+            $this->salesStockIssue->reverseIfOwned($invoice);
             $invoice->delete();
             DB::commit();
         } catch (\Throwable $e) {

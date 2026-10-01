@@ -1,17 +1,17 @@
 @extends('layouts.with-sidebar')
 
-@section('title', 'Créer une facture')
+@section('title', 'CrÃ©er une facture')
 
 @section('main')
 <main class="flex-1 w-full min-w-0">
         <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
             <div class="px-8 py-4 flex items-center justify-between">
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900">Créer une facture</h2>
-                    <p class="text-sm text-gray-600 mt-1">Créer une nouvelle devis client</p>
+                    <h2 class="text-2xl font-bold text-gray-900">CrÃ©er une facture</h2>
+                    <p class="text-sm text-gray-600 mt-1">CrÃ©er une nouvelle devis client</p>
                 </div>
                 <a href="{{ route('quotes.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition duration-150">
-                    Retour à la liste
+                    Retour Ã  la liste
                 </a>
             </div>
         </header>
@@ -34,7 +34,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Numéro de facture</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">NumÃ©ro de facture</label>
                             <input type="text" value="{{ $quoteNumber }}" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
                         </div>
 
@@ -49,13 +49,13 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Date d'échéance</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Date d'Ã©chÃ©ance</label>
                             <input type="date" name="expiry_date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Emplacement du stock</label>
-                            <input type="text" name="stock_location" value="DEPOT" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <input type="text" name="stock_location" value="Magasin Belvédère" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                             <x-commercial-select :selected="old('collaborator_id')" />
@@ -69,14 +69,14 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">Statut</label>
                             <select name="status" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="brouillon">Brouillon</option>
-                                <option value="envoyé">Envoyé</option>
-                                <option value="accepté">Accepté</option>
-                                <option value="refusé">Refusé</option>
+                                <option value="envoyÃ©">EnvoyÃ©</option>
+                                <option value="acceptÃ©">AcceptÃ©</option>
+                                <option value="refusÃ©">RefusÃ©</option>
                             </select>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Modèle</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">ModÃ¨le</label>
                             <input type="text" name="model" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
@@ -100,11 +100,12 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">RÃ©f</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DÃ©signation</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">QuantitÃ©</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unitaire</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe (%)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dépôt / Emplacement source</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remise</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
@@ -165,6 +166,7 @@ window.commercialDocConfig = {
 };
 </script>
 @include('partials.commercial-document-form-script')
+@include('sales.partials.line-stock-source')
 <script>
 $(document).ready(function() {
     initClientSelect2('#client_id');
@@ -196,6 +198,9 @@ function addItem() {
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="20.00" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
         <td class="px-4 py-3">
+            ${window.salesLineStockHtml(itemIndex)}
+        </td>
+        <td class="px-4 py-3">
             ${window.discountRowHtml(itemIndex)}
         </td>
         <td class="px-4 py-3">
@@ -209,6 +214,7 @@ function addItem() {
     tbody.insertBefore(row, tbody.firstChild);
     
     window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex);
+    window.salesSeedLineStock(itemIndex);
     
     itemIndex++;
     calculateCommercialTotal();

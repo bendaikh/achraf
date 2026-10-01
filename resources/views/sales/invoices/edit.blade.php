@@ -110,6 +110,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix unit. HT</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxe (%)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dépôt / Emplacement source</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remise</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
@@ -170,6 +171,7 @@ window.commercialDocConfig = {
 };
 </script>
 @include('partials.commercial-document-form-script')
+@include('sales.partials.line-stock-source')
 <script>
 $(document).ready(function() {
     initClientSelect2('#client_id');
@@ -201,6 +203,7 @@ function addItemWithData(data) {
         <td class="px-4 py-3">
             <input type="number" step="0.01" name="items[${itemIndex}][tax_rate]" value="${data.tax_rate ?? 20}" required class="w-20 px-2 py-1 border border-gray-300 rounded text-sm" onchange="calculateTotal()">
         </td>
+        <td class="px-4 py-3">${window.salesLineStockHtml(itemIndex, data)}</td>
         <td class="px-4 py-3">${window.discountRowHtmlWithData(itemIndex, data)}</td>
         <td class="px-4 py-3">
             <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-800">
@@ -213,6 +216,7 @@ function addItemWithData(data) {
     tbody.insertBefore(row, tbody.firstChild);
 
     window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex, window.selectedCommercialProduct(data));
+    window.salesSeedLineStock(itemIndex, data);
 
     itemIndex++;
     calculateCommercialTotal();

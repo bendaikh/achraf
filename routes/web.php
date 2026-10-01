@@ -468,6 +468,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings/fiscalite', [SettingsController::class, 'fiscalite'])->name('settings.fiscalite');
     Route::get('/settings/depenses', [SettingsController::class, 'depenses'])->name('settings.depenses');
     Route::get('/settings/stock', [SettingsController::class, 'stock'])->name('settings.stock');
+    Route::post('/settings/stock/reset-picking', [SettingsController::class, 'resetPicking'])->name('settings.stock.reset-picking');
     Route::get('/settings/smtp', [SettingsController::class, 'smtp'])->name('settings.smtp');
     Route::post('/settings/smtp/test', [SettingsController::class, 'testSmtp'])->name('settings.smtp.test');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');

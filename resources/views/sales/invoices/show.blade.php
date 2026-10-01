@@ -153,6 +153,8 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Origine</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Désignation</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dépôt source</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Emplacement</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantité</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Prix unit. HT</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">TVA (%)</th>
@@ -166,6 +168,8 @@
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->ref ?? '-' }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->source_document_reference ?? '-' }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900">{{ $item->designation }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-900">{{ $item->warehouse?->name ?? '—' }}</td>
+                                <td class="px-4 py-3 text-sm text-gray-900">{{ $item->location?->code ?? '—' }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $item->quantity }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ number_format($item->display_unit_price_ht, 2) }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-900 text-right">{{ $item->tax_rate }}%</td>

@@ -7,7 +7,12 @@ use App\Models\PosSale;
 use App\Models\PosSaleItem;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Models\StockMovement;
+use App\Models\StockReplenishmentNeed;
+use App\Models\StockReservation;
 use App\Models\User;
+use App\Models\Warehouse;
+use App\Services\StockMovementService;
 use App\Support\OrderSource;
 use App\Support\StockSettings;
 use Carbon\Carbon;
@@ -35,10 +40,11 @@ class OrderPickingActivationTest extends TestCase
         $this->assertNotNull(StockSettings::pickingActivatedAt());
     }
 
-    public function test_picking_index_hides_pre_activation_orders_and_shows_new_ones_per_channel(): void
+    public function test_picking_index_hides_pre_activation_orders_and_shows_new_ones_with_physical_stock(): void
     {
         $user = User::factory()->create();
         $product = $this->stockedProduct();
+        $this->declarePhysicalStock($product, 10);
 
         Carbon::setTestNow('2026-09-20 10:00:00');
         $oldShopify = $this->orderWithProduct($product, 1, OrderSource::SHOPIFY, 'OLD-SHOPIFY');
@@ -71,10 +77,11 @@ class OrderPickingActivationTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_unprepared_post_activation_order_stays_visible_the_next_day(): void
+    public function test_unprepared_post_activation_order_with_physical_stock_stays_visible_the_next_day(): void
     {
         $user = User::factory()->create();
         $product = $this->stockedProduct(['ref' => 'STAY-VISIBLE']);
+        $this->declarePhysicalStock($product, 2);
 
         Carbon::setTestNow('2026-09-28 09:00:00');
         Setting::set('stock_picking_enabled', '1');
@@ -90,6 +97,143 @@ class OrderPickingActivationTest extends TestCase
             ->assertSee('STILL-OPEN');
 
         Carbon::setTestNow();
+    }
+
+    public function test_zero_physical_stock_hides_order_from_picking_and_creates_purchase_need(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct(['ref' => 'TAPIS-ZERO', 'name' => 'Tapis zéro stock']);
+        $online = Warehouse::onlineWarehouse();
+        $this->assertNotNull($online);
+
+        // Shopify online stock must NOT qualify for picking.
+        app(StockMovementService::class)->increase(
+            $product,
+            5,
+            'enligne',
+            false,
+            StockMovement::TYPE_PURCHASE,
+            null,
+            null,
+            null,
+            $online->id
+        );
+
+        Setting::set('stock_picking_enabled', '1');
+        StockSettings::recordPickingActivation(now()->subMinute());
+
+        $order = $this->orderWithProduct($product, 1, OrderSource::SHOPIFY, 'ZERO-PHYS');
+
+        $this->actingAs($user)
+            ->get(route('sales.picking.index'))
+            ->assertOk()
+            ->assertDontSee('ZERO-PHYS');
+
+        $this->assertSame(0, StockReservation::query()->active()->where('source_id', $order->id)->count());
+        $this->assertSame(1, StockReplenishmentNeed::query()->open()->where('pos_sale_id', $order->id)->value('quantity_needed'));
+    }
+
+    public function test_partial_physical_stock_reserves_available_and_needs_remainder(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct(['ref' => 'TAPIS-PART', 'name' => 'Tapis partiel']);
+        $this->declarePhysicalStock($product, 1);
+
+        Setting::set('stock_picking_enabled', '1');
+        StockSettings::recordPickingActivation(now()->subMinute());
+
+        $order = $this->orderWithProduct($product, 2, OrderSource::SHOPIFY, 'PARTIAL-PHYS');
+
+        $this->actingAs($user)
+            ->get(route('sales.picking.index'))
+            ->assertOk()
+            ->assertSee('PARTIAL-PHYS');
+
+        $this->assertSame(1, (int) StockReservation::query()->active()->where('source_id', $order->id)->sum('quantity'));
+        $this->assertSame(1, (int) StockReplenishmentNeed::query()->open()->where('pos_sale_id', $order->id)->value('quantity_needed'));
+    }
+
+    public function test_sufficient_physical_stock_reserves_fully_without_purchase_need(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct(['ref' => 'TAPIS-OK', 'name' => 'Tapis ok']);
+        $this->declarePhysicalStock($product, 2);
+
+        Setting::set('stock_picking_enabled', '1');
+        StockSettings::recordPickingActivation(now()->subMinute());
+
+        $order = $this->orderWithProduct($product, 1, OrderSource::SHOPIFY, 'FULL-PHYS');
+
+        $this->actingAs($user)
+            ->get(route('sales.picking.index'))
+            ->assertOk()
+            ->assertSee('FULL-PHYS');
+
+        $this->assertSame(1, (int) StockReservation::query()->active()->where('source_id', $order->id)->sum('quantity'));
+        $this->assertSame(0, StockReplenishmentNeed::query()->open()->where('pos_sale_id', $order->id)->count());
+    }
+
+    public function test_picking_index_shows_expandable_product_lines_with_reserved_and_missing(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct(['ref' => 'FAST-TAP4D-211', 'name' => 'Tapis 4D BMW F70']);
+        $this->declarePhysicalStock($product, 1);
+
+        Setting::set('stock_picking_enabled', '1');
+        StockSettings::recordPickingActivation(now()->subMinute());
+
+        $this->orderWithProduct($product, 3, OrderSource::SHOPIFY, 'LINES-PHYS');
+
+        $response = $this->actingAs($user)->get(route('sales.picking.index'));
+        $response->assertOk();
+        $response->assertSee('LINES-PHYS');
+        $response->assertSee('Tapis 4D BMW F70');
+        $response->assertSee('FAST-TAP4D-211');
+        $response->assertSee('Cmd 3');
+        $response->assertSee('Belvédère 1');
+        $response->assertSee('Réservé 1');
+        $response->assertSee('Manquant 2');
+        $response->assertSee('BEL-STOCK');
+
+        $this->assertSame(1, (int) StockReservation::query()->active()->sum('quantity'));
+        $this->assertSame(2, (int) StockReplenishmentNeed::query()->open()->value('quantity_needed'));
+    }
+
+    public function test_reset_picking_releases_and_reallocates_without_changing_physical_stock(): void
+    {
+        $user = User::factory()->create();
+        $product = $this->stockedProduct(['ref' => 'RESET-SKU', 'name' => 'Produit reset']);
+        $this->declarePhysicalStock($product, 2);
+
+        Setting::set('stock_picking_enabled', '1');
+        StockSettings::recordPickingActivation(now()->subMinute());
+
+        $order = $this->orderWithProduct($product, 3, OrderSource::SHOPIFY, 'RESET-ORDER');
+
+        $this->actingAs($user)->get(route('sales.picking.index'))->assertOk();
+        $this->assertSame(2, (int) StockReservation::query()->active()->where('source_id', $order->id)->sum('quantity'));
+        $this->assertSame(1, (int) StockReplenishmentNeed::query()->open()->where('pos_sale_id', $order->id)->value('quantity_needed'));
+
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $physicalBefore = (int) \App\Models\ProductStock::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $belvedere->id)
+            ->sum('quantity');
+
+        $this->actingAs($user)
+            ->post(route('settings.stock.reset-picking'))
+            ->assertRedirect(route('settings.stock', ['tab' => 'regles']));
+
+        $this->assertDatabaseHas('pos_sales', ['id' => $order->id, 'ticket_number' => 'RESET-ORDER']);
+        $this->assertSame(2, (int) StockReservation::query()->active()->where('source_id', $order->id)->sum('quantity'));
+        $this->assertSame(1, (int) StockReplenishmentNeed::query()->open()->where('pos_sale_id', $order->id)->value('quantity_needed'));
+
+        $physicalAfter = (int) \App\Models\ProductStock::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $belvedere->id)
+            ->sum('quantity');
+        $this->assertSame($physicalBefore, $physicalAfter);
+        $this->assertSame(2, $physicalAfter);
     }
 
     public function test_re_enabling_picking_starts_a_fresh_activation_window(): void
@@ -136,6 +280,26 @@ class OrderPickingActivationTest extends TestCase
         ], $overrides));
     }
 
+    private function declarePhysicalStock(Product $product, int $qty): void
+    {
+        $belvedere = Warehouse::fulfillmentWarehouse();
+        $this->assertNotNull($belvedere);
+        $location = $belvedere->locations()->first() ?? \App\Models\WarehouseLocation::create([
+            'warehouse_id' => $belvedere->id,
+            'code' => 'BEL-STOCK',
+            'name' => 'Bel Stock',
+            'status' => 'active',
+        ]);
+
+        app(StockMovementService::class)->adjustPhysicalStock(
+            $product,
+            $qty,
+            (int) $belvedere->id,
+            (int) $location->id,
+            StockMovement::REASON_INVENTORY_CORRECTION
+        );
+    }
+
     private function orderWithProduct(Product $product, int $qty, string $source, string $ticket): PosSale
     {
         $client = Client::create(['name' => 'Client '.$ticket]);
@@ -162,7 +326,7 @@ class OrderPickingActivationTest extends TestCase
             'unit_price' => 10,
             'tax_rate' => 20,
             'discount' => 0,
-            'line_total' => 10,
+            'line_total' => 10 * $qty,
         ]);
 
         return $order;

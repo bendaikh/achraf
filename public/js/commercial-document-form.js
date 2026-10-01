@@ -254,6 +254,10 @@
         if (typeof window.calculateCommercialTotal === 'function') {
             window.calculateCommercialTotal();
         }
+
+        if (typeof window.onCommercialProductFilled === 'function') {
+            window.onCommercialProductFilled(index, productId, variantId);
+        }
     };
 
     window.discountRowHtml = function (index, data) {

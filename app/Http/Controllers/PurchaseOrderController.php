@@ -10,11 +10,14 @@ use App\Http\Controllers\Concerns\PreparesPrintView;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Setting;
+use App\Models\Warehouse;
 use App\Services\DocumentNumberService;
 use App\Services\SalesDocumentChainService;
 use App\Services\SalesDocumentConversionService;
+use App\Services\SalesStockIssueService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemCalculator;
+use App\Support\LineItemPersistence;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -45,8 +48,9 @@ class PurchaseOrderController extends Controller
         $reference = DocumentNumberService::preview('bc_client');
 
         $pricesAreTtc = Setting::getShopifyPriceType() === 'ttc';
+        $warehouses = Warehouse::query()->active()->physical()->orderByDesc('is_fulfillment_default')->orderBy('name')->get();
 
-        return view('sales.purchase-orders.create', compact('products', 'reference', 'pricesAreTtc'));
+        return view('sales.purchase-orders.create', compact('products', 'reference', 'pricesAreTtc', 'warehouses'));
     }
 
     public function store(Request $request)
@@ -73,7 +77,7 @@ class PurchaseOrderController extends Controller
             'items.*.tax_rate' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:fixed,percent',
-        ] + $this->commercialValidationRules());
+        ] + app(SalesStockIssueService::class)->validationRules() + $this->commercialValidationRules());
 
         DB::beginTransaction();
         try {
@@ -96,21 +100,7 @@ class PurchaseOrderController extends Controller
 
             $subtotal = 0;
             foreach ($validated['items'] as $item) {
-                $computed = LineItemCalculator::compute($item);
-
-                $purchaseOrder->items()->create([
-                    'product_id' => $item['product_id'] ?? null,
-                    'ref' => $item['ref'] ?? null,
-                    'designation' => $item['designation'],
-                    'description' => $item['description'] ?? null,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'tax_rate' => $item['tax_rate'],
-                    'discount' => $computed['discount'],
-                    'discount_type' => $computed['discount_type'],
-                    'line_total' => $computed['line_total'],
-                ]);
-
+                $computed = LineItemPersistence::createInvoiceItem($purchaseOrder, $item);
                 $subtotal += $computed['line_total'];
             }
 
@@ -131,7 +121,7 @@ class PurchaseOrderController extends Controller
 
     public function show(PurchaseOrder $purchaseOrder)
     {
-        $purchaseOrder->load(['client', 'items', 'sourceQuotes', 'convertedDeliveryNote', 'convertedInvoice']);
+        $purchaseOrder->load(['client', 'items.warehouse', 'items.location', 'sourceQuotes', 'convertedDeliveryNote', 'convertedInvoice']);
         $documentChain = app(SalesDocumentChainService::class)->forPurchaseOrder($purchaseOrder);
 
         return view('sales.purchase-orders.show', compact('purchaseOrder', 'documentChain'));

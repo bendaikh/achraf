@@ -15,12 +15,13 @@ class ShopifyOrderImporter
     public function __construct(
         protected OrderToInvoiceConverter $orderToInvoiceConverter,
         protected MarketplaceStockSyncService $stockSync,
-        protected ShopifyFulfillmentSyncService $fulfillmentSync
+        protected ShopifyFulfillmentSyncService $fulfillmentSync,
+        protected OrderPhysicalStockService $orderPhysicalStock,
     ) {}
 
     public function import(array $order): PosSale
     {
-        return DB::transaction(function () use ($order) {
+        $sale = DB::transaction(function () use ($order) {
             $externalId = (string) ($order['id'] ?? '');
             if ($externalId === '') {
                 throw new \InvalidArgumentException('Missing Shopify order id.');
@@ -396,6 +397,17 @@ class ShopifyOrderImporter
 
             return $sale;
         });
+
+        // Après import : réserver le stock physique Belvédère (jamais Shopify en ligne).
+        try {
+            $this->orderPhysicalStock->ensureAllocated(
+                $sale->fresh(['items.product.variants', 'items.variant']) ?? $sale
+            );
+        } catch (\Throwable) {
+            // Le picking index réessaiera ; ne pas bloquer l’import.
+        }
+
+        return $sale;
     }
 
     private function resolveExistingSale(array $order, string $externalId): ?PosSale

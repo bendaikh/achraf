@@ -44,9 +44,41 @@ class OrderPhysicalStockService
     }
 
     /**
+     * Allocate (or top-up) available physical stock for an eligible picking order.
+     * Safe to call repeatedly: never uses Shopify/online stock; only physical warehouses.
+     *
+     * @return array{deducted: list<array>, reserved: list<array>, unavailable: list<array>, warehouse: Warehouse, mode: string}|null
+     */
+    public function ensureAllocated(PosSale $order, ?int $warehouseId = null): ?array
+    {
+        if (! StockSettings::pickingEnabled() || ! StockSettings::orderEligibleForPicking($order)) {
+            return null;
+        }
+
+        if ($order->physical_stock_processed_at) {
+            return null;
+        }
+
+        return $this->allocate($order, $warehouseId);
+    }
+
+    public function hasActiveReservations(PosSale $order): bool
+    {
+        return StockReservation::query()
+            ->active()
+            ->where('source_type', 'pos_sale')
+            ->where('source_id', $order->id)
+            ->exists();
+    }
+
+    /**
      * Allocate available physical stock to the order (reservation only).
      * Searches physical warehouses (fulfillment first), never the online mirror.
      * Disponible = stock physique − réservé (même source que Stock par emplacement).
+     *
+     * Stock suffisant → réservation complète.
+     * Stock = 0 → aucun picking, besoin d’achat pour la totalité.
+     * Stock partiel → réserve le dispo, reliquat en besoin d’achat.
      *
      * @return array{deducted: list<array>, reserved: list<array>, unavailable: list<array>, warehouse: Warehouse, mode: string}
      */
@@ -62,16 +94,6 @@ class OrderPhysicalStockService
 
         if ($order->physical_stock_processed_at) {
             throw new RuntimeException('Le stock physique de cette commande a déjà été traité (sortie validée).');
-        }
-
-        $existingActive = StockReservation::query()
-            ->active()
-            ->where('source_type', 'pos_sale')
-            ->where('source_id', $order->id)
-            ->exists();
-
-        if ($existingActive) {
-            throw new RuntimeException('Cette commande a déjà des réservations actives. Utilisez Préparation / Picking.');
         }
 
         $order->loadMissing('items.product.variants', 'items.variant');
@@ -99,8 +121,22 @@ class OrderPhysicalStockService
                     continue;
                 }
 
+                $alreadyReserved = (int) StockReservation::query()
+                    ->active()
+                    ->where('source_type', 'pos_sale')
+                    ->where('source_id', $order->id)
+                    ->where('source_line_type', 'pos_sale_item')
+                    ->where('source_line_id', $item->id)
+                    ->sum('quantity');
+
+                $remaining = $needed - $alreadyReserved;
+                if ($remaining <= 0) {
+                    $this->clearNeed($order, $product, $preferred);
+
+                    continue;
+                }
+
                 $variantId = $this->resolveItemVariantId($product, $item);
-                $remaining = $needed;
 
                 foreach ($warehouses as $warehouse) {
                     if ($remaining <= 0) {
@@ -139,6 +175,8 @@ class OrderPhysicalStockService
                                 'source_line_id' => $item->id,
                                 'document_reference' => $order->ticket_number,
                                 'notes' => 'Allocation commande '.$order->ticket_number,
+                                // Delta reservation: allow increasing a prior partial reserve.
+                                'top_up' => $alreadyReserved > 0,
                             ]
                         );
                         $reserved[] = [
@@ -234,6 +272,143 @@ class OrderPhysicalStockService
             ->update(['status' => 'cancelled']);
 
         return $released;
+    }
+
+    /**
+     * Reset the active picking queue without touching physical stock or deleting orders.
+     * Releases unvalidated reservations, cancels open purchase needs, then re-allocates
+     * every eligible order from the picking activation date against current physical stock.
+     *
+     * @return array{orders:int, released:int, reserved_qty:int, needs:int}
+     */
+    public function resetPickingQueue(): array
+    {
+        if (! StockSettings::pickingEnabled()) {
+            throw new RuntimeException('Le picking est désactivé. Activez-le avant de réinitialiser.');
+        }
+
+        $activatedAt = StockSettings::pickingActivatedAt();
+        if (! $activatedAt) {
+            throw new RuntimeException('Aucune date d’activation picking n’est enregistrée.');
+        }
+
+        $orders = PosSale::query()
+            ->whereNull('physical_stock_processed_at')
+            ->where('created_at', '>=', $activatedAt)
+            ->whereHas('items.product', fn ($q) => $q->where('item_kind', 'stocked'))
+            ->orderBy('id')
+            ->get();
+
+        $released = 0;
+        foreach ($orders as $order) {
+            $released += $this->releaseAllocations($order, 'Réinitialisation picking');
+        }
+
+        // Also clear orphan open needs for the activation window (orders without prior reservations).
+        StockReplenishmentNeed::query()
+            ->open()
+            ->whereIn('pos_sale_id', $orders->pluck('id'))
+            ->update([
+                'status' => StockReplenishmentNeed::STATUS_CANCELLED,
+                'notes' => 'Annulé : réinitialisation picking',
+            ]);
+
+        $reservedQty = 0;
+        $needs = 0;
+        foreach ($orders as $order) {
+            $result = $this->allocate($order->fresh(['items.product.variants', 'items.variant']));
+            $reservedQty += collect($result['reserved'])->sum('quantity');
+            $needs += count($result['unavailable']);
+        }
+
+        return [
+            'orders' => $orders->count(),
+            'released' => $released,
+            'reserved_qty' => $reservedQty,
+            'needs' => $needs,
+        ];
+    }
+
+    /**
+     * Line-level picking detail for UI expand rows.
+     * Reserved comes from active stock_reservations; physical Belvédère qty is unchanged by reservation.
+     *
+     * @return list<array{
+     *   product: string,
+     *   sku: string,
+     *   ordered: int,
+     *   belvedere_stock: int,
+     *   location: string,
+     *   reserved: int,
+     *   missing: int
+     * }>
+     */
+    public function pickingLinesForOrder(PosSale $order, ?Warehouse $belvedere = null): array
+    {
+        $belvedere = $belvedere ?: Warehouse::fulfillmentWarehouse();
+        if (! $belvedere || $belvedere->isOnline()) {
+            return [];
+        }
+
+        $order->loadMissing('items.product.variants', 'items.variant');
+
+        $reservations = StockReservation::query()
+            ->active()
+            ->where('source_type', 'pos_sale')
+            ->where('source_id', $order->id)
+            ->with('location')
+            ->get()
+            ->groupBy('source_line_id');
+
+        $lines = [];
+        foreach ($order->items as $item) {
+            $product = $item->product;
+            if (! $product || ! $product->tracksStock()) {
+                continue;
+            }
+
+            $ordered = (int) $item->quantity;
+            if ($ordered <= 0) {
+                continue;
+            }
+
+            $lineReservations = $reservations->get($item->id) ?? collect();
+            $reserved = (int) $lineReservations->sum('quantity');
+            $variantId = $this->resolveItemVariantId($product, $item);
+
+            $slots = $this->physicalSlotsQuery($product, (int) $belvedere->id, $variantId)
+                ->with('location')
+                ->get();
+            $belvedereStock = (int) $slots->sum(fn (ProductStock $slot) => (int) $slot->quantity);
+
+            $locationCodes = $lineReservations
+                ->map(fn (StockReservation $r) => $r->location?->code)
+                ->filter()
+                ->unique()
+                ->values();
+
+            if ($locationCodes->isEmpty()) {
+                $fallback = $slots
+                    ->filter(fn (ProductStock $slot) => (int) $slot->quantity > 0 && $slot->warehouse_location_id)
+                    ->sortBy('warehouse_location_id')
+                    ->first();
+                if ($fallback?->location?->code) {
+                    $locationCodes = collect([$fallback->location->code]);
+                }
+            }
+
+            $lines[] = [
+                'product' => $item->designation ?: $product->name,
+                'sku' => $item->variant?->sku ?: ($item->ref ?: $product->ref) ?: '—',
+                'ordered' => $ordered,
+                'belvedere_stock' => $belvedereStock,
+                'location' => $locationCodes->isNotEmpty() ? $locationCodes->implode(', ') : '—',
+                'reserved' => $reserved,
+                'missing' => max(0, $ordered - $reserved),
+            ];
+        }
+
+        return $lines;
     }
 
     /**

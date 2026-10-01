@@ -931,6 +931,7 @@
         </form>
         <div class="mt-4 flex flex-wrap gap-2">
             <a id="locationStockMovements" href="#" class="px-3 py-2 border rounded-lg text-sm">Voir les mouvements</a>
+            <a id="locationStockAdjustBtn" href="#" class="px-3 py-2 border border-amber-300 bg-amber-50 text-amber-900 rounded-lg text-sm font-semibold hover:bg-amber-100">Ajuster le stock</a>
             <button type="button" id="locationStockDeclareBtn" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">+ Ajouter / Déclarer du stock physique</button>
             <button type="button" onclick="document.getElementById('locationTransferForm').classList.toggle('hidden')" class="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm">Dispatcher / Transférer</button>
             <button type="button" onclick="closeLocationStockModal()" class="px-3 py-2 border rounded-lg text-sm">Fermer</button>
@@ -966,22 +967,10 @@
                 </select>
             </div>
             <div>
-                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Type d’opération</label>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <label class="flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50">
-                        <input type="radio" name="mode" value="add" checked class="mt-1" onchange="syncDeclareStockMode()">
-                        <span><span class="font-semibold text-slate-800">Ajouter</span><br><span class="text-xs text-slate-500">Entrée de stock (+)</span></span>
-                    </label>
-                    <label class="flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50">
-                        <input type="radio" name="mode" value="set" class="mt-1" onchange="syncDeclareStockMode()">
-                        <span><span class="font-semibold text-slate-800">Ajuster</span><br><span class="text-xs text-slate-500">Définir la quantité réelle (0 autorisé)</span></span>
-                    </label>
-                </div>
-            </div>
-            <div>
-                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1" id="declareStockQuantityLabel">Quantité physique à ajouter / déclarer</label>
-                <input type="number" name="quantity" id="declareStockQuantity" min="0" value="1" required class="w-full rounded-lg border-slate-300 text-sm">
-                <p id="declareStockQuantityHelp" class="mt-1 text-xs text-slate-500">Ajout : minimum 1. Ajustement / inventaire : 0 accepté.</p>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1" id="declareStockQuantityLabel">Quantité physique à ajouter</label>
+                <input type="number" name="quantity" id="declareStockQuantity" min="1" value="1" required class="w-full rounded-lg border-slate-300 text-sm">
+                <input type="hidden" name="mode" id="declareStockMode" value="add">
+                <p id="declareStockQuantityHelp" class="mt-1 text-xs text-slate-500">Minimum 1. Pour corriger une ligne existante, utilisez « Ajuster le stock ».</p>
             </div>
             <div>
                 <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Motif / origine</label>
@@ -1199,9 +1188,34 @@ function todayIsoDate() {
     return d.getFullYear() + '-' + m + '-' + day;
 }
 
-function renderLocationStockBody(locations) {
+function renderLocationStockBody(data) {
     var body = document.getElementById('locationStockBody');
     if (!body) return;
+
+    var slots = data && data.physical_slots ? data.physical_slots : null;
+    var locations = data && data.locations ? data.locations : (Array.isArray(data) ? data : []);
+
+    if (slots && slots.length) {
+        var html = slots.map(function (slot) {
+            var locLabel = slot.has_location
+                ? escapeHtml(slot.location_label || '')
+                : '<span class="text-amber-800 font-medium">Sans emplacement</span>';
+            return '<div class="flex justify-between rounded-lg px-3 py-2 bg-sky-50 text-sky-900">' +
+                '<span>🔵 ' + escapeHtml(slot.warehouse_name || '') + ' · ' + locLabel + '</span>' +
+                '<strong>' + slot.quantity + '</strong></div>';
+        }).join('');
+
+        locations.forEach(function (loc) {
+            if (loc.is_online && Number(loc.quantity) > 0) {
+                html += '<div class="flex justify-between rounded-lg px-3 py-2 bg-emerald-50 text-emerald-900">' +
+                    '<span>🟢 ' + escapeHtml(loc.name || '') + '</span><strong>' + loc.quantity + '</strong></div>';
+            }
+        });
+
+        body.innerHTML = html;
+        return;
+    }
+
     body.innerHTML = (locations || []).map(function (loc) {
         var cls = loc.is_online ? 'bg-emerald-50 text-emerald-900' : 'bg-sky-50 text-sky-900';
         var dot = loc.is_online ? '🟢 ' : '🔵 ';
@@ -1229,49 +1243,30 @@ function loadDeclareStockLocations(warehouseId, locationsUrl) {
 }
 
 function syncDeclareStockMode() {
-    var modeInput = document.querySelector('#declareStockForm input[name="mode"]:checked');
-    var mode = modeInput ? modeInput.value : 'add';
     var qty = document.getElementById('declareStockQuantity');
     var label = document.getElementById('declareStockQuantityHelp');
     var qtyLabel = document.getElementById('declareStockQuantityLabel');
     var submitBtn = document.getElementById('declareStockSubmit');
     var reasonSelect = document.getElementById('declareStockReason');
+    var modeField = document.getElementById('declareStockMode');
     var data = locationStockCache || {};
 
-    if (mode === 'set') {
-        if (qty) {
-            qty.min = '0';
-            if (qty.value === '' || parseInt(qty.value, 10) < 0) qty.value = '0';
-        }
-        if (qtyLabel) qtyLabel.textContent = 'Nouvelle quantité physique';
-        if (label) {
-            label.textContent = 'Valeur valide : 0 ou plus. Le stock Shopify / En ligne n’est pas modifié.';
-            label.className = 'mt-1 text-xs text-emerald-700 font-medium';
-        }
-        if (submitBtn) submitBtn.textContent = 'Confirmer l’ajustement';
-        var adjustReasons = data.adjustment_reasons || [];
-        if (reasonSelect && adjustReasons.length) {
-            reasonSelect.innerHTML = adjustReasons.map(function (r) {
-                return '<option value="' + escapeHtml(r.value) + '">' + escapeHtml(r.label) + '</option>';
-            }).join('');
-        }
-    } else {
-        if (qty) {
-            qty.min = '1';
-            if (!qty.value || parseInt(qty.value, 10) < 1) qty.value = '1';
-        }
-        if (qtyLabel) qtyLabel.textContent = 'Quantité physique à ajouter / déclarer';
-        if (label) {
-            label.textContent = 'Minimum 1 pour un ajout.';
-            label.className = 'mt-1 text-xs text-slate-500';
-        }
-        if (submitBtn) submitBtn.textContent = "Confirmer l'ajout";
-        var addReasons = data.reasons || [];
-        if (reasonSelect && addReasons.length) {
-            reasonSelect.innerHTML = addReasons.map(function (r) {
-                return '<option value="' + escapeHtml(r.value) + '">' + escapeHtml(r.label) + '</option>';
-            }).join('');
-        }
+    if (modeField) modeField.value = 'add';
+    if (qty) {
+        qty.min = '1';
+        if (!qty.value || parseInt(qty.value, 10) < 1) qty.value = '1';
+    }
+    if (qtyLabel) qtyLabel.textContent = 'Quantité physique à ajouter';
+    if (label) {
+        label.textContent = 'Minimum 1. Pour corriger une ligne existante, utilisez « Ajuster le stock ».';
+        label.className = 'mt-1 text-xs text-slate-500';
+    }
+    if (submitBtn) submitBtn.textContent = "Confirmer l'ajout";
+    var addReasons = data.reasons || [];
+    if (reasonSelect && addReasons.length) {
+        reasonSelect.innerHTML = addReasons.map(function (r) {
+            return '<option value="' + escapeHtml(r.value) + '">' + escapeHtml(r.label) + '</option>';
+        }).join('');
     }
 }
 
@@ -1295,8 +1290,8 @@ function openDeclareStockModal() {
     document.getElementById('declareStockQuantity').value = '1';
     document.getElementById('declareStockNotes').value = '';
 
-    var modeAdd = document.querySelector('#declareStockForm input[name="mode"][value="add"]');
-    if (modeAdd) modeAdd.checked = true;
+    var modeField = document.getElementById('declareStockMode');
+    if (modeField) modeField.value = 'add';
 
     var whOpts = (data.physical_warehouses || []).map(function (w) {
         return '<option value="' + w.id + '">' + escapeHtml(w.name) + '</option>';
@@ -1337,9 +1332,11 @@ function openLocationStockModal(productId) {
             document.getElementById('locationStockSku').textContent = data.product.sku || '';
             document.getElementById('locationStockPhysical').textContent = data.physical_total;
             document.getElementById('locationStockMovements').href = data.movements_url;
+            var adjustBtn = document.getElementById('locationStockAdjustBtn');
+            if (adjustBtn) adjustBtn.href = data.adjust_url || '#';
             document.getElementById('locationTransferForm').action = data.transfer_url;
             document.getElementById('locationTransferProductId').value = data.product.id;
-            renderLocationStockBody(data.locations);
+            renderLocationStockBody(data);
             var opts = (data.warehouses || []).map(function (w) {
                 return '<option value="' + w.id + '">' + escapeHtml(w.name) + '</option>';
             }).join('');

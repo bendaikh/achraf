@@ -310,11 +310,40 @@
                                     </div>
                                 </div>
                                 <ul id="productStockList" class="space-y-2">
-                                    @foreach($stockLocations as $loc)
-                                        <li class="flex items-center justify-between rounded-lg px-3 py-2 text-sm {{ $loc['is_online'] ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-50 text-slate-800' }}">
-                                            <span>{{ $loc['is_online'] ? '🟢' : '🔵' }} {{ $loc['name'] }}</span>
-                                            <strong>{{ $loc['quantity'] }}</strong>
+                                    @php
+                                        $physicalSlots = $stockMovementService->physicalSlotBreakdown($product);
+                                    @endphp
+                                    @forelse($physicalSlots as $slot)
+                                        <li class="flex items-center justify-between rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-800">
+                                            <span>
+                                                🔵 {{ $slot['warehouse_name'] }}
+                                                ·
+                                                @if($slot['has_location'])
+                                                    {{ $slot['location_label'] }}
+                                                @else
+                                                    <span class="text-amber-800 font-medium">Sans emplacement</span>
+                                                @endif
+                                                @if(!empty($slot['variant_label']))
+                                                    <span class="text-xs text-slate-500">({{ $slot['variant_label'] }})</span>
+                                                @endif
+                                            </span>
+                                            <strong>{{ $slot['quantity'] }}</strong>
                                         </li>
+                                    @empty
+                                        @foreach($stockLocations as $loc)
+                                            <li class="flex items-center justify-between rounded-lg px-3 py-2 text-sm {{ $loc['is_online'] ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-50 text-slate-800' }}">
+                                                <span>{{ $loc['is_online'] ? '🟢' : '🔵' }} {{ $loc['name'] }}</span>
+                                                <strong>{{ $loc['quantity'] }}</strong>
+                                            </li>
+                                        @endforeach
+                                    @endforelse
+                                    @foreach($stockLocations as $loc)
+                                        @if(!empty($loc['is_online']) && (int) $loc['quantity'] > 0)
+                                            <li class="flex items-center justify-between rounded-lg px-3 py-2 text-sm bg-emerald-50 text-emerald-900">
+                                                <span>🟢 {{ $loc['name'] }} <span class="text-xs font-normal">(Shopify / En ligne)</span></span>
+                                                <strong>{{ $loc['quantity'] }}</strong>
+                                            </li>
+                                        @endif
                                     @endforeach
                                 </ul>
                                 <p class="mt-3 text-sm font-semibold text-slate-800">
@@ -502,31 +531,16 @@
                 </select>
             </div>
             <div>
-                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Type d’opération</label>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <label class="flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50">
-                        <input type="radio" name="mode" value="add" checked class="mt-1" onchange="syncProductDeclareMode()">
-                        <span><span class="font-semibold text-slate-800">Ajouter</span><br><span class="text-xs text-slate-500">Entrée de stock (+)</span></span>
-                    </label>
-                    <label class="flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50">
-                        <input type="radio" name="mode" value="set" class="mt-1" onchange="syncProductDeclareMode()">
-                        <span><span class="font-semibold text-slate-800">Ajuster</span><br><span class="text-xs text-slate-500">Définir la quantité réelle (0 autorisé)</span></span>
-                    </label>
-                </div>
-            </div>
-            <div>
-                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1" id="productDeclareQtyLabel">Quantité physique à ajouter / déclarer</label>
-                <input type="number" name="quantity" id="productDeclareQty" min="0" value="1" required class="w-full rounded-lg border-slate-300 text-sm">
-                <p id="productDeclareQtyHelp" class="mt-1 text-xs text-slate-500">Ajout : minimum 1. Ajustement / inventaire : 0 accepté.</p>
+                <label class="block text-xs font-semibold uppercase text-slate-500 mb-1" id="productDeclareQtyLabel">Quantité physique à ajouter</label>
+                <input type="number" name="quantity" id="productDeclareQty" min="1" value="1" required class="w-full rounded-lg border-slate-300 text-sm">
+                <input type="hidden" name="mode" value="add">
+                <p id="productDeclareQtyHelp" class="mt-1 text-xs text-slate-500">Minimum 1. Pour corriger une ligne existante, utilisez « Ajuster le stock ».</p>
             </div>
             <div>
                 <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Motif / origine</label>
                 <select name="reason" id="productDeclareReason" required class="w-full rounded-lg border-slate-300 text-sm">
                     @foreach(\App\Models\StockMovement::PHYSICAL_STOCK_REASONS as $value => $label)
-                        <option value="{{ $value }}" data-mode="add">{{ $label }}</option>
-                    @endforeach
-                    @foreach(\App\Models\StockMovement::STOCK_ADJUSTMENT_REASONS as $value => $label)
-                        <option value="{{ $value }}" data-mode="set" hidden disabled>{{ $label }}</option>
+                        <option value="{{ $value }}">{{ $label }}</option>
                     @endforeach
                 </select>
             </div>
@@ -566,9 +580,38 @@ function loadProductDeclareLocations(warehouseId) {
         });
 }
 
-function renderProductStockList(locations) {
+function renderProductStockList(payload) {
     var list = document.getElementById('productStockList');
     if (!list) return;
+
+    var slots = payload && payload.physical_slots ? payload.physical_slots : null;
+    var locations = payload && payload.locations ? payload.locations : (Array.isArray(payload) ? payload : []);
+
+    if (slots && slots.length) {
+        var html = slots.map(function (slot) {
+            var locLabel = slot.has_location
+                ? (slot.location_label || '')
+                : '<span class="text-amber-800 font-medium">Sans emplacement</span>';
+            var variant = slot.variant_label
+                ? ' <span class="text-xs text-slate-500">(' + slot.variant_label + ')</span>'
+                : '';
+            return '<li class="flex items-center justify-between rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-800">' +
+                '<span>🔵 ' + (slot.warehouse_name || '') + ' · ' + locLabel + variant + '</span>' +
+                '<strong>' + slot.quantity + '</strong></li>';
+        }).join('');
+
+        locations.forEach(function (loc) {
+            if (loc.is_online && Number(loc.quantity) > 0) {
+                html += '<li class="flex items-center justify-between rounded-lg px-3 py-2 text-sm bg-emerald-50 text-emerald-900">' +
+                    '<span>🟢 ' + (loc.name || '') + ' <span class="text-xs font-normal">(Shopify / En ligne)</span></span>' +
+                    '<strong>' + loc.quantity + '</strong></li>';
+            }
+        });
+
+        list.innerHTML = html;
+        return;
+    }
+
     list.innerHTML = (locations || []).map(function (loc) {
         var cls = loc.is_online ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-50 text-slate-800';
         var dot = loc.is_online ? '🟢' : '🔵';
@@ -577,57 +620,9 @@ function renderProductStockList(locations) {
     }).join('');
 }
 
-function syncProductDeclareMode() {
-    var modeInput = document.querySelector('#declareStockForm input[name="mode"]:checked');
-    var mode = modeInput ? modeInput.value : 'add';
-    var qty = document.getElementById('productDeclareQty');
-    var help = document.getElementById('productDeclareQtyHelp');
-    var label = document.getElementById('productDeclareQtyLabel');
-    var submitBtn = document.getElementById('declareStockSubmit');
-    var reasonSelect = document.getElementById('productDeclareReason');
-
-    if (reasonSelect) {
-        Array.prototype.forEach.call(reasonSelect.options, function (opt) {
-            var optMode = opt.getAttribute('data-mode') || 'add';
-            var active = optMode === mode;
-            opt.hidden = !active;
-            opt.disabled = !active;
-        });
-        var firstActive = Array.prototype.find.call(reasonSelect.options, function (opt) { return !opt.disabled; });
-        if (firstActive) reasonSelect.value = firstActive.value;
-    }
-
-    if (mode === 'set') {
-        if (qty) {
-            qty.min = '0';
-            if (qty.value === '' || parseInt(qty.value, 10) < 0) qty.value = '0';
-        }
-        if (label) label.textContent = 'Nouvelle quantité physique';
-        if (help) {
-            help.textContent = 'Valeur valide : 0 ou plus. Le stock Shopify / En ligne n’est pas modifié.';
-            help.className = 'mt-1 text-xs text-emerald-700 font-medium';
-        }
-        if (submitBtn) submitBtn.textContent = 'Confirmer l’ajustement';
-    } else {
-        if (qty) {
-            qty.min = '1';
-            if (!qty.value || parseInt(qty.value, 10) < 1) qty.value = '1';
-        }
-        if (label) label.textContent = 'Quantité physique à ajouter / déclarer';
-        if (help) {
-            help.textContent = 'Minimum 1 pour un ajout.';
-            help.className = 'mt-1 text-xs text-slate-500';
-        }
-        if (submitBtn) submitBtn.textContent = "Confirmer l'ajout";
-    }
-}
-
 function openProductDeclareStock() {
     var modal = document.getElementById('declareStockModal');
     if (!modal) return;
-    var modeAdd = document.querySelector('#declareStockForm input[name="mode"][value="add"]');
-    if (modeAdd) modeAdd.checked = true;
-    syncProductDeclareMode();
     var wh = document.getElementById('declareStockWarehouse');
     if (wh) loadProductDeclareLocations(wh.value);
     modal.classList.remove('hidden');
@@ -669,12 +664,20 @@ document.getElementById('declareStockForm')?.addEventListener('submit', function
             if (!result.ok || !result.json.success) {
                 throw new Error(result.json.message || 'Erreur lors de la déclaration.');
             }
-            renderProductStockList(result.json.locations);
+            renderProductStockList(result.json);
             var totalEl = document.getElementById('productPhysicalTotal');
             if (totalEl) totalEl.textContent = result.json.physical_total;
             closeProductDeclareStock();
             form.reset();
             document.getElementById('declareStockDate').value = @json(now()->format('Y-m-d'));
+            var modeField = form.querySelector('input[name="mode"]');
+            if (modeField) modeField.value = 'add';
+            var qtyField = document.getElementById('productDeclareQty');
+            if (qtyField) qtyField.value = '1';
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Confirmer l'ajout";
+            }
         })
         .catch(function (error) {
             if (err) {
@@ -685,7 +688,7 @@ document.getElementById('declareStockForm')?.addEventListener('submit', function
         .finally(function () {
             if (submitBtn) {
                 submitBtn.disabled = false;
-                syncProductDeclareMode();
+                submitBtn.textContent = "Confirmer l'ajout";
             }
         });
 });

@@ -329,29 +329,42 @@ class StockController extends Controller
             abort(404);
         }
 
-        $warehouses = Warehouse::query()
-            ->active()
-            ->physical()
-            ->with(['locations' => fn ($q) => $q->active()->orderBy('code')])
-            ->orderByDesc('is_fulfillment_default')
-            ->orderBy('name')
-            ->get();
+        $product->load(['variants']);
 
-        $defaultWarehouseId = $request->integer('warehouse_id')
-            ?: $product->warehouse_id
-            ?: $warehouses->first()?->id;
-        $defaultLocationId = $request->integer('warehouse_location_id') ?: $product->warehouse_location_id;
+        $slots = $this->stockMovement->physicalSlotBreakdown($product);
+        $physicalTotal = $this->stockMovement->physicalTotal($product);
 
-        $currentQuantity = $defaultWarehouseId
-            ? $this->stockMovement->quantityAtSlot($product, (int) $defaultWarehouseId, $defaultLocationId ? (int) $defaultLocationId : null)
-            : 0;
+        $defaultWarehouseId = $request->filled('warehouse_id') ? $request->integer('warehouse_id') : null;
+        $defaultVariantId = $request->filled('product_variant_id') ? $request->integer('product_variant_id') : null;
+        $hasLocationParam = $request->has('warehouse_location_id');
+        $defaultLocationId = $hasLocationParam && $request->filled('warehouse_location_id')
+            ? $request->integer('warehouse_location_id')
+            : null;
+
+        $selectedKey = null;
+        if ($defaultWarehouseId) {
+            foreach ($slots as $slot) {
+                $matchWarehouse = (int) $slot['warehouse_id'] === (int) $defaultWarehouseId;
+                $matchLocation = ! $hasLocationParam
+                    || ((int) ($slot['warehouse_location_id'] ?? 0) === (int) ($defaultLocationId ?? 0));
+                $matchVariant = ! $defaultVariantId
+                    || (int) ($slot['product_variant_id'] ?? 0) === (int) $defaultVariantId;
+                if ($matchWarehouse && $matchLocation && $matchVariant) {
+                    $selectedKey = $slot['key'];
+                    break;
+                }
+            }
+        }
+
+        if (! $selectedKey && count($slots) === 1) {
+            $selectedKey = $slots[0]['key'];
+        }
 
         return view('stock.magasin.edit', compact(
             'product',
-            'warehouses',
-            'defaultWarehouseId',
-            'defaultLocationId',
-            'currentQuantity'
+            'slots',
+            'physicalTotal',
+            'selectedKey'
         ));
     }
 
@@ -422,9 +435,36 @@ class StockController extends Controller
         $locationId = ! empty($validated['warehouse_location_id'])
             ? (int) $validated['warehouse_location_id']
             : null;
+        $variantId = isset($validated['product_variant_id']) ? (int) $validated['product_variant_id'] : null;
+
+        $existingSlot = ProductStock::query()
+            ->where('product_id', $product->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->when(
+                $locationId,
+                fn ($q) => $q->where('warehouse_location_id', $locationId),
+                fn ($q) => $q->whereNull('warehouse_location_id')
+            )
+            ->when(
+                $variantId,
+                fn ($q) => $q->where('product_variant_id', $variantId),
+                fn ($q) => $q->whereNull('product_variant_id')
+            )
+            ->first();
+
+        if (! $existingSlot) {
+            return back()->withInput()->with(
+                'error',
+                'Aucune ligne de stock physique existante pour ce dépôt / emplacement. Utilisez « Ajouter » pour créer du stock.'
+            );
+        }
+
+        $before = (int) $existingSlot->quantity;
+        $after = (int) $validated['quantity'];
+        $delta = $after - $before;
 
         try {
-            DB::transaction(function () use ($product, $validated, $locationId) {
+            DB::transaction(function () use ($product, $validated, $locationId, $variantId) {
                 $movement = $this->stockMovement->adjustPhysicalStock(
                     $product,
                     (int) $validated['quantity'],
@@ -432,7 +472,7 @@ class StockController extends Controller
                     $locationId,
                     $validated['reason'],
                     $validated['notes'] ?? null,
-                    isset($validated['product_variant_id']) ? (int) $validated['product_variant_id'] : null
+                    $variantId
                 );
 
                 if (! $movement) {
@@ -443,8 +483,13 @@ class StockController extends Controller
             return back()->withInput()->with('error', $e->getMessage());
         }
 
+        $deltaLabel = $delta > 0 ? '+'.$delta : (string) $delta;
+
         return redirect()
-            ->back()
-            ->with('success', 'Stock physique ajusté pour « '.$product->name.' ».');
+            ->route('stock.magasin.edit', $product)
+            ->with(
+                'success',
+                'Stock physique corrigé : '.$before.' → '.$after.' (mouvement '.$deltaLabel.'). Shopify / En ligne non modifié.'
+            );
     }
 }

@@ -73,6 +73,36 @@
     .facture-totals { width: 100%; border-collapse: collapse; }
     .facture-totals td { padding: 6px 10px; font-size: 11px; border-bottom: 1px solid #e5e7eb; }
     .facture-totals tr.grand td { background: #fdb819; font-weight: bold; font-size: 13px; border: none; }
+    .facture-settlement-box {
+        margin-top: 14px;
+        border: 2px solid #111;
+        border-radius: 6px;
+        padding: 10px 12px;
+        page-break-inside: avoid;
+    }
+    .facture-settlement-title {
+        font-size: 11px;
+        font-weight: bold;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .facture-settlement-line { font-size: 10px; color: #111; margin-bottom: 3px; }
+    .facture-settlement-payment {
+        margin-top: 8px;
+        padding-top: 6px;
+        border-top: 1px dashed #d1d5db;
+    }
+    .facture-settlement-payment-title {
+        font-size: 10px;
+        font-weight: bold;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+        color: #374151;
+    }
+    .facture-settlement-total { margin-top: 8px; font-size: 11px; }
+    .facture-settlement-remaining { margin-top: 6px; font-size: 11px; font-weight: 600; }
     .facture-footer-table { width: 100%; border-collapse: collapse; margin-top: 24px; border-top: 2px solid #111; }
     .facture-footer-table td { padding-top: 12px; vertical-align: bottom; }
     .facture-footer-meta { font-size: 10px; color: #6b7280; }

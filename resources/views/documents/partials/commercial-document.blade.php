@@ -235,5 +235,47 @@
         </tr>
     </table>
 
+    @if(!empty($doc['settlement']))
+        @php
+            $settlement = $doc['settlement'];
+            $settlementCurrency = $settlement['currency_label'] ?? $currencyLabel;
+            $settlementPayments = $settlement['payments'] ?? [];
+            $hasMultiplePayments = count($settlementPayments) > 1;
+        @endphp
+        <div class="facture-settlement-box">
+            <div class="facture-settlement-title">Règlement</div>
+            <div class="facture-settlement-line"><strong>Statut :</strong> {{ $settlement['status_label'] }}</div>
+
+            @if(count($settlementPayments) === 0)
+                <div class="facture-settlement-line"><strong>Montant payé :</strong> {{ number_format($settlement['total_paid'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
+            @elseif(!$hasMultiplePayments)
+                @php($payment = $settlementPayments[0])
+                <div class="facture-settlement-line"><strong>Montant payé :</strong> {{ number_format($payment['amount'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
+                <div class="facture-settlement-line"><strong>Mode :</strong> {{ $payment['method'] }}</div>
+                <div class="facture-settlement-line"><strong>Date :</strong> {{ $payment['date'] }}</div>
+                @if(!empty($payment['reference']))
+                    <div class="facture-settlement-line"><strong>Référence :</strong> {{ $payment['reference'] }}</div>
+                @endif
+            @else
+                @foreach($settlementPayments as $index => $payment)
+                    <div class="facture-settlement-payment">
+                        <div class="facture-settlement-payment-title">Règlement {{ $index + 1 }}</div>
+                        <div class="facture-settlement-line"><strong>Montant payé :</strong> {{ number_format($payment['amount'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
+                        <div class="facture-settlement-line"><strong>Mode :</strong> {{ $payment['method'] }}</div>
+                        <div class="facture-settlement-line"><strong>Date :</strong> {{ $payment['date'] }}</div>
+                        @if(!empty($payment['reference']))
+                            <div class="facture-settlement-line"><strong>Référence :</strong> {{ $payment['reference'] }}</div>
+                        @endif
+                    </div>
+                @endforeach
+                <div class="facture-settlement-line facture-settlement-total"><strong>Total payé :</strong> {{ number_format($settlement['total_paid'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
+            @endif
+
+            <div class="facture-settlement-line facture-settlement-remaining">
+                <strong>Reste à payer :</strong> {{ number_format($settlement['remaining'], 2, ',', ' ') }} {{ $settlementCurrency }}
+            </div>
+        </div>
+    @endif
+
     <div class="facture-footer-spacer"></div>
 </div>

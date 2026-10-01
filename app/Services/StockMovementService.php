@@ -629,7 +629,7 @@ class StockMovementService
             $resolvedVariantId
         );
 
-        $this->scheduleShopifyChannelPush($product, $resolvedVariantId);
+        // Physical correction only — never push Shopify / online channel stock from this window.
 
         return StockMovement::query()
             ->where('product_id', $product->id)
@@ -637,6 +637,74 @@ class StockMovementService
             ->where('type', StockMovement::TYPE_STOCK_ADJUSTMENT)
             ->latest('id')
             ->first();
+    }
+
+    /**
+     * Existing physical stock lines (warehouse + location) for correction UI.
+     *
+     * @return list<array{
+     *     key: string,
+     *     warehouse_id: int,
+     *     warehouse_name: string,
+     *     warehouse_location_id: ?int,
+     *     location_label: string,
+     *     quantity: int,
+     *     reserved: int,
+     *     product_variant_id: ?int,
+     *     variant_label: ?string
+     * }>
+     */
+    public function physicalSlotBreakdown(Product $product, ?int $variantId = null): array
+    {
+        $onlineIds = Warehouse::query()->online()->pluck('id')->all();
+
+        $query = ProductStock::query()
+            ->with(['warehouse', 'location', 'variant'])
+            ->where('product_id', $product->id)
+            ->when($onlineIds !== [], fn ($q) => $q->whereNotIn('warehouse_id', $onlineIds));
+
+        if ($variantId) {
+            $query->where('product_variant_id', $variantId);
+        }
+
+        $slots = $query->get()->filter(fn (ProductStock $slot) => $slot->warehouse && $slot->warehouse->isPhysical());
+
+        $rows = $slots->map(function (ProductStock $slot) {
+            $locationLabel = $slot->location
+                ? ($slot->location->code ?: $slot->location->displayLabel())
+                : 'Sans emplacement';
+
+            return [
+                'key' => ((int) $slot->warehouse_id).':'.((int) ($slot->warehouse_location_id ?? 0)).':'.((int) ($slot->product_variant_id ?? 0)),
+                'warehouse_id' => (int) $slot->warehouse_id,
+                'warehouse_name' => $slot->warehouse->name,
+                'warehouse_location_id' => $slot->warehouse_location_id ? (int) $slot->warehouse_location_id : null,
+                'location_label' => $locationLabel,
+                'has_location' => $slot->warehouse_location_id !== null,
+                'quantity' => (int) $slot->quantity,
+                'reserved' => (int) $slot->reserved,
+                'product_variant_id' => $slot->product_variant_id ? (int) $slot->product_variant_id : null,
+                'variant_label' => $slot->variant
+                    ? ($slot->variant->name ?: $slot->variant->sku)
+                    : null,
+            ];
+        })->values()->all();
+
+        usort($rows, function (array $a, array $b): int {
+            $byWarehouse = strcasecmp($a['warehouse_name'], $b['warehouse_name']);
+            if ($byWarehouse !== 0) {
+                return $byWarehouse;
+            }
+
+            $byLocation = strcasecmp($a['location_label'], $b['location_label']);
+            if ($byLocation !== 0) {
+                return $byLocation;
+            }
+
+            return strcasecmp((string) ($a['variant_label'] ?? ''), (string) ($b['variant_label'] ?? ''));
+        });
+
+        return $rows;
     }
 
     /**
@@ -709,7 +777,7 @@ class StockMovementService
                 );
             }
 
-            // Idempotency: same source line already reserved → return existing active reservation.
+            // Idempotency / top-up for the same source line + warehouse + location.
             if (! empty($meta['source_type']) && ! empty($meta['source_id'])) {
                 $existing = \App\Models\StockReservation::query()
                     ->where('status', \App\Models\StockReservation::STATUS_ACTIVE)
@@ -722,10 +790,53 @@ class StockMovementService
                     )
                     ->where('product_id', $product->id)
                     ->where('warehouse_id', $warehouseId)
+                    ->when(
+                        $locationId !== null,
+                        fn ($q) => $q->where('warehouse_location_id', $locationId),
+                        fn ($q) => $q->whereNull('warehouse_location_id')
+                    )
                     ->lockForUpdate()
                     ->first();
 
                 if ($existing) {
+                    // Default: same source re-reserve is a no-op (double-click safety).
+                    // top_up=true: add delta (picking allocate remainder when stock arrives).
+                    if (empty($meta['top_up'])) {
+                        return $existing;
+                    }
+
+                    $beforeReserved = (int) $slot->reserved;
+                    $slot->reserved = $beforeReserved + $quantity;
+                    $slot->save();
+
+                    $this->syncProductAggregateFromSlots($product);
+                    $product->save();
+
+                    $existing->quantity = (int) $existing->quantity + $quantity;
+                    if ($meta['notes'] ?? null) {
+                        $existing->notes = $meta['notes'];
+                    }
+                    $existing->save();
+
+                    $this->recordMovement(
+                        $product,
+                        $quantity,
+                        StockMovement::TYPE_RESERVATION,
+                        $warehouseId,
+                        $locationId,
+                        $meta['source_type'] ?? 'reservation',
+                        $meta['source_id'] ?? $existing->id,
+                        $meta['document_reference'] ?? null,
+                        $meta['notes'] ?? 'Réservation stock (pas de sortie physique)',
+                        null,
+                        $beforeReserved,
+                        (int) $slot->reserved,
+                        'Réservation',
+                        $resolvedVariantId
+                    );
+
+                    $this->scheduleShopifyChannelPush($product, $resolvedVariantId);
+
                     return $existing;
                 }
             }

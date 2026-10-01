@@ -136,7 +136,13 @@ class SalesDocumentConversionService
         }
 
         if ($document instanceof Invoice) {
-            app(\App\Services\Access\CommissionService::class)->syncForInvoice($document->fresh());
+            $invoice = $document->fresh(['items', 'sourceDeliveryNotes']);
+            app(SalesStockIssueService::class)->applyForInvoiceIfNeeded($invoice, strict: false);
+            app(\App\Services\Access\CommissionService::class)->syncForInvoice($invoice->fresh());
+        }
+
+        if ($document instanceof DeliveryNote) {
+            app(SalesStockIssueService::class)->applyForDeliveryNoteIfNeeded($document->fresh('items'));
         }
 
         return $document;
@@ -191,7 +197,7 @@ class SalesDocumentConversionService
             'reference' => $this->sourceNumbers($sources)->implode(', '),
             'currency' => $first->currency,
             'status' => 'En cours',
-            'stock_location' => $first->stock_location ?? 'DEPOT',
+            'stock_location' => $first->stock_location ?? 'Magasin Belvédère',
             'model' => $first->model,
             'matricule' => $first->matricule,
             'remarks' => 'Généré depuis '.$this->sourceKindLabel($first).': '.$labels->implode(', '),
@@ -220,7 +226,7 @@ class SalesDocumentConversionService
             'invoice_date' => now()->toDateString(),
             'due_date' => now()->addDays(30)->toDateString(),
             'currency' => $first->currency,
-            'stock_location' => $first->stock_location ?? 'DEPOT',
+            'stock_location' => $first->stock_location ?? 'Magasin Belvédère',
             'model' => $first->model,
             'matricule' => $first->matricule,
             'remarks' => 'Générée depuis '.$this->sourceKindLabel($first).': '.$labels->implode(', '),
@@ -248,6 +254,8 @@ class SalesDocumentConversionService
                 $target->items()->create([
                     'product_id' => $item->product_id,
                     'product_variant_id' => $item->product_variant_id,
+                    'warehouse_id' => $item->warehouse_id,
+                    'warehouse_location_id' => $item->warehouse_location_id,
                     'ref' => $item->ref,
                     'designation' => $item->designation,
                     'description' => $item->description,

@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\User;
+use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -13,10 +14,13 @@ class InvoiceStockWarningTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_invoice_can_be_created_when_shopify_stock_is_zero(): void
+    public function test_invoice_can_be_created_when_physical_stock_is_zero(): void
     {
         $user = User::factory()->create();
         $client = Client::create(['name' => 'Client Test']);
+        $warehouse = Warehouse::fulfillmentWarehouse();
+        $this->assertNotNull($warehouse);
+
         $product = Product::create([
             'name' => 'Tapis sur mesure 4D Opel Corsa F 2019',
             'ref' => 'FAST-TAP4D-072',
@@ -32,9 +36,10 @@ class InvoiceStockWarningTest extends TestCase
             'client_id' => $client->id,
             'invoice_date' => '2026-08-08',
             'currency' => 'dh - MAD',
-            'stock_location' => 'DEPOT',
+            'stock_location' => 'Magasin Belvédère',
             'items' => [[
                 'product_id' => $product->id,
+                'warehouse_id' => $warehouse->id,
                 'ref' => $product->ref,
                 'designation' => $product->name,
                 'quantity' => 1,
@@ -50,8 +55,5 @@ class InvoiceStockWarningTest extends TestCase
         $response->assertSessionHas('warning');
         $this->assertStringContainsString('Stock insuffisant', session('warning'));
         $this->assertSame(1, Invoice::count());
-
-        $product->refresh();
-        $this->assertSame(-1, (int) $product->stock_enligne);
     }
 }

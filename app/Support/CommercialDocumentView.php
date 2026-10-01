@@ -25,10 +25,10 @@ class CommercialDocumentView
      */
     public static function forInvoice(Invoice $invoice, array $taxes): array
     {
-        $invoice->loadMissing('client', 'items');
+        $invoice->loadMissing('client', 'items', 'payments');
         $client = $invoice->client;
 
-        return self::base(
+        $payload = self::base(
             title: 'FACTURE',
             number: $invoice->invoice_number,
             dates: array_filter([
@@ -45,6 +45,55 @@ class CommercialDocumentView
             remarks: $invoice->remarks,
             priceMode: LineItemCalculator::priceModeForDocument($invoice),
         );
+
+        $payload['doc']['settlement'] = self::invoiceSettlement($invoice, $payload['doc']['currency_label']);
+
+        return $payload;
+    }
+
+    /**
+     * Règlement basé sur les paiements réels (Gestion Paiement), pas le statut manuel.
+     *
+     * @return array{
+     *     status: string,
+     *     status_label: string,
+     *     total_paid: float,
+     *     remaining: float,
+     *     currency_label: string,
+     *     payments: list<array{amount: float, method: string, date: string, reference: ?string}>
+     * }
+     */
+    protected static function invoiceSettlement(Invoice $invoice, string $currencyLabel): array
+    {
+        $payments = $invoice->payments
+            ->filter(fn ($payment) => $payment->isRealized())
+            ->sortBy([
+                ['payment_date', 'asc'],
+                ['id', 'asc'],
+            ])
+            ->values()
+            ->map(fn ($payment) => [
+                'amount' => round((float) $payment->amount, 2),
+                'method' => $payment->payment_method ?: 'Autre',
+                'date' => $payment->payment_date?->format('d/m/Y') ?? '—',
+                'reference' => $payment->payment_reference ? trim((string) $payment->payment_reference) : null,
+            ])
+            ->all();
+
+        $status = $invoice->computed_payment_status;
+
+        return [
+            'status' => $status,
+            'status_label' => match ($status) {
+                Invoice::PAYMENT_PAID => 'PAYÉE',
+                Invoice::PAYMENT_PARTIAL => 'PARTIELLEMENT PAYÉE',
+                default => 'NON PAYÉE',
+            },
+            'total_paid' => round((float) $invoice->total_paid, 2),
+            'remaining' => round((float) $invoice->remaining_balance, 2),
+            'currency_label' => $currencyLabel,
+            'payments' => $payments,
+        ];
     }
 
     /**

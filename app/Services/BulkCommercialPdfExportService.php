@@ -140,7 +140,7 @@ class BulkCommercialPdfExportService
     protected function loadRecords(string $type, array $ids)
     {
         return match ($type) {
-            'invoices' => Invoice::with('client', 'items')->whereIn('id', $ids)->get(),
+            'invoices' => Invoice::with('client', 'items', 'payments')->whereIn('id', $ids)->get(),
             'quotes' => Quote::with('client', 'items')->whereIn('id', $ids)->get(),
             'purchase-orders' => PurchaseOrder::with('client', 'items')->whereIn('id', $ids)->get(),
             'credit-notes' => CreditNote::with('client', 'invoice', 'items')->whereIn('id', $ids)->get(),
