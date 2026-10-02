@@ -417,6 +417,27 @@ class ShopifyApiClient
         return $response['locations'] ?? [];
     }
 
+    /**
+     * Inventory levels for given inventory items (needs read_inventory only, not read_locations).
+     *
+     * @param  list<string>  $inventoryItemIds
+     * @return list<array<string, mixed>>
+     */
+    public function getInventoryLevels(array $inventoryItemIds): array
+    {
+        $ids = implode(',', array_filter(array_map('strval', $inventoryItemIds)));
+        if ($ids === '') {
+            return [];
+        }
+
+        $response = $this->makeRequest('GET', 'inventory_levels.json', [
+            'inventory_item_ids' => $ids,
+            'limit' => 250,
+        ]);
+
+        return $response['inventory_levels'] ?? [];
+    }
+
     public function setInventoryLevel(string $inventoryItemId, string $locationId, int $available): array
     {
         return $this->makeRequest('POST', 'inventory_levels/set.json', [

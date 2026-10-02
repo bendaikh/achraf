@@ -20,7 +20,12 @@ class ShopifyInventorySyncService
             return;
         }
 
-        $locationId = $this->resolveLocationId($integration);
+        $hintItemId = $product->variants()
+            ->when($variantId, fn ($query) => $query->where('id', $variantId))
+            ->whereNotNull('inventory_item_id')
+            ->value('inventory_item_id');
+
+        $locationId = $this->resolveLocationId($integration, $hintItemId ? (string) $hintItemId : null);
         if ($locationId === null) {
             return;
         }
@@ -79,7 +84,7 @@ class ShopifyInventorySyncService
     public function applyInventoryLevelUpdate(string $inventoryItemId, string $locationId, int $available): ?Product
     {
         $integration = $this->enabledIntegration();
-        $primaryLocationId = $integration ? $this->resolveLocationId($integration) : null;
+        $primaryLocationId = $integration ? $this->resolveLocationId($integration, $inventoryItemId) : null;
 
         if ($primaryLocationId !== null && $primaryLocationId !== $locationId) {
             return null;
@@ -148,18 +153,24 @@ class ShopifyInventorySyncService
         return $variants->first();
     }
 
-    protected function resolveLocationId(ShopifyIntegration $integration): ?string
+    protected function resolveLocationId(ShopifyIntegration $integration, ?string $hintInventoryItemId = null): ?string
     {
         if (filled($integration->primary_location_id)) {
             return (string) $integration->primary_location_id;
         }
 
-        try {
-            $locations = (new ShopifyApiClient($integration))->getLocations();
-        } catch (\Throwable $e) {
-            Log::warning('Shopify locations fetch failed', ['message' => $e->getMessage()]);
+        $locations = [];
+        // locations.json needs read_locations; skip the call (and the 403 log noise) when not granted.
+        if ($integration->oauth_scope === null || $integration->oauth_scope === '' || $integration->hasScope('read_locations')) {
+            try {
+                $locations = (new ShopifyApiClient($integration))->getLocations();
+            } catch (\Throwable $e) {
+                Log::warning('Shopify locations fetch failed', ['message' => $e->getMessage()]);
+            }
+        }
 
-            return null;
+        if ($locations === []) {
+            return $this->resolveLocationIdFromInventoryLevels($integration, $hintInventoryItemId);
         }
 
         $primary = collect($locations)->first(fn ($location) => ! empty($location['primary']));
@@ -170,6 +181,56 @@ class ShopifyInventorySyncService
         if ($locationId !== null) {
             $integration->forceFill(['primary_location_id' => $locationId])->save();
         }
+
+        return $locationId;
+    }
+
+    /**
+     * Fallback without read_locations: derive the stocking location from inventory_levels
+     * (read_inventory). Uses the single location holding the item(s) when unambiguous.
+     */
+    protected function resolveLocationIdFromInventoryLevels(ShopifyIntegration $integration, ?string $hintInventoryItemId): ?string
+    {
+        $itemIds = ProductVariant::query()
+            ->whereNotNull('inventory_item_id')
+            ->where('inventory_item_id', '!=', '')
+            ->orderByDesc('id')
+            ->limit(20)
+            ->pluck('inventory_item_id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+
+        if (filled($hintInventoryItemId)) {
+            array_unshift($itemIds, (string) $hintInventoryItemId);
+        }
+
+        $itemIds = array_values(array_unique($itemIds));
+        if ($itemIds === []) {
+            return null;
+        }
+
+        try {
+            $levels = (new ShopifyApiClient($integration))->getInventoryLevels($itemIds);
+        } catch (\Throwable $e) {
+            Log::warning('Shopify inventory_levels location fallback failed', ['message' => $e->getMessage()]);
+
+            return null;
+        }
+
+        $counts = collect($levels)->pluck('location_id')->filter()->map(fn ($id) => (string) $id)->countBy();
+        if ($counts->isEmpty()) {
+            return null;
+        }
+
+        if ($counts->count() > 1) {
+            Log::warning('Shopify location fallback: several locations found, using the most common one (grant read_locations to pick the primary location)', [
+                'locations' => $counts->all(),
+            ]);
+        }
+
+        $locationId = (string) $counts->sortDesc()->keys()->first();
+        $integration->forceFill(['primary_location_id' => $locationId])->save();
+        Log::info('Shopify primary location resolved via inventory_levels', ['location_id' => $locationId]);
 
         return $locationId;
     }

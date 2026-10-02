@@ -201,7 +201,8 @@
                             </div>
 
                             @php
-                                $hasFulfillmentsScope = str_contains(strtolower((string) $integration->oauth_scope), 'read_fulfillments');
+                                // write_fulfillments implies read_fulfillments (Shopify omits implied read scopes)
+                                $hasFulfillmentsScope = $integration->hasScope('read_fulfillments');
                             @endphp
                             @unless($hasFulfillmentsScope)
                                 <div class="rounded-lg bg-amber-50 border border-amber-300 p-4 space-y-3">

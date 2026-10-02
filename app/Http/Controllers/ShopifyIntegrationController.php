@@ -51,7 +51,7 @@ class ShopifyIntegrationController extends Controller
                 ->with('error', 'OAuth Client ID is not configured. Please enter your Client ID first.');
         }
 
-        $scopes = config('services.shopify.scopes', 'read_orders,read_products,read_customers');
+        $scopes = config('services.shopify.scopes', 'read_orders,read_products,read_customers,read_locations');
         $redirectUri = route('integrations.shopify.callback');
         $state = Str::random(40);
 
@@ -166,8 +166,7 @@ class ShopifyIntegrationController extends Controller
                 Log::warning('Shopify webhook auto-registration after OAuth failed: '.$e->getMessage());
             }
 
-            $granted = strtolower((string) $scope);
-            if (! str_contains($granted, 'read_fulfillments')) {
+            if (! in_array('read_fulfillments', ShopifyIntegration::expandScopes((string) $scope), true)) {
                 return redirect()
                     ->route('integrations.shopify.request-optional-scopes')
                     ->with('success', 'Connected to Shopify. Next: approve optional fulfillment permissions.');
@@ -264,7 +263,7 @@ class ShopifyIntegrationController extends Controller
                 $webhookNote = ' Webhooks not fully refreshed.';
             }
 
-            $hasFulfillments = $handles->contains('read_fulfillments');
+            $hasFulfillments = in_array('read_fulfillments', ShopifyIntegration::expandScopes($handles->implode(',')), true);
 
             return redirect()
                 ->route('integrations.shopify.edit')

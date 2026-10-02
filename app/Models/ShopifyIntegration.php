@@ -32,4 +32,37 @@ class ShopifyIntegration extends Model
         'oauth_client_secret' => 'encrypted',
         'oauth_access_token' => 'encrypted',
     ];
+
+    /**
+     * Granted scope handles, expanded with implied scopes.
+     * Shopify omits implied read scopes from the OAuth "scope" string / access_scopes:
+     * write_X always implies read_X (e.g. write_fulfillments => read_fulfillments).
+     *
+     * @return list<string>
+     */
+    public function grantedScopes(): array
+    {
+        return static::expandScopes((string) $this->oauth_scope);
+    }
+
+    public function hasScope(string $scope): bool
+    {
+        return in_array(strtolower(trim($scope)), $this->grantedScopes(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function expandScopes(string $scopes): array
+    {
+        $handles = collect(preg_split('/[\s,]+/', strtolower($scopes)) ?: [])
+            ->map(fn ($h) => trim($h))
+            ->filter();
+
+        $implied = $handles
+            ->filter(fn ($h) => str_starts_with($h, 'write_'))
+            ->map(fn ($h) => 'read_'.substr($h, strlen('write_')));
+
+        return $handles->merge($implied)->unique()->sort()->values()->all();
+    }
 }

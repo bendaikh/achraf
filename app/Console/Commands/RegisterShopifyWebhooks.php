@@ -185,7 +185,7 @@ class RegisterShopifyWebhooks extends Command
             $this->line('  3. The webhook endpoints are not blocked by CSRF protection');
 
             $granted = (string) ($integration->oauth_scope ?? '');
-            if ($granted !== '' && ! str_contains($granted, 'read_fulfillments')) {
+            if ($granted !== '' && ! $integration->hasScope('read_fulfillments')) {
                 $this->newLine();
                 $this->error('Current token is missing read_fulfillments.');
                 $this->line('Granted scopes: '.$granted);
