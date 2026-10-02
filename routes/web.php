@@ -326,6 +326,7 @@ Route::middleware('auth')->group(function () {
         Route::post('expense-recurrences/{expense}/stop', [ExpenseRecurrenceController::class, 'stop'])->name('expenses.recurrence.stop');
         Route::get('payments', [PurchasePaymentController::class, 'index'])->name('purchases.payments.index');
         Route::get('needs', [StockReplenishmentController::class, 'purchaseNeeds'])->name('purchases.needs.index');
+        Route::post('needs/recalculate', [StockReplenishmentController::class, 'recalculate'])->name('purchases.needs.recalculate');
         Route::get('payments/history', [PurchasePaymentController::class, 'history'])->name('purchases.payments.history');
         Route::post('payments/manual', [PurchasePaymentController::class, 'storeManual'])->name('purchases.payments.manual');
         Route::get('payments/settle/{supplier}', [PurchasePaymentController::class, 'settle'])->name('purchases.payments.settle');

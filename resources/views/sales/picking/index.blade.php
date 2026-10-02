@@ -22,6 +22,7 @@
             <p class="text-sm text-slate-600 mt-1">
                 Seules les quantités réservées sur le stock physique ({{ $belvedereName ?? 'Magasin Belvédère' }} / dépôts) apparaissent ici.
                 Le stock Shopify en ligne n’est jamais utilisé. Manques → À approvisionner. Seule <strong>Valider sortie</strong> diminue le stock.
+                Cochez les lignes produit disponibles (réservées) à sortir : les lignes non cochées ou non disponibles restent en attente / besoin d’achat (sortie partielle possible).
             </p>
             @unless($pickingEnabled)
                 <p class="mt-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -58,7 +59,7 @@
                     Générer la préparation (PDF)
                 </button>
                 <button type="submit" formaction="{{ route('sales.picking.validate-exit') }}"
-                        onclick="return confirm('Valider la sortie physique des commandes sélectionnées ? Cette action diminue le stock.')"
+                        onclick="return confirm('Valider la sortie physique des lignes cochées ? Seules les quantités réservées des lignes cochées sont sorties : cette action diminue le stock de leur dépôt / emplacement.')"
                         class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold">
                     Valider sortie
                 </button>
@@ -68,7 +69,7 @@
                 <table class="min-w-full text-sm">
                     <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-3 py-2"><input type="checkbox" onclick="document.querySelectorAll('.pick-order').forEach(c => c.checked = this.checked)"></th>
+                            <th class="px-3 py-2"><input type="checkbox" title="Tout sélectionner" onclick="pickingSelectAll(this.checked)"></th>
                             <th class="px-3 py-2 w-8"></th>
                             <th class="px-3 py-2">Référence</th>
                             <th class="px-3 py-2">Canal</th>
@@ -83,10 +84,12 @@
                             $lines = $orderLines[$order->id] ?? [];
                             $reservedTotal = (int) ($reservationCounts[$order->id] ?? 0);
                         @endphp
-                        <tbody x-data="{ open: false }" class="border-t border-slate-100">
+                        <tbody x-data="{ open: {{ count($lines) > 1 ? 'true' : 'false' }} }" class="border-t border-slate-100">
                             <tr class="hover:bg-slate-50/80">
                                 <td class="px-3 py-2">
-                                    <input type="checkbox" class="pick-order" name="order_ids[]" value="{{ $order->id }}">
+                                    <input type="checkbox" class="pick-order" name="order_ids[]" value="{{ $order->id }}" data-order="{{ $order->id }}"
+                                           title="Sélectionner toutes les lignes disponibles de la commande"
+                                           onclick="pickingToggleOrder({{ $order->id }}, this.checked)">
                                 </td>
                                 <td class="px-1 py-2">
                                     <button type="button" @click="open = !open"
@@ -116,6 +119,7 @@
                                             <table class="min-w-full text-xs">
                                                 <thead class="bg-slate-100 text-left text-[11px] uppercase text-slate-500">
                                                     <tr>
+                                                        <th class="px-3 py-2 w-8"></th>
                                                         <th class="px-3 py-2">Produit</th>
                                                         <th class="px-3 py-2">SKU</th>
                                                         <th class="px-3 py-2">Qté commandée</th>
@@ -123,11 +127,23 @@
                                                         <th class="px-3 py-2">Emplacement</th>
                                                         <th class="px-3 py-2">Qté réservée</th>
                                                         <th class="px-3 py-2">Manquant</th>
+                                                        <th class="px-3 py-2">Statut</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody class="divide-y divide-slate-100">
                                                     @foreach($lines as $line)
-                                                        <tr>
+                                                        @php
+                                                            $lineStatus = $line['status'] ?? 'pending';
+                                                            $canShip = (bool) ($line['can_ship'] ?? false);
+                                                        @endphp
+                                                        <tr class="{{ $canShip ? '' : 'bg-slate-50/60' }}">
+                                                            <td class="px-3 py-2">
+                                                                <input type="checkbox" class="pick-line" name="line_ids[]" value="{{ $line['item_id'] }}"
+                                                                       data-order="{{ $order->id }}"
+                                                                       @disabled(! $canShip)
+                                                                       title="{{ $canShip ? 'Sortir cette ligne (quantité réservée)' : 'Non disponible : reste en attente / besoin d’achat' }}"
+                                                                       onchange="pickingSyncOrder({{ $order->id }})">
+                                                            </td>
                                                             <td class="px-3 py-2 font-medium text-slate-900">{{ $line['product'] }}</td>
                                                             <td class="px-3 py-2 font-mono text-slate-700">{{ $line['sku'] }}</td>
                                                             <td class="px-3 py-2 tabular-nums">Cmd {{ $line['ordered'] }}</td>
@@ -136,6 +152,20 @@
                                                             <td class="px-3 py-2 tabular-nums text-emerald-800">Réservé {{ $line['reserved'] }}</td>
                                                             <td class="px-3 py-2 tabular-nums {{ $line['missing'] > 0 ? 'text-amber-800 font-semibold' : 'text-slate-600' }}">
                                                                 Manquant {{ $line['missing'] }}
+                                                            </td>
+                                                            <td class="px-3 py-2">
+                                                                @if($lineStatus === 'shipped')
+                                                                    <span class="inline-flex rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700">Sortie validée</span>
+                                                                @elseif($lineStatus === 'ready')
+                                                                    <span class="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">Disponible</span>
+                                                                @elseif($lineStatus === 'partial')
+                                                                    <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Partiel ({{ $line['reserved'] }} dispo)</span>
+                                                                @else
+                                                                    <span class="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800">En attente / Besoin d’achat</span>
+                                                                @endif
+                                                                @if(($line['shipped'] ?? 0) > 0 && $lineStatus !== 'shipped')
+                                                                    <span class="block mt-1 text-[11px] text-slate-500">Déjà sorti {{ $line['shipped'] }}</span>
+                                                                @endif
                                                             </td>
                                                         </tr>
                                                     @endforeach
@@ -160,4 +190,24 @@
         <div class="mt-4">{{ $orders->links() }}</div>
     </div>
 </main>
+<script>
+    function pickingLines(orderId) {
+        return Array.from(document.querySelectorAll('.pick-line[data-order="' + orderId + '"]')).filter(c => !c.disabled);
+    }
+    function pickingToggleOrder(orderId, checked) {
+        pickingLines(orderId).forEach(c => c.checked = checked);
+        pickingSyncOrder(orderId);
+    }
+    function pickingSyncOrder(orderId) {
+        const box = document.querySelector('.pick-order[data-order="' + orderId + '"]');
+        if (!box) return;
+        const lines = pickingLines(orderId);
+        const checked = lines.filter(c => c.checked).length;
+        box.checked = lines.length > 0 && checked === lines.length;
+        box.indeterminate = checked > 0 && checked < lines.length;
+    }
+    function pickingSelectAll(checked) {
+        document.querySelectorAll('.pick-order').forEach(c => pickingToggleOrder(c.dataset.order, checked));
+    }
+</script>
 @endsection

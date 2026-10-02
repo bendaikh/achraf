@@ -99,12 +99,23 @@ class OrderPhysicalStockService
         $order->loadMissing('items.product.variants', 'items.variant');
 
         return DB::transaction(function () use ($order, $preferred) {
+            // Re-imports (Shopify/Jumia) recreate order lines with new ids: re-attach the
+            // existing reservations / sorties to the current lines first, otherwise every
+            // sync would reserve the same units again and drain Belvédère stock.
+            $this->reconcileOrderReservations($order);
+            $order->unsetRelation('items');
+            $order->load('items.product.variants', 'items.variant');
+
+            $lineQuantities = $this->lineQuantities($order);
             $reserved = [];
             $unavailable = [];
+            $shortages = [];
 
+            // Same physical source as « Stock par emplacement » : Belvédère first, then
+            // other sellable physical depots. Never Shopify online, never SAV / quarantaine.
             $warehouses = Warehouse::query()
                 ->active()
-                ->physical()
+                ->sellable()
                 ->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [$preferred->id])
                 ->orderByDesc('is_fulfillment_default')
                 ->orderBy('name')
@@ -121,18 +132,14 @@ class OrderPhysicalStockService
                     continue;
                 }
 
-                $alreadyReserved = (int) StockReservation::query()
-                    ->active()
-                    ->where('source_type', 'pos_sale')
-                    ->where('source_id', $order->id)
-                    ->where('source_line_type', 'pos_sale_item')
-                    ->where('source_line_id', $item->id)
-                    ->sum('quantity');
+                $shortages[$product->id] ??= ['product' => $product, 'quantity' => 0];
 
-                $remaining = $needed - $alreadyReserved;
+                $alreadyReserved = (int) ($lineQuantities[$item->id]['reserved'] ?? 0);
+                $alreadyShipped = (int) ($lineQuantities[$item->id]['shipped'] ?? 0);
+
+                // Besoin = Qté commandée − déjà sortie − déjà réservée − stock physique disponible.
+                $remaining = $needed - $alreadyShipped - $alreadyReserved;
                 if ($remaining <= 0) {
-                    $this->clearNeed($order, $product, $preferred);
-
                     continue;
                 }
 
@@ -175,8 +182,8 @@ class OrderPhysicalStockService
                                 'source_line_id' => $item->id,
                                 'document_reference' => $order->ticket_number,
                                 'notes' => 'Allocation commande '.$order->ticket_number,
-                                // Delta reservation: allow increasing a prior partial reserve.
-                                'top_up' => $alreadyReserved > 0,
+                                // Delta reservation: always add to an existing reservation on the same slot.
+                                'top_up' => true,
                             ]
                         );
                         $reserved[] = [
@@ -193,9 +200,16 @@ class OrderPhysicalStockService
                 }
 
                 if ($remaining > 0) {
-                    $unavailable[] = $this->registerNeed($order, $product, $preferred, $remaining);
+                    $shortages[$product->id]['quantity'] += $remaining;
+                }
+            }
+
+            // One purchase need per (commande, produit) = somme des manques réels ; 0 → aucun besoin.
+            foreach ($shortages as $shortage) {
+                if ($shortage['quantity'] > 0) {
+                    $unavailable[] = $this->registerNeed($order, $shortage['product'], $preferred, $shortage['quantity']);
                 } else {
-                    $this->clearNeed($order, $product, $preferred);
+                    $this->clearNeed($order, $shortage['product'], $preferred);
                 }
             }
 
@@ -211,38 +225,213 @@ class OrderPhysicalStockService
 
     /**
      * Validate physical exit for reserved quantities (picking workflow).
-     * Idempotent: already consumed reservations are skipped.
+     * $lineIds = null → every reserved line of the order; otherwise ONLY the ticked
+     * order lines (sortie partielle). Unreserved lines stay pending / besoin d’achat.
+     * The order is closed (physical_stock_processed_at) only once every stocked line
+     * has been fully shipped. Idempotent: already consumed reservations are skipped.
      *
-     * @return array{consumed: int, skipped: int}
+     * @param  list<int>|null  $lineIds
+     * @return array{consumed: int, skipped: int, quantity: int, completed: bool}
      */
-    public function validateExit(PosSale $order): array
+    public function validateExit(PosSale $order, ?array $lineIds = null): array
     {
         if ($order->physical_stock_processed_at) {
-            return ['consumed' => 0, 'skipped' => 0];
+            return ['consumed' => 0, 'skipped' => 0, 'quantity' => 0, 'completed' => true];
         }
 
-        return DB::transaction(function () use ($order) {
-            $reservations = StockReservation::query()
+        return DB::transaction(function () use ($order, $lineIds) {
+            $this->reconcileOrderReservations($order);
+
+            $query = StockReservation::query()
                 ->active()
                 ->where('source_type', 'pos_sale')
-                ->where('source_id', $order->id)
-                ->lockForUpdate()
-                ->get();
+                ->where('source_id', $order->id);
+
+            if ($lineIds !== null) {
+                $lineIds = array_values(array_unique(array_map('intval', $lineIds)));
+                if ($lineIds === []) {
+                    return ['consumed' => 0, 'skipped' => 0, 'quantity' => 0, 'completed' => false];
+                }
+                $query->where('source_line_type', 'pos_sale_item')
+                    ->whereIn('source_line_id', $lineIds);
+            }
+
+            $reservations = $query->lockForUpdate()->get();
 
             $consumed = 0;
+            $quantity = 0;
             foreach ($reservations as $reservation) {
                 $this->stockMovement->consumeReservation(
                     $reservation,
                     'Validation sortie commande '.$order->ticket_number
                 );
                 $consumed++;
+                $quantity += (int) $reservation->quantity;
             }
 
-            $order->physical_stock_processed_at = now();
-            $order->save();
+            $completed = $this->orderFullyShipped($order);
+            if ($completed) {
+                $order->physical_stock_processed_at = now();
+                $order->save();
+            }
 
-            return ['consumed' => $consumed, 'skipped' => 0];
+            return ['consumed' => $consumed, 'skipped' => 0, 'quantity' => $quantity, 'completed' => $completed];
         });
+    }
+
+    /**
+     * True when every stocked line has been physically shipped (consumed reservations).
+     */
+    public function orderFullyShipped(PosSale $order): bool
+    {
+        $items = PosSaleItem::query()
+            ->where('pos_sale_id', $order->id)
+            ->with('product')
+            ->get();
+        $quantities = $this->lineQuantities($order);
+
+        foreach ($items as $item) {
+            if (! $item->product || ! $item->product->tracksStock() || (int) $item->quantity <= 0) {
+                continue;
+            }
+            if ((int) ($quantities[$item->id]['shipped'] ?? 0) < (int) $item->quantity) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Reserved (active) and shipped (consumed) quantities per order line.
+     *
+     * @return array<int, array{reserved:int, shipped:int}>
+     */
+    public function lineQuantities(PosSale $order): array
+    {
+        $rows = StockReservation::query()
+            ->where('source_type', 'pos_sale')
+            ->where('source_id', $order->id)
+            ->where('source_line_type', 'pos_sale_item')
+            ->whereIn('status', [StockReservation::STATUS_ACTIVE, StockReservation::STATUS_CONSUMED])
+            ->get(['source_line_id', 'status', 'quantity']);
+
+        $out = [];
+        foreach ($rows as $row) {
+            $lineId = (int) $row->source_line_id;
+            $out[$lineId] ??= ['reserved' => 0, 'shipped' => 0];
+            $key = $row->status === StockReservation::STATUS_CONSUMED ? 'shipped' : 'reserved';
+            $out[$lineId][$key] += (int) $row->quantity;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Re-attach reservations whose order line no longer exists (Shopify/Jumia re-imports
+     * delete and recreate pos_sale_items) to the current line of the same product, and
+     * release reservations that exceed what the order still needs. Without this, each
+     * sync re-reserved the same order (e.g. 11 units reserved for 1 ordered) and the
+     * remaining orders were wrongly flagged « Manquant » with a purchase need.
+     *
+     * @return array{rebound:int, released:int}
+     */
+    public function reconcileOrderReservations(PosSale $order): array
+    {
+        $items = PosSaleItem::query()
+            ->where('pos_sale_id', $order->id)
+            ->with('product')
+            ->orderBy('id')
+            ->get();
+
+        $capacity = [];
+        $itemProduct = [];
+        $itemVariant = [];
+        foreach ($items as $item) {
+            if (! $item->product || ! $item->product->tracksStock() || (int) $item->quantity <= 0) {
+                continue;
+            }
+            $capacity[$item->id] = (int) $item->quantity;
+            $itemProduct[$item->id] = (int) $item->product_id;
+            $itemVariant[$item->id] = $item->product_variant_id ? (int) $item->product_variant_id : null;
+        }
+
+        $reservations = StockReservation::query()
+            ->where('source_type', 'pos_sale')
+            ->where('source_id', $order->id)
+            ->whereIn('status', [StockReservation::STATUS_ACTIVE, StockReservation::STATUS_CONSUMED])
+            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', [StockReservation::STATUS_CONSUMED])
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        $rebound = 0;
+        $released = 0;
+        $orphans = [];
+
+        // Pass 1: reservations still pointing at an existing line of the same product.
+        foreach ($reservations as $reservation) {
+            $lineId = (int) $reservation->source_line_id;
+            $qty = (int) $reservation->quantity;
+            $bound = $reservation->source_line_type === 'pos_sale_item'
+                && isset($capacity[$lineId])
+                && $itemProduct[$lineId] === (int) $reservation->product_id;
+
+            if (! $bound) {
+                $orphans[] = $reservation;
+
+                continue;
+            }
+
+            if ($reservation->status === StockReservation::STATUS_CONSUMED) {
+                $capacity[$lineId] -= $qty;
+
+                continue;
+            }
+
+            if ($capacity[$lineId] >= $qty) {
+                $capacity[$lineId] -= $qty;
+
+                continue;
+            }
+
+            // More reserved than still needed on this line → give the units back.
+            $this->stockMovement->releaseReservation($reservation, 'Ajustement réservation (quantité commandée réduite)');
+            $released++;
+        }
+
+        // Pass 2: orphan reservations → current line of the same product, else release.
+        foreach ($orphans as $reservation) {
+            $qty = (int) $reservation->quantity;
+            $target = null;
+            foreach ($capacity as $lineId => $left) {
+                if ($itemProduct[$lineId] !== (int) $reservation->product_id || $left < $qty) {
+                    continue;
+                }
+                if ($target === null
+                    || ($itemVariant[$lineId] && $itemVariant[$lineId] === (int) $reservation->product_variant_id)) {
+                    $target = $lineId;
+                }
+            }
+
+            if ($target !== null) {
+                $reservation->source_line_type = 'pos_sale_item';
+                $reservation->source_line_id = $target;
+                $reservation->save();
+                $capacity[$target] -= $qty;
+                $rebound++;
+
+                continue;
+            }
+
+            if ($reservation->status === StockReservation::STATUS_ACTIVE) {
+                $this->stockMovement->releaseReservation($reservation, 'Libération : ligne de commande supprimée / déjà couverte');
+                $released++;
+            }
+            // Consumed without matching line: keep as history.
+        }
+
+        return ['rebound' => $rebound, 'released' => $released];
     }
 
     /**
@@ -276,15 +465,29 @@ class OrderPhysicalStockService
 
     /**
      * Reset the active picking queue without touching physical stock or deleting orders.
-     * Releases unvalidated reservations, cancels open purchase needs, then re-allocates
-     * every eligible order from the picking activation date against current physical stock.
+     * Kept for Paramètres → Stock ; same logic as « Recalculer les besoins d’achat ».
      *
-     * @return array{orders:int, released:int, reserved_qty:int, needs:int}
+     * @return array{orders:int, released:int, reserved_qty:int, needs:int, cancelled_needs:int, shortage_qty:int}
      */
     public function resetPickingQueue(): array
     {
+        return $this->recalculatePurchaseNeeds();
+    }
+
+    /**
+     * « Réinitialiser / Recalculer les besoins d’achat » :
+     *  1. annule les besoins d’achat NON traités (statut ouvert) des commandes en attente de sortie ;
+     *  2. libère les réservations non sorties de ces commandes (stock physique inchangé) ;
+     *  3. relit le stock physique actuel (Stock par emplacement / Magasin Belvédère) et refait les réservations ;
+     *  4. recrée uniquement les vrais manques (Qté commandée − sortie − réservée − disponible > 0).
+     * Ne modifie ni les commandes, ni les quantités physiques, ni les besoins déjà commandés (BC fournisseur).
+     *
+     * @return array{orders:int, released:int, reserved_qty:int, needs:int, cancelled_needs:int, shortage_qty:int}
+     */
+    public function recalculatePurchaseNeeds(): array
+    {
         if (! StockSettings::pickingEnabled()) {
-            throw new RuntimeException('Le picking est désactivé. Activez-le avant de réinitialiser.');
+            throw new RuntimeException('Le picking est désactivé. Activez-le avant de recalculer les besoins d’achat.');
         }
 
         $activatedAt = StockSettings::pickingActivatedAt();
@@ -295,30 +498,63 @@ class OrderPhysicalStockService
         $orders = PosSale::query()
             ->whereNull('physical_stock_processed_at')
             ->where('created_at', '>=', $activatedAt)
-            ->whereHas('items.product', fn ($q) => $q->where('item_kind', 'stocked'))
+            ->where(function ($q) {
+                $q->whereHas('items.product', fn ($p) => $p->where('item_kind', 'stocked'))
+                    ->orWhereExists(function ($r) {
+                        $r->selectRaw('1')
+                            ->from('stock_reservations')
+                            ->whereColumn('stock_reservations.source_id', 'pos_sales.id')
+                            ->where('stock_reservations.source_type', 'pos_sale')
+                            ->where('stock_reservations.status', StockReservation::STATUS_ACTIVE);
+                    });
+            })
             ->orderBy('id')
             ->get();
 
-        $released = 0;
-        foreach ($orders as $order) {
-            $released += $this->releaseAllocations($order, 'Réinitialisation picking');
-        }
+        $orderIds = $orders->pluck('id')->all();
 
-        // Also clear orphan open needs for the activation window (orders without prior reservations).
-        StockReplenishmentNeed::query()
+        // 1. Besoins non traités des commandes en attente + besoins orphelins (commande supprimée).
+        $cancelledNeeds = StockReplenishmentNeed::query()
             ->open()
-            ->whereIn('pos_sale_id', $orders->pluck('id'))
+            ->where(function ($q) use ($orderIds) {
+                $q->whereIn('pos_sale_id', $orderIds ?: [0])
+                    ->orWhere(function ($orphan) {
+                        $orphan->whereNotNull('pos_sale_id')
+                            ->whereNotExists(function ($e) {
+                                $e->selectRaw('1')
+                                    ->from('pos_sales')
+                                    ->whereColumn('pos_sales.id', 'stock_replenishment_needs.pos_sale_id');
+                            });
+                    });
+            })
             ->update([
                 'status' => StockReplenishmentNeed::STATUS_CANCELLED,
-                'notes' => 'Annulé : réinitialisation picking',
+                'notes' => 'Annulé : recalcul des besoins d’achat',
             ]);
 
+        // 2. Libère les réservations actives (pas de sortie physique).
+        $released = 0;
+        foreach ($orders as $order) {
+            $reservations = StockReservation::query()
+                ->active()
+                ->where('source_type', 'pos_sale')
+                ->where('source_id', $order->id)
+                ->get();
+            foreach ($reservations as $reservation) {
+                $this->stockMovement->releaseReservation($reservation, 'Recalcul des besoins d’achat');
+                $released++;
+            }
+        }
+
+        // 3–4. Réalloue dans l’ordre des commandes (FIFO) sur le stock physique actuel.
         $reservedQty = 0;
         $needs = 0;
+        $shortageQty = 0;
         foreach ($orders as $order) {
             $result = $this->allocate($order->fresh(['items.product.variants', 'items.variant']));
             $reservedQty += collect($result['reserved'])->sum('quantity');
             $needs += count($result['unavailable']);
+            $shortageQty += collect($result['unavailable'])->sum('quantity');
         }
 
         return [
@@ -326,6 +562,8 @@ class OrderPhysicalStockService
             'released' => $released,
             'reserved_qty' => $reservedQty,
             'needs' => $needs,
+            'cancelled_needs' => $cancelledNeeds,
+            'shortage_qty' => $shortageQty,
         ];
     }
 
@@ -359,6 +597,7 @@ class OrderPhysicalStockService
             ->with('location')
             ->get()
             ->groupBy('source_line_id');
+        $quantities = $this->lineQuantities($order);
 
         $lines = [];
         foreach ($order->items as $item) {
@@ -374,6 +613,7 @@ class OrderPhysicalStockService
 
             $lineReservations = $reservations->get($item->id) ?? collect();
             $reserved = (int) $lineReservations->sum('quantity');
+            $shipped = (int) ($quantities[$item->id]['shipped'] ?? 0);
             $variantId = $this->resolveItemVariantId($product, $item);
 
             $slots = $this->physicalSlotsQuery($product, (int) $belvedere->id, $variantId)
@@ -397,14 +637,21 @@ class OrderPhysicalStockService
                 }
             }
 
+            $missing = max(0, $ordered - $shipped - $reserved);
             $lines[] = [
+                'item_id' => (int) $item->id,
                 'product' => $item->designation ?: $product->name,
                 'sku' => $item->variant?->sku ?: ($item->ref ?: $product->ref) ?: '—',
                 'ordered' => $ordered,
                 'belvedere_stock' => $belvedereStock,
                 'location' => $locationCodes->isNotEmpty() ? $locationCodes->implode(', ') : '—',
                 'reserved' => $reserved,
-                'missing' => max(0, $ordered - $reserved),
+                'shipped' => $shipped,
+                'missing' => $missing,
+                'can_ship' => $reserved > 0,
+                'status' => $shipped >= $ordered
+                    ? 'shipped'
+                    : ($reserved > 0 ? ($missing > 0 ? 'partial' : 'ready') : 'pending'),
             ];
         }
 

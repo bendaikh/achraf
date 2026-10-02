@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PosSale;
+use App\Models\PosSaleItem;
 use App\Models\StockReservation;
 use App\Models\Warehouse;
 use App\Services\OrderPhysicalStockService;
@@ -95,12 +96,12 @@ class OrderPickingController extends Controller
 
     public function pdf(Request $request)
     {
-        $validated = $request->validate([
-            'order_ids' => 'required|array|min:1',
-            'order_ids.*' => 'integer|exists:pos_sales,id',
-        ]);
+        [$orderIds, $linesByOrder] = $this->selectionFromRequest($request);
+        if ($orderIds === []) {
+            return back()->with('error', 'Sélectionnez au moins une commande ou une ligne produit réservée.');
+        }
 
-        $orderIds = $this->eligiblePickingOrderIds($validated['order_ids']);
+        $orderIds = $this->eligiblePickingOrderIds($orderIds);
         if ($orderIds === []) {
             return back()->with('error', 'Aucune commande éligible au picking (créée/importée avant l’activation).');
         }
@@ -110,7 +111,13 @@ class OrderPickingController extends Controller
             ->where('source_type', 'pos_sale')
             ->whereIn('source_id', $orderIds)
             ->with(['product', 'variant', 'warehouse', 'location', 'product'])
-            ->get();
+            ->get()
+            // Lignes cochées uniquement quand une sélection par ligne est envoyée.
+            ->filter(function (StockReservation $reservation) use ($linesByOrder) {
+                $selected = $linesByOrder[(int) $reservation->source_id] ?? null;
+
+                return $selected === null || in_array((int) $reservation->source_line_id, $selected, true);
+            });
 
         $orders = PosSale::query()
             ->whereIn('id', $orderIds)
@@ -156,34 +163,83 @@ class OrderPickingController extends Controller
 
     public function validateExit(Request $request)
     {
-        $validated = $request->validate([
-            'order_ids' => 'required|array|min:1',
-            'order_ids.*' => 'integer|exists:pos_sales,id',
-        ]);
+        [$orderIds, $linesByOrder] = $this->selectionFromRequest($request);
+        if ($orderIds === []) {
+            return back()->with('error', 'Sélectionnez au moins une ligne produit réservée à sortir.');
+        }
 
-        $ok = 0;
+        $completed = 0;
+        $partial = 0;
+        $lines = 0;
+        $units = 0;
         $errors = [];
 
-        foreach ($this->eligiblePickingOrderIds($validated['order_ids']) as $orderId) {
+        foreach ($this->eligiblePickingOrderIds($orderIds) as $orderId) {
             $order = PosSale::query()->find($orderId);
             if (! $order) {
                 continue;
             }
             try {
-                $result = $this->orderPhysicalStock->validateExit($order);
-                if ($result['consumed'] > 0 || $order->physical_stock_processed_at) {
-                    $ok++;
+                // null → toutes les lignes réservées ; sinon UNIQUEMENT les lignes cochées.
+                $result = $this->orderPhysicalStock->validateExit($order, $linesByOrder[$orderId] ?? null);
+                $lines += $result['consumed'];
+                $units += $result['quantity'] ?? 0;
+                if ($result['completed']) {
+                    $completed++;
+                } elseif ($result['consumed'] > 0) {
+                    $partial++;
                 }
             } catch (\Throwable $e) {
                 $errors[] = ($order->ticket_number ?: '#'.$order->id).' : '.$e->getMessage();
             }
         }
 
+        $message = sprintf(
+            'Sortie physique validée : %d ligne(s), %d unité(s) (stock diminué, réservations soldées). %d commande(s) complète(s), %d commande(s) en sortie partielle (lignes restantes en attente / besoin d’achat).',
+            $lines,
+            $units,
+            $completed,
+            $partial
+        );
+
         if ($errors !== []) {
-            return back()->with('warning', $ok.' sortie(s) validée(s). Erreurs : '.implode(' | ', $errors));
+            return back()->with('warning', $message.' Erreurs : '.implode(' | ', $errors));
         }
 
-        return back()->with('success', $ok.' commande(s) : sortie physique validée (stock diminué, réservations soldées).');
+        return back()->with('success', $message);
+    }
+
+    /**
+     * Picking selection: either ticked product lines (line_ids[]) or whole orders (order_ids[]).
+     * When at least one line is ticked, only those lines are used (sortie partielle).
+     *
+     * @return array{0: list<int>, 1: array<int, list<int>>}
+     */
+    protected function selectionFromRequest(Request $request): array
+    {
+        $validated = $request->validate([
+            'order_ids' => 'nullable|array',
+            'order_ids.*' => 'integer|exists:pos_sales,id',
+            'line_ids' => 'nullable|array',
+            'line_ids.*' => 'integer',
+        ]);
+
+        $lineIds = array_values(array_unique(array_map('intval', $validated['line_ids'] ?? [])));
+        if ($lineIds !== []) {
+            $linesByOrder = [];
+            PosSaleItem::query()
+                ->whereIn('id', $lineIds)
+                ->get(['id', 'pos_sale_id'])
+                ->each(function (PosSaleItem $item) use (&$linesByOrder) {
+                    $linesByOrder[(int) $item->pos_sale_id][] = (int) $item->id;
+                });
+
+            return [array_map('intval', array_keys($linesByOrder)), $linesByOrder];
+        }
+
+        $orderIds = array_values(array_unique(array_map('intval', $validated['order_ids'] ?? [])));
+
+        return [$orderIds, []];
     }
 
     /**
@@ -197,7 +253,7 @@ class OrderPickingController extends Controller
             ->where('created_at', '>=', $activatedAt)
             ->whereHas('items.product', fn ($q) => $q->where('item_kind', 'stocked'))
             ->orderBy('id')
-            ->limit(100)
+            ->limit(500)
             ->get();
 
         foreach ($candidates as $order) {

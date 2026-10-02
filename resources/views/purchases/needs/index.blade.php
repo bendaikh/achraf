@@ -11,7 +11,15 @@
             Même besoin métier que <a href="{{ route('stock.replenishment.index') }}" class="text-[#0a5d8a] font-semibold hover:underline">Produits → À approvisionner</a>.
             Ici : couvrir le manque et choisir le fournisseur.
         </p>
-        <p class="text-xs text-slate-500 mb-6">Aucun BC automatique sans validation. Affecter un fournisseur ne crée pas encore de BC.</p>
+        <p class="text-xs text-slate-500 mb-4">Aucun BC automatique sans validation. Affecter un fournisseur ne crée pas encore de BC.</p>
+        <form method="POST" action="{{ route('purchases.needs.recalculate') }}" class="mb-6"
+              onsubmit="return confirm('Recalculer les besoins d’achat ?\n\nLes besoins non traités seront annulés puis recréés à partir du stock physique actuel (Magasin Belvédère / emplacements). Les réservations des commandes en attente sont refaites. Les commandes, le stock physique et les besoins déjà commandés (BC) ne sont pas modifiés.')">
+            @csrf
+            <button type="submit" class="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700">
+                Réinitialiser / Recalculer les besoins d’achat
+            </button>
+            <span class="ml-2 text-xs text-slate-500">Besoin = Qté commandée − stock physique disponible − déjà réservé. Si ≤ 0 → aucun besoin.</span>
+        </form>
 
         @if(session('success'))
             <div class="mb-4 bg-green-50 border-l-4 border-green-500 p-4 rounded text-green-700">{{ session('success') }}</div>
@@ -59,9 +67,11 @@
                             @foreach($groupNeeds as $need)
                                 @php
                                     $product = $need->product;
-                                    $phys = $product ? $product->physicalStock() : 0;
-                                    $res = $product ? $product->reservedStock() : 0;
-                                    $avail = $product ? $product->availableStock() : 0;
+                                    // Même source que Stock par emplacement / Magasin Belvédère (hors Shopify, hors SAV).
+                                    $ps = $physicalStocks[$need->product_id] ?? ['physical' => 0, 'reserved' => 0, 'available' => 0];
+                                    $phys = $ps['physical'];
+                                    $res = $ps['reserved'];
+                                    $avail = $ps['available'];
                                 @endphp
                                 <tr>
                                     <td class="px-4 py-3">

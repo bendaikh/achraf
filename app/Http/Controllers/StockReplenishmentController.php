@@ -7,7 +7,10 @@ use App\Models\StockReplenishmentNeed;
 use App\Models\Supplier;
 use App\Models\SupplierPurchaseOrder;
 use App\Services\DocumentNumberService;
+use App\Models\ProductStock;
+use App\Models\Warehouse;
 use App\Services\LocationStockReportService;
+use App\Services\OrderPhysicalStockService;
 use App\Services\ProductPurchaseHistoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -36,8 +39,9 @@ class StockReplenishmentController extends Controller
         });
 
         $suppliers = Supplier::query()->orderBy('name')->get();
+        $physicalStocks = $this->physicalStockByProduct($productIds);
 
-        return view('stock.replenishment.index', compact('needs', 'groups', 'suppliers', 'lastSuppliers'));
+        return view('stock.replenishment.index', compact('needs', 'groups', 'suppliers', 'lastSuppliers', 'physicalStocks'));
     }
 
     /**
@@ -60,8 +64,67 @@ class StockReplenishmentController extends Controller
         });
 
         $suppliers = Supplier::query()->orderBy('name')->get();
+        $physicalStocks = $this->physicalStockByProduct($productIds);
 
-        return view('purchases.needs.index', compact('needs', 'groups', 'suppliers', 'lastSuppliers'));
+        return view('purchases.needs.index', compact('needs', 'groups', 'suppliers', 'lastSuppliers', 'physicalStocks'));
+    }
+
+    /**
+     * « Réinitialiser / Recalculer les besoins d’achat » : annule les besoins non traités,
+     * relit le stock physique (Stock par emplacement / Magasin Belvédère), refait les
+     * réservations et recrée uniquement les vrais manques. Ne touche ni aux commandes
+     * ni au stock physique.
+     */
+    public function recalculate(OrderPhysicalStockService $orderPhysicalStock)
+    {
+        try {
+            $result = $orderPhysicalStock->recalculatePurchaseNeeds();
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', sprintf(
+            'Besoins d’achat recalculés : %d commande(s) analysée(s), %d besoin(s) non traité(s) annulé(s), %d réservation(s) refaite(s) (%d unité(s) réservée(s)), %d besoin(s) réel(s) recréé(s) (%d unité(s)).',
+            $result['orders'],
+            $result['cancelled_needs'],
+            $result['released'],
+            $result['reserved_qty'],
+            $result['needs'],
+            $result['shortage_qty']
+        ));
+    }
+
+    /**
+     * Stock physique / réservé / disponible par produit — même source que « Stock par
+     * emplacement » et le picking : dépôts physiques vendables (Magasin Belvédère),
+     * jamais le miroir Shopify en ligne ni SAV / quarantaine.
+     *
+     * @param  list<int>  $productIds
+     * @return array<int, array{physical:int, reserved:int, available:int}>
+     */
+    protected function physicalStockByProduct(array $productIds): array
+    {
+        if ($productIds === []) {
+            return [];
+        }
+
+        $warehouseIds = Warehouse::query()->active()->sellable()->pluck('id');
+
+        $rows = ProductStock::query()
+            ->whereIn('product_id', $productIds)
+            ->whereIn('warehouse_id', $warehouseIds)
+            ->get(['product_id', 'quantity', 'reserved']);
+
+        $out = [];
+        foreach ($rows as $row) {
+            $pid = (int) $row->product_id;
+            $out[$pid] ??= ['physical' => 0, 'reserved' => 0, 'available' => 0];
+            $out[$pid]['physical'] += (int) $row->quantity;
+            $out[$pid]['reserved'] += (int) $row->reserved;
+            $out[$pid]['available'] += max(0, (int) $row->quantity - (int) $row->reserved);
+        }
+
+        return $out;
     }
 
     public function updateSupplier(Request $request, StockReplenishmentNeed $need)

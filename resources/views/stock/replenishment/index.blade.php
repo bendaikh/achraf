@@ -7,7 +7,15 @@
 <main class="flex-1 overflow-y-auto bg-slate-50/80">
     <div class="p-4 sm:p-6 lg:p-8">
         <h1 class="text-2xl font-bold text-slate-900 mb-1">À approvisionner</h1>
-        <p class="text-sm text-slate-600 mb-6">Besoins nés des commandes sans stock physique à Belvédère. Plusieurs besoins du même fournisseur peuvent être regroupés dans un seul BC.</p>
+        <p class="text-sm text-slate-600 mb-4">Besoins nés des commandes sans stock physique à Belvédère. Plusieurs besoins du même fournisseur peuvent être regroupés dans un seul BC.</p>
+        <form method="POST" action="{{ route('purchases.needs.recalculate') }}" class="mb-6"
+              onsubmit="return confirm('Recalculer les besoins d’achat ?\n\nLes besoins non traités seront annulés puis recréés à partir du stock physique actuel (Magasin Belvédère / emplacements). Les réservations des commandes en attente sont refaites. Les commandes, le stock physique et les besoins déjà commandés (BC) ne sont pas modifiés.')">
+            @csrf
+            <button type="submit" class="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700">
+                Réinitialiser / Recalculer les besoins d’achat
+            </button>
+            <span class="ml-2 text-xs text-slate-500">Besoin = Qté commandée − stock physique disponible − déjà réservé. Si ≤ 0 → aucun besoin.</span>
+        </form>
 
         @if(session('success'))
             <div class="mb-4 bg-green-50 border-l-4 border-green-500 p-4 rounded text-green-700">{{ session('success') }}</div>
