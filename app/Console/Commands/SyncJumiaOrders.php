@@ -7,6 +7,7 @@ use App\Services\Jumia\JumiaApiClient;
 use App\Services\Jumia\JumiaOrderImporter;
 use App\Services\Jumia\JumiaStatusMapper;
 use App\Services\MarketplaceStockSyncService;
+use App\Services\OrderPhysicalStockService;
 use App\Services\OrderToInvoiceConverter;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +20,7 @@ class SyncJumiaOrders extends Command
 
     protected $description = 'Sync orders from Jumia Vendor API';
 
-    public function handle(OrderToInvoiceConverter $orderToInvoiceConverter, MarketplaceStockSyncService $stockSync): int
+    public function handle(OrderToInvoiceConverter $orderToInvoiceConverter, MarketplaceStockSyncService $stockSync, OrderPhysicalStockService $orderPhysicalStock): int
     {
         $integration = JumiaIntegration::query()->first();
 
@@ -42,7 +43,7 @@ class SyncJumiaOrders extends Command
         }
 
         $client = new JumiaApiClient($integration);
-        $importer = new JumiaOrderImporter($client, new JumiaStatusMapper, $orderToInvoiceConverter, $stockSync);
+        $importer = new JumiaOrderImporter($client, new JumiaStatusMapper, $orderToInvoiceConverter, $stockSync, $orderPhysicalStock);
 
         try {
             if (! $client->testConnection()) {
