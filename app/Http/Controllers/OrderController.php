@@ -561,11 +561,14 @@ class OrderController extends Controller
         $deliveryNote = DeliveryNote::create([
             'delivery_number' => $deliveryNumber,
             'client_id' => $order->client_id,
+            // Lien commande : la validation du BL consomme les réservations picking (sortie unique).
+            'pos_sale_id' => $order->id,
             'delivery_date' => now(),
             'shipping_date' => now(),
             'currency' => $order->currency ?? 'MAD',
             'status' => 'En cours',
-            'stock_location' => 'DEPOT',
+            // Même dépôt que le picking (Magasin Belvédère) ; 'DEPOT' en repli si non configuré.
+            'stock_location' => \App\Models\Warehouse::fulfillmentWarehouse()?->name ?? 'DEPOT',
             'subtotal' => $order->subtotal,
             'discount' => $order->discount,
             'adjustment' => 0,

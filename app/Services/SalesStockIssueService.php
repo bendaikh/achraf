@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\DeliveryNote;
 use App\Models\Invoice;
+use App\Models\PosSale;
 use App\Models\Product;
 use App\Models\StockMovement;
+use App\Models\StockReservation;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use Illuminate\Database\Eloquent\Model;
@@ -73,7 +75,101 @@ class SalesStockIssueService
 
         $note->loadMissing('items');
 
+        // BL issu d'une commande : la sortie physique est UNIQUE entre « Valider sortie »
+        // (Picking) et la validation du BL — on consomme les réservations de la commande
+        // au lieu de créer une deuxième sortie.
+        $order = $this->sourceOrderFor($note);
+        if ($order) {
+            return $this->applyForOrderDeliveryNote($note, $order, $strict);
+        }
+
         return $this->applyIfNeeded($note, $this->itemsPayloadFromDocument($note), $strict);
+    }
+
+    /**
+     * Commande source d'un BL : lien explicite (pos_sale_id), sinon BL historique
+     * généré depuis une commande (« Converti depuis la commande … »).
+     */
+    public function sourceOrderFor(DeliveryNote $note): ?PosSale
+    {
+        if ($note->pos_sale_id) {
+            return PosSale::query()->find($note->pos_sale_id);
+        }
+
+        if (preg_match('/^Converti depuis la commande (\S+)/u', (string) $note->remarks, $m)) {
+            return PosSale::query()->where('ticket_number', $m[1])->first();
+        }
+
+        return null;
+    }
+
+    /**
+     * Validation d'un BL lié à une commande :
+     *  - commande déjà sortie (Picking « Valider sortie » ou sortie legacy) → aucune nouvelle sortie ;
+     *  - sinon les réservations actives de la commande sont consommées (= la sortie physique) ;
+     *  - seules les quantités du BL non couvertes par une sortie déjà faite sortent en direct ;
+     *  - la commande est ensuite clôturée côté stock pour que le Picking ne la ressorte pas.
+     *
+     * @return list<string> warnings
+     */
+    protected function applyForOrderDeliveryNote(DeliveryNote $note, PosSale $order, bool $strict): array
+    {
+        $physical = app(OrderPhysicalStockService::class);
+
+        return DB::transaction(function () use ($note, $order, $strict, $physical) {
+            $order = PosSale::query()->lockForUpdate()->findOrFail($order->id);
+
+            if ($order->physical_stock_processed_at) {
+                $note->update(['stock_applied_at' => now()]);
+
+                return [];
+            }
+
+            $physical->validateExit($order);
+
+            // Quantités déjà sorties pour cette commande (réservations consommées), par produit.
+            $shipped = StockReservation::query()
+                ->where('source_type', 'pos_sale')
+                ->where('source_id', $order->id)
+                ->where('status', StockReservation::STATUS_CONSUMED)
+                ->selectRaw('product_id, SUM(quantity) as qty')
+                ->groupBy('product_id')
+                ->pluck('qty', 'product_id')
+                ->map(fn ($qty) => (int) $qty)
+                ->all();
+
+            $remainingItems = [];
+            foreach ($this->itemsPayloadFromDocument($note) as $item) {
+                $productId = (int) ($item['product_id'] ?? 0);
+                $qty = (int) ($item['quantity'] ?? 0);
+                if (! $productId || $qty <= 0) {
+                    continue;
+                }
+                $covered = min($qty, $shipped[$productId] ?? 0);
+                $shipped[$productId] = ($shipped[$productId] ?? 0) - $covered;
+                if ($qty - $covered > 0) {
+                    $remainingItems[] = array_merge($item, ['quantity' => $qty - $covered]);
+                }
+            }
+
+            $warnings = $remainingItems !== []
+                ? $this->applyIfNeeded($note, $remainingItems, $strict)
+                : [];
+
+            if (! $note->fresh()->stock_applied_at) {
+                $note->update(['stock_applied_at' => now()]);
+            }
+
+            $order = $order->fresh();
+            if (! $order->physical_stock_processed_at) {
+                // Reliquat livré directement par le BL : plus de réservation ni de besoin d'achat ouvert.
+                $physical->releaseAllocations($order, 'Sortie via BL '.$note->delivery_number);
+                $order->physical_stock_processed_at = now();
+                $order->save();
+            }
+
+            return $warnings;
+        });
     }
 
     /**

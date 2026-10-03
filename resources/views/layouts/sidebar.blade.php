@@ -1,5 +1,7 @@
 @php
     $navigationModules = \App\Support\Navigation::modules(Auth::user());
+    $sidebarActiveModule = \App\Support\Navigation::activeModule($navigationModules, request());
+    $sidebarActiveKey = $sidebarActiveModule ? ($sidebarActiveModule['key'] ?? $sidebarActiveModule['route']) : null;
 @endphp
 
 <style>
@@ -133,6 +135,10 @@
         background: var(--sb-accent);
         transform: translateY(-50%);
     }
+    /* Alpine x-show (collapse toggle) re-displays every marker; only the active module keeps it. */
+    .sidebar-nav-link:not(.is-active) .sidebar-nav-link__marker {
+        display: none !important;
+    }
     .sidebar-nav-link__icon {
         width: 2rem;
         height: 2rem;
@@ -152,9 +158,12 @@
     .sidebar-nav-link__label {
         flex: 1;
         min-width: 0;
-        white-space: nowrap;
         overflow: hidden;
-        text-overflow: ellipsis;
+        /* Long module names (e.g. « Gestion financière clients ») wrap on 2 lines instead of being cut. */
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        line-height: 1.2;
     }
     .sidebar-nav-link__chevron {
         width: 0.9rem;
@@ -239,7 +248,8 @@
     <nav class="app-sidebar__nav" aria-label="Navigation principale">
         @foreach ($navigationModules as $module)
             @php
-                $moduleActive = \App\Support\Navigation::isActive($module, request());
+                // Single active module (same resolution as the soft-nav module key).
+                $moduleActive = $sidebarActiveKey !== null && ($module['key'] ?? $module['route']) === $sidebarActiveKey;
             @endphp
             <a
                 href="{{ route($module['route']) }}"

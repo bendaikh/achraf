@@ -11,7 +11,7 @@ class DeliveryNote extends Model
     use Concerns\HasCommercialAttribution;
 
     protected $fillable = [
-        'delivery_number', 'client_id', 'collaborator_id', 'created_by_user_id', 'delivery_date', 'shipping_date',
+        'delivery_number', 'client_id', 'pos_sale_id', 'collaborator_id', 'created_by_user_id', 'delivery_date', 'shipping_date',
         'reference', 'currency', 'status',
         'converted_invoice_id', 'converted_to_invoice_at',
         'stock_applied_at',
@@ -34,6 +34,14 @@ class DeliveryNote extends Model
     public function client()
     {
         return $this->belongsTo(Client::class);
+    }
+
+    /**
+     * Commande source (BL généré depuis Gestion ventes → Commandes).
+     */
+    public function posSale()
+    {
+        return $this->belongsTo(PosSale::class);
     }
 
     public function items()

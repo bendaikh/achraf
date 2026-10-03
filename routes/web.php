@@ -35,6 +35,7 @@ use App\Http\Controllers\PurchasePaymentController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ReceptionController;
 use App\Http\Controllers\SalesPaymentController;
+use App\Http\Controllers\SalesFinanceController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShopifyIntegrationController;
 use App\Http\Controllers\ShopifyWebhookController;
@@ -317,6 +318,15 @@ Route::middleware('auth')->group(function () {
         Route::get('credit-notes/{creditNote}/print', [CreditNoteController::class, 'print'])->name('credit-notes.print');
         Route::get('credit-notes/{creditNote}/pdf', [CreditNoteController::class, 'downloadPdf'])->name('credit-notes.pdf');
         Route::resource('credit-notes', CreditNoteController::class);
+    });
+
+    // Gestion financière clients — vues de suivi des règlements (lecture seule ; les paiements
+    // restent enregistrés via Gestion des paiements clients / factures).
+    Route::prefix('finance-clients')->name('sales-finance.')->group(function () {
+        Route::get('/', fn () => redirect()->route('sales.payments.index'))->name('index');
+        Route::get('encaissements', [SalesFinanceController::class, 'receipts'])->name('receipts');
+        Route::get('impayes', [SalesFinanceController::class, 'unpaid'])->name('unpaid');
+        Route::get('rapprochements', [SalesFinanceController::class, 'reconciliation'])->name('reconciliation');
     });
 
     Route::prefix('purchases')->group(function () {

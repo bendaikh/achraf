@@ -85,15 +85,19 @@ class Navigation
                 ],
             ],
             [
-                'label' => 'CRM',
+                'label' => 'CRM / Équipe commerciale',
                 'route' => 'clients.index',
                 'key' => 'crm',
                 'soft_nav' => true,
+                'active' => ['access.commissions.*', 'access.dashboard.commercial', 'access.dashboard.team'],
                 'active_paths' => ['crm/*'],
                 'icon' => ['M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'],
                 'children' => [
-                    ['label' => 'Clients', 'route' => 'clients.index', 'active' => ['clients.*']],
-                    ['label' => 'Fournisseurs', 'route' => 'suppliers.index', 'active' => ['suppliers.*']],
+                    ['label' => 'Clients', 'route' => 'clients.index', 'active' => ['clients.*'], 'group' => 'Clients & fournisseurs'],
+                    ['label' => 'Fournisseurs', 'route' => 'suppliers.index', 'active' => ['suppliers.*'], 'group' => 'Clients & fournisseurs'],
+                    ['label' => 'Commissions', 'route' => 'access.commissions.index', 'active' => ['access.commissions.*'], 'group' => 'Équipe commerciale'],
+                    ['label' => 'Mon tableau commercial', 'route' => 'access.dashboard.commercial', 'active' => ['access.dashboard.commercial'], 'group' => 'Équipe commerciale'],
+                    ['label' => 'Équipe commerciale', 'route' => 'access.dashboard.team', 'active' => ['access.dashboard.team'], 'roles' => ['superadmin', 'admin', 'administrateur', 'responsable-commercial'], 'group' => 'Équipe commerciale'],
                 ],
             ],
             [
@@ -142,6 +146,8 @@ class Navigation
                 'route' => 'orders.index',
                 'key' => 'sales',
                 'soft_nav' => true,
+                // Fallback for sales/* pages not listed below; a more specific module
+                // (Gestion financière clients) wins when one of its tabs matches.
                 'active_paths' => ['sales/*'],
                 'icon' => ['M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
                 'children' => [
@@ -149,14 +155,33 @@ class Navigation
                     ['label' => 'Préparation / Picking', 'route' => 'sales.picking.index', 'active' => ['sales.picking.*']],
                     ['label' => 'Retours clients / Scan', 'route' => 'sales.returns.index', 'active' => ['sales.returns.*']],
                     ['label' => 'Devis', 'route' => 'quotes.index', 'active' => ['quotes.*']],
-                    ['label' => 'BC', 'route' => 'purchase-orders.index', 'active' => ['purchase-orders.*']],
-                    ['label' => 'Bon de livraison', 'route' => 'delivery-notes.index', 'active' => ['delivery-notes.*']],
-                    ['label' => 'Factures', 'route' => 'invoices.index', 'active' => ['invoices.*']],
-                    ['label' => 'Avoirs', 'route' => 'credit-notes.index', 'active' => ['credit-notes.*']],
-                    ['label' => 'Gestion Paiement', 'route' => 'sales.payments.index', 'active' => ['sales.payments.*', 'invoices.payments.*']],
-                    ['label' => 'Commissions', 'route' => 'access.commissions.index', 'active' => ['access.commissions.*']],
-                    ['label' => 'Mon tableau commercial', 'route' => 'access.dashboard.commercial', 'active' => ['access.dashboard.commercial']],
-                    ['label' => 'Équipe commerciale', 'route' => 'access.dashboard.team', 'active' => ['access.dashboard.team'], 'roles' => ['superadmin', 'admin', 'administrateur', 'responsable-commercial']],
+                    ['label' => 'Bons de commande', 'route' => 'purchase-orders.index', 'active' => ['purchase-orders.*']],
+                    ['label' => 'Bons de livraison', 'route' => 'delivery-notes.index', 'active' => ['delivery-notes.*']],
+                    [
+                        'label' => 'Factures clients',
+                        'route' => 'invoices.index',
+                        // invoices.payments.* belongs to Gestion financière clients.
+                        'active' => [
+                            'invoices.index', 'invoices.create', 'invoices.store', 'invoices.show', 'invoices.edit',
+                            'invoices.update', 'invoices.destroy', 'invoices.print', 'invoices.pdf', 'invoices.by-client',
+                            'invoices.import', 'invoices.import.*', 'invoices.payment-status',
+                        ],
+                    ],
+                    ['label' => 'Avoirs clients', 'route' => 'credit-notes.index', 'active' => ['credit-notes.*', 'sales.refunds.*']],
+                ],
+            ],
+            [
+                'label' => 'Gestion financière clients',
+                'route' => 'sales.payments.index',
+                'key' => 'sales-finance',
+                'soft_nav' => true,
+                'active' => ['sales.payments.*', 'invoices.payments.*', 'sales-finance.*'],
+                'icon' => ['M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z'],
+                'children' => [
+                    ['label' => 'Gestion des paiements clients', 'route' => 'sales.payments.index', 'active' => ['sales.payments.*', 'invoices.payments.*']],
+                    ['label' => 'Encaissements', 'route' => 'sales-finance.receipts', 'active' => ['sales-finance.receipts']],
+                    ['label' => 'Impayés / reste à payer', 'route' => 'sales-finance.unpaid', 'active' => ['sales-finance.unpaid']],
+                    ['label' => 'Rapprochements / trésorerie', 'route' => 'sales-finance.reconciliation', 'active' => ['sales-finance.reconciliation']],
                 ],
             ],
             [
@@ -303,6 +328,17 @@ class Navigation
      */
     public static function activeModule(array $modules, Request $request): ?array
     {
+        // 1) A module owning an active tab wins (e.g. sales/payments belongs to
+        //    « Gestion financière clients » even though Gestion ventes matches sales/*).
+        foreach ($modules as $module) {
+            foreach ($module['children'] ?? [] as $child) {
+                if (self::isActive($child, $request)) {
+                    return $module;
+                }
+            }
+        }
+
+        // 2) Fallback: module-level route / path patterns.
         foreach ($modules as $module) {
             if (self::isActive($module, $request)) {
                 return $module;
