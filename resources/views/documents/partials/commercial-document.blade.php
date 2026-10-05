@@ -137,7 +137,9 @@
         <tbody>
             @foreach($itemGroups as $originLabel => $groupItems)
                 @if($showSourceReference)
-                    @php($originDate = $sourceDocumentDates[$originLabel] ?? null)
+                    @php
+                        $originDate = $sourceDocumentDates[$originLabel] ?? null;
+                    @endphp
                     <tr class="facture-origin-group">
                         <td colspan="7">
                             <table class="facture-origin-header" cellpadding="0" cellspacing="0">
@@ -156,7 +158,9 @@
                     </tr>
                 @endif
                 @foreach($groupItems as $item)
-                    @php($line = \App\Support\LineItemCalculator::forDisplay($item, $priceMode))
+                    @php
+                        $line = \App\Support\LineItemCalculator::forDisplay($item, $priceMode);
+                    @endphp
                     <tr>
                         <td>{{ $item->ref ?? '-' }}</td>
                         <td>{{ $item->designation }}</td>
@@ -249,7 +253,9 @@
             @if(count($settlementPayments) === 0)
                 <div class="facture-settlement-line"><strong>Montant payé :</strong> {{ number_format($settlement['total_paid'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
             @elseif(!$hasMultiplePayments)
-                @php($payment = $settlementPayments[0])
+                @php
+                    $payment = $settlementPayments[0];
+                @endphp
                 <div class="facture-settlement-line"><strong>Montant payé :</strong> {{ number_format($payment['amount'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
                 <div class="facture-settlement-line"><strong>Mode :</strong> {{ $payment['method'] }}</div>
                 <div class="facture-settlement-line"><strong>Date :</strong> {{ $payment['date'] }}</div>
