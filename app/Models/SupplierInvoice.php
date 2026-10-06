@@ -88,6 +88,7 @@ class SupplierInvoice extends Model
 
     public function getRemainingBalanceAttribute()
     {
+        // Uniquement les règlements effectifs (payment_date ≤ aujourd’hui).
         return max(0, round((float) $this->total - (float) $this->total_paid - (float) $this->credits_applied, 2));
     }
 

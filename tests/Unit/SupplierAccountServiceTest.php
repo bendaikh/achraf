@@ -109,6 +109,7 @@ class SupplierAccountServiceTest extends TestCase
             'cheque_status' => 'cashed',
             'invoice_ids' => [$first->id],
             'use_credits' => false,
+            'allow_advance' => true,
         ]);
 
         $this->assertSame(0.0, $service->invoiceRemaining($first->refresh()));
@@ -279,6 +280,8 @@ class SupplierAccountServiceTest extends TestCase
             'payment_method' => 'Virement bancaire',
             'invoice_ids' => [$invoice->id],
             'use_credits' => true,
+            // Avoir consommé hors système : le solde compte le crédite déjà ; trop-perçu explicite.
+            'allow_advance' => true,
         ]);
 
         $this->assertSame(0.0, $service->invoiceRemaining($invoice->refresh()));

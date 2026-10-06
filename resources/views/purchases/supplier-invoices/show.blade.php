@@ -233,9 +233,9 @@
             </div>
             <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm mb-4">
                 <div><p class="text-gray-500">Montant facture</p><p class="font-semibold">{{ number_format($trace['total'], 2) }} DH</p></div>
-                <div><p class="text-gray-500">Avoir utilisé</p><p class="font-semibold text-emerald-700">- {{ number_format($trace['credits_applied'], 2) }} DH</p></div>
-                <div><p class="text-gray-500">Déjà payé</p><p class="font-semibold">{{ number_format($trace['paid'], 2) }} DH</p></div>
-                <div><p class="text-gray-500">Solde</p><p class="font-bold text-red-600">{{ number_format($trace['remaining'], 2) }} DH</p></div>
+                <div><p class="text-gray-500">Déjà couvert</p><p class="font-semibold text-green-700">{{ number_format($trace['covered'] ?? ($trace['total'] - $trace['net_to_pay']), 2) }} DH</p></div>
+                <div><p class="text-gray-500">Avoirs / avances dispo.</p><p class="font-semibold text-emerald-700">- {{ number_format(($trace['available_credits'] ?? 0) + ($trace['available_advances'] ?? 0), 2) }} DH</p></div>
+                <div><p class="text-gray-500">Reste à payer</p><p class="font-bold text-red-600">{{ number_format($trace['net_to_pay'], 2) }} DH</p></div>
             </div>
             @if($trace['credit_allocations']->isNotEmpty() || $supplierInvoice->payments->isNotEmpty())
                 <ul class="text-sm space-y-1 text-gray-700">

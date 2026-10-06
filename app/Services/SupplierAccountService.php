@@ -10,6 +10,7 @@ use App\Models\SupplierInvoicePayment;
 use App\Models\SupplierPayment;
 use App\Models\SupplierPaymentAllocation;
 use App\Models\SupplierPaymentAudit;
+use App\Support\PaymentRealization;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,7 @@ class SupplierAccountService
 
     public function invoiceAllocated(SupplierInvoice $invoice): float
     {
+        // Toutes les affectations (y compris planifiées) — suivi / snapshots.
         return $this->money($invoice->payments()->sum('amount'));
     }
 
@@ -38,6 +40,18 @@ class SupplierAccountService
     }
 
     public function invoiceRemaining(SupplierInvoice $invoice): float
+    {
+        // Solde facture / reste à payer : règlements effectifs uniquement.
+        return max(0, $this->money(
+            (float) $invoice->total - $this->invoicePaid($invoice) - $this->invoiceCreditsApplied($invoice)
+        ));
+    }
+
+    /**
+     * Capacité d'affectation encore disponible (inclut les règlements planifiés déjà affectés).
+     * Sert au moteur d'imputation pour éviter le double-affectation.
+     */
+    public function invoiceAllocatableRemaining(SupplierInvoice $invoice): float
     {
         return max(0, $this->money(
             (float) $invoice->total - $this->invoiceAllocated($invoice) - $this->invoiceCreditsApplied($invoice)
@@ -80,7 +94,7 @@ class SupplierAccountService
 
     public function availableAdvancesTotal(Supplier $supplier): float
     {
-        return $this->money($this->activePaymentsQuery($supplier)->sum('unallocated_amount'));
+        return $this->money($this->realizedPaymentsQuery($supplier)->sum('unallocated_amount'));
     }
 
     /**
@@ -101,13 +115,14 @@ class SupplierAccountService
         $totalInvoices = $this->money($supplier->invoices()->sum('total'));
         $totalCredits = $this->money($supplier->creditNotes()->sum('total'));
         $allocatedPayments = $this->money(
-            (float) $this->activePaymentsQuery($supplier)->sum('amount')
-            - (float) $this->activePaymentsQuery($supplier)->sum('unallocated_amount')
+            (float) $this->realizedPaymentsQuery($supplier)->sum('amount')
+            - (float) $this->realizedPaymentsQuery($supplier)->sum('unallocated_amount')
         );
         $legacyPayments = $this->money(
             SupplierInvoicePayment::query()
                 ->whereHas('supplierInvoice', fn ($q) => $q->where('supplier_id', $supplier->id))
                 ->whereNull('supplier_payment_id')
+                ->realized()
                 ->sum('amount')
         );
         $totalPayments = $this->money($allocatedPayments + $legacyPayments);
@@ -179,17 +194,21 @@ class SupplierAccountService
                 continue;
             }
 
+            $isRealized = PaymentRealization::isRealized($payment->payment_date);
             $allocated = $this->money((float) $payment->amount - (float) $payment->unallocated_amount);
             $label = $payment->payment_number ?: ($payment->chequeLabel() ?: ($payment->payment_method ?: 'Règlement'));
             $entries->push([
                 'sort' => $payment->payment_date?->format('Y-m-d').'-'.$payment->id.'-payment',
                 'date' => $payment->payment_date?->format('Y-m-d'),
                 'type' => 'payment',
-                'type_label' => 'Paiement',
+                'type_label' => $isRealized ? 'Paiement' : 'Paiement planifié',
                 'reference' => $label,
-                'description' => $payment->payment_method.($allocated > 0.009 ? ' · affecté '.number_format($allocated, 2, ',', ' ').' DH' : ''),
+                'description' => $payment->payment_method
+                    .($allocated > 0.009 ? ' · affecté '.number_format($allocated, 2, ',', ' ').' DH' : '')
+                    .($isRealized ? '' : ' · non effectif'),
                 'debit' => 0.0,
-                'credit' => $this->money($payment->amount),
+                // Les planifiés apparaissent au grand livre mais n'impactent pas le solde courant.
+                'credit' => $isRealized ? $this->money($payment->amount) : 0.0,
                 'url' => route('purchases.payments.show', $payment),
             ]);
         }
@@ -201,15 +220,16 @@ class SupplierAccountService
                 ->whereNull('supplier_payment_id')
                 ->get() as $legacy
         ) {
+            $isRealized = $legacy->isRealized();
             $entries->push([
                 'sort' => $legacy->payment_date?->format('Y-m-d').'-'.$legacy->id.'-legacy',
                 'date' => $legacy->payment_date?->format('Y-m-d'),
                 'type' => 'payment',
-                'type_label' => 'Paiement',
+                'type_label' => $isRealized ? 'Paiement' : 'Paiement planifié',
                 'reference' => $legacy->payment_reference,
-                'description' => $legacy->payment_method,
+                'description' => $legacy->payment_method.($isRealized ? '' : ' · non effectif'),
                 'debit' => 0.0,
-                'credit' => $this->money($legacy->amount),
+                'credit' => $isRealized ? $this->money($legacy->amount) : 0.0,
                 'url' => $legacy->supplier_invoice_id ? route('supplier-invoices.payments.index', $legacy->supplier_invoice_id) : null,
             ]);
         }
@@ -233,15 +253,28 @@ class SupplierAccountService
      */
     public function openInvoicesPayload(Supplier $supplier): array
     {
+        $creditPool = $this->availableCreditsTotal($supplier);
+        $advancePool = $this->availableAdvancesTotal($supplier);
+
         return $supplier->invoices()
             ->with(['payments', 'creditNoteAllocations'])
+            ->orderByRaw('due_date is null')
             ->orderBy('due_date')
             ->orderBy('invoice_date')
+            ->orderBy('id')
             ->get()
-            ->map(function (SupplierInvoice $invoice) {
+            ->map(function (SupplierInvoice $invoice) use (&$creditPool, &$advancePool) {
                 $paid = $this->invoicePaid($invoice);
                 $credits = $this->invoiceCreditsApplied($invoice);
                 $remaining = $this->invoiceRemaining($invoice);
+
+                $coverCredits = min($creditPool, $remaining);
+                $creditPool = $this->money($creditPool - $coverCredits);
+                $afterCredits = $this->money($remaining - $coverCredits);
+                $coverAdvances = min($advancePool, $afterCredits);
+                $advancePool = $this->money($advancePool - $coverAdvances);
+                $netToPay = $this->money($afterCredits - $coverAdvances);
+                $covered = $this->money((float) $invoice->total - $netToPay);
 
                 return [
                     'id' => $invoice->id,
@@ -251,7 +284,10 @@ class SupplierAccountService
                     'total' => $this->money($invoice->total),
                     'paid' => $paid,
                     'credits_applied' => $credits,
+                    'available_cover' => $this->money($coverCredits + $coverAdvances),
+                    'covered' => $covered,
                     'remaining' => $remaining,
+                    'net_to_pay' => $netToPay,
                 ];
             })
             ->filter(fn (array $row) => $row['remaining'] > 0.009)
@@ -312,15 +348,27 @@ class SupplierAccountService
         $availableCredits = $this->availableCreditsTotal($invoice->supplier);
         $availableAdvances = $this->availableAdvancesTotal($invoice->supplier);
 
+        // Projection FIFO : la couverture disponible est d'abord réservée aux factures plus anciennes.
+        $netToPay = $remaining;
+        foreach ($this->openInvoicesPayload($invoice->supplier) as $row) {
+            if ((int) $row['id'] === (int) $invoice->id) {
+                $netToPay = $row['net_to_pay'];
+                break;
+            }
+        }
+
+        $covered = $this->money((float) $invoice->total - $netToPay);
+
         return [
             'invoice' => $invoice,
             'total' => $this->money($invoice->total),
             'paid' => $paid,
             'credits_applied' => $credits,
+            'covered' => $covered,
             'remaining' => $remaining,
             'available_credits' => $availableCredits,
             'available_advances' => $availableAdvances,
-            'net_to_pay' => max(0, $this->money($remaining - $availableCredits - $availableAdvances)),
+            'net_to_pay' => max(0, $netToPay),
             'payments' => $invoice->payments,
             'credit_allocations' => $invoice->creditNoteAllocations,
         ];
@@ -384,7 +432,27 @@ class SupplierAccountService
             ]);
         }
 
-        return DB::transaction(function () use ($supplier, $data, $cashAmount, $useCredits, $useAdvances, $invoiceIds, $selectedCreditIds) {
+        $allowAdvance = (bool) ($data['allow_advance'] ?? $data['allow_overpayment'] ?? false);
+        if ($cashAmount > 0.009 && ($data['source'] ?? null) !== 'repair') {
+            // Solde réel + avoirs encore disponibles (non utilisés dans ce règlement).
+            // Empêche de décaisser le reste facture brut quand le compte ne doit que le net.
+            $statement = $this->statement($supplier);
+            $maxCashWithoutAdvance = $this->money(
+                max(0, $statement['balance']) + $statement['available_credits']
+            );
+            if ($cashAmount > $maxCashWithoutAdvance + 0.009 && ! $allowAdvance) {
+                throw ValidationException::withMessages([
+                    'amount' => sprintf(
+                        'Le montant à décaisser (%.2f DH) dépasse le payable réel (%.2f DH = solde fournisseur + avoirs disponibles). Cochez « Créer une avance » pour un trop-perçu.',
+                        $cashAmount,
+                        $maxCashWithoutAdvance
+                    ),
+                    'allow_advance' => 'Confirmation requise pour créer une avance fournisseur.',
+                ]);
+            }
+        }
+
+        return DB::transaction(function () use ($supplier, $data, $cashAmount, $useCredits, $useAdvances, $invoiceIds, $selectedCreditIds, $allowAdvance) {
             $invoices = SupplierInvoice::query()
                 ->where('supplier_id', $supplier->id)
                 ->whereIn('id', $invoiceIds->all())
@@ -402,7 +470,8 @@ class SupplierAccountService
 
             $remainings = [];
             foreach ($invoices as $invoice) {
-                $remainings[$invoice->id] = $this->invoiceRemaining($invoice);
+                // Capacité d'imputation (planifiés inclus) ; le solde affiché reste sur les effectifs.
+                $remainings[$invoice->id] = $this->invoiceAllocatableRemaining($invoice);
             }
 
             $creditPlan = [];
@@ -448,7 +517,9 @@ class SupplierAccountService
             if ($useAdvances) {
                 $priorPayments = SupplierPayment::query()
                     ->where('supplier_id', $supplier->id)
+                    ->where('status', '!=', SupplierPayment::STATUS_CANCELLED)
                     ->where('unallocated_amount', '>', 0)
+                    ->whereDate('payment_date', '<=', now()->toDateString())
                     ->orderBy('payment_date')
                     ->orderBy('id')
                     ->lockForUpdate()
@@ -513,6 +584,16 @@ class SupplierAccountService
             }
 
             $unallocated = $cashLeft;
+
+            if ($unallocated > 0.009 && ! $allowAdvance && ($data['source'] ?? null) !== 'repair') {
+                throw ValidationException::withMessages([
+                    'amount' => sprintf(
+                        'Ce règlement créerait une avance de %.2f DH. Réduisez le montant ou cochez « Créer une avance ».',
+                        $unallocated
+                    ),
+                    'allow_advance' => 'Confirmation requise pour créer une avance fournisseur.',
+                ]);
+            }
 
             if ($cashAmount < 0.01 && $creditPlan === [] && $advancePlan === []) {
                 throw ValidationException::withMessages([
@@ -608,7 +689,7 @@ class SupplierAccountService
             $old = $payment->only(array_merge($metaKeys, ['amount']));
 
             if ($amountChanging || $allocationChanging) {
-                $this->reverseLiveEffects($payment);
+                $this->reverseLiveEffects($payment, neutralizeAmount: true);
                 $reapplied = $this->recordSettlement($payment->supplier, array_merge($data, [
                     'source' => $payment->source,
                     'user_id' => $payment->user_id,
@@ -766,7 +847,7 @@ class SupplierAccountService
                     + (float) ($appliedAdvance[$invoice->id] ?? 0)
                     + (float) ($appliedCredits[$invoice->id] ?? 0)
                 );
-                $remaining = $this->money($this->invoiceRemaining($invoice) + $extra);
+                $remaining = $this->money($this->invoiceAllocatableRemaining($invoice) + $extra);
 
                 return [
                     'id' => $invoice->id,
@@ -788,6 +869,12 @@ class SupplierAccountService
     private function activePaymentsQuery(Supplier $supplier)
     {
         return $supplier->accountPayments()->where('status', '!=', SupplierPayment::STATUS_CANCELLED);
+    }
+
+    private function realizedPaymentsQuery(Supplier $supplier)
+    {
+        return $this->activePaymentsQuery($supplier)
+            ->whereDate('payment_date', '<=', now()->toDateString());
     }
 
     private function nextPaymentNumber(string $date): string
@@ -962,7 +1049,7 @@ class SupplierAccountService
         ];
     }
 
-    private function reverseLiveEffects(SupplierPayment $payment): void
+    private function reverseLiveEffects(SupplierPayment $payment, bool $neutralizeAmount = false): void
     {
         $payment->load(['invoicePayments', 'creditNoteAllocations', 'allocations']);
 
@@ -998,6 +1085,11 @@ class SupplierAccountService
         $payment->invoicePayments()->each(fn (SupplierInvoicePayment $line) => $line->delete());
         $payment->allocations()->delete();
         $payment->unallocated_amount = 0;
+        // Pendant une réaffectation, neutralise le montant pour ne pas fausser le solde
+        // (l'en-tête est immédiatement repris par moveReappliedOntoOriginal).
+        if ($neutralizeAmount) {
+            $payment->amount = 0;
+        }
         $payment->save();
     }
 

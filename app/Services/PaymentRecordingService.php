@@ -247,21 +247,25 @@ class PaymentRecordingService
             ]);
         }
 
-        $remaining = $this->supplierAccounts->invoiceRemaining($invoice);
-        $allowOverpayment = (bool) ($data['allow_overpayment'] ?? false);
+        $trace = $this->supplierAccounts->invoiceTrace($invoice);
+        $remaining = $trace['remaining'];
+        $netToPay = $trace['net_to_pay'];
+        $allowOverpayment = (bool) ($data['allow_overpayment'] ?? $data['allow_advance'] ?? false);
 
-        if ($remaining <= 0.009) {
+        if ($remaining <= 0.009 || $netToPay <= 0.009) {
             throw ValidationException::withMessages([
-                'amount' => 'Cette facture fournisseur est déjà soldée. Aucun nouveau paiement n’est autorisé.',
+                'amount' => $netToPay <= 0.009 && $remaining > 0.009
+                    ? 'Cette facture est déjà couverte par des avoirs/avances disponibles. Aucun décaissement n’est nécessaire.'
+                    : 'Cette facture fournisseur est déjà soldée. Aucun nouveau paiement n’est autorisé.',
             ]);
         }
 
-        if ($amount > $remaining + 0.009 && ! $allowOverpayment) {
+        if ($amount > $netToPay + 0.009 && ! $allowOverpayment) {
             throw ValidationException::withMessages([
                 'amount' => sprintf(
-                    'Le montant (%.2f) dépasse le solde restant (%.2f).',
+                    'Le montant (%.2f DH) dépasse le net réellement payable (%.2f DH = solde facture après avoirs/avances). Cochez « Créer une avance » pour un trop-perçu.',
                     $amount,
-                    $remaining
+                    $netToPay
                 ),
             ]);
         }
@@ -291,6 +295,7 @@ class PaymentRecordingService
             'use_advances' => (bool) ($data['use_advances'] ?? true),
             'dedupe_key' => $dedupeKey,
             'allow_overpayment' => $allowOverpayment,
+            'allow_advance' => (bool) ($data['allow_advance'] ?? $allowOverpayment),
         ]));
 
         return $header->invoicePayments->first() ?? new SupplierInvoicePayment([
@@ -334,12 +339,16 @@ class PaymentRecordingService
                     $total += $amount;
                 }
 
+                $allowAdvance = (bool) ($shared['allow_advance'] ?? false)
+                    || $group->contains(fn (array $line) => (bool) ($line['allow_overpayment'] ?? false));
+
                 $header = $this->supplierAccounts->recordSettlement($first->supplier, array_merge($shared, [
                     'amount' => round($total, 2),
                     'invoice_ids' => $group->pluck('supplier_invoice_id')->map(fn ($id) => (int) $id)->all(),
                     'cash_allocations' => $cashAllocations,
                     'use_credits' => (bool) ($shared['use_credits'] ?? false),
                     'use_advances' => (bool) ($shared['use_advances'] ?? true),
+                    'allow_advance' => $allowAdvance,
                     'source' => $shared['source'] ?? SupplierInvoicePayment::SOURCE_BULK,
                     'dedupe_key' => $this->buildDedupeKey([
                         'scope' => 'purchases',

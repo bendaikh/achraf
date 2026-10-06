@@ -33,20 +33,20 @@
                 <h3 class="text-sm font-medium text-gray-500 mb-2">Montant facture</h3>
                 <p class="text-2xl font-bold text-gray-900">{{ number_format($trace['total'], 2) }} DH</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-emerald-200 p-6">
-                <h3 class="text-sm font-medium text-emerald-700 mb-2">Avoirs imputés</h3>
-                <p class="text-2xl font-bold text-emerald-700">- {{ number_format($trace['credits_applied'], 2) }} DH</p>
+            <div class="bg-white rounded-xl shadow-sm border border-green-200 p-6">
+                <h3 class="text-sm font-medium text-green-700 mb-2">Déjà couvert</h3>
+                <p class="text-2xl font-bold text-green-700">{{ number_format($trace['covered'] ?? ($trace['total'] - $trace['net_to_pay']), 2) }} DH</p>
             </div>
-            <div class="bg-white rounded-xl shadow-sm border border-emerald-100 p-6">
-                <h3 class="text-sm font-medium text-emerald-700 mb-2">Avoirs disponibles</h3>
-                <p class="text-2xl font-bold text-emerald-700">- {{ number_format($trace['available_credits'], 2) }} DH</p>
+            <div class="bg-white rounded-xl shadow-sm border border-emerald-200 p-6">
+                <h3 class="text-sm font-medium text-emerald-700 mb-2">Avoirs / avances dispo.</h3>
+                <p class="text-2xl font-bold text-emerald-700">- {{ number_format(($trace['available_credits'] ?? 0) + ($trace['available_advances'] ?? 0), 2) }} DH</p>
             </div>
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 class="text-sm font-medium text-gray-500 mb-2">Déjà payé</h3>
-                <p class="text-2xl font-bold text-green-600">{{ number_format($trace['paid'], 2) }} DH</p>
+                <h3 class="text-sm font-medium text-gray-500 mb-2">Affecté sur facture</h3>
+                <p class="text-2xl font-bold text-green-600">{{ number_format($trace['paid'] + $trace['credits_applied'], 2) }} DH</p>
             </div>
             <div class="bg-[#0a5d8a] rounded-xl p-6 text-white">
-                <h3 class="text-sm font-medium opacity-80 mb-2">NET À PAYER</h3>
+                <h3 class="text-sm font-medium opacity-80 mb-2">RESTE À PAYER</h3>
                 <p class="text-2xl font-bold">{{ number_format($trace['net_to_pay'], 2) }} DH</p>
             </div>
         </div>
@@ -137,10 +137,15 @@
                     </div>
                 </div>
 
-                <div class="mt-4">
-                    <label class="inline-flex items-start gap-2 text-sm bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <div class="mt-4 space-y-2">
+                    <label class="inline-flex items-start gap-2 text-sm bg-emerald-50 border border-emerald-200 rounded-lg p-3 w-full">
                         <input type="checkbox" name="use_credits" value="1" class="mt-0.5 rounded" @checked(old('use_credits', true))>
-                        <span><strong>Utiliser les avoirs disponibles</strong> ({{ number_format($trace['available_credits'], 2) }} DH)</span>
+                        <span><strong>Utiliser les avoirs disponibles</strong> ({{ number_format($trace['available_credits'], 2) }} DH)
+                            · Avances : {{ number_format($trace['available_advances'], 2) }} DH</span>
+                    </label>
+                    <label class="inline-flex items-start gap-2 text-sm bg-amber-50 border border-amber-200 rounded-lg p-3 w-full">
+                        <input type="checkbox" name="allow_advance" value="1" class="mt-0.5 rounded" @checked(old('allow_advance'))>
+                        <span><strong>Créer une avance fournisseur</strong> — autorise un décaissement supérieur au reste réellement payable ({{ number_format($trace['net_to_pay'], 2) }} DH).</span>
                     </label>
                 </div>
 

@@ -70,9 +70,9 @@
                                 <th class="px-4 py-3 text-left">Facture</th>
                                 <th class="px-4 py-3 text-left">Échéance</th>
                                 <th class="px-4 py-3 text-right">Montant</th>
-                                <th class="px-4 py-3 text-right">Déjà payé</th>
+                                <th class="px-4 py-3 text-right">Déjà couvert</th>
                                 <th class="px-4 py-3 text-right">Avoirs imputés</th>
-                                <th class="px-4 py-3 text-right">Reste</th>
+                                <th class="px-4 py-3 text-right">Reste à payer</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y">
@@ -84,9 +84,9 @@
                                     <td class="px-4 py-3 font-medium" x-text="inv.number"></td>
                                     <td class="px-4 py-3" x-text="inv.due_date || '—'"></td>
                                     <td class="px-4 py-3 text-right" x-text="money(inv.total)"></td>
-                                    <td class="px-4 py-3 text-right text-green-700" x-text="money(inv.paid)"></td>
+                                    <td class="px-4 py-3 text-right text-green-700" x-text="money(inv.covered)"></td>
                                     <td class="px-4 py-3 text-right text-emerald-700" x-text="money(inv.credits_applied)"></td>
-                                    <td class="px-4 py-3 text-right font-semibold text-red-600" x-text="money(inv.remaining)"></td>
+                                    <td class="px-4 py-3 text-right font-semibold text-red-600" x-text="money(inv.net_to_pay)"></td>
                                 </tr>
                             </template>
                             <tr x-show="invoices.length === 0">
@@ -117,7 +117,7 @@
                         <div class="sm:col-span-2">
                             <label class="block text-sm font-medium mb-1">Montant à décaisser</label>
                             <input type="number" step="0.01" min="0" name="amount" x-model.number="amount" class="w-full rounded-lg border-gray-300" placeholder="0.00">
-                            <p class="text-xs text-gray-500 mt-1">Un montant supérieur au reste des factures sélectionnées est conservé en avance fournisseur.</p>
+                            <p class="text-xs text-gray-500 mt-1">Plafond sans avance : solde réel fournisseur ({{ $fmt(max(0, $statement['balance'])) }} DH). Au-delà, cochez « Créer une avance ».</p>
                         </div>
                     </div>
 
@@ -134,6 +134,14 @@
                         <span>
                             <strong>Utiliser les avances disponibles</strong>
                             <span class="block text-sky-800">Avances : {{ $fmt($statement['available_advances']) }} DH</span>
+                        </span>
+                    </label>
+                    <label class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                        <input type="hidden" name="allow_advance" value="0">
+                        <input type="checkbox" name="allow_advance" value="1" x-model="allowAdvance" class="mt-0.5 rounded">
+                        <span>
+                            <strong>Créer une avance fournisseur</strong>
+                            <span class="block text-amber-800">Autorise un décaissement supérieur au solde réel (trop-perçu conservé en avance).</span>
                         </span>
                     </label>
 
@@ -262,15 +270,16 @@ function supplierSettle() {
     const credits = @json($credits).map(c => ({ ...c, selected: true }));
     const advancePool = {{ (float) $statement['available_advances'] }};
     const selectedInitially = invoices.filter(i => i.selected);
-    const creditPoolInitially = credits.reduce((s, c) => s + c.remaining, 0);
-    const startNet = Math.max(0, selectedInitially.reduce((s, i) => s + i.remaining, 0) - creditPoolInitially - advancePool);
+    const supplierBalance = {{ (float) max(0, $statement['balance']) }};
+    const startNet = Math.max(0, selectedInitially.reduce((s, i) => s + (i.net_to_pay ?? i.remaining), 0));
     return {
         invoices,
         credits,
         method: '{{ old('payment_method', 'Virement bancaire') }}',
         useCredits: true,
         useAdvances: true,
-        amount: startNet,
+        allowAdvance: false,
+        amount: Math.min(startNet, supplierBalance),
         money(n) { return (Number(n) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
         selected() { return this.invoices.filter(i => i.selected); },
         selectedTotal() { return this.selected().reduce((s, i) => s + i.remaining, 0); },
@@ -284,7 +293,7 @@ function supplierSettle() {
             return this.useAdvances ? Math.min(advancePool, after) : 0;
         },
         netAfterCredits() { return Math.max(0, this.selectedTotal() - this.creditsUsed() - this.advancesUsed()); },
-        netToPay() { return this.netAfterCredits(); },
+        netToPay() { return Math.min(this.netAfterCredits(), supplierBalance); },
         cashApplied() { return Math.min(Number(this.amount) || 0, this.netAfterCredits()); },
         advanceCreated() { return Math.max(0, (Number(this.amount) || 0) - this.netAfterCredits()); },
         toggleAll() {
