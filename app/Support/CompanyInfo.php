@@ -68,10 +68,10 @@ class CompanyInfo
     return static::storedFilePath(Setting::get('company_cachet'));
   }
 
-  /** Must match .facture-signature-box in facture-styles (240px column, 130px box). */
+  /** Must match .facture-signature-box in commercial-styles (closing column, 110px box). */
   public const INVOICE_CACHET_BOX_WIDTH = 228;
 
-  public const INVOICE_CACHET_BOX_HEIGHT = 124;
+  public const INVOICE_CACHET_BOX_HEIGHT = 104;
 
   /**
    * Cachet source and display size for invoices (browser + DomPDF).

@@ -9,10 +9,8 @@
         'TP' => $company['patente'] ?? null,
         'CNSS' => $company['cnss'] ?? null,
     ];
-    $minRows = 6;
     $items = $doc['items'] ?? collect();
     $taxes = $doc['taxes'] ?? [];
-    $emptyRows = max(0, $minRows - $items->count());
     $showSourceReference = $items->contains(fn ($item) => !empty($item->source_document_reference));
     $sourceDocumentDates = $doc['source_document_dates'] ?? [];
     $itemGroups = $showSourceReference
@@ -23,41 +21,49 @@
     $cachet = $cachet ?? \App\Support\CompanyInfo::cachetForPrint($forPdf ?? false);
     $currencyLabel = $doc['currency_label'] ?? 'MAD';
     $priceMode = $doc['price_mode'] ?? 'sale';
-@endphp
+    $settlement = $doc['settlement'] ?? null;
+    $settlementPayments = $settlement['payments'] ?? [];
+    $hasMultiplePayments = count($settlementPayments) > 1;
 
-<div class="facture-footer-fixed">
-    <table class="facture-footer-table" cellpadding="0" cellspacing="0">
-        <tr>
-            <td>
-                <div class="facture-footer-meta">
-                    Document généré le : <strong>{{ now()->format('d/m/Y à H:i') }}</strong><br>
-                    Par : <strong>{{ $generatedBy }}</strong>
-                </div>
-            </td>
-            <td width="240">
-                <div class="facture-signature-label">Cachet de la société &amp; signature</div>
-                <div class="facture-signature-box">
-                    @if($cachet)
-                        <table class="facture-signature-box-table" cellpadding="0" cellspacing="0">
-                            <tr>
-                                <td>
-                                    <img
-                                        src="{{ $cachet['src'] }}"
-                                        alt="Cachet {{ $company['name'] }}"
-                                        class="facture-cachet-img"
-                                        width="{{ $cachet['width'] }}"
-                                        height="{{ $cachet['height'] }}"
-                                    >
-                                </td>
-                            </tr>
-                        </table>
-                    @endif
-                </div>
-            </td>
-        </tr>
-    </table>
-    <div class="facture-accent-bar"></div>
-</div>
+    // Lignes rendues à plat pour coller les 2–3 derniers produits aux totaux.
+    $renderRows = [];
+    foreach ($itemGroups as $originLabel => $groupItems) {
+        if ($showSourceReference) {
+            $renderRows[] = [
+                'type' => 'origin',
+                'label' => $originLabel,
+                'date' => $sourceDocumentDates[$originLabel] ?? null,
+            ];
+        }
+        foreach ($groupItems as $item) {
+            $renderRows[] = [
+                'type' => 'item',
+                'item' => $item,
+            ];
+        }
+    }
+
+    $itemIndexes = [];
+    foreach ($renderRows as $index => $row) {
+        if ($row['type'] === 'item') {
+            $itemIndexes[] = $index;
+        }
+    }
+    $tailItemCount = min(3, count($itemIndexes));
+    $tailStartItemOrdinal = count($itemIndexes) - $tailItemCount;
+    $tailStartIndex = $tailItemCount > 0
+        ? $itemIndexes[$tailStartItemOrdinal]
+        : count($renderRows);
+    // Inclure un éventuel en-tête d'origine juste avant le premier article du tail.
+    if (
+        $tailStartIndex > 0
+        && ($renderRows[$tailStartIndex - 1]['type'] ?? null) === 'origin'
+    ) {
+        $tailStartIndex--;
+    }
+    $leadingRows = array_slice($renderRows, 0, $tailStartIndex);
+    $tailRows = array_slice($renderRows, $tailStartIndex);
+@endphp
 
 <div class="facture-doc">
     <table class="facture-header-table" cellpadding="0" cellspacing="0">
@@ -103,7 +109,7 @@
         </tr>
     </table>
 
-    <div style="margin-bottom: 16px;">
+    <div style="margin-bottom: 12px;">
         <div class="facture-client-tab">{{ $doc['party_tab'] ?? 'Informations' }}</div>
         <div class="facture-client-box">
             <div class="facture-client-name">{{ $doc['party_name'] ?? '—' }}</div>
@@ -122,166 +128,166 @@
         </div>
     </div>
 
-    <table class="facture-items" cellpadding="0" cellspacing="0">
-        <thead>
-            <tr>
-                <th width="20%">Réf</th>
-                <th width="32%">Désignation</th>
-                <th class="text-right" width="7%">Qté</th>
-                <th class="text-right" width="13%">Prix unit. HT</th>
-                <th class="text-center" width="8%">TVA</th>
-                <th class="text-right" width="8%">Remise</th>
-                <th class="text-right" width="12%">Total TTC</th>
-            </tr>
+    @if(count($leadingRows) > 0)
+        <table class="facture-items" width="527" cellpadding="0" cellspacing="0">
+            @include('documents.partials.commercial-items-colgroup')
+            <thead>
+                @include('documents.partials.commercial-items-thead')
+            </thead>
+            <tbody>
+                @foreach($leadingRows as $row)
+                    @include('documents.partials.commercial-item-row', ['row' => $row, 'priceMode' => $priceMode])
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+
+    {{-- Même table/colgroup que ci-dessus (pas d'imbrication) : alignement colonnes identique --}}
+    <table class="facture-items facture-products-totals-keep {{ count($leadingRows) > 0 ? 'facture-items-continuation' : '' }}" width="527" cellpadding="0" cellspacing="0">
+        @include('documents.partials.commercial-items-colgroup')
+        <thead @if(count($leadingRows) > 0) class="facture-items-thead-ghost" @endif>
+            @include('documents.partials.commercial-items-thead', ['ghost' => count($leadingRows) > 0])
         </thead>
         <tbody>
-            @foreach($itemGroups as $originLabel => $groupItems)
-                @if($showSourceReference)
-                    @php
-                        $originDate = $sourceDocumentDates[$originLabel] ?? null;
-                    @endphp
-                    <tr class="facture-origin-group">
-                        <td colspan="7">
-                            <table class="facture-origin-header" cellpadding="0" cellspacing="0">
-                                <tr>
-                                    <td class="facture-origin-left">
-                                        <strong>Origine :</strong> {{ $originLabel }}
-                                    </td>
-                                    @if($originDate)
-                                        <td class="facture-origin-right">
-                                            <strong>Du :</strong> {{ $originDate }}
-                                        </td>
-                                    @endif
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                @endif
-                @foreach($groupItems as $item)
-                    @php
-                        $line = \App\Support\LineItemCalculator::forDisplay($item, $priceMode);
-                    @endphp
-                    <tr>
-                        <td>{{ $item->ref ?? '-' }}</td>
-                        <td>{{ $item->designation }}</td>
-                        <td class="text-right">{{ $item->quantity }}</td>
-                        <td class="text-right">{{ number_format($line['unit_price_ht'], 2) }}</td>
-                        <td class="text-center">{{ number_format($item->tax_rate, 2) }}%</td>
-                        <td class="text-right">{{ number_format($item->discount ?? 0, 2) }}</td>
-                        <td class="text-right"><strong>{{ number_format($line['line_total'], 2) }}</strong></td>
-                    </tr>
-                @endforeach
+            @foreach($tailRows as $row)
+                @include('documents.partials.commercial-item-row', ['row' => $row, 'priceMode' => $priceMode])
             @endforeach
-            @for($i = 0; $i < $emptyRows; $i++)
-                <tr class="empty-row">
-                    <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>
-                </tr>
-            @endfor
+            <tr class="facture-totals-embed-row">
+                <td colspan="7">
+                    <table class="facture-totals-wrap" cellpadding="0" cellspacing="0">
+                        <tr>
+                            <td class="facture-totals-spacer">&nbsp;</td>
+                            <td class="facture-totals-cell" width="42%">
+                                <table class="facture-totals" cellpadding="0" cellspacing="0">
+                                    <tr>
+                                        <td>Sous-total HT</td>
+                                        <td class="text-right">{{ number_format($taxes['subtotal_ht'] ?? 0, 2) }} {{ $currencyLabel }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>TVA</td>
+                                        <td class="text-right">{{ number_format($taxes['tax_total'] ?? 0, 2) }} {{ $currencyLabel }}</td>
+                                    </tr>
+                                    @if(($taxes['document_discount'] ?? 0) > 0)
+                                        <tr>
+                                            <td>Remise</td>
+                                            <td class="text-right">-{{ number_format($taxes['document_discount'], 2) }} {{ $currencyLabel }}</td>
+                                        </tr>
+                                    @endif
+                                    <tr>
+                                        <td>Sous-total TTC</td>
+                                        <td class="text-right">{{ number_format($taxes['items_ttc'] ?? $taxes['total_ttc'] ?? 0, 2) }} {{ $currencyLabel }}</td>
+                                    </tr>
+                                    @foreach(($taxes['adjustment_lines'] ?? []) as $line)
+                                        <tr>
+                                            <td>
+                                                {{ $line['signed_total'] >= 0 ? '+' : '−' }} {{ $line['label'] }}
+                                                @if($line['is_taxable'])
+                                                    <span style="font-size:9px;">(TVA {{ number_format($line['tax_rate'], 2) }}%)</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-right">{{ $line['signed_total'] >= 0 ? '+' : '-' }}{{ number_format($line['line_total'], 2) }} {{ $currencyLabel }}</td>
+                                        </tr>
+                                    @endforeach
+                                    @if(empty($taxes['adjustment_lines']) && ($taxes['adjustment'] ?? 0) != 0)
+                                        <tr>
+                                            <td>Ajustement</td>
+                                            <td class="text-right">{{ number_format($taxes['adjustment'], 2) }} {{ $currencyLabel }}</td>
+                                        </tr>
+                                    @endif
+                                    <tr class="grand">
+                                        <td>TOTAL FACTURE TTC</td>
+                                        <td class="text-right">{{ number_format($taxes['total_ttc'] ?? 0, 2) }} {{ $currencyLabel }}</td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
         </tbody>
     </table>
 
-    <table class="facture-bottom-table" cellpadding="0" cellspacing="0">
+    <div class="facture-notes-box">
+        <div class="facture-notes-title">Notes / Commentaires</div>
+        <div class="facture-notes-body">{{ $doc['remarks'] ?: '—' }}</div>
+    </div>
+    @if($doc['show_amount_in_words'] ?? false)
+        <p class="facture-amount-words">
+            Arrêtée à la somme de : <strong>{{ \App\Support\AmountInWords::dirhams((float) ($taxes['total_ttc'] ?? 0)) }}</strong>
+        </p>
+    @endif
+
+    {{-- Seul Règlement + Cachet restent ensemble --}}
+    <table class="facture-closing-table" cellpadding="0" cellspacing="0">
         <tr>
-            <td width="58%">
-                <div class="facture-notes-box">
-                    <div class="facture-notes-title">Notes / Commentaires</div>
-                    <div class="facture-notes-body">{{ $doc['remarks'] ?: '—' }}</div>
-                </div>
-                @if($doc['show_amount_in_words'] ?? false)
-                    <p class="facture-amount-words">
-                        Arrêtée à la somme de : <strong>{{ \App\Support\AmountInWords::dirhams((float) ($taxes['total_ttc'] ?? 0)) }}</strong>
-                    </p>
+            <td class="facture-closing-left" width="58%">
+                @if($settlement)
+                    @php
+                        $settlementCurrency = $settlement['currency_label'] ?? $currencyLabel;
+                    @endphp
+                    <div class="facture-settlement-box">
+                        <div class="facture-settlement-title">Règlement / Paiement</div>
+                        <div class="facture-settlement-line"><strong>Statut :</strong> {{ $settlement['status_label'] }}</div>
+
+                        @if(count($settlementPayments) === 0)
+                            <div class="facture-settlement-line"><strong>Montant payé :</strong> {{ number_format($settlement['total_paid'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
+                        @elseif(!$hasMultiplePayments)
+                            @php
+                                $payment = $settlementPayments[0];
+                            @endphp
+                            <div class="facture-settlement-line"><strong>Montant payé :</strong> {{ number_format($payment['amount'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
+                            <div class="facture-settlement-line"><strong>Mode de règlement :</strong> {{ $payment['method'] }}</div>
+                            <div class="facture-settlement-line"><strong>Date du règlement :</strong> {{ $payment['date'] }}</div>
+                            @if(!empty($payment['reference']))
+                                <div class="facture-settlement-line"><strong>Référence :</strong> {{ $payment['reference'] }}</div>
+                            @endif
+                        @else
+                            @foreach($settlementPayments as $index => $payment)
+                                <div class="facture-settlement-payment">
+                                    <div class="facture-settlement-payment-title">Règlement {{ $index + 1 }}</div>
+                                    <div class="facture-settlement-line"><strong>Montant payé :</strong> {{ number_format($payment['amount'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
+                                    <div class="facture-settlement-line"><strong>Mode de règlement :</strong> {{ $payment['method'] }}</div>
+                                    <div class="facture-settlement-line"><strong>Date du règlement :</strong> {{ $payment['date'] }}</div>
+                                    @if(!empty($payment['reference']))
+                                        <div class="facture-settlement-line"><strong>Référence :</strong> {{ $payment['reference'] }}</div>
+                                    @endif
+                                </div>
+                            @endforeach
+                            <div class="facture-settlement-line facture-settlement-total"><strong>Total payé :</strong> {{ number_format($settlement['total_paid'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
+                        @endif
+
+                        <div class="facture-settlement-line facture-settlement-remaining">
+                            <strong>Reste à payer :</strong> {{ number_format($settlement['remaining'], 2, ',', ' ') }} {{ $settlementCurrency }}
+                        </div>
+                    </div>
                 @endif
             </td>
-            <td width="42%">
-                <table class="facture-totals" cellpadding="0" cellspacing="0">
-                    <tr>
-                        <td>Sous-total HT</td>
-                        <td class="text-right">{{ number_format($taxes['subtotal_ht'] ?? 0, 2) }} {{ $currencyLabel }}</td>
-                    </tr>
-                    <tr>
-                        <td>TVA</td>
-                        <td class="text-right">{{ number_format($taxes['tax_total'] ?? 0, 2) }} {{ $currencyLabel }}</td>
-                    </tr>
-                    @if(($taxes['document_discount'] ?? 0) > 0)
-                        <tr>
-                            <td>Remise</td>
-                            <td class="text-right">-{{ number_format($taxes['document_discount'], 2) }} {{ $currencyLabel }}</td>
-                        </tr>
+            <td class="facture-closing-right" width="42%">
+                <div class="facture-signature-label">Cachet de la société &amp; signature</div>
+                <div class="facture-signature-box">
+                    @if($cachet)
+                        <table class="facture-signature-box-table" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td>
+                                    <img
+                                        src="{{ $cachet['src'] }}"
+                                        alt="Cachet {{ $company['name'] }}"
+                                        class="facture-cachet-img"
+                                        width="{{ $cachet['width'] }}"
+                                        height="{{ $cachet['height'] }}"
+                                    >
+                                </td>
+                            </tr>
+                        </table>
                     @endif
-                    <tr>
-                        <td>Sous-total TTC articles</td>
-                        <td class="text-right">{{ number_format($taxes['items_ttc'] ?? $taxes['total_ttc'] ?? 0, 2) }} {{ $currencyLabel }}</td>
-                    </tr>
-                    @foreach(($taxes['adjustment_lines'] ?? []) as $line)
-                        <tr>
-                            <td>
-                                {{ $line['signed_total'] >= 0 ? '+' : '−' }} {{ $line['label'] }}
-                                @if($line['is_taxable'])
-                                    <span style="font-size:9px;">(TVA {{ number_format($line['tax_rate'], 2) }}%)</span>
-                                @endif
-                            </td>
-                            <td class="text-right">{{ $line['signed_total'] >= 0 ? '+' : '-' }}{{ number_format($line['line_total'], 2) }} {{ $currencyLabel }}</td>
-                        </tr>
-                    @endforeach
-                    @if(empty($taxes['adjustment_lines']) && ($taxes['adjustment'] ?? 0) != 0)
-                        <tr>
-                            <td>Ajustement</td>
-                            <td class="text-right">{{ number_format($taxes['adjustment'], 2) }} {{ $currencyLabel }}</td>
-                        </tr>
-                    @endif
-                    <tr class="grand">
-                        <td>TOTAL FACTURE TTC</td>
-                        <td class="text-right">{{ number_format($taxes['total_ttc'] ?? 0, 2) }} {{ $currencyLabel }}</td>
-                    </tr>
-                </table>
+                </div>
             </td>
         </tr>
     </table>
 
-    @if(!empty($doc['settlement']))
-        @php
-            $settlement = $doc['settlement'];
-            $settlementCurrency = $settlement['currency_label'] ?? $currencyLabel;
-            $settlementPayments = $settlement['payments'] ?? [];
-            $hasMultiplePayments = count($settlementPayments) > 1;
-        @endphp
-        <div class="facture-settlement-box">
-            <div class="facture-settlement-title">Règlement</div>
-            <div class="facture-settlement-line"><strong>Statut :</strong> {{ $settlement['status_label'] }}</div>
-
-            @if(count($settlementPayments) === 0)
-                <div class="facture-settlement-line"><strong>Montant payé :</strong> {{ number_format($settlement['total_paid'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
-            @elseif(!$hasMultiplePayments)
-                @php
-                    $payment = $settlementPayments[0];
-                @endphp
-                <div class="facture-settlement-line"><strong>Montant payé :</strong> {{ number_format($payment['amount'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
-                <div class="facture-settlement-line"><strong>Mode :</strong> {{ $payment['method'] }}</div>
-                <div class="facture-settlement-line"><strong>Date :</strong> {{ $payment['date'] }}</div>
-                @if(!empty($payment['reference']))
-                    <div class="facture-settlement-line"><strong>Référence :</strong> {{ $payment['reference'] }}</div>
-                @endif
-            @else
-                @foreach($settlementPayments as $index => $payment)
-                    <div class="facture-settlement-payment">
-                        <div class="facture-settlement-payment-title">Règlement {{ $index + 1 }}</div>
-                        <div class="facture-settlement-line"><strong>Montant payé :</strong> {{ number_format($payment['amount'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
-                        <div class="facture-settlement-line"><strong>Mode :</strong> {{ $payment['method'] }}</div>
-                        <div class="facture-settlement-line"><strong>Date :</strong> {{ $payment['date'] }}</div>
-                        @if(!empty($payment['reference']))
-                            <div class="facture-settlement-line"><strong>Référence :</strong> {{ $payment['reference'] }}</div>
-                        @endif
-                    </div>
-                @endforeach
-                <div class="facture-settlement-line facture-settlement-total"><strong>Total payé :</strong> {{ number_format($settlement['total_paid'], 2, ',', ' ') }} {{ $settlementCurrency }}</div>
-            @endif
-
-            <div class="facture-settlement-line facture-settlement-remaining">
-                <strong>Reste à payer :</strong> {{ number_format($settlement['remaining'], 2, ',', ' ') }} {{ $settlementCurrency }}
-            </div>
-        </div>
-    @endif
-
-    <div class="facture-footer-spacer"></div>
+    <div class="facture-footer-meta">
+        Document généré le : <strong>{{ now()->format('d/m/Y à H:i') }}</strong>
+        — Par : <strong>{{ $generatedBy }}</strong>
+    </div>
+    <div class="facture-accent-bar"></div>
 </div>

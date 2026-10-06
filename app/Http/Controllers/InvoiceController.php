@@ -296,7 +296,10 @@ class InvoiceController extends Controller
         return view('sales.invoices.print', array_merge(
             CommercialDocumentView::forInvoice($invoice, $printData['taxes']),
             $printData,
-            ['generatedBy' => auth()->user()?->name]
+            [
+                'invoice' => $invoice,
+                'generatedBy' => auth()->user()?->name,
+            ]
         ));
     }
 
@@ -309,7 +312,10 @@ class InvoiceController extends Controller
             array_merge(
                 CommercialDocumentView::forInvoice($invoice, $printData['taxes']),
                 $printData,
-                ['generatedBy' => auth()->user()?->name]
+                [
+                    'invoice' => $invoice,
+                    'generatedBy' => auth()->user()?->name,
+                ]
             ),
             'facture',
             $invoice->invoice_number
