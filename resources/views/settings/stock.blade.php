@@ -122,12 +122,12 @@
                         <div class="mt-8 max-w-2xl rounded-xl border border-amber-200 bg-amber-50/40 p-5">
                             <h3 class="text-sm font-semibold text-gray-900">Réinitialiser le picking</h3>
                             <p class="mt-1 text-xs text-gray-600 leading-relaxed">
-                                Libère les réservations / préparations non validées, recalcule les commandes actives depuis la date d’activation,
-                                refait les réservations selon le stock physique actuel et recalcule les besoins d’achat.
-                                Aucune commande n’est supprimée et le stock physique n’est pas modifié.
+                                Supprime les réservations et besoins automatiques non validés, puis recalcule le workflow depuis le stock physique réel
+                                (date d’activation → réservation → manquants → besoins d’achat).
+                                Aucune commande n’est supprimée, le stock physique et les sorties déjà validées ne sont pas modifiés.
                             </p>
                             <form action="{{ route('settings.stock.reset-picking') }}" method="POST" class="mt-4"
-                                  onsubmit="return confirm('Réinitialiser le picking ?\n\n• Les réservations non validées seront libérées\n• Les commandes actives seront recalculées depuis la date d’activation\n• Les réservations seront refaites selon le stock physique actuel\n• Les besoins d’achat seront recalculés\n\nAucune commande ne sera supprimée et le stock physique ne sera pas modifié.');">
+                                  onsubmit="return confirm('Cette action va supprimer les réservations et besoins automatiques non validés puis recalculer le workflow depuis le stock réel. Continuer ?');">
                                 @csrf
                                 <button type="submit" class="px-4 py-2 bg-amber-700 text-white rounded-lg text-sm font-semibold hover:bg-amber-800">
                                     Réinitialiser le picking

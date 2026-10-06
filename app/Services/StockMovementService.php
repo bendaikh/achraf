@@ -1636,6 +1636,15 @@ class StockMovementService
             || str_contains($e->getMessage(), 'Duplicate entry');
     }
 
+    /**
+     * Public entry point after external reservation counter repairs (picking reset).
+     */
+    public function refreshProductStockAggregates(Product $product): void
+    {
+        $this->syncProductAggregateFromSlots($product);
+        $product->save();
+    }
+
     protected function syncProductAggregateFromSlots(Product $product): void
     {
         $onlineIds = Warehouse::query()->online()->pluck('id');

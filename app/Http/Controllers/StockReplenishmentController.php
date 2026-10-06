@@ -26,6 +26,7 @@ class StockReplenishmentController extends Controller
     {
         $needs = StockReplenishmentNeed::query()
             ->open()
+            ->where('quantity_needed', '>', 0)
             ->whereHas('product', fn ($q) => $q->tracksStock())
             ->with(['product', 'suggestedSupplier', 'supplier', 'warehouse', 'posSale'])
             ->orderByDesc('id')
@@ -51,6 +52,7 @@ class StockReplenishmentController extends Controller
     {
         $needs = StockReplenishmentNeed::query()
             ->open()
+            ->where('quantity_needed', '>', 0)
             ->whereHas('product', fn ($q) => $q->tracksStock())
             ->with(['product.stocks.warehouse', 'suggestedSupplier', 'supplier', 'warehouse', 'posSale'])
             ->orderByDesc('id')
@@ -70,10 +72,9 @@ class StockReplenishmentController extends Controller
     }
 
     /**
-     * « Réinitialiser / Recalculer les besoins d’achat » : annule les besoins non traités,
-     * relit le stock physique (Stock par emplacement / Magasin Belvédère), refait les
-     * réservations et recrée uniquement les vrais manques. Ne touche ni aux commandes
-     * ni au stock physique.
+     * « Réinitialiser / Recalculer les besoins d’achat » : supprime les besoins automatiques
+     * non traités, libère les réservations non validées, relit le stock physique et recrée
+     * uniquement les vrais manques. Ne touche ni aux commandes ni au stock physique.
      */
     public function recalculate(OrderPhysicalStockService $orderPhysicalStock)
     {
@@ -84,7 +85,7 @@ class StockReplenishmentController extends Controller
         }
 
         return back()->with('success', sprintf(
-            'Besoins d’achat recalculés : %d commande(s) analysée(s), %d besoin(s) non traité(s) annulé(s), %d réservation(s) refaite(s) (%d unité(s) réservée(s)), %d besoin(s) réel(s) recréé(s) (%d unité(s)).',
+            'Besoins d’achat réinitialisés : %d commande(s) analysée(s), %d besoin(s) non traité(s) supprimé(s), %d réservation(s) libérée(s), %d unité(s) re-réservée(s), %d besoin(s) réel(s) recréé(s) (%d unité(s)).',
             $result['orders'],
             $result['cancelled_needs'],
             $result['released'],

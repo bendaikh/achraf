@@ -220,6 +220,14 @@ class OrderPickingActivationTest extends TestCase
             ->where('warehouse_id', $belvedere->id)
             ->sum('quantity');
 
+        $staleOpenNeedId = (int) StockReplenishmentNeed::query()->open()->where('pos_sale_id', $order->id)->value('id');
+        $this->assertGreaterThan(0, $staleOpenNeedId);
+
+        $this->actingAs($user)
+            ->get(route('settings.stock', ['tab' => 'regles']))
+            ->assertOk()
+            ->assertSee('Cette action va supprimer les réservations et besoins automatiques non validés puis recalculer le workflow depuis le stock réel. Continuer ?', false);
+
         $this->actingAs($user)
             ->post(route('settings.stock.reset-picking'))
             ->assertRedirect(route('settings.stock', ['tab' => 'regles']));
@@ -227,6 +235,9 @@ class OrderPickingActivationTest extends TestCase
         $this->assertDatabaseHas('pos_sales', ['id' => $order->id, 'ticket_number' => 'RESET-ORDER']);
         $this->assertSame(2, (int) StockReservation::query()->active()->where('source_id', $order->id)->sum('quantity'));
         $this->assertSame(1, (int) StockReplenishmentNeed::query()->open()->where('pos_sale_id', $order->id)->value('quantity_needed'));
+        // Old open need row must be deleted and replaced, not left at quantity 0.
+        $this->assertDatabaseMissing('stock_replenishment_needs', ['id' => $staleOpenNeedId]);
+        $this->assertSame(0, StockReservation::query()->where('source_id', $order->id)->where('status', StockReservation::STATUS_RELEASED)->count());
 
         $physicalAfter = (int) \App\Models\ProductStock::query()
             ->where('product_id', $product->id)

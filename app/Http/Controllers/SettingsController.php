@@ -101,9 +101,10 @@ class SettingsController extends Controller
     }
 
     /**
-     * Reset active picking queue: release unvalidated reservations, re-allocate from
-     * activation date against current physical stock, recalculate purchase needs.
-     * Does not delete orders or change physical quantities.
+     * True reset of the picking workflow: delete unvalidated reservations and open
+     * automatic purchase needs, then re-allocate from activation date against current
+     * physical stock. Does not delete orders, change physical quantities, or touch
+     * already validated exits.
      */
     public function resetPicking(\App\Services\OrderPhysicalStockService $orderPhysicalStock)
     {
@@ -120,7 +121,7 @@ class SettingsController extends Controller
             ->with(
                 'success',
                 sprintf(
-                    'Picking réinitialisé : %d commande(s) retraitée(s), %d réservation(s) libérée(s), %d unité(s) re-réservée(s), %d besoin(s) d’achat.',
+                    'Picking réinitialisé : %d commande(s) retraitée(s), %d réservation(s) non validée(s) supprimée(s), %d unité(s) re-réservée(s), %d besoin(s) d’achat recréé(s).',
                     $result['orders'],
                     $result['released'],
                     $result['reserved_qty'],

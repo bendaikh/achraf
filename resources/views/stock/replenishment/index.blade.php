@@ -9,7 +9,7 @@
         <h1 class="text-2xl font-bold text-slate-900 mb-1">À approvisionner</h1>
         <p class="text-sm text-slate-600 mb-4">Besoins nés des commandes sans stock physique à Belvédère. Plusieurs besoins du même fournisseur peuvent être regroupés dans un seul BC.</p>
         <form method="POST" action="{{ route('purchases.needs.recalculate') }}" class="mb-6"
-              onsubmit="return confirm('Recalculer les besoins d’achat ?\n\nLes besoins non traités seront annulés puis recréés à partir du stock physique actuel (Magasin Belvédère / emplacements). Les réservations des commandes en attente sont refaites. Les commandes, le stock physique et les besoins déjà commandés (BC) ne sont pas modifiés.')">
+              onsubmit="return confirm('Cette action va supprimer les réservations et besoins automatiques non validés puis recalculer le workflow depuis le stock réel. Continuer ?')">
             @csrf
             <button type="submit" class="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700">
                 Réinitialiser / Recalculer les besoins d’achat

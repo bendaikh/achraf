@@ -214,13 +214,95 @@ class PickingPartialExitAndPurchaseNeedsTest extends TestCase
         $this->assertSame(1, PosSaleItem::query()->where('pos_sale_id', $orderA->id)->count());
     }
 
+    public function test_reset_truly_deletes_work_data_and_recreates_only_real_shortages(): void
+    {
+        $user = User::factory()->create();
+        $available = $this->stockedProduct(['ref' => 'RESET-OK']);
+        $missing = $this->stockedProduct(['ref' => 'RESET-MISS']);
+        $this->declarePhysicalStock($available, 5);
+        $belvedere = Warehouse::fulfillmentWarehouse();
+
+        $order = $this->orderWithLines([[$available, 2], [$missing, 3]], 'RESET-FULL');
+        app(OrderPhysicalStockService::class)->ensureAllocated($order->fresh());
+
+        $lineAvailable = PosSaleItem::query()->where('pos_sale_id', $order->id)->where('product_id', $available->id)->firstOrFail();
+        $this->actingAs($user)->post(route('sales.picking.validate-exit'), [
+            'line_ids' => [$lineAvailable->id],
+        ])->assertRedirect();
+
+        $consumedBefore = StockReservation::query()
+            ->where('source_id', $order->id)
+            ->where('status', StockReservation::STATUS_CONSUMED)
+            ->sum('quantity');
+        $this->assertSame(2, (int) $consumedBefore);
+
+        // Ghost / stale workflow rows that must disappear (not stay at qty 0).
+        $ghostNeed = StockReplenishmentNeed::create([
+            'product_id' => $available->id,
+            'warehouse_id' => $belvedere->id,
+            'pos_sale_id' => $order->id,
+            'quantity_needed' => 0,
+            'status' => 'open',
+            'notes' => 'fantôme qty 0',
+        ]);
+        $staleNeed = StockReplenishmentNeed::create([
+            'product_id' => $missing->id,
+            'warehouse_id' => $belvedere->id,
+            'pos_sale_id' => $order->id,
+            'quantity_needed' => 99,
+            'status' => 'open',
+            'notes' => 'ancien besoin faux',
+        ]);
+        $orderedNeed = StockReplenishmentNeed::create([
+            'product_id' => $missing->id,
+            'warehouse_id' => $belvedere->id,
+            'pos_sale_id' => $order->id,
+            'quantity_needed' => 1,
+            'quantity_ordered' => 1,
+            'status' => StockReplenishmentNeed::STATUS_ORDERED,
+        ]);
+
+        $physicalBefore = $this->belvedereQuantity($available);
+
+        $this->actingAs($user)
+            ->from(route('purchases.needs.index'))
+            ->post(route('purchases.needs.recalculate'))
+            ->assertRedirect(route('purchases.needs.index'))
+            ->assertSessionHas('success');
+
+        // Ghost / stale open needs deleted — not left displayed at 0.
+        $this->assertDatabaseMissing('stock_replenishment_needs', ['id' => $ghostNeed->id]);
+        $this->assertDatabaseMissing('stock_replenishment_needs', ['id' => $staleNeed->id]);
+        $this->assertSame(0, StockReplenishmentNeed::query()->open()->where('quantity_needed', '<=', 0)->count());
+
+        // Only the real shortage (3 missing) is recreated; BC-ordered need untouched.
+        $this->assertSame(3, (int) StockReplenishmentNeed::query()->open()->where('pos_sale_id', $order->id)->where('product_id', $missing->id)->value('quantity_needed'));
+        $this->assertSame(1, StockReplenishmentNeed::query()->open()->count());
+        $this->assertSame(StockReplenishmentNeed::STATUS_ORDERED, $orderedNeed->fresh()->status);
+
+        // Validated exit kept; physical stock unchanged; order not deleted.
+        $this->assertSame(2, (int) StockReservation::query()->where('source_id', $order->id)->where('status', StockReservation::STATUS_CONSUMED)->sum('quantity'));
+        $this->assertSame($physicalBefore, $this->belvedereQuantity($available));
+        $this->assertSame(3, $physicalBefore);
+        $this->assertDatabaseHas('pos_sales', ['id' => $order->id, 'ticket_number' => 'RESET-FULL']);
+        $this->assertNull($order->fresh()->physical_stock_processed_at);
+
+        // No released/ghost reservation rows left for the order (only consumed + new active if any).
+        $this->assertSame(0, StockReservation::query()->where('source_id', $order->id)->where('status', StockReservation::STATUS_RELEASED)->count());
+    }
+
     public function test_recalculate_button_is_on_purchase_needs_and_replenishment_pages(): void
     {
         $user = User::factory()->create();
+        $confirm = 'Cette action va supprimer les réservations et besoins automatiques non validés puis recalculer le workflow depuis le stock réel. Continuer ?';
         $this->actingAs($user)->get(route('purchases.needs.index'))
-            ->assertOk()->assertSee('Réinitialiser / Recalculer les besoins d’achat');
+            ->assertOk()
+            ->assertSee('Réinitialiser / Recalculer les besoins d’achat')
+            ->assertSee($confirm, false);
         $this->actingAs($user)->get(route('stock.replenishment.index'))
-            ->assertOk()->assertSee('Réinitialiser / Recalculer les besoins d’achat');
+            ->assertOk()
+            ->assertSee('Réinitialiser / Recalculer les besoins d’achat')
+            ->assertSee($confirm, false);
     }
 
     public function test_sav_quarantine_stock_is_never_reserved(): void
