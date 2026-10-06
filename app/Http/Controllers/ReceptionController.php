@@ -269,7 +269,7 @@ class ReceptionController extends Controller
             'mode' => 'required|in:separate,combined',
         ]);
 
-        $receptions = Reception::with('items')
+        $receptions = Reception::with(['items', 'stockAllocations'])
             ->whereIn('id', $validated['ids'])
             ->orderBy('reception_date')
             ->get();
@@ -336,9 +336,13 @@ class ReceptionController extends Controller
 
         foreach ($receptions as $reception) {
             foreach ($reception->items as $item) {
+                $lineStock = $this->purchaseStockReceipt->resolveLineStockContext($reception, $item);
+
                 $invoice->items()->create([
                     'product_id' => $item->product_id,
                     'product_variant_id' => $item->product_variant_id,
+                    'warehouse_id' => $lineStock['warehouse_id'],
+                    'warehouse_location_id' => $lineStock['warehouse_location_id'],
                     'ref' => $item->ref,
                     'designation' => $item->designation,
                     'description' => $item->description,
@@ -383,7 +387,7 @@ class ReceptionController extends Controller
             'mode' => 'required|in:separate,combined',
         ]);
 
-        $receptions = Reception::with('items')
+        $receptions = Reception::with(['items', 'stockAllocations'])
             ->whereIn('id', $validated['ids'])
             ->orderBy('reception_date')
             ->get();
@@ -452,9 +456,13 @@ class ReceptionController extends Controller
 
         foreach ($receptions as $reception) {
             foreach ($reception->items as $item) {
+                $lineStock = $this->purchaseStockReceipt->resolveLineStockContext($reception, $item);
+
                 $deliveryNote->items()->create([
                     'product_id' => $item->product_id,
                     'product_variant_id' => $item->product_variant_id,
+                    'warehouse_id' => $lineStock['warehouse_id'],
+                    'warehouse_location_id' => $lineStock['warehouse_location_id'],
                     'ref' => $item->ref,
                     'designation' => $item->designation,
                     'description' => $item->description,

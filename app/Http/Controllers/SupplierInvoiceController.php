@@ -19,6 +19,7 @@ use App\Services\PurchaseReceiptService;
 use App\Services\PurchaseReceptionCreationService;
 use App\Services\PurchaseStockReceiptService;
 use App\Services\StockMovementService;
+use App\Services\SupplierInvoiceLineWarehouseBackfillService;
 use App\Support\CommercialDocumentView;
 use App\Support\LineItemPersistence;
 use App\Support\VariantLineItem;
@@ -256,6 +257,13 @@ class SupplierInvoiceController extends Controller
 
     public function edit(SupplierInvoice $supplierInvoice)
     {
+        // Anciennes factures converties : préremplir dépôt/emplacement manquants depuis les BL/BR (sans entrée stock).
+        if ($supplierInvoice->items()->whereNull('warehouse_id')->exists()) {
+            app(SupplierInvoiceLineWarehouseBackfillService::class)
+                ->backfill(false, $supplierInvoice->id);
+            $supplierInvoice->refresh();
+        }
+
         $supplierInvoice->load('supplier', 'items', 'adjustments');
         $suppliers = Supplier::all();
         $products = collect();

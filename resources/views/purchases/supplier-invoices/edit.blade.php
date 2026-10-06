@@ -75,7 +75,14 @@
                                     </option>
                                 @endforeach
                             </select>
-                            <p class="mt-1 text-xs text-gray-500">Surchargeable par ligne. Le stock n’est pas rejoué si déjà comptabilisé.</p>
+                            <p class="mt-1 text-xs text-gray-500">
+                                Valeur par défaut pour les nouvelles lignes manuelles uniquement — n’écrase pas les lignes issues d’un BL/BR.
+                                @if($supplierInvoice->stock_applied_at)
+                                    Stock déjà comptabilisé : aucune nouvelle entrée à l’enregistrement.
+                                @else
+                                    Le stock n’est pas rejoué à la modification.
+                                @endif
+                            </p>
                         </div>
 
                         <div>
@@ -175,6 +182,9 @@ window.commercialDocConfig = {
 };
 </script>
 @include('partials.commercial-document-form-script')
+<script>
+window.purchaseStockAlreadyApplied = @json((bool) $supplierInvoice->stock_applied_at);
+</script>
 @include('purchases.partials.line-stock-allocations')
 <script>
 var itemIndex = 0;
@@ -219,7 +229,7 @@ function addItemWithData(data) {
     tbody.insertBefore(row, tbody.firstChild);
     
     window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex, window.selectedCommercialProduct(data));
-    window.purchaseSeedLineWarehouseFromHeader(itemIndex);
+    window.purchaseSeedLineStock(itemIndex, data);
 
     itemIndex++;
     calculateCommercialTotal();
@@ -286,7 +296,9 @@ SoftNav.whenReady(function() {
                 tax_rate: {{ $item->tax_rate }},
                 discount: {{ $item->discount }},
                 discount_type: @json($item->discount_type ?? 'fixed'),
-                source_document_reference: @json($item->source_document_reference)
+                source_document_reference: @json($item->source_document_reference),
+                warehouse_id: @json($item->warehouse_id),
+                warehouse_location_id: @json($item->warehouse_location_id)
             });
         @endforeach
     @else

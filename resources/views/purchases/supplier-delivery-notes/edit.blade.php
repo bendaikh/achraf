@@ -223,7 +223,7 @@ function addItemWithData(data) {
     tbody.insertBefore(row, tbody.firstChild);
 
     window.initCommercialProductSelect('#product_select_' + itemIndex, itemIndex, window.selectedCommercialProduct(data));
-    window.purchaseSeedLineWarehouseFromHeader(itemIndex);
+    window.purchaseSeedLineStock(itemIndex, data);
 
     itemIndex++;
     calculateCommercialTotal();
@@ -249,7 +249,9 @@ SoftNav.whenReady(function() {
                 unit_price: {{ $item->display_unit_price_ttc }},
                 tax_rate: {{ $item->tax_rate }},
                 discount: {{ $item->discount }},
-                discount_type: @json($item->discount_type ?? 'fixed')
+                discount_type: @json($item->discount_type ?? 'fixed'),
+                warehouse_id: @json($item->warehouse_id),
+                warehouse_location_id: @json($item->warehouse_location_id)
             });
         @endforeach
     @else

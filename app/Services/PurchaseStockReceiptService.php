@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\PurchaseItem;
 use App\Models\Reception;
 use App\Models\StockMovement;
 use App\Models\StockMovementDocument;
@@ -202,6 +203,90 @@ class PurchaseStockReceiptService
 
         if ($anyApplied && ! $target->getAttribute('stock_applied_at')) {
             $target->update(['stock_applied_at' => now()]);
+        }
+
+        // Métadonnées dépôt/emplacement : miroir sans nouvelle entrée stock.
+        $this->mirrorAllocationsFromSources($sources, $target);
+    }
+
+    /**
+     * Déduit dépôt + emplacement d’une ligne source (BL/BR) pour la conversion.
+     * Priorité : champs ligne → allocations stock du document → dépôt d’en-tête.
+     *
+     * @return array{warehouse_id: ?int, warehouse_location_id: ?int}
+     */
+    public function resolveLineStockContext(Model $sourceDocument, PurchaseItem $item): array
+    {
+        if ($item->warehouse_id) {
+            return [
+                'warehouse_id' => (int) $item->warehouse_id,
+                'warehouse_location_id' => $item->warehouse_location_id
+                    ? (int) $item->warehouse_location_id
+                    : null,
+            ];
+        }
+
+        $allocations = ($sourceDocument->relationLoaded('stockAllocations')
+            ? $sourceDocument->stockAllocations
+            : $sourceDocument->stockAllocations()->get()
+        )->filter(function ($allocation) use ($item) {
+            return (int) $allocation->product_id === (int) $item->product_id
+                && (int) ($allocation->product_variant_id ?? 0) === (int) ($item->product_variant_id ?? 0);
+        });
+
+        if ($allocations->isNotEmpty()) {
+            $first = $allocations->first();
+
+            return [
+                'warehouse_id' => (int) $first->warehouse_id,
+                'warehouse_location_id' => $first->warehouse_location_id
+                    ? (int) $first->warehouse_location_id
+                    : null,
+            ];
+        }
+
+        $headerWarehouseId = $sourceDocument->getAttribute('warehouse_id');
+
+        return [
+            'warehouse_id' => $headerWarehouseId ? (int) $headerWarehouseId : null,
+            'warehouse_location_id' => null,
+        ];
+    }
+
+    /**
+     * Copie les répartitions dépôt/emplacement vers le document converti (sans mouvement).
+     * Idempotent : ne fait rien si le document cible a déjà des allocations.
+     *
+     * @param  Collection<int, Model>  $sources
+     */
+    public function mirrorAllocationsFromSources(Collection $sources, Model $target): void
+    {
+        if (! method_exists($target, 'stockAllocations')) {
+            return;
+        }
+
+        if ($target->stockAllocations()->exists()) {
+            return;
+        }
+
+        foreach ($sources as $source) {
+            if (! method_exists($source, 'stockAllocations')) {
+                continue;
+            }
+
+            $allocations = $source->relationLoaded('stockAllocations')
+                ? $source->stockAllocations
+                : $source->stockAllocations()->get();
+
+            foreach ($allocations as $allocation) {
+                $target->stockAllocations()->create([
+                    'product_id' => $allocation->product_id,
+                    'product_variant_id' => $allocation->product_variant_id,
+                    'warehouse_id' => $allocation->warehouse_id,
+                    'warehouse_location_id' => $allocation->warehouse_location_id,
+                    'quantity' => $allocation->quantity,
+                ]);
+            }
         }
     }
 

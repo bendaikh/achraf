@@ -15,22 +15,28 @@
 @endphp
 <script>
 window.purchaseWarehouses = @json($warehousesPayload);
+window.purchaseStockAlreadyApplied = window.purchaseStockAlreadyApplied || false;
 
 window.purchaseLineStockHtml = function (itemIndex) {
     var warehouses = window.purchaseWarehouses || [];
+    var stockApplied = !!window.purchaseStockAlreadyApplied;
+    var requiredAttr = stockApplied ? '' : ' required';
     var opts = warehouses.map(function (w) {
         var label = w.is_online ? ('🟢 ' + w.name) : w.name;
         return '<option value="' + w.id + '" data-online="' + (w.is_online ? '1' : '0') + '">' + label + '</option>';
     }).join('');
+    var hint = stockApplied
+        ? '<p class="text-[10px] text-gray-500">Stock déjà comptabilisé — dépôt/emplacement informatifs (aucune nouvelle entrée).</p>'
+        : '';
     return '' +
         '<div class="space-y-1 min-w-[11rem]" data-line-stock="' + itemIndex + '">' +
-            '<select name="items[' + itemIndex + '][warehouse_id]" required class="w-full px-2 py-1 border border-gray-300 rounded text-sm purchase-line-warehouse" data-manual-override="0" onchange="window.purchaseLineWarehouseChanged(' + itemIndex + ')">' +
-                '<option value="">Dépôt destination *</option>' + opts +
+            '<select name="items[' + itemIndex + '][warehouse_id]"' + requiredAttr + ' class="w-full px-2 py-1 border border-gray-300 rounded text-sm purchase-line-warehouse" data-manual-override="0" data-from-source="0" onchange="window.purchaseLineWarehouseChanged(' + itemIndex + ')">' +
+                '<option value="">' + (stockApplied ? 'Dépôt destination' : 'Dépôt destination *') + '</option>' + opts +
             '</select>' +
             '<select name="items[' + itemIndex + '][warehouse_location_id]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm purchase-line-location">' +
                 '<option value="">Emplacement</option>' +
             '</select>' +
-            '<button type="button" class="text-[10px] text-blue-700 hover:underline" onclick="window.purchaseToggleSplit(' + itemIndex + ')">Répartir sur plusieurs dépôts</button>' +
+            (stockApplied ? '' : '<button type="button" class="text-[10px] text-blue-700 hover:underline" onclick="window.purchaseToggleSplit(' + itemIndex + ')">Répartir sur plusieurs dépôts</button>') +
             '<div class="hidden space-y-1 border-t pt-1 mt-1 purchase-line-split" data-split="' + itemIndex + '">' +
                 warehouses.map(function (w, wi) {
                     return '<label class="flex items-center gap-1 text-[10px] text-gray-600">' +
@@ -40,6 +46,7 @@ window.purchaseLineStockHtml = function (itemIndex) {
                     '</label>';
                 }).join('') +
             '</div>' +
+            hint +
         '</div>';
 };
 
@@ -51,11 +58,13 @@ window.purchaseLineWarehouseChanged = function (itemIndex, options) {
     var locSelect = root.querySelector('.purchase-line-location');
     if (!select || !locSelect) return;
 
-    if (!options.fromHeader) {
+    if (!options.fromHeader && !options.fromSeed) {
         select.dataset.manualOverride = '1';
     }
 
-    var previousLocationId = locSelect.value;
+    var preferredLocationId = options.preferredLocationId != null
+        ? String(options.preferredLocationId)
+        : String(locSelect.value || '');
     var wid = parseInt(select.value || '0', 10);
     var warehouses = window.purchaseWarehouses || [];
     var warehouse = warehouses.find(function (w) { return w.id === wid; });
@@ -67,7 +76,7 @@ window.purchaseLineWarehouseChanged = function (itemIndex, options) {
         var opt = document.createElement('option');
         opt.value = loc.id;
         opt.textContent = loc.label || loc.code || loc.name;
-        if (String(loc.id) === String(previousLocationId)) {
+        if (String(loc.id) === preferredLocationId) {
             opt.selected = true;
             matched = true;
         }
@@ -86,9 +95,36 @@ window.purchaseSeedLineWarehouseFromHeader = function (itemIndex) {
     if (!header || !header.value || !root) return;
     var lineWh = root.querySelector('.purchase-line-warehouse');
     if (!lineWh) return;
+    if (lineWh.dataset.fromSource === '1' || lineWh.dataset.manualOverride === '1') return;
     lineWh.dataset.manualOverride = '0';
     lineWh.value = header.value;
     window.purchaseLineWarehouseChanged(itemIndex, { fromHeader: true });
+};
+
+/**
+ * Préremplit dépôt/emplacement depuis les données ligne (conversion BL/BR ou édition).
+ * Marque la ligne comme provenant d'une source pour que le dépôt d'en-tête ne l'écrase pas.
+ */
+window.purchaseSeedLineStock = function (itemIndex, data) {
+    data = data || {};
+    var root = document.querySelector('[data-line-stock="' + itemIndex + '"]');
+    if (!root) return;
+
+    var lineWh = root.querySelector('.purchase-line-warehouse');
+    if (!lineWh) return;
+
+    if (data.warehouse_id) {
+        lineWh.dataset.manualOverride = '1';
+        lineWh.dataset.fromSource = '1';
+        lineWh.value = String(data.warehouse_id);
+        window.purchaseLineWarehouseChanged(itemIndex, {
+            fromSeed: true,
+            preferredLocationId: data.warehouse_location_id || ''
+        });
+        return;
+    }
+
+    window.purchaseSeedLineWarehouseFromHeader(itemIndex);
 };
 
 window.purchaseApplyHeaderWarehouseToLines = function () {
@@ -98,7 +134,8 @@ window.purchaseApplyHeaderWarehouseToLines = function () {
     document.querySelectorAll('[data-line-stock]').forEach(function (root) {
         var lineWh = root.querySelector('.purchase-line-warehouse');
         if (!lineWh) return;
-        if (lineWh.dataset.manualOverride === '1') return;
+        // Ne pas écraser les lignes issues d'un BL/BR ni les choix manuels.
+        if (lineWh.dataset.manualOverride === '1' || lineWh.dataset.fromSource === '1') return;
         lineWh.value = header.value;
         var idx = parseInt(root.getAttribute('data-line-stock'), 10);
         if (!isNaN(idx)) {

@@ -288,7 +288,7 @@ class SupplierDeliveryNoteController extends Controller
             'mode' => 'required|in:separate,combined',
         ]);
 
-        $deliveryNotes = SupplierDeliveryNote::with('items')
+        $deliveryNotes = SupplierDeliveryNote::with(['items', 'stockAllocations'])
             ->whereIn('id', $validated['ids'])
             ->orderBy('delivery_date')
             ->get();
@@ -357,9 +357,13 @@ class SupplierDeliveryNoteController extends Controller
 
         foreach ($deliveryNotes as $note) {
             foreach ($note->items as $item) {
+                $lineStock = $this->purchaseStockReceipt->resolveLineStockContext($note, $item);
+
                 $invoice->items()->create([
                     'product_id' => $item->product_id,
                     'product_variant_id' => $item->product_variant_id,
+                    'warehouse_id' => $lineStock['warehouse_id'],
+                    'warehouse_location_id' => $lineStock['warehouse_location_id'],
                     'ref' => $item->ref,
                     'designation' => $item->designation,
                     'description' => $item->description,
