@@ -13,6 +13,10 @@ class InvoicePayment extends Model
 
     public const SOURCE_IMPORT = 'import';
 
+    public const SOURCE_ORDER = 'order';
+
+    public const SOURCE_REPAIR = 'repair';
+
     protected $fillable = [
         'invoice_id',
         'pos_sale_id',
@@ -170,6 +174,8 @@ class InvoicePayment extends Model
         return match ($this->source ?? self::SOURCE_MANUAL) {
             self::SOURCE_IMPORT => 'Import',
             self::SOURCE_BULK => 'Groupé',
+            self::SOURCE_ORDER => 'Commande',
+            self::SOURCE_REPAIR => 'Rattrapage',
             default => 'Manuel',
         };
     }

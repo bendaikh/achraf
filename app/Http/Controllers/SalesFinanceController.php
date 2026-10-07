@@ -95,7 +95,8 @@ class SalesFinanceController extends Controller
                 $paid = (float) ($invoice->payments_sum ?? 0);
                 $invoice->setAttribute('fin_total', round($invoice->computed_total, 2));
                 $invoice->setAttribute('fin_paid', round($paid, 2));
-                $invoice->setAttribute('fin_remaining', round(max(0, $invoice->computed_total - $paid), 2));
+                // Total TTC − paiements réels − avoirs (même règle que Invoice::remaining_balance).
+                $invoice->setAttribute('fin_remaining', round($invoice->remaining_balance, 2));
                 $due = $invoice->due_date ?? $invoice->invoice_date;
                 $daysLate = $due && $due->lt($today) ? (int) $due->diffInDays($today) : 0;
                 $invoice->setAttribute('fin_days_late', $daysLate);

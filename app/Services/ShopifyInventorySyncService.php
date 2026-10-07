@@ -59,6 +59,34 @@ class ShopifyInventorySyncService
 
         try {
             $client = new ShopifyApiClient(ShopifyIntegration::query()->where('enabled', true)->first());
+
+            // Ne jamais écraser une quantité Shopify positive par 0 lorsque Libromart
+            // n’a plus de stock physique (ajustement commercial / disponibilité canal).
+            // Cette quantité Shopify n’est jamais transformée en stock physique Libromart.
+            if ($available <= 0) {
+                $shopifyQty = $this->currentShopifyAvailable(
+                    $client,
+                    (string) $variant->inventory_item_id,
+                    $locationId,
+                    (int) ($variant->inventory_quantity ?? 0)
+                );
+
+                if ($shopifyQty > 0) {
+                    Log::info('Shopify inventory push skipped: Libromart=0 but Shopify>0 (preserve commercial qty)', [
+                        'product_id' => $product->id,
+                        'variant_id' => $variant->id,
+                        'sku' => $variant->sku ?: $product->ref,
+                        'libromart_available' => $available,
+                        'shopify_available' => $shopifyQty,
+                    ]);
+
+                    return;
+                }
+
+                // Les deux côtés sont déjà à 0 : rien à pousser.
+                return;
+            }
+
             $this->setLevel($client, (string) $variant->inventory_item_id, $locationId, $available);
 
             $variant->inventory_quantity = $available;
@@ -79,6 +107,35 @@ class ShopifyInventorySyncService
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Quantité disponible actuelle côté Shopify (API, sinon miroir local).
+     */
+    protected function currentShopifyAvailable(
+        ShopifyApiClient $client,
+        string $inventoryItemId,
+        string $locationId,
+        int $fallback
+    ): int {
+        try {
+            $levels = $client->getInventoryLevels([$inventoryItemId]);
+            foreach ($levels as $level) {
+                if ((string) ($level['location_id'] ?? '') === $locationId) {
+                    return max(0, (int) ($level['available'] ?? 0));
+                }
+            }
+            if ($levels !== []) {
+                return max(0, (int) ($levels[0]['available'] ?? 0));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Shopify inventory level read failed while guarding zero-push', [
+                'inventory_item_id' => $inventoryItemId,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        return max(0, $fallback);
     }
 
     public function applyInventoryLevelUpdate(string $inventoryItemId, string $locationId, int $available): ?Product

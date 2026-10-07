@@ -165,7 +165,8 @@ class Invoice extends Model
 
     public function getRemainingBalanceAttribute(): float
     {
-        return max(0, $this->computed_total - $this->total_paid);
+        // Total TTC − paiements réels affectés − avoirs éventuels.
+        return max(0, round($this->computed_total - $this->total_paid - $this->total_credits, 2));
     }
 
     /**
@@ -226,20 +227,26 @@ class Invoice extends Model
      */
     public function collectibleRemainingBalance(): float
     {
-        return max(0.0, round($this->collectibleTotal() - $this->total_allocated, 2));
+        return max(0.0, round($this->collectibleTotal() - $this->total_allocated - $this->total_credits, 2));
     }
 
     public function getComputedPaymentStatusAttribute(): string
     {
+        $due = max(0.0, round($this->computed_total - $this->total_credits, 2));
+
+        if ($due <= 0.009) {
+            return self::PAYMENT_PAID;
+        }
+
         if ($this->total_paid <= 0) {
-            return 'unpaid';
+            return self::PAYMENT_UNPAID;
         }
 
-        if ($this->total_paid >= $this->computed_total) {
-            return 'paid';
+        if ($this->total_paid + 0.009 >= $due) {
+            return self::PAYMENT_PAID;
         }
 
-        return 'partial';
+        return self::PAYMENT_PARTIAL;
     }
 
     public function isPaid(): bool

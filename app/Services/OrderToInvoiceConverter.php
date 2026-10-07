@@ -4,10 +4,13 @@ namespace App\Services;
 
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
+use App\Models\InvoicePayment;
 use App\Models\PosSale;
 use App\Models\Setting;
 use App\Support\DocumentTaxBreakdown;
 use App\Support\LineItemCalculator;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class OrderToInvoiceConverter
 {
@@ -79,7 +82,8 @@ class OrderToInvoiceConverter
             'total' => 0,
             'remarks' => 'Générée automatiquement depuis la commande ' . $order->ticket_number,
             'conditions' => Setting::get('facture_conditions'),
-            'payment_status' => $markAsPaid ? Invoice::PAYMENT_PAID : Invoice::PAYMENT_UNPAID,
+            // Statut réel = paiements affectés (InvoicePayment), pas un flag manuel.
+            'payment_status' => Invoice::PAYMENT_UNPAID,
             'commercial_status' => 'normal',
             'source' => $order->source,
         ]);
@@ -144,7 +148,96 @@ class OrderToInvoiceConverter
         $invoice = $invoice->fresh('items');
         app(\App\Services\Access\CommissionService::class)->syncForInvoice($invoice);
 
-        return $invoice;
+        if ($markAsPaid || $order->payment_status === 'paid' || $this->orderHasRecordedPayment($order)) {
+            $this->attachOrderPayment($invoice, $order, $markAsPaid);
+        }
+
+        return $invoice->fresh(['items', 'payments']);
+    }
+
+    /**
+     * Lie un paiement réel (InvoicePayment) à la facture à partir de la commande payée.
+     * Un mouvement financier seul ne suffit pas : c’est cette affectation qui met à jour
+     * Montant payé / Reste / statut PAYÉE et retire la facture des Impayés.
+     */
+    public function attachOrderPayment(Invoice $invoice, PosSale $order, bool $forceFullRemaining = false): ?InvoicePayment
+    {
+        $invoice->loadMissing(['items', 'payments', 'posSale']);
+        $remaining = round($invoice->collectibleRemainingBalance(), 2);
+        if ($remaining <= 0.009) {
+            $invoice->syncPaymentStatus();
+
+            return null;
+        }
+
+        $amount = $this->resolvePaymentAmount($order, $remaining, $forceFullRemaining);
+        if ($amount <= 0.009) {
+            $invoice->syncPaymentStatus();
+
+            return null;
+        }
+
+        $method = $order->paymentLabel() ?: 'Carte bancaire';
+        $paymentDate = ($order->sold_at ?? now())->toDateString();
+        $reference = $order->ticket_number;
+
+        try {
+            return app(PaymentRecordingService::class)->recordInvoicePayment($invoice, [
+                'payment_date' => $paymentDate,
+                'amount' => $amount,
+                'gross_amount' => $amount,
+                'payment_method' => $method,
+                'payment_reference' => $reference,
+                'notes' => 'Paiement commande '.$order->ticket_number,
+                'source' => InvoicePayment::SOURCE_ORDER,
+                'pos_sale_id' => $order->id,
+                'tracking_number' => $order->primaryTrackingNumber(),
+                'dedupe_key' => app(PaymentRecordingService::class)->buildDedupeKey([
+                    'scope' => 'sales',
+                    'invoice_id' => $invoice->id,
+                    'reference' => $reference,
+                    'amount' => $amount,
+                    'date' => $paymentDate,
+                    'method' => $method,
+                    'source' => InvoicePayment::SOURCE_ORDER,
+                    'pos_sale_id' => $order->id,
+                ]),
+            ]);
+        } catch (ValidationException $e) {
+            // Anti-doublon / facture déjà soldée : resynchroniser le statut sans planter la conversion.
+            Log::info('Order payment already allocated or invoice settled', [
+                'invoice_id' => $invoice->id,
+                'pos_sale_id' => $order->id,
+                'messages' => $e->errors(),
+            ]);
+            $invoice->refresh();
+            $invoice->syncPaymentStatus();
+
+            return null;
+        }
+    }
+
+    protected function orderHasRecordedPayment(PosSale $order): bool
+    {
+        if ((float) ($order->amount_received ?? 0) > 0.009) {
+            return true;
+        }
+
+        return in_array($order->payment_status, ['paid', 'partially_paid'], true);
+    }
+
+    protected function resolvePaymentAmount(PosSale $order, float $remaining, bool $forceFullRemaining = false): float
+    {
+        $received = round((float) ($order->amount_received ?? 0), 2);
+        if ($received > 0.009) {
+            return min($remaining, $received);
+        }
+
+        if ($forceFullRemaining || $order->payment_status === 'paid') {
+            return $remaining;
+        }
+
+        return 0.0;
     }
 
     protected function defaultStockLocation(PosSale $order): string
