@@ -24,6 +24,17 @@
     $settlement = $doc['settlement'] ?? null;
     $settlementPayments = $settlement['payments'] ?? [];
     $hasMultiplePayments = count($settlementPayments) > 1;
+    // Réf stays wide enough for a SKU. Numeric columns are only as wide as their
+    // headers and amounts, so long designations stay on fewer lines.
+    $itemColumns = [
+        ['class' => 'col-ref', 'label' => 'Réf', 'align' => 'text-left', 'width' => '17%'],
+        ['class' => 'col-designation', 'label' => 'Désignation', 'align' => 'text-left', 'width' => '43%'],
+        ['class' => 'col-qty', 'label' => 'Qté', 'align' => 'text-right', 'width' => '5%'],
+        ['class' => 'col-price', 'label' => 'Prix unit. HT', 'align' => 'text-right', 'width' => '12%'],
+        ['class' => 'col-tax', 'label' => 'TVA', 'align' => 'text-center', 'width' => '7%'],
+        ['class' => 'col-discount', 'label' => 'Remise', 'align' => 'text-right', 'width' => '7%'],
+        ['class' => 'col-total', 'label' => 'Total TTC', 'align' => 'text-right', 'width' => '9%'],
+    ];
 
     $renderRows = [];
     foreach ($itemGroups as $originLabel => $groupItems) {
@@ -107,7 +118,7 @@
         </div>
     </div>
 
-    <table class="facture-items" width="527" cellpadding="0" cellspacing="0">
+    <table class="facture-items" width="100%" cellpadding="0" cellspacing="0">
         @include('documents.partials.commercial-items-colgroup')
         <thead>
             @include('documents.partials.commercial-items-thead')

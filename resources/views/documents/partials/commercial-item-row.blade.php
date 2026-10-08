@@ -21,12 +21,14 @@
         $line = \App\Support\LineItemCalculator::forDisplay($item, $priceMode);
     @endphp
     <tr>
-        <td width="105">{{ $item->ref ?? '-' }}</td>
-        <td width="169">{{ $item->designation }}</td>
-        <td class="text-right" width="37">{{ $item->quantity }}</td>
-        <td class="text-right" width="69">{{ number_format($line['unit_price_ht'], 2) }}</td>
-        <td class="text-center" width="42">{{ number_format($item->tax_rate, 2) }}%</td>
-        <td class="text-right" width="42">{{ number_format($item->discount ?? 0, 2) }}</td>
-        <td class="text-right" width="63"><strong>{{ number_format($line['line_total'], 2) }}</strong></td>
+        <td class="{{ $itemColumns[0]['class'] }}" style="width: {{ $itemColumns[0]['width'] }}">{{ $item->ref ?? '-' }}</td>
+        <td class="{{ $itemColumns[1]['class'] }}" style="width: {{ $itemColumns[1]['width'] }}">{{ $item->designation }}</td>
+        <td class="text-right {{ $itemColumns[2]['class'] }}" style="width: {{ $itemColumns[2]['width'] }}">{{ $item->quantity }}</td>
+        <td class="text-right {{ $itemColumns[3]['class'] }}" style="width: {{ $itemColumns[3]['width'] }}">{{ number_format($line['unit_price_ht'], 2) }}</td>
+        <td class="text-center {{ $itemColumns[4]['class'] }}" style="width: {{ $itemColumns[4]['width'] }}">{{ number_format($item->tax_rate, 2) }}%</td>
+        <td class="text-right {{ $itemColumns[5]['class'] }}" style="width: {{ $itemColumns[5]['width'] }}">{{ number_format($item->discount ?? 0, 2) }}</td>
+        <td class="text-right {{ $itemColumns[6]['class'] }}" style="width: {{ $itemColumns[6]['width'] }}">
+            <strong>{{ number_format($line['line_total'], 2) }}</strong>
+        </td>
     </tr>
 @endif

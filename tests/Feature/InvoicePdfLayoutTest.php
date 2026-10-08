@@ -155,11 +155,10 @@ class InvoicePdfLayoutTest extends TestCase
 
         $layout = $this->renderLayout($invoice);
 
-        $this->assertSame(2, $layout['page_count'], 'Huit lignes longues doivent tenir sur deux pages');
+        $this->assertSame(2, $layout['page_count'], 'Huit lignes longues tiennent sur la première page, le bloc de clôture sur la suivante');
         $this->assertFixedFooterPagination($layout);
-        $this->assertGreaterThan(0, count($layout['pages'][1]['item_rows'] ?? []));
-        $this->assertGreaterThan(0, count($layout['pages'][2]['item_rows'] ?? []));
-        $this->assertLessThan(140, $layout['pages'][2]['item_rows'][0]['y'], 'La page 2 commence par les lignes, sans en-tête répété');
+        $this->assertCount(8, $layout['pages'][1]['item_rows'] ?? []);
+        $this->assertSame([], $layout['pages'][2]['item_rows'] ?? []);
     }
 
     public function test_invoice_pdf_route_returns_pdf_with_real_payment_modes(): void

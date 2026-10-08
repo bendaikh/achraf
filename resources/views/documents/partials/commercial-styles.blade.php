@@ -38,8 +38,7 @@
     .facture-client-name { font-size: 14px; font-weight: bold; margin-bottom: 6px; }
     .facture-client-line { font-size: 10px; color: #374151; margin-bottom: 3px; }
     .facture-items {
-        width: 527pt;
-        max-width: 100%;
+        width: 100%;
         border-collapse: collapse;
         margin-bottom: 0;
         table-layout: fixed;
@@ -49,10 +48,11 @@
     .facture-items td,
     .facture-items th { page-break-inside: avoid; }
     .facture-items th {
-        padding: 8px 5px;
+        padding: 8px 2px;
         text-align: left;
         font-size: 9px;
         font-weight: bold;
+        line-height: 1.15;
         text-transform: uppercase;
         border: 1px solid #e5a617;
         vertical-align: middle;
@@ -62,12 +62,35 @@
     .facture-items th.text-right, .facture-items td.text-right { text-align: right; }
     .facture-items th.text-center, .facture-items td.text-center { text-align: center; }
     .facture-items td {
-        padding: 7px 5px;
+        padding: 7px 4px;
         font-size: 10px;
         border: 1px solid #e5e7eb;
         vertical-align: top;
         overflow: hidden;
         word-wrap: break-word;
+    }
+    .facture-items td.col-designation {
+        overflow-wrap: break-word;
+    }
+    .facture-items th.col-qty,
+    .facture-items th.col-price,
+    .facture-items th.col-tax,
+    .facture-items th.col-discount,
+    .facture-items th.col-total,
+    .facture-items td.col-qty,
+    .facture-items td.col-price,
+    .facture-items td.col-tax,
+    .facture-items td.col-discount,
+    .facture-items td.col-total {
+        padding-left: 2px;
+        padding-right: 2px;
+    }
+    .facture-items td.col-qty,
+    .facture-items td.col-price,
+    .facture-items td.col-tax,
+    .facture-items td.col-discount,
+    .facture-items td.col-total {
+        white-space: nowrap;
     }
     .facture-items tr.facture-origin-group td {
         background: #f3f4f6;
