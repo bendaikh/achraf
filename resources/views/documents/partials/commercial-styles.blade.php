@@ -44,29 +44,10 @@
         margin-bottom: 0;
         table-layout: fixed;
     }
-    .facture-items.facture-items-continuation { margin-top: 0; }
-    .facture-items.facture-products-totals-keep {
-        margin: 0 0 8px 0;
-        page-break-inside: avoid;
-        break-inside: avoid;
-    }
-    .facture-items thead { background: #fdb819; color: #111; }
-    .facture-items thead.facture-items-thead-ghost {
-        background: transparent;
-    }
-    .facture-items thead.facture-items-thead-ghost th {
-        height: 0 !important;
-        max-height: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        border: none !important;
-        border-width: 0 !important;
-        font-size: 0 !important;
-        line-height: 0 !important;
-        overflow: hidden !important;
-        color: transparent !important;
-        background: transparent !important;
-    }
+    .facture-items thead { display: table-header-group; background: #fdb819; color: #111; }
+    .facture-items tr,
+    .facture-items td,
+    .facture-items th { page-break-inside: avoid; }
     .facture-items th {
         padding: 8px 5px;
         text-align: left;
@@ -96,11 +77,6 @@
         font-weight: 600;
         color: #111;
     }
-    .facture-items tr.facture-totals-embed-row > td {
-        border: none !important;
-        padding: 8px 0 0 0 !important;
-        background: transparent;
-    }
     .facture-origin-header { width: 100%; border-collapse: collapse; }
     .facture-origin-header td { border: none !important; padding: 0 !important; background: transparent !important; font-size: 10px; }
     .facture-origin-left { text-align: left; }
@@ -109,10 +85,11 @@
     .facture-totals-wrap td { vertical-align: top; padding: 0; }
     .facture-totals-spacer { width: 58%; }
     .facture-totals-cell { width: 42%; }
-    .facture-notes-box { border: 2px solid #111; border-radius: 6px; padding: 8px 10px; margin-top: 2px; }
+    .facture-totals-block { margin-top: 8px; page-break-inside: avoid; break-inside: avoid; }
+    .facture-notes-box { border: 2px solid #111; border-radius: 6px; padding: 8px 10px; margin-top: 2px; page-break-inside: avoid; break-inside: avoid; }
     .facture-notes-title { font-size: 9px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px; }
     .facture-notes-body { font-size: 10px; white-space: pre-line; color: #374151; }
-    .facture-amount-words { margin-top: 8px; margin-bottom: 8px; font-size: 10px; font-weight: 600; }
+    .facture-amount-words { margin-top: 8px; margin-bottom: 8px; font-size: 10px; font-weight: 600; page-break-inside: avoid; break-inside: avoid; }
     .facture-totals { width: 100%; border-collapse: collapse; }
     .facture-totals td { padding: 5px 10px; font-size: 11px; border-bottom: 1px solid #e5e7eb; }
     .facture-totals tr.grand td { background: #fdb819; font-weight: bold; font-size: 13px; border: none; }
@@ -161,4 +138,16 @@
     .facture-signature-box .facture-cachet-img { display: inline-block; margin: 0 auto; }
     .facture-footer-meta { font-size: 9px; color: #6b7280; margin-top: 14px; }
     .facture-accent-bar { height: 10px; margin-top: 10px; background-color: #fdb819; border-top: 10px solid #111; }
+    .facture-page-footer { margin: 0; padding: 0; }
+    @if(!empty($forPdf) && !empty($pdfFooter))
+    @page { margin: 16mm 12mm {{ $pdfFooter['reserve_mm'] }}mm 12mm; }
+    .facture-page-footer {
+        position: fixed;
+        left: 0;
+        right: 0;
+        width: 100%;
+        bottom: -{{ $pdfFooter['pull_mm'] }}mm;
+    }
+    .facture-page-footer .facture-closing-table { margin-top: 0; }
+    @endif
 </style>

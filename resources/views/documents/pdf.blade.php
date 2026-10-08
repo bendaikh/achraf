@@ -1,3 +1,7 @@
+@php
+    $forPdf = true;
+    $pdfFooter = \App\Support\CommercialPdfFooter::forSettlement($doc['settlement'] ?? null);
+@endphp
 <!DOCTYPE html>
 <html lang="fr">
 <head>

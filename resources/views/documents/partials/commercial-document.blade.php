@@ -25,7 +25,6 @@
     $settlementPayments = $settlement['payments'] ?? [];
     $hasMultiplePayments = count($settlementPayments) > 1;
 
-    // Lignes rendues à plat pour coller les 2–3 derniers produits aux totaux.
     $renderRows = [];
     foreach ($itemGroups as $originLabel => $groupItems) {
         if ($showSourceReference) {
@@ -43,26 +42,6 @@
         }
     }
 
-    $itemIndexes = [];
-    foreach ($renderRows as $index => $row) {
-        if ($row['type'] === 'item') {
-            $itemIndexes[] = $index;
-        }
-    }
-    $tailItemCount = min(3, count($itemIndexes));
-    $tailStartItemOrdinal = count($itemIndexes) - $tailItemCount;
-    $tailStartIndex = $tailItemCount > 0
-        ? $itemIndexes[$tailStartItemOrdinal]
-        : count($renderRows);
-    // Inclure un éventuel en-tête d'origine juste avant le premier article du tail.
-    if (
-        $tailStartIndex > 0
-        && ($renderRows[$tailStartIndex - 1]['type'] ?? null) === 'origin'
-    ) {
-        $tailStartIndex--;
-    }
-    $leadingRows = array_slice($renderRows, 0, $tailStartIndex);
-    $tailRows = array_slice($renderRows, $tailStartIndex);
 @endphp
 
 <div class="facture-doc">
@@ -128,84 +107,68 @@
         </div>
     </div>
 
-    @if(count($leadingRows) > 0)
-        <table class="facture-items" width="527" cellpadding="0" cellspacing="0">
-            @include('documents.partials.commercial-items-colgroup')
-            <thead>
-                @include('documents.partials.commercial-items-thead')
-            </thead>
-            <tbody>
-                @foreach($leadingRows as $row)
-                    @include('documents.partials.commercial-item-row', ['row' => $row, 'priceMode' => $priceMode])
-                @endforeach
-            </tbody>
-        </table>
-    @endif
-
-    {{-- Même table/colgroup que ci-dessus (pas d'imbrication) : alignement colonnes identique --}}
-    <table class="facture-items facture-products-totals-keep {{ count($leadingRows) > 0 ? 'facture-items-continuation' : '' }}" width="527" cellpadding="0" cellspacing="0">
+    <table class="facture-items" width="527" cellpadding="0" cellspacing="0">
         @include('documents.partials.commercial-items-colgroup')
-        <thead @if(count($leadingRows) > 0) class="facture-items-thead-ghost" @endif>
-            @include('documents.partials.commercial-items-thead', ['ghost' => count($leadingRows) > 0])
+        <thead>
+            @include('documents.partials.commercial-items-thead')
         </thead>
         <tbody>
-            @foreach($tailRows as $row)
+            @foreach($renderRows as $row)
                 @include('documents.partials.commercial-item-row', ['row' => $row, 'priceMode' => $priceMode])
             @endforeach
-            <tr class="facture-totals-embed-row">
-                <td colspan="7">
-                    <table class="facture-totals-wrap" cellpadding="0" cellspacing="0">
+        </tbody>
+    </table>
+
+    <div class="facture-totals-block">
+        <table class="facture-totals-wrap" cellpadding="0" cellspacing="0">
+            <tr>
+                <td class="facture-totals-spacer">&nbsp;</td>
+                <td class="facture-totals-cell" width="42%">
+                    <table class="facture-totals" cellpadding="0" cellspacing="0">
                         <tr>
-                            <td class="facture-totals-spacer">&nbsp;</td>
-                            <td class="facture-totals-cell" width="42%">
-                                <table class="facture-totals" cellpadding="0" cellspacing="0">
-                                    <tr>
-                                        <td>Sous-total HT</td>
-                                        <td class="text-right">{{ number_format($taxes['subtotal_ht'] ?? 0, 2) }} {{ $currencyLabel }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>TVA</td>
-                                        <td class="text-right">{{ number_format($taxes['tax_total'] ?? 0, 2) }} {{ $currencyLabel }}</td>
-                                    </tr>
-                                    @if(($taxes['document_discount'] ?? 0) > 0)
-                                        <tr>
-                                            <td>Remise</td>
-                                            <td class="text-right">-{{ number_format($taxes['document_discount'], 2) }} {{ $currencyLabel }}</td>
-                                        </tr>
+                            <td>Sous-total HT</td>
+                            <td class="text-right">{{ number_format($taxes['subtotal_ht'] ?? 0, 2) }} {{ $currencyLabel }}</td>
+                        </tr>
+                        <tr>
+                            <td>TVA</td>
+                            <td class="text-right">{{ number_format($taxes['tax_total'] ?? 0, 2) }} {{ $currencyLabel }}</td>
+                        </tr>
+                        @if(($taxes['document_discount'] ?? 0) > 0)
+                            <tr>
+                                <td>Remise</td>
+                                <td class="text-right">-{{ number_format($taxes['document_discount'], 2) }} {{ $currencyLabel }}</td>
+                            </tr>
+                        @endif
+                        <tr>
+                            <td>Sous-total TTC</td>
+                            <td class="text-right">{{ number_format($taxes['items_ttc'] ?? $taxes['total_ttc'] ?? 0, 2) }} {{ $currencyLabel }}</td>
+                        </tr>
+                        @foreach(($taxes['adjustment_lines'] ?? []) as $line)
+                            <tr>
+                                <td>
+                                    {{ $line['signed_total'] >= 0 ? '+' : '−' }} {{ $line['label'] }}
+                                    @if($line['is_taxable'])
+                                        <span style="font-size:9px;">(TVA {{ number_format($line['tax_rate'], 2) }}%)</span>
                                     @endif
-                                    <tr>
-                                        <td>Sous-total TTC</td>
-                                        <td class="text-right">{{ number_format($taxes['items_ttc'] ?? $taxes['total_ttc'] ?? 0, 2) }} {{ $currencyLabel }}</td>
-                                    </tr>
-                                    @foreach(($taxes['adjustment_lines'] ?? []) as $line)
-                                        <tr>
-                                            <td>
-                                                {{ $line['signed_total'] >= 0 ? '+' : '−' }} {{ $line['label'] }}
-                                                @if($line['is_taxable'])
-                                                    <span style="font-size:9px;">(TVA {{ number_format($line['tax_rate'], 2) }}%)</span>
-                                                @endif
-                                            </td>
-                                            <td class="text-right">{{ $line['signed_total'] >= 0 ? '+' : '-' }}{{ number_format($line['line_total'], 2) }} {{ $currencyLabel }}</td>
-                                        </tr>
-                                    @endforeach
-                                    @if(empty($taxes['adjustment_lines']) && ($taxes['adjustment'] ?? 0) != 0)
-                                        <tr>
-                                            <td>Ajustement</td>
-                                            <td class="text-right">{{ number_format($taxes['adjustment'], 2) }} {{ $currencyLabel }}</td>
-                                        </tr>
-                                    @endif
-                                    <tr class="grand">
-                                        <td>TOTAL FACTURE TTC</td>
-                                        <td class="text-right">{{ number_format($taxes['total_ttc'] ?? 0, 2) }} {{ $currencyLabel }}</td>
-                                    </tr>
-                                </table>
-                            </td>
+                                </td>
+                                <td class="text-right">{{ $line['signed_total'] >= 0 ? '+' : '-' }}{{ number_format($line['line_total'], 2) }} {{ $currencyLabel }}</td>
+                            </tr>
+                        @endforeach
+                        @if(empty($taxes['adjustment_lines']) && ($taxes['adjustment'] ?? 0) != 0)
+                            <tr>
+                                <td>Ajustement</td>
+                                <td class="text-right">{{ number_format($taxes['adjustment'], 2) }} {{ $currencyLabel }}</td>
+                            </tr>
+                        @endif
+                        <tr class="grand">
+                            <td>TOTAL FACTURE TTC</td>
+                            <td class="text-right">{{ number_format($taxes['total_ttc'] ?? 0, 2) }} {{ $currencyLabel }}</td>
                         </tr>
                     </table>
                 </td>
             </tr>
-        </tbody>
-    </table>
+        </table>
+    </div>
 
     <div class="facture-notes-box">
         <div class="facture-notes-title">Notes / Commentaires</div>
@@ -216,8 +179,9 @@
             Arrêtée à la somme de : <strong>{{ \App\Support\AmountInWords::dirhams((float) ($taxes['total_ttc'] ?? 0)) }}</strong>
         </p>
     @endif
+</div>
 
-    {{-- Seul Règlement + Cachet restent ensemble --}}
+<div class="facture-page-footer">
     <table class="facture-closing-table" cellpadding="0" cellspacing="0">
         <tr>
             <td class="facture-closing-left" width="58%">
