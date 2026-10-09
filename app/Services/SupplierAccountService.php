@@ -1126,7 +1126,7 @@ class SupplierAccountService
      */
     private function historyRow(SupplierPayment $payment): array
     {
-        $invoices = $payment->allocations->map(fn ($a) => $a->invoice?->invoice_number)
+        $invoices = $payment->allocations->toBase()->map(fn ($a) => $a->invoice?->invoice_number)
             ->merge($payment->creditNoteAllocations->map(fn ($a) => $a->invoice?->invoice_number))
             ->filter()
             ->unique()
