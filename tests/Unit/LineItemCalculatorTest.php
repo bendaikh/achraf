@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\Setting;
+use App\Models\SupplierDeliveryNote;
 use App\Support\DocumentTaxBreakdown;
 use App\Support\LineItemCalculator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -100,6 +101,31 @@ class LineItemCalculatorTest extends TestCase
         ]);
 
         $this->assertEquals(840.0, $ttc);
+    }
+
+    public function test_supplier_delivery_note_keeps_entered_ttc_instead_of_adding_tax_again(): void
+    {
+        $note = new SupplierDeliveryNote([
+            'adjustment' => 0,
+            'discount' => 0,
+        ]);
+
+        $this->assertSame('purchase', LineItemCalculator::priceModeForDocument($note));
+
+        $taxes = DocumentTaxBreakdown::fromDocument($note, collect([
+            (object) [
+                'quantity' => 1,
+                'unit_price' => 450,
+                'tax_rate' => 20,
+                'discount' => 0,
+                'discount_type' => 'fixed',
+                'line_total' => 450,
+            ],
+        ]));
+
+        $this->assertEquals(375.0, $taxes['subtotal_ht']);
+        $this->assertEquals(75.0, $taxes['tax_total']);
+        $this->assertEquals(450.0, $taxes['total_ttc']);
     }
 
     public function test_for_display_returns_ttc_unit_price_for_purchase_items(): void

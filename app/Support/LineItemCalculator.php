@@ -6,6 +6,7 @@ use App\Models\Expense;
 use App\Models\Reception;
 use App\Models\Setting;
 use App\Models\SupplierCreditNote;
+use App\Models\SupplierDeliveryNote;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierPurchaseOrder;
 
@@ -214,6 +215,7 @@ class LineItemCalculator
     {
         return match (true) {
             $document instanceof SupplierInvoice,
+            $document instanceof SupplierDeliveryNote,
             $document instanceof Reception,
             $document instanceof SupplierCreditNote,
             $document instanceof SupplierPurchaseOrder,
